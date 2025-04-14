@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
@@ -142,126 +143,167 @@ struct FlashAttentionFwd
     }
 };
 
-// TODO: fwd_api.cpp
-template <typename SaccDataType_,
-          typename SMPLComputeDataType_,
-          typename PDataType_,
-          typename OaccDataType_,
-          index_t kBlockSize_,
-          index_t kHeadDim_,
-          index_t kM0PerBlock_,
-          index_t kN0PerBlock_,
-          index_t kK0PerBlock_,
-          index_t kN1PerBlock_,
-          index_t kK1PerBlock_>
-struct flash_attention_fwd_traits_
-{
-    using SaccDataType = ck_tile::remove_cvref_t<SaccDataType_>;
-    using SMPLComputeDataType = ck_tile::remove_cvref_t<SMPLComputeDataType_>;
-    using PDataType = ck_tile::remove_cvref_t<PDataType_>;
-    using OaccDataType = ck_tile::remove_cvref_t<OaccDataType_>;
+// // TODO: fwd_api.cpp
+// template <typename SaccDataType_,
+//           typename SMPLComputeDataType_,
+//           typename PDataType_,
+//           typename OaccDataType_,
+//           index_t kBlockSize_,
+//           index_t kHeadDim_,
+//           index_t kM0PerBlock_,
+//           index_t kN0PerBlock_,
+//           index_t kK0PerBlock_,
+//           index_t kN1PerBlock_,
+//           index_t kK1PerBlock_>
+// struct flash_attention_fwd_traits_
+// {
+//     using SaccDataType = ck_tile::remove_cvref_t<SaccDataType_>;
+//     using SMPLComputeDataType = ck_tile::remove_cvref_t<SMPLComputeDataType_>;
+//     using PDataType = ck_tile::remove_cvref_t<PDataType_>;
+//     using OaccDataType = ck_tile::remove_cvref_t<OaccDataType_>;
 
-    static constexpr index_t kBlockSize  = kBlockSize_;
-    static constexpr index_t kHeadDim    = kHeadDim_;
-    static constexpr index_t kM0PerBlock = kM0PerBlock_;
-    static constexpr index_t kN0PerBlock = kN0PerBlock_;
-    static constexpr index_t kK0PerBlock = kK0PerBlock_;
-    static constexpr index_t kN1PerBlock = kN1PerBlock_;
-    static constexpr index_t kK1PerBlock = kK1PerBlock_;
+//     static constexpr index_t kBlockSize  = kBlockSize_;
+//     static constexpr index_t kHeadDim    = kHeadDim_;
+//     static constexpr index_t kM0PerBlock = kM0PerBlock_;
+//     static constexpr index_t kN0PerBlock = kN0PerBlock_;
+//     static constexpr index_t kK0PerBlock = kK0PerBlock_;
+//     static constexpr index_t kN1PerBlock = kN1PerBlock_;
+//     static constexpr index_t kK1PerBlock = kK1PerBlock_;
     
-    static constexpr ck_tile::index_t kWarpPerCu    = 8; // 2 warps per SIMD
-    static constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / warpSize;
-    static constexpr ck_tile::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
-};
+//     static constexpr ck_tile::index_t kWarpPerCu    = 8; // 2 warps per SIMD
+//     static constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / warpSize;
+//     static constexpr ck_tile::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
+// };
 
-// TODO: fwd_api.cpp, fwd_common.cpp
-template <typename SaccDataType,
-          typename SMPLComputeDataType,
-          typename PDataType,
-          typename OaccDataType,
-          index_t kBlockSize,
-          index_t kHeadDim,
-          index_t kM0PerBlock,
-          index_t kN0PerBlock,
-          index_t kK0PerBlock,
-          index_t kN1PerBlock,
-          index_t kK1PerBlock>
-using traits_ = flash_attention_fwd_traits_<SaccDataType,
-                                            SMPLComputeDataType,
-                                            PDataType,
-                                            OaccDataType,
-                                            kBlockSize,
-                                            kHeadDim,
-                                            kM0PerBlock,
-                                            kN0PerBlock,
-                                            kK0PerBlock,
-                                            kN1PerBlock,
-                                            kK1PerBlock>;
+// // TODO: fwd_api.cpp, fwd_common.cpp
+// template <typename SaccDataType,
+//           typename SMPLComputeDataType,
+//           typename PDataType,
+//           typename OaccDataType,
+//           index_t kBlockSize,
+//           index_t kHeadDim,
+//           index_t kM0PerBlock,
+//           index_t kN0PerBlock,
+//           index_t kK0PerBlock,
+//           index_t kN1PerBlock,
+//           index_t kK1PerBlock>
+// using traits_ = flash_attention_fwd_traits_<SaccDataType,
+//                                             SMPLComputeDataType,
+//                                             PDataType,
+//                                             OaccDataType,
+//                                             kBlockSize,
+//                                             kHeadDim,
+//                                             kM0PerBlock,
+//                                             kN0PerBlock,
+//                                             kK0PerBlock,
+//                                             kN1PerBlock,
+//                                             kK1PerBlock>;
+// // fw_api.cpp
+// // Note: this internal API only declare, not define here, otherwise will block `make -j`
+// template <typename QDataType,
+//           typename KDataType,
+//           typename VDataType,
+//           typename ODataType,
+//           typename Traits_>
+// float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
+//                           const ck_tile::stream_config& stream_config);
 
-// Note: this internal API only declare, not define here, otherwise will block `make -j`
-template <typename QDataType,
-          typename KDataType,
-          typename VDataType,
-          typename ODataType,
-          typename Traits_>
-float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
-                          const ck_tile::stream_config& stream_config);
-
-// TODO: fwd_common.cpp
-template <typename QDataType,
-          typename KDataType,
-          typename VDataType,
-          typename ODataType,
-          typename Traits_>
-float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
-                          const ck_tile::stream_config& stream_config) {
-    using SaccDataType        = typename Traits_::SaccDataType;                                                                           
-    using SMPLComputeDataType = typename Traits_::SMPLComputeDataType;                                                                           
-    using PDataType           = typename Traits_::PDataType;                                                                           
-    using OaccDataType        = typename Traits_::OaccDataType;                                                                           
+// // TODO: fwd_common.cpp
+// template <typename QDataType,
+//           typename KDataType,
+//           typename VDataType,
+//           typename ODataType,
+//           typename Traits_>
+// float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
+//                           const ck_tile::stream_config& stream_config) {
+//     using SaccDataType        = typename Traits_::SaccDataType;                                                                           
+//     using SMPLComputeDataType = typename Traits_::SMPLComputeDataType;                                                                           
+//     using PDataType           = typename Traits_::PDataType;                                                                           
+//     using OaccDataType        = typename Traits_::OaccDataType;                                                                           
     
-    index_t kGridSize = a.Batch * (a.M0 / Traits_::kM0PerBlock) * (a.N1 / Traits_::kN1PerBlock);
+//     index_t kGridSize = a.Batch * (a.M0 / Traits_::kM0PerBlock) * (a.N1 / Traits_::kN1PerBlock);
 
-    std::cout << "grid size " << kGridSize << std::endl;
+//     std::cout << "grid size " << kGridSize << std::endl;
 
-    return ck_tile::launch_kernel(stream_config,
-        ck_tile::make_kernel<Traits_::kBlockSize, Traits_::kBlockPerCu>(
-        ck_tile::FlashAttentionFwd<QDataType,
-                                   KDataType,
-                                   VDataType,
-                                   SaccDataType,
-                                   SMPLComputeDataType,
-                                   PDataType,
-                                   OaccDataType,
-                                   ODataType,
-                                   Traits_::kBlockSize,
-                                   Traits_::kHeadDim,
-                                   Traits_::kM0PerBlock,
-                                   Traits_::kN0PerBlock,
-                                   Traits_::kK0PerBlock,
-                                   Traits_::kN1PerBlock,
-                                   Traits_::kK1PerBlock>{},
-        kGridSize,
-        Traits_::kBlockSize,
-        0,
-        a.q_ptr,
-        a.k_ptr,
-        a.v_ptr,
-        a.o_ptr,
-        a.M0,
-        a.N0,
-        a.K0,
-        a.N1,
-        a.Batch,
-        a.strideQ,        // StrideQ
-        a.strideK,        // StrideK
-        a.strideV,        // StrideV
-        a.strideO,        // StrideO
-        a.batchStrideQ,   // BatchStrideQ
-        a.batchStrideK,   // BatchStrideK
-        a.batchStrideV,   // BatchStrideV
-        a.batchStrideO)); // BatchStrideO
-}
+//     return ck_tile::launch_kernel(stream_config,
+//         ck_tile::make_kernel<Traits_::kBlockSize, Traits_::kBlockPerCu>(
+//         ck_tile::FlashAttentionFwd<QDataType,
+//                                    KDataType,
+//                                    VDataType,
+//                                    SaccDataType,
+//                                    SMPLComputeDataType,
+//                                    PDataType,
+//                                    OaccDataType,
+//                                    ODataType,
+//                                    Traits_::kBlockSize,
+//                                    Traits_::kHeadDim,
+//                                    Traits_::kM0PerBlock,
+//                                    Traits_::kN0PerBlock,
+//                                    Traits_::kK0PerBlock,
+//                                    Traits_::kN1PerBlock,
+//                                    Traits_::kK1PerBlock>{},
+//         kGridSize,
+//         Traits_::kBlockSize,
+//         0,
+//         a.q_ptr,
+//         a.k_ptr,
+//         a.v_ptr,
+//         a.o_ptr,
+//         a.M0,
+//         a.N0,
+//         a.K0,
+//         a.N1,
+//         a.Batch,
+//         a.strideQ,        // StrideQ
+//         a.strideK,        // StrideK
+//         a.strideV,        // StrideV
+//         a.strideO,        // StrideO
+//         a.batchStrideQ,   // BatchStrideQ
+//         a.batchStrideK,   // BatchStrideK
+//         a.batchStrideV,   // BatchStrideV
+//         a.batchStrideO)); // BatchStrideO
+// }
+
+// // TODO: change to only declare
+// // TODO: fwd_api.cpp
+// template <typename QDataType,
+//           typename KDataType,
+//           typename VDataType,
+//           typename SaccDataType,
+//           typename SMPLComputeDataType,
+//           typename PDataType,
+//           typename OaccDataType,
+//           typename ODataType>
+// float flash_attention_fwd(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
+//                           const ck_tile::stream_config& stream_config) {
+//     constexpr ck_tile::index_t kM0PerBlock = 128;
+//     constexpr ck_tile::index_t kN0PerBlock = 128;
+//     constexpr ck_tile::index_t kK0PerBlock = 32;
+//     constexpr ck_tile::index_t kN1PerBlock = 128;
+//     constexpr ck_tile::index_t kK1PerBlock = 32;
+
+//     constexpr ck_tile::index_t kBlockSize = 256;
+//     constexpr ck_tile::index_t kHeadDim   = 128;
+
+//     return flash_attention_fwd_<QDataType, 
+//                                 KDataType, 
+//                                 VDataType, 
+//                                 ODataType, 
+//                                 traits_<SaccDataType, 
+//                                         SMPLComputeDataType, 
+//                                         PDataType, 
+//                                         OaccDataType,
+//                                         kBlockSize, 
+//                                         kHeadDim, 
+//                                         kM0PerBlock, 
+//                                         kN0PerBlock, 
+//                                         kK0PerBlock, 
+//                                         kN1PerBlock, 
+//                                         kK1PerBlock>>
+//             (a, stream_config);
+
+// }
+
 
 // TODO: change to only declare
 // TODO: fwd_api.cpp
@@ -274,33 +316,7 @@ template <typename QDataType,
           typename OaccDataType,
           typename ODataType>
 float flash_attention_fwd(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
-                          const ck_tile::stream_config& stream_config) {
-    constexpr ck_tile::index_t kM0PerBlock = 128;
-    constexpr ck_tile::index_t kN0PerBlock = 128;
-    constexpr ck_tile::index_t kK0PerBlock = 32;
-    constexpr ck_tile::index_t kN1PerBlock = 128;
-    constexpr ck_tile::index_t kK1PerBlock = 32;
+                          const stream_config& stream_config);
 
-    constexpr ck_tile::index_t kBlockSize = 256;
-    constexpr ck_tile::index_t kHeadDim   = 128;
-
-    return flash_attention_fwd_<QDataType, 
-                                KDataType, 
-                                VDataType, 
-                                ODataType, 
-                                traits_<SaccDataType, 
-                                        SMPLComputeDataType, 
-                                        PDataType, 
-                                        OaccDataType,
-                                        kBlockSize, 
-                                        kHeadDim, 
-                                        kM0PerBlock, 
-                                        kN0PerBlock, 
-                                        kK0PerBlock, 
-                                        kN1PerBlock, 
-                                        kK1PerBlock>>
-            (a, stream_config);
-
-}
 
 } // namespace ck_tile
