@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
     };
 
     float ave_time = ck_tile::flash_attention_fwd<QDataType, 
-                                                  QDataType, 
+                                                  KDataType, 
                                                   VDataType, 
                                                   SaccDataType, 
                                                   SMPLComputeDataType, 
