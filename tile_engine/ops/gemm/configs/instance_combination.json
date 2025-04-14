@@ -31,13 +31,13 @@
       "values": [1]
     },
     "warp_tile_m": {
-      "values": [32, 32]
+      "values": [32]
     },
     "warp_tile_n": {
-      "values": [32, 32]
+      "values": [32]
     },
     "warp_tile_k": {
-      "values": [16, 16]
+      "values": [16]
     },
     "kPadM": {
       "values": [false]
