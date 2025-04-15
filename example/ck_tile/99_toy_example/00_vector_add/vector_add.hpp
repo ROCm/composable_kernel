@@ -8,29 +8,32 @@
 
 namespace ck_tile {
 
-template <typename BlockWarps, // num warps along seq<M, N>
-          typename BlockTile,  // block size, seq<M, N>
-          typename WarpTile,   // warp size, seq<M, N>
-          typename Vector>     // contiguous pixels(vector size) along seq<M, N>
+
+// struct that holds the tile size of the block, warp, and vector
+// and the number of warps per block
+// and the number of threads per warp
+// and the number of times the warp tile is repeated in the block tile
+// and the block size
+template <typename BlockWarps, 
+          typename BlockTile,  
+          typename WarpTile,   
+          typename Vector>     
 struct MultiplyVector
 {
-    static constexpr index_t Block_M = BlockTile::at(number<0>{});
-    //static constexpr index_t Block_N = BlockTile::at(number<1>{});
+    static constexpr index_t Block_M = BlockTile::at(number<0>{}); 
 
     static constexpr index_t Warp_M = WarpTile::at(number<0>{});
-    //static constexpr index_t Warp_N = WarpTile::at(number<1>{});
 
     static constexpr index_t Vector_M = Vector::at(number<0>{});
-    //static constexpr index_t Vector_N = Vector::at(number<1>{});
 
-    static constexpr index_t WarpPerBlock_M = BlockWarps::at(number<0>{});
-    //static constexpr index_t WarpPerBlock_N = BlockWarps::at(number<1>{});
+    static constexpr index_t WarpPerBlock_M = BlockWarps::at(number<0>{}); 
+    
 
     static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
-    //static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
+    
 
-    static constexpr index_t Repeat_M = Block_M / (WarpPerBlock_M * Warp_M);
-    //static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N);
+    static constexpr index_t Repeat_M = Block_M / (WarpPerBlock_M * Warp_M); // Number of times the warp tile is repeated in the block tile
+    
 
     static constexpr index_t BlockSize =
         warpSize * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
@@ -48,6 +51,8 @@ struct MultiplyVectorProblem
     using BlockShape      = remove_cvref_t<BlockShape_>;
 };
 
+
+// data mapping beween threads and memory
 struct AddDefaultPolicy
 {
     template <typename Problem>
@@ -56,12 +61,13 @@ struct AddDefaultPolicy
         using S = typename Problem::BlockShape;
         return make_static_tile_distribution(
             tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>>,
-                tuple<sequence<1>, sequence<1>>,
-                tuple<sequence<1>, sequence<2>>,
-                sequence<1, 1>,
-                sequence<0, 3>>{});
+                sequence<>, // Replicate
+                tuple<sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>>, // Hierarchical
+                tuple<sequence<1>, sequence<1>>, // Parallel 
+                tuple<sequence<1>, sequence<2>>, // Parallel 
+                sequence<1, 1>, // Yield
+                sequence<0, 3>>{} // Yield
+            );
     }
 };
 
@@ -75,12 +81,17 @@ struct MultiplyVectorKernel
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
 
+
+    // body of the kernel
     CK_TILE_DEVICE void operator()(const XDataType* p_x_a, const XDataType* p_x_b, YDataType* p_y, index_t M) const
     {
         using S = typename Problem::BlockShape;
 
+        // create tensor view for the input and output data, this defines how the data is laid out in memory
         const auto x_m_n_a = make_naive_tensor_view<address_space_enum::global>(
-            p_x_a, make_tuple(M), make_tuple(1), number<S::Vector_M>{});
+            p_x_a, make_tuple(M), make_tuple(1), number<S::Vector_M>{}); // raw pointer, shape of the tensor, stride of the tensor, and lastGarunteedVectorLength
+        
+        // lastGarunteedVectorLength --> intuitively, this is the number of elements in the last dimension of the tensor that are guaranteed to be fetched by same thread
         
         const auto x_m_n_b = make_naive_tensor_view<address_space_enum::global>(
             p_x_b, make_tuple(M), make_tuple(1), number<S::Vector_M>{});
@@ -88,8 +99,11 @@ struct MultiplyVectorKernel
         const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
             p_y, make_tuple(M), make_tuple(1), number<S::Vector_M>{});
 
+        
+        // origin of the block tile    
         const auto iM = get_block_id() * S::Block_M;
 
+        // creating tile windows for the input and output data
         auto x_window_a = make_tile_window(x_m_n_a,
                                          make_tuple(number<S::Block_M>{}),
                                          {iM},
@@ -112,9 +126,9 @@ struct MultiplyVectorKernel
 
 
 
-        // Process the vector multiplication
+        // Process the vector add
         constexpr auto spans = decltype(xa)::get_distributed_spans(); // shape of the tile
-        sweep_tile_span(spans[number<0>{}], [&](auto idx) { // iterate over the tile // idx+=4
+        sweep_tile_span(spans[number<0>{}], [&](auto idx) { // iterate over the tile 
             const auto tile_idx = make_tuple(idx);
             const auto a_val = type_convert<ComputeDataType>(xa[tile_idx]);
             const auto b_val = type_convert<ComputeDataType>(xb[tile_idx]);
