@@ -417,7 +417,8 @@ template <address_space_enum BufferAddressSpace = address_space_enum::generic,
 CK_TILE_HOST_DEVICE constexpr auto make_tensor_view(DataType* p,
                                                     const tensor_descriptor<Ts...>& desc)
 {
-    auto buffer_view = make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
+    auto buffer_view =
+        make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
 
     return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }
@@ -443,7 +444,8 @@ make_naive_tensor_view(DataType* p,
                                              number<GuaranteedLastDimensionVectorLength>{},
                                              number<GuaranteedLastDimensionVectorStride>{});
 
-    auto buffer_view = make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
+    auto buffer_view =
+        make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
 
     return tensor_view<decltype(buffer_view), decltype(desc), DstInMemOp>{buffer_view, desc};
 }
@@ -461,7 +463,8 @@ make_naive_tensor_view_packed(DataType* p,
     auto desc =
         make_naive_tensor_descriptor_packed(lengths, number<GuaranteedLastDimensionVectorLength>{});
 
-    auto buffer_view = make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
+    auto buffer_view =
+        make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
 
     return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }

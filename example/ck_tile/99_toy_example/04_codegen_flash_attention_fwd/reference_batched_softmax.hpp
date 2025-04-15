@@ -7,7 +7,8 @@
 #include "ck_tile/host/host_tensor.hpp"
 
 template <typename ADataType, typename AccDataType, typename BDataType>
-void reference_batched_softmax(const ck_tile::HostTensor<ADataType>& a_b_m_n, ck_tile::HostTensor<BDataType>& b_b_m_n)
+void reference_batched_softmax(const ck_tile::HostTensor<ADataType>& a_b_m_n,
+                               ck_tile::HostTensor<BDataType>& b_b_m_n)
 {
     const int N = a_b_m_n.mDesc.get_lengths()[2];
 
@@ -41,7 +42,7 @@ void reference_batched_softmax(const ck_tile::HostTensor<ADataType>& a_b_m_n, ck
         }
     };
 
-    ck_tile::make_ParallelTensorFunctor(f, b_b_m_n.mDesc.get_lengths()[0], b_b_m_n.mDesc.get_lengths()[1])(
+    ck_tile::make_ParallelTensorFunctor(
+        f, b_b_m_n.mDesc.get_lengths()[0], b_b_m_n.mDesc.get_lengths()[1])(
         std::thread::hardware_concurrency());
 }
-

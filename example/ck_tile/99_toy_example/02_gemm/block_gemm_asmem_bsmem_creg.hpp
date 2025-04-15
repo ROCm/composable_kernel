@@ -20,7 +20,8 @@ struct BlockGemmASmemBSmemCReg
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    using WarpGemm = remove_cvref_t<decltype(Policy::template GetWarpGemmMWarpNWarp<Problem>().template at<0>())>;
+    using WarpGemm = remove_cvref_t<
+        decltype(Policy::template GetWarpGemmMWarpNWarp<Problem>().template at<0>())>;
 
     using AWarpDstr = typename WarpGemm::AWarpDstr;
     using BWarpDstr = typename WarpGemm::BWarpDstr;
@@ -45,9 +46,9 @@ struct BlockGemmASmemBSmemCReg
     // A block tile distribution for load from lds
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
-        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
+        constexpr auto config          = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr index_t MWarp        = config.template at<1>();
+        constexpr index_t NWarp        = config.template at<2>();
         constexpr index_t MIterPerWarp = BlockGemmShape::kM / (MWarp * WarpGemm::kM);
 
         constexpr index_t KPerBlock    = BlockGemmShape::kK;
@@ -69,9 +70,9 @@ struct BlockGemmASmemBSmemCReg
     // B block tile distribution for load from lds
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
-        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
+        constexpr auto config          = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr index_t MWarp        = config.template at<1>();
+        constexpr index_t NWarp        = config.template at<2>();
         constexpr index_t NIterPerWarp = BlockGemmShape::kN / (NWarp * WarpGemm::kN);
 
         constexpr index_t KPerBlock    = BlockGemmShape::kK;
@@ -104,7 +105,7 @@ struct BlockGemmASmemBSmemCReg
     // Prefetch from LDS to warp register
     template <typename ASmemBlockWindow, typename BSmemBlockWindow>
     CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                        const BSmemBlockWindow& b_block_window)
+                                      const BSmemBlockWindow& b_block_window)
     {
         load_tile(a_warp_tile_, a_block_window);
         load_tile(b_warp_tile_, b_block_window);
@@ -118,15 +119,17 @@ struct BlockGemmASmemBSmemCReg
                                    const BBlockWindowTmp& b_block_window_tmp) const
     {
         static_assert(std::is_same_v<ADataType, typename ABlockWindowTmp::DataType> &&
-                      std::is_same_v<BDataType, typename BBlockWindowTmp::DataType> &&
-                      std::is_same_v<CDataType, typename CBlockTensor::DataType>, "wrong!");
+                          std::is_same_v<BDataType, typename BBlockWindowTmp::DataType> &&
+                          std::is_same_v<CDataType, typename CBlockTensor::DataType>,
+                      "wrong!");
 
         constexpr index_t MPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<0>{}];
         constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
         constexpr index_t KPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<1>{}];
 
         static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
-                      KPerBlock == BlockGemmShape::kK, "wrong!");
+                          KPerBlock == BlockGemmShape::kK,
+                      "wrong!");
 
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -150,10 +153,14 @@ struct BlockGemmASmemBSmemCReg
         auto a_warp_window_tmp = make_tile_window(
             a_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<WG::kM>{}, number<WG::kK>{}),
-            {a_block_window_tmp.get_window_origin().at(number<0>{}) + iMWarp * WG::kM, a_block_window_tmp.get_window_origin().at(number<1>{})},
+            {a_block_window_tmp.get_window_origin().at(number<0>{}) + iMWarp * WG::kM,
+             a_block_window_tmp.get_window_origin().at(number<1>{})},
             make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
 
-        statically_indexed_array<statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>, MIterPerWarp> a_warp_windows;
+        statically_indexed_array<
+            statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>,
+            MIterPerWarp>
+            a_warp_windows;
 
         static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -168,10 +175,14 @@ struct BlockGemmASmemBSmemCReg
         auto b_warp_window_tmp = make_tile_window(
             b_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<WG::kN>{}, number<WG::kK>{}),
-            {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN, b_block_window_tmp.get_window_origin().at(number<1>{})},
+            {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN,
+             b_block_window_tmp.get_window_origin().at(number<1>{})},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-        statically_indexed_array<statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows;
+        statically_indexed_array<
+            statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
+            NIterPerWarp>
+            b_warp_windows;
 
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -186,7 +197,7 @@ struct BlockGemmASmemBSmemCReg
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
 #if defined(ENABLE_INSTRUCTION_SCH)
-#pragma message ("local data share prefetch")
+#pragma message("local data share prefetch")
                 // read A warp tensor from A block tensor
                 AWarpTensor a_warp_tensor;
                 a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
@@ -233,18 +244,20 @@ struct BlockGemmASmemBSmemCReg
                                    const BBlockWindowTmp& b_block_window_tmp) const
     {
         static_assert(std::is_same_v<ADataType, typename ABlockWindowTmp::DataType> &&
-                      std::is_same_v<BDataType, typename BBlockWindowTmp::DataType>, "wrong!");
+                          std::is_same_v<BDataType, typename BBlockWindowTmp::DataType>,
+                      "wrong!");
 
         constexpr index_t MPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<0>{}];
         constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
         constexpr index_t KPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<1>{}];
 
         static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
-                      KPerBlock == BlockGemmShape::kK, "wrong!");
+                          KPerBlock == BlockGemmShape::kK,
+                      "wrong!");
 
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
-        using WG = remove_cvref_t<decltype(config.template get(number<0>{}))>;  
+        using WG = remove_cvref_t<decltype(config.template get(number<0>{}))>;
 
         constexpr index_t MWarp = config.template get(number<1>{});
         constexpr index_t NWarp = config.template get(number<2>{});
@@ -264,10 +277,14 @@ struct BlockGemmASmemBSmemCReg
         auto a_warp_window_tmp = make_tile_window(
             a_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<WG::kM>{}, number<WG::kK>{}),
-            {a_block_window_tmp.get_window_origin().at(number<0>{}) + iMWarp * WG::kM, a_block_window_tmp.get_window_origin().at(number<1>{})},
+            {a_block_window_tmp.get_window_origin().at(number<0>{}) + iMWarp * WG::kM,
+             a_block_window_tmp.get_window_origin().at(number<1>{})},
             make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
 
-        statically_indexed_array<statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>, MIterPerWarp> a_warp_windows;
+        statically_indexed_array<
+            statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>,
+            MIterPerWarp>
+            a_warp_windows;
 
         static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -282,10 +299,14 @@ struct BlockGemmASmemBSmemCReg
         auto b_warp_window_tmp = make_tile_window(
             b_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<WG::kN>{}, number<WG::kK>{}),
-            {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN, b_block_window_tmp.get_window_origin().at(number<1>{})},
+            {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN,
+             b_block_window_tmp.get_window_origin().at(number<1>{})},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-        statically_indexed_array<statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows;
+        statically_indexed_array<
+            statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
+            NIterPerWarp>
+            b_warp_windows;
 
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -370,4 +391,4 @@ struct BlockGemmASmemBSmemCReg
     }
 };
 
-} // namespace ck
+} // namespace ck_tile
