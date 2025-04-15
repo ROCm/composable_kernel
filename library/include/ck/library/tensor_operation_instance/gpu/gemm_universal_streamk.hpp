@@ -635,7 +635,7 @@ void add_device_gemm_xdl_universal_streamk_bf16_bf16_bf16_km_nk_mn_mem_v2_mkpadd
                                                       PassThrough>>>& instances);
 #endif
 
-#if(defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
 void add_device_gemm_xdl_universal_streamk_f16_f8_f16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
         DeviceGemm_Streamk_V2<Row, Row, Row, F16, F8, F16, PassThrough, PassThrough, PassThrough>>>&
@@ -834,6 +834,83 @@ void add_device_gemm_xdl_universal_streamk_f8_f16_f16_mk_nk_mn_mem_v2_mnkpadding
         instances);
 #endif
 
+#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_comp_default_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_comp_kpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_comp_nkpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v1_default_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v1_kpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v1_nkpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v2_default_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v2_kpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v2_nkpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_comp_default_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_mem_v1_default_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_mem_v1_kpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_mem_v2_default_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemm_Streamk_V2<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+#endif
+
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -1027,7 +1104,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemm_S
         }
 #endif
 
-#if(defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, half_t>)
         {
@@ -1137,6 +1214,54 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemm_S
                 add_device_gemm_xdl_universal_streamk_f8_f16_f16_mk_kn_mn_mem_v2_kpadding_instances(
                     op_ptrs);
                 add_device_gemm_xdl_universal_streamk_f8_f16_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
+                    op_ptrs);
+            }
+        }
+#endif
+#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
+        if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
+                     is_same_v<CDataType, bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_comp_default_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_comp_kpadding_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_comp_nkpadding_instances(
+                    op_ptrs);
+
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v1_default_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v1_kpadding_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v1_nkpadding_instances(
+                    op_ptrs);
+
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v2_default_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v2_kpadding_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_kn_mn_mem_v2_nkpadding_instances(
+                    op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_comp_default_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(
+                    op_ptrs);
+
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_mem_v1_default_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_mem_v1_kpadding_instances(
+                    op_ptrs);
+
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_mem_v2_default_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_streamk_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_instances(
                     op_ptrs);
             }
         }

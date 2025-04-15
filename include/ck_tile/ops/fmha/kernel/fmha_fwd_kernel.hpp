@@ -983,7 +983,7 @@ struct FmhaFwdKernel
             }
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
-                batch_offset_bias = query_start * kargs.stride_bias + key_start;
+                batch_offset_bias = query_start * kargs.stride_bias;
             }
             if constexpr(kStoreLSE)
             {

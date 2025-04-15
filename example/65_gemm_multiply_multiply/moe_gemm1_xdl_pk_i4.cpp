@@ -191,14 +191,14 @@ int main(int argc, char* argv[])
     // experts = 8
     // per expert:
     // GEMM shape
-    ck::index_t N               = 14336 * 2;
-    ck::index_t K               = 4096;
+    ck::index_t N               = 4096 * 2;
+    ck::index_t K               = 6144;
     ck::index_t experts         = 8;
     ck::index_t sorted_tile_num = 16;
     ck::index_t valid_tile_num  = 13;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
-    ck::index_t tokens          = 64;
+    ck::index_t tokens          = 644;
     ck::index_t topk            = 2;
 
     if(argc == 1)
@@ -301,7 +301,7 @@ int main(int argc, char* argv[])
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k.mDesc.GetElementSpaceSize());
-    DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize());
+    DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize() / 2);
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
@@ -446,6 +446,12 @@ int main(int argc, char* argv[])
             "wrong! device_gemm with the specified compilation parameters does "
             "not support this GEMM problem");
     }
+
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    {
+        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
+    }
+
     if(time_kernel)
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});

@@ -738,6 +738,13 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+                # aiter::mha_fwd_splikv C++ api integration
+                elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= pipeline.F_vlayout == 'row'
+                    cond &= pipeline.F_squant == 'f'
+                    if not cond:
+                        continue
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
@@ -794,6 +801,11 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt) -> Lis
                 if receipt == 200:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
+                    if not cond:
+                        continue
+                # aiter::mha_fwd_splikv C++ api integration
+                elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
                     if not cond:
                         continue
                 gen.append(k)
