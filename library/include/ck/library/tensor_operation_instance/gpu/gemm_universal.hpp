@@ -66,17 +66,17 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_wmma_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                is_same_v<CLayout, Row>)
+                              is_same_v<CLayout, Row>)
             {
                 add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_default_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                is_same_v<CLayout, Row>)
+                              is_same_v<CLayout, Row>)
             {
                 add_device_gemm_wmma_universal_f16_f16_f16_km_kn_mn_comp_default_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                is_same_v<CLayout, Row>)
+                              is_same_v<CLayout, Row>)
             {
                 add_device_gemm_wmma_universal_f16_f16_f16_km_nk_mn_comp_default_instances(op_ptrs);
             }
