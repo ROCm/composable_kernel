@@ -266,6 +266,7 @@ struct FmhaFwdKernel
         const int32_t* seqstart_k_ptr;
         const int32_t* seqlen_k_ptr;
         const int32_t* page_idx;
+        int32_t page_num;
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
@@ -598,6 +599,7 @@ struct FmhaFwdKernel
                   const void* seqstart_k_ptr,
                   const void* seqlen_k_ptr,
                   const void* page_idx_ptr,
+                  ck_tile::index_t page_num,
                   ck_tile::index_t hdim_q,
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head_q,
@@ -657,7 +659,8 @@ struct FmhaFwdKernel
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr),
-                    reinterpret_cast<const int32_t*>(page_idx_ptr)};
+                    reinterpret_cast<const int32_t*>(page_idx_ptr),
+                    page_num};
 
         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
         {
@@ -724,6 +727,7 @@ struct FmhaFwdKernel
               const void* seqstart_k_ptr,
               const void* seqlen_k_ptr,
               const void* page_idx_ptr,
+              ck_tile::index_t page_num,
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -763,6 +767,7 @@ struct FmhaFwdKernel
             seqstart_k_ptr,
             seqlen_k_ptr,
             page_idx_ptr,
+            page_num,
             hdim_q,
             hdim_v,
             num_head_q,
@@ -805,6 +810,7 @@ struct FmhaFwdKernel
               const void* seqstart_k_ptr,
               const void* seqlen_k_ptr,
               const void* page_idx_ptr,
+              ck_tile::index_t page_num,
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -844,6 +850,7 @@ struct FmhaFwdKernel
             seqstart_k_ptr,
             seqlen_k_ptr,
             page_idx_ptr,
+            page_num,
             hdim_q,
             hdim_v,
             num_head_q,
@@ -966,7 +973,7 @@ struct FmhaFwdKernel
 
         long_index_t batch_offset_q       = 0;
         // long_index_t batch_offset_k       = 0;
-        long_index_t batch_offset_v       = 0;
+        // long_index_t batch_offset_v       = 0;
         long_index_t batch_offset_bias    = 0;
         long_index_t batch_offset_randval = 0;
         long_index_t batch_offset_lse     = 0;
@@ -980,16 +987,19 @@ struct FmhaFwdKernel
 
             batch_offset_q = query_start * kargs.stride_q;
             // batch_offset_k = key_start * kargs.stride_k;
-            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                batch_offset_v = key_start * kargs.stride_v;
-            }
-            else
-            {
-                batch_offset_v = key_start;
-            }
+            // if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+            // {
+            //     batch_offset_v = key_start * kargs.stride_v;
+            // }
+            // else
+            // {
+            //     batch_offset_v = key_start;
+            // }
             
             kargs.page_idx +=  key_start;
+            // if(threadIdx.x==0){
+            //     printf("\nbid %d %d page id %d pagev %d\n", blockIdx.z, i_batch, key_start, kargs.page_idx[0]);
+            // }
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = query_start * kargs.stride_bias + key_start;
@@ -1050,17 +1060,17 @@ struct FmhaFwdKernel
         const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.q_ptr) +
                                  static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q +
                                  batch_offset_q;
-        // const KDataType* k_ptr =
-        //     reinterpret_cast<const KDataType*>(kargs.k_ptr) +
-        //     static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_k +
-        //     batch_offset_k;
         const KDataType* k_ptr =
             reinterpret_cast<const KDataType*>(kargs.k_ptr) +
-            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_k;
+            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_k;// +
+            // batch_offset_k;
+        // const KDataType* k_ptr =
+        //     reinterpret_cast<const KDataType*>(kargs.k_ptr) +
+        //     static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_k;
         const VDataType* v_ptr =
             reinterpret_cast<const VDataType*>(kargs.v_ptr) +
-            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_v +
-            batch_offset_v;
+            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_v;// +
+            // batch_offset_v;
         ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) +
                            static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o +
                            batch_offset_o;
@@ -1091,7 +1101,7 @@ struct FmhaFwdKernel
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.seqlen_k, kargs.hdim_q),
+                make_tuple(kargs.page_num, kargs.hdim_q),
                 make_tuple(kargs.stride_k, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
@@ -1107,7 +1117,7 @@ struct FmhaFwdKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.seqlen_k, kargs.hdim_v),
+                    make_tuple(kargs.page_num, kargs.hdim_v),
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
@@ -1115,7 +1125,7 @@ struct FmhaFwdKernel
                 const auto v_dram_transposed =
                     transform_tensor_view(v_dram_naive,
                                           make_tuple(make_pass_through_transform(kargs.hdim_v),
-                                                     make_pass_through_transform(kargs.seqlen_k)),
+                                                     make_pass_through_transform(kargs.page_num)),
                                           make_tuple(sequence<1>{}, sequence<0>{}),
                                           make_tuple(sequence<0>{}, sequence<1>{}));
 

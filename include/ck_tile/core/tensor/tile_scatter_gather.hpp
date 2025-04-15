@@ -193,8 +193,6 @@ struct tile_scatter_gather
         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
         bottom_tensor_thread_origin_idx_tmp(HsGatherDim) = 0;
-        // BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
-        //     tuple<index_t, index_t>(0, window_adaptor_thread_coord_tmp.get_bottom_index()[1]);
         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
             bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
 
@@ -338,9 +336,8 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_m        = idx_ys_start[number<YsGatherDim>{}];
-                const auto page_offset           = page_idx_[idx_m];
-
+                constexpr auto idx_gather        = idx_ys_start[number<YsGatherDim>{}];
+                const auto page_offset           = page_idx_[idx_gather];
                 // read from bottom tensor
                 const vector_t vec_value =
                     get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
@@ -389,6 +386,96 @@ struct tile_scatter_gather
         });
     }
 
+    
+    // TODO: currently async load only implemented in inline asm
+    template <typename LdsTileWindow_,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true,
+              bool pre_nop                = false>
+    CK_TILE_DEVICE auto async_load_raw(LdsTileWindow_&& lds_tile,
+                                       number<i_access_unsupport_>          = {},
+                                       bool_constant<oob_conditional_check> = {},
+                                       bool_constant<pre_nop>               = {}) const
+    {
+        using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
+        // using LdsTensorView = typename LdsTileWindow::BottomTensorView;
+        using LdsDataType = typename LdsTileWindow::DataType;
+        // using LdsDescriptor = typename LdsTileWindow::BottomTensorDesc;
+
+        // issues * warps * lanes
+        static_assert(LdsTileWindow::get_num_of_dimension() == 3); // TODO: hard coded
+
+        const index_t size_per_buf =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<0>{}, number<0>{})) *
+            sizeof(LdsDataType);
+
+        const index_t size_per_wave =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<1>{}, number<0>{})) *
+                sizeof(LdsDataType) -
+            size_per_buf;
+
+        const index_t size_per_issue =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<1>{}, number<0>{}, number<0>{})) *
+                sizeof(LdsDataType) -
+            size_per_buf;
+
+        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
+        m0_set_with_memory(m0_init_value); // This should be wave independent
+
+        using Traits = load_store_traits;
+
+        // using vector_type_t = typename Traits::vector_type_t;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
+
+        LdsDataType* smem = lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_;
+
+        // loop over thread tensor space [y0, y1, ...]
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            /// TODO: use structure binding (to be captured later) if compiled in C++20
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess  = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+                constexpr auto pre_nop_ = [&]() {
+                    if constexpr(pre_nop && iCoord == 0 && iCoordAccess == 0)
+                        return bool_constant<true>{};
+                    else
+                        return bool_constant<false>{};
+                }();
+
+                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+                constexpr auto idx_gather        = idx_ys_start[number<YsGatherDim>{}];
+                const auto page_offset           = page_idx_[idx_gather];
+                // read from bottom tensor
+                get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
+                    smem, bottom_tensor_thread_coord, page_offset, 0, pre_nop_);
+
+                // move thread coordinate
+                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                {
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                    constexpr auto forward_step_scatter = generate_tuple(
+                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; }, number<NDimY>{});
+
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                        forward_step_scatter);
+
+                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+
+                    m0_inc_with_memory(size_per_issue);
+                }
+            });
+        });
+    }
+
     template <index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true>
     CK_TILE_DEVICE void store(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
@@ -408,20 +495,13 @@ struct tile_scatter_gather
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-            // BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
-            //     window_origin_ +
-            //     tuple<index_t, index_t>(0, window_adaptor_thread_coord.get_bottom_index()[1]);
-
-            // auto bottom_tensor_thread_coord = make_tensor_coordinate(
-            //     bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
-
             static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
                 constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_m        = idx_ys_start[number<0>{}];
-                const auto page_offset           = page_idx_[idx_m];
+                constexpr auto idx_gather        = idx_ys_start[number<0>{}];
+                const auto page_offset           = page_idx_[idx_gather];
 
                 // printf("idx_ys_start[0], idx_ys_start[1](%d, %d) \n",
                 // idx_ys_start[number<0>{}]+0, idx_ys_start[number<1>{}]+0);
@@ -497,65 +577,66 @@ struct tile_scatter_gather
         //     printf("update tid %d %d \n", threadIdx.x, page_idx_[k0]);
         // });
     }
-//     CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
-//     {
-//         window_origin_ = new_window_origin;
+    CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
+    {
+        window_origin_ = new_window_origin;
 
-// #if 0 // debug
-//       // TODO: this use more register for FA, but less register for GEMM
-//       // need investigation
-//       // only support warp-tile and block-tile
-//         static_assert(NDimP == 1 or NDimP == 2, "wrong!");
+#if 0 // debug
+      // TODO: this use more register for FA, but less register for GEMM
+      // need investigation
+      // only support warp-tile and block-tile
+        static_assert(NDimP == 1 or NDimP == 2, "wrong!");
 
-//         WindowAdaptorCoord window_adaptor_thread_coord_tmp;
+        WindowAdaptorCoord window_adaptor_thread_coord_tmp;
 
-//         if constexpr(NDimP == 1)
-//         {
-//             window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
-//                 tile_dstr_.get_ps_ys_to_xs_adaptor(), AdaptorTopIndex{get_lane_id(), 0});
-//         }
-//         else if constexpr(NDimP == 2)
-//         {
-//             window_adaptor_thread_coord_tmp =
-//                 make_tensor_adaptor_coordinate(tile_dstr_.get_ps_ys_to_xs_adaptor(),
-//                                                AdaptorTopIndex{get_warp_id(), get_lane_id(), 0});
-//         }
-// #else
-//         // TODO: this use less register for FA, but more register for GEMM
-//         // need investigation
-//         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
-//             tile_dstr_.get_ps_ys_to_xs_adaptor(),
-//             container_concat(detail::get_partition_index(tile_dstr_), array<index_t, NDimY>{0}));
-// #endif
+        if constexpr(NDimP == 1)
+        {
+            window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
+                tile_dstr_.get_ps_ys_to_xs_adaptor(), AdaptorTopIndex{get_lane_id(), 0});
+        }
+        else if constexpr(NDimP == 2)
+        {
+            window_adaptor_thread_coord_tmp =
+                make_tensor_adaptor_coordinate(tile_dstr_.get_ps_ys_to_xs_adaptor(),
+                                               AdaptorTopIndex{get_warp_id(), get_lane_id(), 0});
+        }
+#else
+        // TODO: this use less register for FA, but more register for GEMM
+        // need investigation
+        const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
+            tile_dstr_.get_ps_ys_to_xs_adaptor(),
+            container_concat(detail::get_partition_index(tile_dstr_), array<index_t, NDimY>{0}));
+#endif
 
-//         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
-//             window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
+        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
+            window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
 
-//         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
-//             bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
+        bottom_tensor_thread_origin_idx_tmp(HsGatherDim) = 0;
+        const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
+            bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
 
-//         // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
-//         // future load/store() calls (might allocate more registers)
-//         using Traits = load_store_traits;
-//         using SFC_Ys = typename Traits::SFC_Ys;
+        // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
+        // future load/store() calls (might allocate more registers)
+        using Traits = load_store_traits;
+        using SFC_Ys = typename Traits::SFC_Ys;
 
-//         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
-//             auto window_adaptor_thread_coord = window_adaptor_thread_coord_tmp;
-//             auto bottom_tensor_thread_coord  = bottom_tensor_thread_coord_tmp;
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = window_adaptor_thread_coord_tmp;
+            auto bottom_tensor_thread_coord  = bottom_tensor_thread_coord_tmp;
 
-//             constexpr auto idx_diff_ys =
-//                 SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
+            constexpr auto idx_diff_ys =
+                SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
 
-//             constexpr auto idx_diff_ps_ys = container_concat(
-//                 generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}), idx_diff_ys);
+            constexpr auto idx_diff_ps_ys = container_concat(
+                generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}), idx_diff_ys);
 
-//             move_window_adaptor_and_bottom_tensor_thread_coordinate(
-//                 window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+            move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
-//             pre_computed_coords_(iCoord) =
-//                 make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
-//         });
-//     }
+            pre_computed_coords_(iCoord) =
+                make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
+        });
+    }
 
     CK_TILE_HOST_DEVICE void init_raw() { bottom_tensor_view_.init_raw(); }
 

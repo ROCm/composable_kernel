@@ -401,7 +401,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                    cache_seqlen_ks.begin(),
                    [&](auto seqlen_k) { return seqlen_k - seqlen_knew; });
 
-#if 0
+#if 1
     // clang-format off
     std::cout << "seqlen_qs:"; for(auto xx : seqlen_qs) { std::cout << xx << ","; } std::cout << std::endl;
     std::cout << "seqlen_ks:"; for(auto xx : seqlen_ks) { std::cout << xx << ","; } std::cout << std::endl;
@@ -481,12 +481,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto seqstart_k_host              = to_seqstarts(seqlen_ks);
     const auto seqstart_k_with_padding_host = to_seqstarts(seqlen_kpads);
     // std::vector<int32_t> page_idx_host(seqstart_k_host.back(), 0);
-    ck_tile::HostTensor<int32_t> page_idx_host({seqstart_k_host.back()});
-    // std::iota(page_idx_host.begin(), page_idx_host.end(), 0);
-    iota_shuffle(page_idx_host.mData.begin(), page_idx_host.mData.end(), 0);
-    // for (int i = 0; i < page_idx_host.get_element_space_size(); i++) {
-    //     page_idx_host(i) = (i + 19) %  page_idx_host.size();
-    // }
+    ck_tile::HostTensor<int32_t> page_idx_host({seqstart_k_host.back() + 65536});
+    std::iota(page_idx_host.begin(), page_idx_host.end(), 0);
+    iota_shuffle(page_idx_host.mData.begin(), page_idx_host.mData.end() - 65536, 0);
     page_idx_host.savetxt("page_idx_host.txt", "int");
 
     using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
@@ -795,6 +792,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem cache_batch_idx_buf(cache_batch_idx_host.get_element_space_size_in_bytes());
 
     q_buf.ToDevice(q_host.data());
+    // k_buf.ToDevice(k_host.data());
     k_buf.ToDevice(k_host_sgl.data());
     knew_buf.ToDevice(knew_host.data());
     v_buf.ToDevice(v_host_sgl.data());
@@ -1022,6 +1020,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 (mode == mode_enum::group ? seqstart_k.GetDeviceBuffer() : nullptr);
             args.page_idx_ptr =
                 (mode == mode_enum::group ? page_idx.GetDeviceBuffer() : nullptr);
+            args.page_num = 
+                (mode == mode_enum::group ? shape_seqlen_k : 0);
             args.seqlen_k_ptr = ((mode == mode_enum::batch && use_kvcache) || 0 <= k_paddings_[0]
                                      ? seqlen_k_buf.GetDeviceBuffer()
                                      : nullptr);

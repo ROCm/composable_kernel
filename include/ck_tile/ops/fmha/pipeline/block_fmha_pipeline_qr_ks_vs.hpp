@@ -10,7 +10,6 @@
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/tensor/tile_scatter_gather.hpp"
-// #include "ck_tile/core/tensor/tile_scatter_gather_debug.hpp"
 
 namespace ck_tile {
 
@@ -315,6 +314,11 @@ struct BlockFmhaPipelineQRKSVS
                 k_dram_block_window.get_window_origin(),
                 k_dist,
                 k_offsets); // K DRAM tile window for
+            // auto k_dram_window = make_tile_window_debug(
+            //     k_dram_block_window.get_bottom_tensor_view(),
+            //     k_dram_block_window.get_window_lengths(),
+            //     k_dram_block_window.get_window_origin(),
+            //     k_dist); // K DRAM tile window for
 
             auto k_block_tile = load_tile(k_dram_window);
             {
