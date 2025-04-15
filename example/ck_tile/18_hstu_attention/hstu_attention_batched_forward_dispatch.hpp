@@ -32,7 +32,7 @@ template <typename InOutDataType,
 struct batched_forward_causal_local_bias_dropout_dispatch
 {
     using HstuAttentionShape = typename HstuAttentionFwdShape<MaxK>::Type;
-    using HstuMask           = ck_tile::HstuBlockMasking<kUseCausal, kUseLocal>;
+    using HstuMask           = typename ck_tile::HstuBlockMasking<kUseCausal, kUseLocal>::Type;
 
     template <typename HstuTraits>
     using HstuPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
