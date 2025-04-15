@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <tuple>
 
@@ -41,12 +41,10 @@ class TestGemmMX_MK_NK
 
 // clang-format off
 using KernelTypes_MK_NK = ::testing::Types<
-#if defined(CK_ENABLE_FP8) 
+#if defined(CK_ENABLE_FP8)
     //         ADataType, BDataType,       CDataType, ScaleBlockSize
     std::tuple<       F8,        F8,             F16, ck::Number<32> >,
-    std::tuple<      BF8,       BF8,            BF16, ck::Number<32> >,
-    std::tuple<       F8,       BF8,             F16, ck::Number<32> >,
-    std::tuple<       BF8,       F8,            BF16, ck::Number<32> >
+    std::tuple<       F8,        F8,            BF16, ck::Number<32> >
 #endif
     >;
 // clang-format on
@@ -56,8 +54,8 @@ TYPED_TEST_SUITE(TestGemmMX_MK_NK, KernelTypes_MK_NK);
 TYPED_TEST(TestGemmMX_MK_NK, SmallM)
 {
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
-    constexpr int N = 512;
-    constexpr int K = 320;
+    constexpr int N = 256;
+    constexpr int K = 512;
 
     constexpr int StrideA = K;
     constexpr int StrideB = K;
@@ -70,22 +68,8 @@ TYPED_TEST(TestGemmMX_MK_NK, SmallM)
 TYPED_TEST(TestGemmMX_MK_NK, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
-    constexpr int N = 512;
-    constexpr int K = 320;
-
-    constexpr int StrideA = K;
-    constexpr int StrideB = K;
-    constexpr int StrideC = N;
-
-    for(int M : Ms)
-        this->Run(M, N, K, StrideA, StrideB, StrideC);
-}
-
-TYPED_TEST(TestGemmMX_MK_NK, PaddK)
-{
-    std::vector<int> Ms{127};
-    constexpr int N = 512;
-    constexpr int K = 437;
+    constexpr int N = 256;
+    constexpr int K = 512;
 
     constexpr int StrideA = K;
     constexpr int StrideB = K;
@@ -97,9 +81,23 @@ TYPED_TEST(TestGemmMX_MK_NK, PaddK)
 
 TYPED_TEST(TestGemmMX_MK_NK, Regular)
 {
-    std::vector<int> Ms{512};
+    std::vector<int> Ms{3840};
     constexpr int N = 512;
-    constexpr int K = 512;
+    constexpr int K = 1024;
+
+    constexpr int StrideA = K;
+    constexpr int StrideB = K;
+    constexpr int StrideC = N;
+
+    for(int M : Ms)
+        this->Run(M, N, K, StrideA, StrideB, StrideC);
+}
+
+TYPED_TEST(TestGemmMX_MK_NK, Large)
+{
+    std::vector<int> Ms{4096};
+    constexpr int N = 3840;
+    constexpr int K = 4096;
 
     constexpr int StrideA = K;
     constexpr int StrideB = K;

@@ -152,7 +152,7 @@ bool profile_gemm_mx_impl(int do_verification,
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
         a_m_k_scale.GenerateTensorValue(
-            GeneratorTensor_3<ScaleDataType>{powf(2.0f, -125.0f), 1.0f});
+            GeneratorTensor_3<ScaleDataType>{powf(2.0f, -125.0f), 1.0f}); // R[2^-125, 1]
 
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
         b_k_n_scale.GenerateTensorValue(
@@ -186,16 +186,6 @@ bool profile_gemm_mx_impl(int do_verification,
 
     if(do_log > 0)
         std::cout << "Done." << std::endl;
-
-    // using DeviceOp = ck::tensor_operation::device::DeviceGemmV2<ALayout,
-    //                                                             BLayout,
-    //                                                             CLayout,
-    //                                                             ADataType,
-    //                                                             BDataType,
-    //                                                             CDataType,
-    //                                                             AElementOp,
-    //                                                             BElementOp,
-    //                                                             CElementOp>;
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmMX<ALayout,
                                                                 BLayout,
@@ -235,8 +225,14 @@ bool profile_gemm_mx_impl(int do_verification,
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
-        auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+        auto ref_argument = ref_gemm.MakeArgument(a_m_k,
+                                                  a_m_k_scale,
+                                                  b_k_n,
+                                                  b_k_n_scale,
+                                                  c_m_n_host_result,
+                                                  a_element_op,
+                                                  b_element_op,
+                                                  c_element_op);
 
         ref_invoker.Run(ref_argument);
     }
@@ -296,19 +292,40 @@ bool profile_gemm_mx_impl(int do_verification,
                 {
                     c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-                    pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
-
                     if(do_log)
                     {
-                        LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                        LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-                        LogRangeAsType<float>(
-                            std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                            << std::endl;
-                        LogRangeAsType<float>(
-                            std::cout << "c_device: ", c_m_n_device_result.mData, ",")
-                            << std::endl;
+
+                        if(init_method == 0)
+                        {
+                            auto expected = static_cast<float>(K);
+                            auto computed = type_convert<float>(c_m_n_device_result(0, 12));
+
+                            pass = pass & (std::abs(expected - computed) <= 0.0f);
+                            std::cout << "\nExpected vs Computed: " << expected << " vs "
+                                      << computed << ((pass) ? " (PASSED!)" : " (FAILED!)")
+                                      << std::endl
+                                      << std::endl;
+                        }
+                        else
+                        {
+                            LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(std::cout << "a_scale : ", a_m_k_scale.mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(std::cout << "b_scale: ", b_k_n_scale.mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(
+                                std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                                << std::endl;
+                            LogRangeAsType<float>(
+                                std::cout << "c_device: ", c_m_n_device_result.mData, ",")
+                                << std::endl;
+                        }
                     }
+
+                    pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
                 }
 
                 std::string op_name                    = op_ptr->GetTypeString();
@@ -323,18 +340,15 @@ bool profile_gemm_mx_impl(int do_verification,
                                                                rotating_count > 1,
                                                                rotating_count});
 
-                std::size_t flop = std::size_t(2) * M * N * K;
+                // Output size(M*N) * [dot product(2K) + product of scales(K/ScaleBlockSize) +
+                // scaling of partial sums(K/ScaleBlockSize)]
+                // FLOPS = 2 * M * N * K + 2 * M * N * K / ScaleBlockSize
+                std::size_t flop =
+                    std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / ScaleBlockSize;
 
-                static constexpr index_t BPackedSize = []() {
-                    if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-                        return 2;
-                    else
-                        return 1;
-                }();
-
-                std::size_t num_btype = sizeof(ADataType) * M * K +
-                                        sizeof(BDataType) * K * N / BPackedSize +
-                                        sizeof(CDataType) * M * N;
+                std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                                        sizeof(CDataType) * M * N +
+                                        sizeof(ScaleDataType) * (M * K + K * N) / ScaleBlockSize;
 
                 float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

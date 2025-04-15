@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,34 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
+
+void add_device_gemm_mx_xdl_f8_f8_f16_mk_nk_mn_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmMX<Row,
+                                             Col,
+                                             Row,
+                                             F8,
+                                             e8m0_bexp_t,
+                                             F8,
+                                             e8m0_bexp_t,
+                                             F16,
+                                             32,
+                                             PassThrough,
+                                             PassThrough,
+                                             PassThrough>>>& instances);
+
+void add_device_gemm_mx_xdl_f8_f8_bf16_mk_nk_mn_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmMX<Row,
+                                             Col,
+                                             Row,
+                                             F8,
+                                             e8m0_bexp_t,
+                                             F8,
+                                             e8m0_bexp_t,
+                                             BF16,
+                                             32,
+                                             PassThrough,
+                                             PassThrough,
+                                             PassThrough>>>& instances);
 
 template <typename ADataType,
           typename AScaleDataType,
@@ -57,7 +85,22 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-        // TODO: Add instances for all the combinations of ADataType, BDataType, CDataType, etc.
+        if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> && is_same_v<CLayout, Row>)
+        {
+            if constexpr(is_same_v<ADataType, F8> && is_same_v<BDataType, F8> &&
+                         is_same_v<CDataType, F16>)
+            {
+
+                add_device_gemm_mx_xdl_f8_f8_f16_mk_nk_mn_default_instances(op_ptrs);
+            }
+            if constexpr(is_same_v<ADataType, F8> && is_same_v<BDataType, F8> &&
+                         is_same_v<CDataType, BF16>)
+            {
+
+                add_device_gemm_mx_xdl_f8_f8_bf16_mk_nk_mn_default_instances(op_ptrs);
+            }
+        }
+
         return op_ptrs;
     }
 };
