@@ -33,8 +33,8 @@ template <typename InOutDataType,
           bool kUseLocal>
 struct reference_hstu_attention
 {
-    using HstuMask                 = HstuBlockMasking<kUseCausal, kUseLocal>;
-    static constexpr bool kHasMask = kUseCausal || kUseLocal;
+    using HstuMask                      = typename HstuBlockMasking<kUseCausal, kUseLocal>::Type;
+    static constexpr bool kHasLocalMask = HstuMask::kUseLocal;
 
     static void Run(const HostTensor<InOutDataType>& q_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& k_batch_seq_nhead_hdim,
@@ -90,11 +90,9 @@ struct reference_hstu_attention
         assert(num_tagets.empty() || num_targets.size() == num_batch);
 
         auto silu = [](CompDataType x) {
-            auto one = ck_tile::type_convert<CompDataType>(1.0f);
+            const auto one = ck_tile::type_convert<CompDataType>(1.0f);
 
-            auto sigmod_val = one / (one + std::exp(-x));
-
-            return sigmod_val * x;
+            return x / (one + std::exp(-x));
         };
 
         auto f = [&](auto i_batch, auto i_head) {
@@ -104,11 +102,12 @@ struct reference_hstu_attention
             int num_target = num_targets.empty() ? 0 : num_targets[i_batch];
 
             HstuMask mask = [&]() {
-                if constexpr(kHasMask)
-                    return HstuMask{
-                        seqlen, contextual_seqlen, num_target, max_attn_len, min_full_attn_seqlen};
+                if constexpr(kHasLocalMask)
+                    return ck_tile::make_hstu_block_mask_with_local<HstuMask>(
+                        seqlen, contextual_seqlen, num_target, max_attn_len, min_full_attn_seqlen);
                 else
-                    return HstuMask{seqlen, contextual_seqlen, num_target};
+                    return ck_tile::make_hstu_block_mask_without_local<HstuMask>(
+                        seqlen, contextual_seqlen, num_target);
             }();
 
             // for all rows in the batch

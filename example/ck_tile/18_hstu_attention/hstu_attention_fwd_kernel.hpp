@@ -11,6 +11,8 @@
 #include <utility>
 #include <variant>
 
+#include "hstu_block_masking.hpp"
+
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
 // S''[seqlen_q, seqlen_k] = S'[seqlen_q, seqlen_k] + Bias[seqlen_q, seqlen_k]
@@ -44,7 +46,7 @@ struct HstuAttentionFwdKernel
     static constexpr auto kHasBias      = HstuAttentionPipeline::kHasBias;
     static constexpr bool kHasDropout   = HstuAttentionPipeline::kHasDropout;
     using HstuMask = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::HstuMask>;
-    static constexpr bool kHasMask = HstuMask::IsMasking;
+    static constexpr bool kHasLocalMask = HstuMask::kUseLocal;
 
     template <ck_tile::index_t I> // to avoid duplicated base class problem, introduce an template
                                   // arg
@@ -124,15 +126,16 @@ struct HstuAttentionFwdKernel
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
     };
 
-    struct HstuAttentionFwdBatchModeKargs
-        : HstuAttentionFwdCommonKargs,
-          std::conditional_t<kHasBias,
-                             HstuAttentionFwdBatchModeBiasKargs,
-                             HstuAttentionFwdEmptyKargs<0>>,
-          std::conditional_t<kHasMask, HstuAttentionFwdMaskKargs, HstuAttentionFwdEmptyKargs<1>>,
-          std::conditional_t<kHasDropout,
-                             HstuAttentionFwdCommonDropoutKargs,
-                             HstuAttentionFwdEmptyKargs<2>>
+    struct HstuAttentionFwdBatchModeKargs : HstuAttentionFwdCommonKargs,
+                                            std::conditional_t<kHasBias,
+                                                               HstuAttentionFwdBatchModeBiasKargs,
+                                                               HstuAttentionFwdEmptyKargs<0>>,
+                                            std::conditional_t<kHasLocalMask,
+                                                               HstuAttentionFwdMaskKargs,
+                                                               HstuAttentionFwdEmptyKargs<1>>,
+                                            std::conditional_t<kHasDropout,
+                                                               HstuAttentionFwdCommonDropoutKargs,
+                                                               HstuAttentionFwdEmptyKargs<2>>
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
@@ -140,15 +143,16 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t batch_stride_o;
     };
 
-    struct HstuAttentionFwdJaggModeKargs
-        : HstuAttentionFwdCommonKargs,
-          std::conditional_t<kHasBias,
-                             HstuAttentionFwdCommonBiasKargs,
-                             HstuAttentionFwdEmptyKargs<0>>,
-          std::conditional_t<kHasMask, HstuAttentionFwdMaskKargs, HstuAttentionFwdEmptyKargs<1>>,
-          std::conditional_t<kHasDropout,
-                             HstuAttentionFwdCommonDropoutKargs,
-                             HstuAttentionFwdEmptyKargs<2>>
+    struct HstuAttentionFwdJaggModeKargs : HstuAttentionFwdCommonKargs,
+                                           std::conditional_t<kHasBias,
+                                                              HstuAttentionFwdCommonBiasKargs,
+                                                              HstuAttentionFwdEmptyKargs<0>>,
+                                           std::conditional_t<kHasLocalMask,
+                                                              HstuAttentionFwdMaskKargs,
+                                                              HstuAttentionFwdEmptyKargs<1>>,
+                                           std::conditional_t<kHasDropout,
+                                                              HstuAttentionFwdCommonDropoutKargs,
+                                                              HstuAttentionFwdEmptyKargs<2>>
     {
         const int32_t* seq_offsets_ptr;
     };
@@ -224,7 +228,7 @@ struct HstuAttentionFwdKernel
             kargs.nhead_stride_bias = nhead_stride_bias;
             kargs.batch_stride_bias = batch_stride_bias;
         }
-        if constexpr(kHasMask)
+        if constexpr(kHasLocalMask)
         {
             kargs.window_size          = window_size;
             kargs.min_full_attn_seqlen = min_full_attn_seqlen;
@@ -366,7 +370,7 @@ struct HstuAttentionFwdKernel
             kargs.seq_stride_bias   = seq_stride_bias;
             kargs.nhead_stride_bias = nhead_stride_bias;
         }
-        if constexpr(kHasMask)
+        if constexpr(kHasLocalMask)
         {
             kargs.window_size          = window_size;
             kargs.min_full_attn_seqlen = min_full_attn_seqlen;
@@ -542,14 +546,15 @@ struct HstuAttentionFwdKernel
         int num_target = (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
 
         HstuMask mask = [&]() {
-            if constexpr(kHasMask)
-                return HstuMask{kargs.seqlen,
-                                kargs.contextual_seqlen,
-                                num_target,
-                                kargs.window_size,
-                                kargs.min_full_attn_seqlen};
+            if constexpr(kHasLocalMask)
+                return make_hstu_block_mask_with_local<HstuMask>(kargs.seqlen,
+                                                                 kargs.contextual_seqlen,
+                                                                 num_target,
+                                                                 kargs.window_size,
+                                                                 kargs.min_full_attn_seqlen);
             else
-                return HstuMask{kargs.seqlen, kargs.contextual_seqlen, num_target};
+                return make_hstu_block_mask_without_local<HstuMask>(
+                    kargs.seqlen, kargs.contextual_seqlen, num_target);
         }();
 
         // for simplicity, batch stride we just modify the pointer
