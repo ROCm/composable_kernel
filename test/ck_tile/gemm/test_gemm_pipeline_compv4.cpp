@@ -9,7 +9,7 @@ class TestCkTileGemmPipelineCompV4 : public TestCkTileGemmPipeline<T>
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineCompV4
 
-TYPED_TEST_SUITE(TestCkTileGemmPipelineCompV4, KernelTypesMem);
+TYPED_TEST_SUITE(TestCkTileGemmPipelineCompV4, KernelTypesCompV4);
 
 #include "test_gemm_pipeline_ut_cases.inc"
 
