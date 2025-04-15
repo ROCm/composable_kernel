@@ -299,7 +299,7 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_instances(
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdh_f16_comp_2x_instances(
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_2x_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NGCDHW,
                                                                 GKCZYX,
@@ -313,7 +313,7 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdh_f16_comp_2x_instances
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdh_f16_comp_part2_instances(
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_part2_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NGCDHW,
                                                                 GKCZYX,
