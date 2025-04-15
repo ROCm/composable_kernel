@@ -304,20 +304,27 @@ struct tile_scatter_gather
 
     CK_TILE_DEVICE constexpr auto get_num_of_access() const { return load_store_traits::NumAccess; }
 
-    template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
-    CK_TILE_DEVICE auto load(number<i_access_unsupport_>          = {},
+    template <index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true,
+              bool is_tail_block          = false>
+    CK_TILE_DEVICE auto load(index_t tail_page_begin              = 0,
+                             index_t tail_page_end                = 0,
+                             number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
         constexpr auto tile_dstr = TileDstr{};
         auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
-        load(dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
+        load(dst_tensor, tail_page_begin, tail_page_end, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
         return dst_tensor;
     }
 
     template <typename DistributedTensor,
               index_t i_access_unsupport_ = -1,
-              bool oob_conditional_check  = true>
+              bool oob_conditional_check  = true,
+              bool is_tail_block          = false>
     CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
+                             index_t tail_page_begin              = 0,
+                             index_t tail_page_end                = 0,
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
@@ -342,9 +349,20 @@ struct tile_scatter_gather
                 const auto page_offset           = page_idx_[idx_m];
 
                 // read from bottom tensor
-                const vector_t vec_value =
-                    get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                const vector_t vec_value = [&]{
+                    if constexpr (is_tail_block)
+                    {
+                        if (tail_page_end > tail_page_begin &&
+                            page_offset >= tail_page_begin &&
+                            page_offset < tail_page_end)
+                            return vector_t(0);
+                    }
+                    return get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
                         bottom_tensor_thread_coord, page_offset, bool_constant<oob_conditional_check>{});
+                }();
+                // const vector_t vec_value =
+                //     get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                //         bottom_tensor_thread_coord, page_offset, bool_constant<oob_conditional_check>{});
 #if 1
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
