@@ -116,7 +116,8 @@ struct BlockGemmARegBSmemCRegV1
         static_assert(
             std::is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
                            remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
-                           .get_static_tile_distribution_encoding())>>, "wrong!");
+                                                       .get_static_tile_distribution_encoding())>>,
+            "wrong!");
 
         using AWarpDstr = typename WG::AWarpDstr;
         using CWarpDstr = typename WG::CWarpDstr;

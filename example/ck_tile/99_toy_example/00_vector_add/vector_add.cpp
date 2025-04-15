@@ -1,14 +1,11 @@
 #include "ck_tile/host.hpp"
-#include "reference_vector_add.hpp" 
+#include "reference_vector_add.hpp"
 #include "vector_add.hpp"
 #include <cstring>
 
-
-// This example demonstrates how to use the ck_tile library to perform an elementwise vector addition
-// using a custom kernel. The kernel is defined in the vector_add.hpp file, and the reference implementation
-// is provided in the reference_vector_add.hpp file.
-
-
+// This example demonstrates how to use the ck_tile library to perform an elementwise vector
+// addition using a custom kernel. The kernel is defined in the vector_add.hpp file, and the
+// reference implementation is provided in the reference_vector_add.hpp file.
 
 // parse command line arguments
 // -m: size of the vectors
@@ -33,7 +30,7 @@ template <typename DataType>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     using XDataType       = DataType; // input data type
-    using ComputeDataType = float; // compute data type
+    using ComputeDataType = float;    // compute data type
     using YDataType       = DataType; // output data type
 
     ck_tile::index_t m = arg_parser.get_int("m"); // size of the vectors
@@ -41,66 +38,77 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int warmup         = arg_parser.get_int("warmup");
     int repeat         = arg_parser.get_int("repeat");
 
-    ck_tile::HostTensor<XDataType> x_host_a({m}); // length input vector A, if given two arguments m, n the HostTensor will be created with shape (m, n)
-    ck_tile::HostTensor<XDataType> x_host_b({m}); // length input vector B, if given two arguments m, n the HostTensor will be created with shape (m, n)
+    ck_tile::HostTensor<XDataType> x_host_a(
+        {m}); // length input vector A, if given two arguments m, n the HostTensor will be created
+              // with shape (m, n)
+    ck_tile::HostTensor<XDataType> x_host_b(
+        {m}); // length input vector B, if given two arguments m, n the HostTensor will be created
+              // with shape (m, n)
 
     ck_tile::HostTensor<YDataType> y_host_ref({m});
     ck_tile::HostTensor<YDataType> y_host_dev({m});
 
-    ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host_a); // fill the input vector A with random values
-    ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host_b); 
+    ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(
+        x_host_a); // fill the input vector A with random values
+    ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host_b);
 
-    ck_tile::DeviceMem x_buf_a(x_host_a.get_element_space_size_in_bytes()); // allocate device memory for input vector A (this a wrapper over hipMalloc)
+    ck_tile::DeviceMem x_buf_a(
+        x_host_a.get_element_space_size_in_bytes()); // allocate device memory for input vector A
+                                                     // (this a wrapper over hipMalloc)
     ck_tile::DeviceMem x_buf_b(x_host_b.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
 
-    x_buf_a.ToDevice(x_host_a.data()); // copy the input vector A to device memory, this is a wrapper over hipMemcpy
+    x_buf_a.ToDevice(
+        x_host_a
+            .data()); // copy the input vector A to device memory, this is a wrapper over hipMemcpy
     x_buf_b.ToDevice(x_host_b.data());
-
 
     // Dividing the problem into blocktile, warptile, and vector
     // The blocktile is the size of the tile that will be processed by a single block
     // The warptile is the size of the tile that will be processed by a single warp
     // The vector is the size of the tile that will be processed by a single thread
-    // The problem is divided into blocks of size BlockTile, each block is further divided into warps of size WarpTile
-    // and each warp is further divided into threads of size Vector
-    using BlockTile  = ck_tile::sequence<8192>; // Size of the block tile (Entire problem is divided into blocks of this size) 
-    using BlockWarps = ck_tile::sequence<8>; // How many concurrent warps are in a block (Each warp will cover some part of blockTile)
-    using WarpTile   = ck_tile::sequence<64>; // How many elements are covered by a warp
-    using Vector    = ck_tile::sequence<1>; // How many elements are covered by a thread (Each thread will cover some part of WarpTile)
+    // The problem is divided into blocks of size BlockTile, each block is further divided into
+    // warps of size WarpTile and each warp is further divided into threads of size Vector
+    using BlockTile = ck_tile::sequence<8192>; // Size of the block tile (Entire problem is divided
+                                               // into blocks of this size)
+    using BlockWarps = ck_tile::sequence<8>; // How many concurrent warps are in a block (Each warp
+                                             // will cover some part of blockTile)
+    using WarpTile = ck_tile::sequence<64>;  // How many elements are covered by a warp
+    using Vector   = ck_tile::sequence<1>; // How many elements are covered by a thread (Each thread
+                                           // will cover some part of WarpTile)
 
     // Interpretation of above configurations
     // Each thread will cover 1 element (Vector)
     // Each WarpTile will cover 64 elements (WarpTile) --> since 64 threads in a warp
     // if we have 8 warps in a block (BlockWarps) then we have 8 * 64 = 512 threads in a block
-    // if 8 warps are not enough to cover the entire blockTile then each of the 8 concurrent warps will iterate over the blockTile several times
-    
+    // if 8 warps are not enough to cover the entire blockTile then each of the 8 concurrent warps
+    // will iterate over the blockTile several times
+
     constexpr ck_tile::index_t kBlockSize  = 512;
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
-
-    ck_tile::index_t kGridSize             = (m / BlockTile::at(ck_tile::number<0>{}));
+    ck_tile::index_t kGridSize = (m / BlockTile::at(ck_tile::number<0>{}));
     std::cout << "block x-size = " << BlockTile::at(ck_tile::number<0>{}) << std::endl;
     std::cout << "grid size " << kGridSize << std::endl;
-
-    
 
     using Shape = ck_tile::MultiplyVector<BlockWarps, BlockTile, WarpTile, Vector>;
     std::cout << "Problem Shape:: M = " << m << std::endl;
     std::cout << "BlockTile: " << BlockTile::at(ck_tile::number<0>{}) << std::endl;
-    std::cout << "Number of Blocks in Grid: " << m / BlockTile::at(ck_tile::number<0>{}) << std::endl;
+    std::cout << "Number of Blocks in Grid: " << m / BlockTile::at(ck_tile::number<0>{})
+              << std::endl;
     std::cout << "BlockWarps: " << BlockWarps::at(ck_tile::number<0>{}) << std::endl;
     std::cout << "WarpTile: " << WarpTile::at(ck_tile::number<0>{}) << std::endl;
     std::cout << "Vector: " << Vector::at(ck_tile::number<0>{}) << std::endl;
-    std::cout << "Repeat: " << Shape::Repeat_M << std::endl; // number of times a warp will iterate over the blockTile, covering different parts of the blockTile
+    std::cout << "Repeat: " << Shape::Repeat_M
+              << std::endl; // number of times a warp will iterate over the blockTile, covering
+                            // different parts of the blockTile
     std::cout << "Threads per Block: " << kBlockSize << std::endl;
     std::cout << "ThreadBlocks per CU: " << kBlockPerCu << std::endl;
-    
+
     // What is a Problem in CKTile?
     // A Problem defines the shape of the data, the precision of the data
-    using Problem =
-        ck_tile::MultiplyVectorProblem<XDataType, ComputeDataType, YDataType, Shape>;
-    
+    using Problem = ck_tile::MultiplyVectorProblem<XDataType, ComputeDataType, YDataType, Shape>;
+
     // What is a Policy in CKTile?
     // A Policy defines how to map the data between threads and data in memory
 
@@ -109,16 +117,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Kernel = ck_tile::MultiplyVectorKernel<Problem>;
 
     // The kernel is launched with the following parameters:
-    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat}, // wrapper over hipStreamCreate
-                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>( // numOfThreadsPerBlock, numOfBlocksPerCU
-                                       Kernel{}, // kernel
-                                       kGridSize, // number of blocks in the grid
-                                       kBlockSize,  // number of threads in a block
-                                       0, // shared memory size
-                                       static_cast<XDataType*>(x_buf_a.GetDeviceBuffer()), // input vector A
-                                       static_cast<XDataType*>(x_buf_b.GetDeviceBuffer()), // input vector B 
-                                       static_cast<YDataType*>(y_buf.GetDeviceBuffer()), // output vector
-                                       m)); 
+    float ave_time = launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, warmup, repeat}, // wrapper over hipStreamCreate
+        ck_tile::make_kernel<kBlockSize, kBlockPerCu>( // numOfThreadsPerBlock, numOfBlocksPerCU
+            Kernel{},                                  // kernel
+            kGridSize,                                 // number of blocks in the grid
+            kBlockSize,                                // number of threads in a block
+            0,                                         // shared memory size
+            static_cast<XDataType*>(x_buf_a.GetDeviceBuffer()), // input vector A
+            static_cast<XDataType*>(x_buf_b.GetDeviceBuffer()), // input vector B
+            static_cast<YDataType*>(y_buf.GetDeviceBuffer()),   // output vector
+            m));
 
     std::size_t num_btype = sizeof(XDataType) * m + sizeof(YDataType) * m;
 
@@ -130,8 +139,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(do_validation)
     {
-        ck_tile::reference_vector_add<XDataType, YDataType>(
-           x_host_a, x_host_b, y_host_ref);
+        ck_tile::reference_vector_add<XDataType, YDataType>(x_host_a, x_host_b, y_host_ref);
         y_buf.FromDevice(y_host_dev.mData.data());
         pass = ck_tile::check_err(y_host_dev, y_host_ref);
 

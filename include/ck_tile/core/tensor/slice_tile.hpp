@@ -86,8 +86,10 @@ set_slice_tile(static_distributed_tensor<DstDataType_, DstStaticTileDistribution
 
     // static_assert(std::is_same_v<decltype(sliced_dstr), DstDistribution>, "wrong!");
 
-    // dst_tile.SetSlicedThreadData(sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
-    dst_tile.set_y_sliced_thread_data(sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
+    // dst_tile.SetSlicedThreadData(sliced_y_origins, sliced_y_lengths,
+    // src_tile.get_thread_buffer());
+    dst_tile.set_y_sliced_thread_data(
+        sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
 }
 
 } // namespace ck_tile
