@@ -9,12 +9,12 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_conv3d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_mem_inter_instances(
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_inter_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-                                                                NGCHW,
-                                                                GKCYX,
+                                                                NGCDHW,
+                                                                GKCZYX,
                                                                 Empty_Tuple,
-                                                                NGKHW,
+                                                                NGKDHW,
                                                                 BF16,
                                                                 BF16,
                                                                 Empty_Tuple,
@@ -25,26 +25,26 @@ void add_device_grouped_conv3d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_mem_inter_instance
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_bf16_mem_instances<3,
-                                                                                  NGCHW,
-                                                                                  GKCYX,
+                                                                                  NGCDHW,
+                                                                                  GKCZYX,
                                                                                   Empty_Tuple,
-                                                                                  NGKHW,
+                                                                                  NGKDHW,
                                                                                   ConvFwdDefault,
                                                                                   Interwave>{});
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_bf16_mem_instances<3,
-                                                                                  NGCHW,
-                                                                                  GKCYX,
+                                                                                  NGCDHW,
+                                                                                  GKCZYX,
                                                                                   Empty_Tuple,
-                                                                                  NGKHW,
+                                                                                  NGKDHW,
                                                                                   ConvFwd1x1P0,
                                                                                   Interwave>{});
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_bf16_mem_instances<3,
-                                                                                  NGCHW,
-                                                                                  GKCYX,
+                                                                                  NGCDHW,
+                                                                                  GKCZYX,
                                                                                   Empty_Tuple,
-                                                                                  NGKHW,
+                                                                                  NGKDHW,
                                                                                   ConvFwd1x1S1P0,
                                                                                   Interwave>{});
 }

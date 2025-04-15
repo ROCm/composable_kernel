@@ -10,16 +10,16 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
-void add_device_grouped_conv3d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_comp_part2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                                NGCHW,
-                                                                GKCYX,
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_part2_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NGCDHW,
+                                                                GKCZYX,
                                                                 Empty_Tuple,
-                                                                NGKHW,
-                                                                F16,
-                                                                F16,
+                                                                NGKDHW,
+                                                                BF16,
+                                                                BF16,
                                                                 Empty_Tuple,
-                                                                F16,
+                                                                BF16,
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>&)
@@ -29,11 +29,11 @@ void add_device_grouped_conv3d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_comp_part2_instance
 #if 0 // TODO: Improve compilation time and enable these instances
         add_device_operation_instances(
             instances,
-            device_grouped_conv_fwd_xdl_f16_comp_instances_part2<3,
-                                                                 NGCHW,
-                                                                 GKCYX,
+            device_grouped_conv_fwd_xdl_bf16_comp_instances_part2<3,
+                                                                 NGCDHW,
+                                                                 GKCZYX,
                                                                  Empty_Tuple,
-                                                                 NGKHW,
+                                                                 NGKDHW,
                                                                  ConvFwdDefault>{});
 #endif
     }

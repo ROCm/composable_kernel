@@ -9,41 +9,41 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
-void add_device_grouped_conv3d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances(
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-                                                                NGCHW,
-                                                                GKCYX,
+                                                                NGCDHW,
+                                                                GKCZYX,
                                                                 Empty_Tuple,
-                                                                NGKHW,
-                                                                F16,
-                                                                F16,
+                                                                NGKDHW,
+                                                                F32,
+                                                                F32,
                                                                 Empty_Tuple,
-                                                                F16,
+                                                                F32,
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_instances<3,
-                                                                             NGCHW,
-                                                                             GKCYX,
+                                   device_grouped_conv_fwd_xdl_f32_instances<3,
+                                                                             NGCDHW,
+                                                                             GKCZYX,
                                                                              Empty_Tuple,
-                                                                             NGKHW,
+                                                                             NGKDHW,
                                                                              ConvFwdDefault>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_instances<3,
-                                                                             NGCHW,
-                                                                             GKCYX,
+                                   device_grouped_conv_fwd_xdl_f32_instances<3,
+                                                                             NGCDHW,
+                                                                             GKCZYX,
                                                                              Empty_Tuple,
-                                                                             NGKHW,
+                                                                             NGKDHW,
                                                                              ConvFwd1x1P0>{});
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_instances<3,
-                                                                             NGCHW,
-                                                                             GKCYX,
+                                   device_grouped_conv_fwd_xdl_f32_instances<3,
+                                                                             NGCDHW,
+                                                                             GKCZYX,
                                                                              Empty_Tuple,
-                                                                             NGKHW,
+                                                                             NGKDHW,
                                                                              ConvFwd1x1S1P0>{});
 }
 

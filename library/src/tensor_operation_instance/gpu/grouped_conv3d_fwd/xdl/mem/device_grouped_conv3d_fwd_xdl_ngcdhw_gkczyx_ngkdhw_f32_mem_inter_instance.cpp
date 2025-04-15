@@ -9,42 +9,42 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_conv3d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_mem_inter_instances(
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_inter_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-                                                                NGCHW,
-                                                                GKCYX,
+                                                                NGCDHW,
+                                                                GKCZYX,
                                                                 Empty_Tuple,
-                                                                NGKHW,
-                                                                F16,
-                                                                F16,
+                                                                NGKDHW,
+                                                                F32,
+                                                                F32,
                                                                 Empty_Tuple,
-                                                                F16,
+                                                                F32,
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_mem_instances<3,
-                                                                                 NGCHW,
-                                                                                 GKCYX,
+                                   device_grouped_conv_fwd_xdl_f32_mem_instances<3,
+                                                                                 NGCDHW,
+                                                                                 GKCZYX,
                                                                                  Empty_Tuple,
-                                                                                 NGKHW,
+                                                                                 NGKDHW,
                                                                                  ConvFwdDefault,
                                                                                  Interwave>{});
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_mem_instances<3,
-                                                                                 NGCHW,
-                                                                                 GKCYX,
+                                   device_grouped_conv_fwd_xdl_f32_mem_instances<3,
+                                                                                 NGCDHW,
+                                                                                 GKCZYX,
                                                                                  Empty_Tuple,
-                                                                                 NGKHW,
+                                                                                 NGKDHW,
                                                                                  ConvFwd1x1P0,
                                                                                  Interwave>{});
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_mem_instances<3,
-                                                                                 NGCHW,
-                                                                                 GKCYX,
+                                   device_grouped_conv_fwd_xdl_f32_mem_instances<3,
+                                                                                 NGCDHW,
+                                                                                 GKCZYX,
                                                                                  Empty_Tuple,
-                                                                                 NGKHW,
+                                                                                 NGKDHW,
                                                                                  ConvFwd1x1S1P0,
                                                                                  Interwave>{});
 }
