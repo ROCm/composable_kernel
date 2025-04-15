@@ -143,27 +143,30 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             index_t group_id     = __builtin_amdgcn_readfirstlane(get_warp_id() % kNumWaveGroups);
             index_t operation_id = __builtin_amdgcn_readfirstlane(get_warp_id() % kNumWaveGroups);
 
+            auto a_offset = (group_id == 0) ? multi_index<2>{0, 0}: multi_index<2>{0, KPerBlock};
+            auto b_offset = (group_id == 0) ? multi_index<2>{0, 0} : multi_index<2>{KPerBlock, 0};
+
             // global memory structures here.
             auto a_copy_dram_window =
                 make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
                                  make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 a_dram_block_window_tmp.get_window_origin(),
+                                 a_dram_block_window_tmp.get_window_origin() + a_offset,
                                  Policy::template MakeADramTileDistribution<Problem>());
 
             // B DRAM tile window for load
             auto b_copy_dram_window =
                 make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
                                  make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 b_dram_block_window_tmp.get_window_origin(),
+                                 b_dram_block_window_tmp.get_window_origin() + b_offset,
                                  Policy::template MakeBDramTileDistribution<Problem>());
 
             // DRAM window steps.
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
             constexpr ADramTileWindowStep a_dram_tile_window_step =
-                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+                is_a_col_major ? make_array(KPerBlock * NumWarps, 0) : make_array(0, KPerBlock * NumWarps);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
-                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+                is_b_row_major ? make_array(KPerBlock * NumWarps, 0) : make_array(0, KPerBlock * NumWarps);
 
             constexpr auto AGemmTileDistr = decltype(make_static_tile_distribution(
                 BlockGemm::MakeABlockDistributionEncode())){};
