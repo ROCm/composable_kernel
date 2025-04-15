@@ -338,7 +338,6 @@ struct tile_scatter_gather
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
                 constexpr auto idx_gather        = idx_ys_start[number<YsGatherDim>{}];
                 const auto page_offset           = page_idx_[idx_gather];
-
                 // read from bottom tensor
                 const vector_t vec_value =
                     get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
