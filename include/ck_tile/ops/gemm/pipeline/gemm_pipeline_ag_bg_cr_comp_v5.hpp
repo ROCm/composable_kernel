@@ -273,7 +273,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
             // start the main loop.
             index_t num_compute_steps = __builtin_amdgcn_readfirstlane(num_loop);
-            while(num_compute_steps > 10)
+            while(num_compute_steps > 1)
             {
                 block_sync_lds();
                 operation_id = (operation_id + 1) % kNumWaveGroups;
