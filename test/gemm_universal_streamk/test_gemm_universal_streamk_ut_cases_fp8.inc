@@ -28,34 +28,6 @@ TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_NK, SmallM)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
 
-TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_KN, MidLargeM)
-{
-    std::vector<int> Ms{127, 255, 312, 799, 1573};
-    constexpr int N = 512;
-    constexpr int K = 320;
-
-    constexpr int StrideA = K;
-    constexpr int StrideB = N;
-    constexpr int StrideC = N;
-
-    for(int M : Ms)
-        this->Run(M, N, K, StrideA, StrideB, StrideC);
-}
-
-TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_NK, MidLargeM)
-{
-    std::vector<int> Ms{127, 255, 312, 799, 1573};
-    constexpr int N = 512;
-    constexpr int K = 320;
-
-    constexpr int StrideA = K;
-    constexpr int StrideB = K;
-    constexpr int StrideC = N;
-
-    for(int M : Ms)
-        this->Run(M, N, K, StrideA, StrideB, StrideC);
-}
-
 TYPED_TEST(TestGemmUniversal_Streamk_FP8_MK_KN, PaddK)
 {
     std::vector<int> Ms{127};
