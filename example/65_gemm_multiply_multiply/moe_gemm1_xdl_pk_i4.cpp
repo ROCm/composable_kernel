@@ -301,7 +301,7 @@ int main(int argc, char* argv[])
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k.mDesc.GetElementSpaceSize());
-    DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize());
+    DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize() / 2);
     DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
@@ -440,13 +440,18 @@ int main(int argc, char* argv[])
                                b_element_op,
                                cde_element_op);
 
-    if(!device_op.IsSupportedArgument(argument) ||
-       !(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    if(!device_op.IsSupportedArgument(argument))
     {
         throw std::runtime_error(
             "wrong! device_gemm with the specified compilation parameters does "
             "not support this GEMM problem");
     }
+
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    {
+        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
+    }
+
     if(time_kernel)
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
