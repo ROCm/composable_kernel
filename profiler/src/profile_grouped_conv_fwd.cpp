@@ -13,11 +13,10 @@ namespace {
 
 enum struct ConvLayout
 {
-    GNHWC_GKYXC_GNHWK,    // 0
-    NHWGC_GKYXC_NHWGK,    // 1
-    NGCHW_GKYXC_NGKHW,    // 2
-    NGCHW_GKCYX_NGKHW,    // 3
-    NGCDHW_GKCZYX_NGKDHW, // 4
+    GNHWC_GKYXC_GNHWK, // 0
+    NHWGC_GKYXC_NHWGK, // 1
+    NGCHW_GKYXC_NGKHW, // 2
+    NGCHW_GKCYX_NGKHW, // 3
 };
 
 enum struct ConvDataType
@@ -60,8 +59,6 @@ static void print_helper_msg()
         "G, K, Ho, Wo]\n"
         << "                     3: Input[N, G, C, Hi, Wi], Weight[G, K, C, Y, X], Output[N, "
         "G, K, Ho, Wo])\n"
-        << "                     4: Input[N, G, C, D, Hi, Wi], Weight[G, K, C, Z, Y, X], Output[N, "
-        "G, K, D, Ho, Wo])\n"
         << "arg4: indexing data type (0: 32-bit, 1: 64-bit)\n"
         << "arg5: verification (0: no, 1: yes)\n"
         << "arg6: initialization (0: no init, 1: integer value, 2: decimal value)\n"
@@ -372,7 +369,7 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         }
     }
     // NGCDHW_GKCZYX_NGKDHW
-    else if(num_dim_spatial == 3 && layout == ConvLayout::NGCDHW_GKCZYX_NGKDHW)
+    else if(num_dim_spatial == 3 && layout == ConvLayout::NGCHW_GKYXC_NGKHW)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
