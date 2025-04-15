@@ -392,12 +392,12 @@ struct BlockFmhaPipelineQRKSVS
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
-#if !CK_TILE_FMHA_FWD_FAST_EXP2
+// #if !CK_TILE_FMHA_FWD_FAST_EXP2
                         x += type_convert<SaccDataType>(bias_element_func(y));
-#else
-                        x += log2e_v<SaccDataType> *
-                             type_convert<SaccDataType>(bias_element_func(y));
-#endif
+// #else
+//                         x += log2e_v<SaccDataType> *
+//                              type_convert<SaccDataType>(bias_element_func(y));
+// #endif
                     },
                     s_acc,
                     bias_tile);
@@ -424,10 +424,19 @@ struct BlockFmhaPipelineQRKSVS
             else
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
-#if !CK_TILE_FMHA_FWD_FAST_EXP2
+// #if !CK_TILE_FMHA_FWD_FAST_EXP2
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-#endif
+// #endif
             }
+
+             // add cap_logits
+             float cap_logits = 30.0f;
+             tile_elementwise_inout([&cap_logits](auto& x) { 
+                 // x = cap_logits * log2e_v<float> * tanh<SaccDataType>(x);
+                 x = cap_logits * tanh<SaccDataType>(x / cap_logits);
+             }, 
+             s_acc);
+
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
@@ -481,24 +490,24 @@ struct BlockFmhaPipelineQRKSVS
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                auto row_max = scale_s * get_validated_m(m[i_idx]);
-#endif
+// #if CK_TILE_FMHA_FWD_FAST_EXP2
+//                 auto row_max = scale_s * get_validated_m(m[i_idx]);
+// #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
-                    {
-                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
-                    }
-                    else
-                    {
-                        p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
-                    }
-#else
+// #if CK_TILE_FMHA_FWD_FAST_EXP2
+//                     if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+//                                  BiasEnum == BlockAttentionBiasEnum::ALIBI)
+//                     {
+//                         p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+//                     }
+//                     else
+//                     {
+//                         p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+//                     }
+// #else
                     p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
-#endif
+// #endif
                 });
             });
 
@@ -510,22 +519,22 @@ struct BlockFmhaPipelineQRKSVS
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                const auto tmp = [&]() {
-                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
-                    {
-                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
-                    }
-                    else
-                    {
-                        auto row_max = scale_s * get_validated_m(m[i_idx]);
-                        return exp2(scale_s * m_old[i_idx] - row_max);
-                    }
-                }();
-#else
+// #if CK_TILE_FMHA_FWD_FAST_EXP2
+//                 const auto tmp = [&]() {
+//                     if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+//                                  BiasEnum == BlockAttentionBiasEnum::ALIBI)
+//                     {
+//                         return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+//                     }
+//                     else
+//                     {
+//                         auto row_max = scale_s * get_validated_m(m[i_idx]);
+//                         return exp2(scale_s * m_old[i_idx] - row_max);
+//                     }
+//                 }();
+// #else
                 const auto tmp       = exp(m_old[i_idx] - get_validated_m(m[i_idx]));
-#endif
+// #endif
                 l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
                 sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -617,19 +626,19 @@ struct BlockFmhaPipelineQRKSVS
             constexpr auto lse_spans = decltype(lse)::get_distributed_spans();
             sweep_tile_span(lse_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                             BiasEnum == BlockAttentionBiasEnum::ALIBI)
-                {
-                    lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
-                }
-                else
-                {
-                    lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
-                }
-#else
+// #if CK_TILE_FMHA_FWD_FAST_EXP2
+//                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+//                              BiasEnum == BlockAttentionBiasEnum::ALIBI)
+//                 {
+//                     lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+//                 }
+//                 else
+//                 {
+//                     lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+//                 }
+// #else
                 lse(i_idx) = m_[i_idx] + log(l_[i_idx]);
-#endif
+// #endif
             });
 
             store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));

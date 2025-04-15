@@ -327,11 +327,11 @@ struct FmhaFwdKernel
                      hdim_v,
                      num_head_q,
                      nhead_ratio_qk,
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
-#else
+// #if CK_TILE_FMHA_FWD_FAST_EXP2
+//                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
+// #else
                      scale_s,
-#endif
+// #endif
                      stride_q,
                      stride_k,
                      stride_v,
@@ -638,11 +638,11 @@ struct FmhaFwdKernel
                      hdim_v,
                      num_head_q,
                      nhead_ratio_qk,
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
-#else
+// #if CK_TILE_FMHA_FWD_FAST_EXP2
+//                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
+// #else
                      scale_s,
-#endif
+// #endif
                      stride_q,
                      stride_k,
                      stride_v,
@@ -1305,9 +1305,9 @@ struct FmhaFwdKernel
                 SaccDataType slope =
                     *(reinterpret_cast<const SaccDataType*>(kargs.alibi_slope_ptr) +
                       i_batch_ * kargs.alibi_slope_stride + i_nhead_);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                slope *= ck_tile::log2e_v<>;
-#endif
+// #if CK_TILE_FMHA_FWD_FAST_EXP2
+//                 slope *= ck_tile::log2e_v<>;
+// #endif
                 if constexpr(kHasMask)
                 {
                     return make_alibi_from_lr_mask<SaccDataType, true>(slope,
