@@ -14,26 +14,26 @@ template <typename BlockWarps, // num warps along seq<M, N>
           typename Vector>     // contiguous pixels(vector size) along seq<M, N>
 struct AddShape
 {
-    static constexpr index_t Block_M = BlockTile::at(number<0>{});
-    static constexpr index_t Block_N = BlockTile::at(number<1>{});
+    static constexpr index_t Block_M = BlockTile::at(number<0>{}); // elements along M in one Block
+    static constexpr index_t Block_N = BlockTile::at(number<1>{}); // elements along N in one Block
 
-    static constexpr index_t Warp_M = WarpTile::at(number<0>{});
-    static constexpr index_t Warp_N = WarpTile::at(number<1>{});
+    static constexpr index_t Warp_M = WarpTile::at(number<0>{}); // elements along M in one Warp
+    static constexpr index_t Warp_N = WarpTile::at(number<1>{}); // elements along N in one Warp
 
-    static constexpr index_t Vector_M = Vector::at(number<0>{});
-    static constexpr index_t Vector_N = Vector::at(number<1>{});
+    static constexpr index_t Vector_M = Vector::at(number<0>{}); // elements along M in one Vector
+    static constexpr index_t Vector_N = Vector::at(number<1>{}); // elements along N in one Vector
 
-    static constexpr index_t WarpPerBlock_M = BlockWarps::at(number<0>{});
-    static constexpr index_t WarpPerBlock_N = BlockWarps::at(number<1>{});
+    static constexpr index_t WarpPerBlock_M = BlockWarps::at(number<0>{}); // num concurrent warps along M
+    static constexpr index_t WarpPerBlock_N = BlockWarps::at(number<1>{}); // num concurrent warps along N
 
-    static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
-    static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
+    static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M; // num threads along M in one Warp (ThreadPerWarp_M * ThreadPerWarp_N must be 64)
+    static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N; // num threads along N in one Warp (ThreadPerWarp_M * ThreadPerWarp_N must be 64)
 
-    static constexpr index_t Repeat_M = Block_M / (WarpPerBlock_M * Warp_M);
-    static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N);
+    static constexpr index_t Repeat_M = Block_M / (WarpPerBlock_M * Warp_M); // num of time a warp iterates along M to ensure the entire block is covered
+    static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N); // num of time a warp iterates along N to ensure the entire block is covered
 
     static constexpr index_t BlockSize =
-        warpSize * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+        warpSize * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{}); // num of threads in one block
 };
 
 template <typename XDataType_,
@@ -42,10 +42,10 @@ template <typename XDataType_,
           typename BlockShape_>
 struct AddProblem
 {
-    using XDataType       = remove_cvref_t<XDataType_>;
-    using ComputeDataType = remove_cvref_t<ComputeDataType_>;
-    using YDataType       = remove_cvref_t<YDataType_>;
-    using BlockShape      = remove_cvref_t<BlockShape_>;
+    using XDataType       = remove_cvref_t<XDataType_>; // data type of input tensor
+    using ComputeDataType = remove_cvref_t<ComputeDataType_>; // data type of compute tensor
+    using YDataType       = remove_cvref_t<YDataType_>; // data type of output tensor
+    using BlockShape      = remove_cvref_t<BlockShape_>; // block shapes and sizes
 };
 
 struct AddDefaultPolicy
@@ -57,12 +57,12 @@ struct AddDefaultPolicy
         return make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<>,
-                tuple<sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>,
-                      sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>,
-                tuple<sequence<1, 2>, sequence<1, 2>>,
-                tuple<sequence<1, 1>, sequence<2, 2>>,
-                sequence<1, 1, 2, 2>,
-                sequence<0, 3, 0, 3>>{});
+                tuple<sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::Vector_M>, // how many sub division is a block divided in
+                      sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::Vector_N>>, // how many sub division is a block divided in
+                tuple<sequence<1, 2>, sequence<1, 2>>, // What are the shapes of those sub divisions
+                tuple<sequence<1, 1>, sequence<2, 2>>, // What are the shapes of those sub divisions
+                sequence<1, 1, 2, 2>, // How much data does a thread work on and how many iterations of warps are there
+                sequence<0, 3, 0, 3>>{}); // How much data does a thread work on and how many iterations of warps are there
     }
 };
 
@@ -83,7 +83,7 @@ struct Add
         const auto x_m_n_a = make_naive_tensor_view<address_space_enum::global,
                                                     memory_operation_enum::set,
                                                     amd_buffer_coherence_enum::slc>(
-            p_x_a, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
+            p_x_a, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{}); // raw data, shape of tensor, stride of tensor, lastGarunteedVectorLength, lastGarunteedVectorStride
 
         const auto x_m_n_b = make_naive_tensor_view<address_space_enum::global,
                                                     memory_operation_enum::set,
@@ -95,7 +95,7 @@ struct Add
                                                   amd_buffer_coherence_enum::slc>(
             p_y, make_tuple(M, N), make_tuple(N, 1), number<S::Vector_N>{}, number<1>{});
 
-        const auto iM = get_block_id() * S::Block_M;
+        const auto iM = get_block_id() * S::Block_M; // origin of the block along
 
         auto x_window_a = make_tile_window(x_m_n_a,
                                          make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
