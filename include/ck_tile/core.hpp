@@ -59,6 +59,7 @@
 #include "ck_tile/core/tensor/transpose_tile.hpp"
 #include "ck_tile/core/tensor/update_tile.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
+#include "ck_tile/core/utility/env.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/functional_with_tuple.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
