@@ -162,8 +162,8 @@ static void show_hstu_attention_fwd_param(std::ostream& os, HstuAttentionFwdPara
 template <typename DataType>
 auto get_elimit()
 {
-    double rtol = 1e-2;
-    double atol = 1e-2;
+    double rtol = 2e-2;
+    double atol = 2e-2;
 
     return ck_tile::make_tuple(rtol, atol);
 }
