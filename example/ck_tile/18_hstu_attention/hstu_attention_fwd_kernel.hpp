@@ -543,13 +543,13 @@ struct HstuAttentionFwdKernel
 
         HstuMask mask = [&]() {
             if constexpr(kHasMask)
-                return HstuMask{kargs.window_size,
+                return HstuMask{kargs.seqlen,
                                 kargs.contextual_seqlen,
-                                kargs.min_full_attn_seqlen,
-                                kargs.seqlen,
-                                num_target};
+                                num_target,
+                                kargs.window_size,
+                                kargs.min_full_attn_seqlen};
             else
-                return HstuMask{0, kargs.contextual_seqlen, 0, kargs.seqlen, num_target};
+                return HstuMask{kargs.seqlen, kargs.contextual_seqlen, num_target};
         }();
 
         // for simplicity, batch stride we just modify the pointer
