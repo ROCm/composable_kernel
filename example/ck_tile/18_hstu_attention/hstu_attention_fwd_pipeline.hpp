@@ -248,12 +248,10 @@ struct HstuAttentionFwdPipelineQRKSVS
         auto s_acc              = SaccBlockTileType{};
 
         // reduction function for softmax
-        const auto f_silu = [](CompDataType x) {
+        const auto f_silu = [](CompDataType& x) {
             auto one = ck_tile::type_convert<CompDataType>(1.0f);
 
-            auto sigmod_val = one / (one + exp(-x));
-
-            return sigmod_val * x;
+            return x = x / (one + exp(-x));
         };
 
         using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
@@ -405,7 +403,7 @@ struct HstuAttentionFwdPipelineQRKSVS
 
             auto s = cast_tile<CompDataType>(s_acc); // S{j}
 
-            s = tile_elementwise_in(f_silu, s);
+            tile_elementwise_inout(f_silu, s);
 
             if constexpr(kHasDropout)
             {

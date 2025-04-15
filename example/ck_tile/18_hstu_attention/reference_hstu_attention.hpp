@@ -106,9 +106,9 @@ struct reference_hstu_attention
             HstuMask mask = [&]() {
                 if constexpr(kHasMask)
                     return HstuMask{
-                        max_attn_len, contextual_seqlen, min_full_attn_seqlen, seqlen, num_target};
+                        seqlen, contextual_seqlen, num_target, max_attn_len, min_full_attn_seqlen};
                 else
-                    return HstuMask{0, contextual_seqlen, 0, seqlen, num_target};
+                    return HstuMask{seqlen, contextual_seqlen, num_target};
             }();
 
             // for all rows in the batch

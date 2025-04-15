@@ -12,22 +12,32 @@ struct HstuBlockMasking
 {
     static constexpr bool IsMasking = (kUseCausal || kUseLocal);
 
-    int max_attn_len;
     int contextual_seqlen;
-    int min_full_attn_seqlen;
     int max_uih_len;
 
-    CK_TILE_HOST_DEVICE HstuBlockMasking(int max_attn_len_,
+    int max_attn_len;
+    int min_full_attn_seqlen;
+
+    CK_TILE_HOST_DEVICE HstuBlockMasking(int seqlen_,
                                          int contextual_seqlen_,
-                                         int min_full_attn_seqlen_,
-                                         int seqlen_,
-                                         int num_target)
+                                         int num_target,
+                                         int max_attn_len_,
+                                         int min_full_attn_seqlen_)
     {
+        max_uih_len       = seqlen_;
+        contextual_seqlen = contextual_seqlen_;
+
         max_attn_len         = max_attn_len_;
-        contextual_seqlen    = contextual_seqlen_;
         min_full_attn_seqlen = min_full_attn_seqlen_;
 
-        max_uih_len = seqlen_;
+        max_uih_len -= contextual_seqlen > 0 ? contextual_seqlen - 1 : 0;
+        max_uih_len -= num_target;
+    };
+
+    CK_TILE_HOST_DEVICE HstuBlockMasking(int seqlen_, int contextual_seqlen_, int num_target)
+    {
+        max_uih_len       = seqlen_;
+        contextual_seqlen = contextual_seqlen_;
 
         max_uih_len -= contextual_seqlen > 0 ? contextual_seqlen - 1 : 0;
         max_uih_len -= num_target;
