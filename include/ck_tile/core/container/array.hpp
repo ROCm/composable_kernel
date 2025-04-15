@@ -31,7 +31,7 @@ namespace ck_tile {
  *
  * @note This implementation provides additional features beyond std::array:
  *       - GPU compatibility via CK_TILE_HOST_DEVICE macros
- *       - Type pruning via get_as() and set_as() methods
+ *       - Type punning via get_as() and set_as() methods
  *       - Various specialized access methods
  *       - Specialized initialization behaviors
  *
