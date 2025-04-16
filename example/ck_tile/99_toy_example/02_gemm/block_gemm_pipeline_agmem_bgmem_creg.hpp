@@ -47,14 +47,6 @@ struct BlockGemmPipelineAGmemBGmemCReg
     static constexpr index_t BPackedSize =
         ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout = remove_cvref_t<typename Problem::CLayout>;
-
-    using I0        = number<0>;
-    using I1        = number<1>;
-    using I2        = number<2>;
-
     static constexpr index_t BlockSize = Problem::kBlockSize;
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
@@ -74,8 +66,8 @@ struct BlockGemmPipelineAGmemBGmemCReg
         constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
 
         constexpr index_t WaveSize = 64;
-        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
-        constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
+        constexpr index_t WaveNumM = BlockGemm::MWarp;
+        constexpr index_t WaveNumN = BlockGemm::NWarp;
 
         constexpr index_t AB_LDS_RW_Width = GetSmemPack();
 
@@ -321,35 +313,39 @@ struct BlockGemmPipelineAGmemBGmemCReg
         constexpr ADramTileWindowStep a_dram_tile_window_step = make_array(0, KPerBlock);
         constexpr BDramTileWindowStep b_dram_tile_window_step = make_array(0, KPerBlock);
 
-        // Prefetch
-        // Global read 0
-        load_tile(a_block_tile, a_copy_dram_window);
-        move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-        load_tile(b_block_tile, b_copy_dram_window);
-        move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
-
         // Initialize C
         tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
-        // LDS write 0
-        store_tile(a_copy_lds_window, a_block_tile);
-        store_tile(b_copy_lds_window, b_block_tile);
-
+        // Prefetch
         // Global read 0
         load_tile(a_block_tile, a_copy_dram_window);
-        move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
         load_tile(b_block_tile, b_copy_dram_window);
-        move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
-        block_sync_lds();
+        if (num_loop > 1)
+        {
+            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
-        // Prefetch from LDS to warp register in block gemm
-        block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+            // LDS write 0
+            store_tile(a_copy_lds_window, a_block_tile);
+            store_tile(b_copy_lds_window, b_block_tile);
+
+            // Global read 0
+            load_tile(a_block_tile, a_copy_dram_window);
+            load_tile(b_block_tile, b_copy_dram_window);
+            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+
+            block_sync_lds();
+
+            // Prefetch from LDS to warp register in block gemm
+            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+        }
 
         __builtin_amdgcn_sched_barrier(0);
 
         // Main body
-        if constexpr(HasHotLoop)
+        if (num_loop > 2)
         {
             index_t i = 0;
             do
@@ -362,8 +358,8 @@ struct BlockGemmPipelineAGmemBGmemCReg
 
                 // Global read 0
                 load_tile(a_block_tile, a_copy_dram_window);
-                move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
                 load_tile(b_block_tile, b_copy_dram_window);
+                move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
                 move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
@@ -382,8 +378,11 @@ struct BlockGemmPipelineAGmemBGmemCReg
         }
 
         // Tail
-        block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-        block_sync_lds();
+        if (num_loop > 1)
+        {
+            block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+            block_sync_lds();
+        }
         store_tile(a_copy_lds_window, a_block_tile);
         store_tile(b_copy_lds_window, b_block_tile);
         block_sync_lds();
