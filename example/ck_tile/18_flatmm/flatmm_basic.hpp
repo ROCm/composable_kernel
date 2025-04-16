@@ -10,6 +10,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/flatmm.hpp"
+#include "ck_tile/ops/gemm.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE 1
 #define CK_TILE_PIPELINE_MEMORY 2
@@ -75,8 +76,7 @@ using CDataType   = Types::CDataType;
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser
-        .insert("m", "256", "m dimension")
+    arg_parser.insert("m", "256", "m dimension")
         .insert("n", "256", "n dimension")
         .insert("k", "128", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
