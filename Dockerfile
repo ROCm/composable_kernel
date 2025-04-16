@@ -53,11 +53,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3 \
     python3-dev \
     python3-pip \
-    python3-pytest \
-    python3-pymysql \
-    python3-pandas \
-    python3-sqlalchemy \
-    python3-sshtunnel \
     redis \
     rocm-llvm-dev \
     sshpass \
@@ -98,6 +93,8 @@ RUN git clone https://github.com/ccache/ccache.git && \
 # Install an init system
     wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb && \
     dpkg -i dumb-init_*.deb && rm dumb-init_*.deb && \
+# Install packages for processing the performance results
+    pip3 install --break-system-packages --upgrade pytest pymysql pandas==2.2.3 sqlalchemy==2.0.3 setuptools-rust setuptools sshtunnel==0.4.0 && \
 # Add render group
     groupadd -f render && \
 # Install the new rocm-cmake version
