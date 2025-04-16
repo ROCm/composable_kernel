@@ -369,7 +369,7 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         }
     }
     // NGCDHW_GKCZYX_NGKDHW
-    else if(num_dim_spatial == 3 && layout == ConvLayout::NGCHW_GKYXC_NGKHW)
+    else if(num_dim_spatial == 3 && layout == ConvLayout::NGCHW_GKCYX_NGKHW)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
