@@ -694,14 +694,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
 
     static constexpr bool IsValidCompilationParameter()
     {
-        // TODO: properly implement this check
-        static_assert((is_same_v<ADataType, f8_t> || is_same_v<ADataType, bf8_t> ||
-                       is_same_v<ADataType, f6_t> || is_same_v<ADataType, bf6_t> ||
-                       is_same_v<ADataType, f4_t>)&&(is_same_v<BDataType, f8_t> ||
-                                                     is_same_v<BDataType, bf8_t> ||
-                                                     is_same_v<BDataType, f6_t> ||
-                                                     is_same_v<BDataType, bf6_t> ||
-                                                     is_same_v<BDataType, f4_t>),
+        static_assert(is_scale_mfma_data_type<ADataType>() && is_scale_mfma_data_type<BDataType>(),
                       "Only microscaling formats are supported for ADataType and BDataType");
 
         static_assert(ScaleBlockSize == 32, "Only ScaleBlockSize 32 is supported");
@@ -711,6 +704,11 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if constexpr(!IsValidCompilationParameter())
+        {
+            return false;
+        }
+
         if(!ck::is_xdl_supported())
         {
             return false;
