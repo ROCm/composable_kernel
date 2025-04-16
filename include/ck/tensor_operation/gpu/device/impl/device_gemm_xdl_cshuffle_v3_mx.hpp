@@ -699,6 +699,9 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
 
         static_assert(ScaleBlockSize == 32, "Only ScaleBlockSize 32 is supported");
 
+        static_assert(is_same_v<ComputeTypeA, ADataType> && is_same_v<ComputeTypeB, BDataType>,
+                      "ComputeTypeA and ComputeTypeB must be the same as ADataType and BDataType");
+
         return true;
     }
 
