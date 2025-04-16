@@ -174,7 +174,7 @@ struct BlockFmhaPipelineQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
-        const float logits_cap = 0.3f;
+        const float logits_cap = 30.f;
         const float logits_cap_scale = scale_s / (logits_cap * log2e_v<float>);
         
         // K tile in LDS
@@ -431,7 +431,7 @@ struct BlockFmhaPipelineQRKSVS
                 tile_elementwise_inout([&scale_s](auto& x) { x = (x * scale_s) / log2e_v<>; }, s_acc);
                 tile_elementwise_inout(
                     [&logits_cap_scale, &logits_cap](auto& x) {
-                        x = log2e_v<SaccDataType> * logits_cap * tanh_fast<SaccDataType>(x / logits_cap);
+                        x = log2e_v<SaccDataType> * logits_cap * tanh<SaccDataType>(x / logits_cap);
                     },
                     s_acc
                 );
