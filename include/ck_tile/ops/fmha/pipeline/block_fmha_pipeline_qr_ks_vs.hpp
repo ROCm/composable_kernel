@@ -174,6 +174,9 @@ struct BlockFmhaPipelineQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
+        const float logits_cap = 0.3f;
+        const float logits_cap_scale = scale_s / (logits_cap * log2e_v<float>);
+        
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
             static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
@@ -424,9 +427,15 @@ struct BlockFmhaPipelineQRKSVS
             else
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
-#if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-#endif
+// #if !CK_TILE_FMHA_FWD_FAST_EXP2
+                tile_elementwise_inout([&scale_s](auto& x) { x = (x * scale_s) / log2e_v<>; }, s_acc);
+                tile_elementwise_inout(
+                    [&logits_cap_scale, &logits_cap](auto& x) {
+                        x = log2e_v<SaccDataType> * logits_cap * tanh_fast<SaccDataType>(x / logits_cap);
+                    },
+                    s_acc
+                );
+// #endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
@@ -494,7 +503,9 @@ struct BlockFmhaPipelineQRKSVS
                     }
                     else
                     {
-                        p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                        // p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+
+                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
 #else
                     p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -519,8 +530,10 @@ struct BlockFmhaPipelineQRKSVS
                     }
                     else
                     {
-                        auto row_max = scale_s * get_validated_m(m[i_idx]);
-                        return exp2(scale_s * m_old[i_idx] - row_max);
+                        // auto row_max = scale_s * get_validated_m(m[i_idx]);
+                        // return exp2(scale_s * m_old[i_idx] - row_max);
+
+                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                     }
                 }();
 #else
