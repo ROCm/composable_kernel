@@ -428,10 +428,10 @@ struct BlockFmhaPipelineQRKSVS
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
 // #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) { x = (x * scale_s) / log2e_v<>; }, s_acc);
+                tile_elementwise_inout([&scale_s](auto& x) { x = (x * scale_s) * __builtin_amdgcn_rcpf(log2e_v<>); }, s_acc);
                 tile_elementwise_inout(
                     [&logits_cap_scale, &logits_cap](auto& x) {
-                        x = log2e_v<SaccDataType> * logits_cap * tanh_fast<SaccDataType>(x / logits_cap);
+                        x = log2e_v<SaccDataType> * logits_cap * tanh_fast<SaccDataType>(x * __builtin_amdgcn_rcpf(logits_cap));
                     },
                     s_acc
                 );
