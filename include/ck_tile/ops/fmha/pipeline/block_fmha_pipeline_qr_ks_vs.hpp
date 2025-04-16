@@ -174,7 +174,7 @@ struct BlockFmhaPipelineQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
-        const float logits_cap = 0.3f;
+        const float logits_cap = 30.0f;
         const float logits_cap_scale = scale_s / (logits_cap * log2e_v<float>);
         
         // K tile in LDS
