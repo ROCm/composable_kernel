@@ -13,10 +13,10 @@
       "values": ["fp16"] 
     },
     "tile_m": {
-      "values": [256, 256]
+      "values": [256]
     },
     "tile_n": {
-      "values": [256, 256]
+      "values": [256]
     },
     "tile_k": {
       "values": [64, 32]

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <hip/hip_runtime.h>
 
 #include <cstring>
@@ -66,7 +69,7 @@ struct KernelTraits
     std::string epilogue;
     /// @brief Indicates whether padding is applied to the M dimension.
     bool kPadM;
-    ///@brief Indicates whether padding is applied to the N dimension.
+    /// @brief Indicates whether padding is applied to the N dimension.
     bool kPadN;
     /// @brief Indicates whether padding is applied to the K dimension.
     bool kPadK;
@@ -210,10 +213,9 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void gemm_host_verify(int verify,
+void gemm_host_reference(int verify,
                       ck_tile::HostTensor<ADataType>& a_m_k,
                       ck_tile::HostTensor<BDataType>& b_k_n,
-                      ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                       ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                       ck_tile::DeviceMem& a_m_k_dev_buf,
                       ck_tile::DeviceMem& b_k_n_dev_buf,
@@ -250,7 +252,7 @@ void gemm_host_verify(int verify,
         ck_tile::hip_check_error(hipMalloc(&d_A, a_m_k.get_element_space_size_in_bytes()));
         ck_tile::hip_check_error(hipMalloc(&d_B, b_k_n.get_element_space_size_in_bytes()));
         ck_tile::hip_check_error(
-            hipMalloc(&d_C, c_m_n_dev_result.get_element_space_size_in_bytes()));
+            hipMalloc(&d_C, c_m_n_host_result.get_element_space_size_in_bytes()));
 
         ck_tile::hip_check_error(hipMemcpy(d_A,
                                            a_m_k_dev_buf.GetDeviceBuffer(),
@@ -271,7 +273,7 @@ void gemm_host_verify(int verify,
 
         ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
                                            d_C,
-                                           c_m_n_dev_result.get_element_space_size_in_bytes(),
+                                           c_m_n_host_result.get_element_space_size_in_bytes(),
                                            hipMemcpyDeviceToHost));
 
         ck_tile::hip_check_error(hipFree(d_A));

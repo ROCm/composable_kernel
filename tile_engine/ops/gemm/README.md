@@ -1,8 +1,8 @@
 # GEMM Matrix Multiplication
 
-This folder generates the code and executable for running Matrix multiplication using ck_tile programming based on the kernel parameters mentioned in the config file `./configs/instance_combination.json`.
+Use the files in this folder to generate and build applications that run Matrix multiplications using ck_tile programming based on the kernel parameters mentioned in the config file `./configs/instance_combination.json`.
 
-# Kernel Configuration
+# Kernel Configurations
 
 Based on user provided data type and layout, it will generate the code for all possible combinations. User can pass multiple entries for tile sizes, padding, pipeline, scheduler and epilogue. For reference please see `./configs/instance_combination.json`
 
@@ -15,9 +15,9 @@ sh ../script/cmake-ck-dev.sh  ../ <arch>
 # To generate the executable
 make tile_engine_gemm -j
 ```
-This will result in an executable `./bin/tile_engine_gemm`
+`tile_engine_gemm` will be located in the `./bin/` directory.
 
-## Arguments for excutable
+## tile_engine_gemm inputs
 ```
 
           -m    m dimension (default:3840)
@@ -26,7 +26,7 @@ This will result in an executable `./bin/tile_engine_gemm`
    -stride_a    Tensor A stride (default:0)
    -stride_b    Tensor B stride (default:0)
    -stride_c    Tensor C stride (default:0)
-    -split_k    SplitK value (dafualt:1)
+    -split_k    SplitK value (default:1)
           -v    No validation: 0, Validation on CPU: 1, Validation on GPU: 2 (default:2)
      -warmup    Number of iterations before benchmark the kernel (default:50)
      -repeat    Number of iterations to benchmark the kernel (default:100)

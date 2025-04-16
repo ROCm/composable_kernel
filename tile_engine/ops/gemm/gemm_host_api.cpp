@@ -146,11 +146,10 @@ void run(const ck_tile::ArgParser& arg_parser)
 
     if(verify)
     {
-        gemm_host_verify<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+        gemm_host_reference<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
             verify,
             a_m_k,
             b_k_n,
-            c_m_n_dev_result,
             c_m_n_host_result,
             a_m_k_dev_buf,
             b_k_n_dev_buf,
