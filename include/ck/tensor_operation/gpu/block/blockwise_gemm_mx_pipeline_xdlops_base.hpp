@@ -119,17 +119,6 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         return make_tuple(0, waveId_m, xdlops_a_idx[I1], KThreadChunk * xdlops_a_idx[I0]);
     }
 
-    __device__ static auto CalculateAThreadOriginDataIndex6D()
-    {
-        const auto wave_idx = GetWaveIdx();
-
-        const auto waveId_m = wave_idx[I0];
-
-        const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
-
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], 0, xdlops_a_idx[I0], 0);
-    }
-
     __device__ static auto CalculateBThreadOriginDataIndex()
     {
         const auto wave_idx = GetWaveIdx();
@@ -168,21 +157,6 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
             make_tuple(n0, waveId_n, blk_idx[I1]))[I0];
 
         return make_tuple(c_thread_m, c_thread_n);
-    }
-
-    template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
-    __device__ static auto
-        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
-    {
-        const auto wave_idx = GetWaveIdx();
-
-        const auto waveId_m = wave_idx[I0];
-        const auto waveId_n = wave_idx[I1];
-
-        const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk4D(xdlops_i, blk_i);
-
-        return make_tuple(
-            m0, n0, waveId_m, waveId_n, blk_idx[I0], blk_idx[I1], blk_idx[I2], blk_idx[I3]);
     }
 
     using Tuple4 = decltype(CalculateAThreadOriginDataIndex());

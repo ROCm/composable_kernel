@@ -125,7 +125,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
     using Base::xdlops_gemm;
 
     using Base::CalculateCThreadOriginDataIndex;
-    using Base::CalculateCThreadOriginDataIndex8D;
     using Base::GetCBlockDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4;
