@@ -146,19 +146,24 @@ void run(const ck_tile::ArgParser& arg_parser)
 
     if(verify)
     {
-        gemm_host_reference<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
-            verify,
-            a_m_k,
-            b_k_n,
-            c_m_n_host_result,
-            a_m_k_dev_buf,
-            b_k_n_dev_buf,
-            M,
-            N,
-            K,
-            stride_A,
-            stride_B,
-            stride_C);
+        gemm_host_reference<ADataType,
+                            BDataType,
+                            AccDataType,
+                            CDataType,
+                            ALayout,
+                            BLayout,
+                            CLayout>(verify,
+                                     a_m_k,
+                                     b_k_n,
+                                     c_m_n_host_result,
+                                     a_m_k_dev_buf,
+                                     b_k_n_dev_buf,
+                                     M,
+                                     N,
+                                     K,
+                                     stride_A,
+                                     stride_B,
+                                     stride_C);
     }
 
     gemm_kernel_launch(flop,
