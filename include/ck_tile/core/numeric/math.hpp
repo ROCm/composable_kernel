@@ -1383,27 +1383,33 @@ CK_TILE_DEVICE double exp<double>(double x)
 template <typename T>
 CK_TILE_DEVICE T tanh_fast(T x)
 {
-    return type_convert<T>((exp_fast_exp2<T>(2.0 * type_convert<float>(x)) - 1.0) / (exp_fast_exp2<T>(2.0 * type_convert<float>(x)) + 1.0));
+    return x;
+    // return type_convert<T>((exp_fast_exp2<T>(2.0 * type_convert<float>(x)) - 1.0) / (exp_fast_exp2<T>(2.0 * type_convert<float>(x)) + 1.0));
 };
 
 template <>
 CK_TILE_DEVICE float tanh_fast<float>(float x)
 {
     // return (exp_fast_exp2<float>(2.0f * x) - 1.0f) / (exp_fast_exp2<float>(2.0f * x) + 1.0f);
-    float e, r, s, t, d;
-    float a = x;
-    s = abs(a);
-    t = -log2e_v<float> * 2.0f * s;
-    e = __builtin_amdgcn_exp2f(t);
-    d = e + 1.0f;
-    r = __builtin_amdgcn_rcpf(d);
-    r = e * (-r) + r;
-    if (s < 4.997253418e-3f) r = a;
-    union fipnr {float f; unsigned int i;};
-    fipnr r_; r_.f = r;
-    fipnr a_; a_.f = a;
-    { r_.i = (r_.i|(a_.i&0x80000000)); r = r_.f; }
-    return r;
+    // float a = __builtin_amdgcn_exp2f(2.88539f * x);
+    // float b = __builtin_amdgcn_rcpf(a + 1.0f);
+    // return 1.0f - 2.0f * b;
+    // float x2 = x * x;
+    // float x5 = x * 0.13333f - 0.33333f;
+    // float x3 = x2 * x5 + 1.0f;
+    // return x3 * x;
+    // 1.442695
+    // float a = 2.0f * log2e_v<float> * x;
+    // a = __builtin_amdgcn_exp2f(a);
+    // a = __builtin_amdgcn_rcpf(a + 1.0f);
+    // a = 2 * a;
+    // a = 1 - a;
+    // return a;
+    float a = __builtin_amdgcn_exp2f(2.88539f * x);
+    float b = __builtin_amdgcn_rcpf(a + 1.0f);
+    return 1.0f - 2.0f * b;
+
+
 };
 
 template <typename T>

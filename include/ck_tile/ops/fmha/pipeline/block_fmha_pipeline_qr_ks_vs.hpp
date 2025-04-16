@@ -175,7 +175,7 @@ struct BlockFmhaPipelineQRKSVS
                       "wrong!");
 
         const float logits_cap = 30.0f;
-        const float logits_cap_scale = scale_s / (logits_cap * log2e_v<float>);
+        const float logits_cap_rev = __builtin_amdgcn_rcpf(logits_cap);
         
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
@@ -427,11 +427,11 @@ struct BlockFmhaPipelineQRKSVS
             else
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                float scale_lo = scale_s * 0.6931472f;
 // #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) { x = (x * scale_s) * __builtin_amdgcn_rcpf(log2e_v<>); }, s_acc);
                 tile_elementwise_inout(
-                    [&logits_cap_scale, &logits_cap](auto& x) {
-                        x = log2e_v<SaccDataType> * logits_cap * tanh_fast<SaccDataType>(x * __builtin_amdgcn_rcpf(logits_cap));
+                    [&scale_lo, &logits_cap, &logits_cap_rev](auto& x) {
+                        x = log2e_v<SaccDataType> * logits_cap * tanh_fast<SaccDataType>(x * scale_lo * logits_cap_rev);
                     },
                     s_acc
                 );
