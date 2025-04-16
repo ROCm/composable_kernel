@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 ARG ROCMVERSION=6.4
 ARG compiler_version=""
@@ -14,8 +14,8 @@ RUN set -xe && \
     curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm-keyring.gpg
 
 RUN if [ "$ROCMVERSION" != "6.5" ]; then \
-        sh -c "wget https://repo.radeon.com/amdgpu-install/$ROCMVERSION/ubuntu/jammy/amdgpu-install_6.3.60300-1_all.deb  --no-check-certificate" && \
-        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated ./amdgpu-install_6.3.60300-1_all.deb && \
+        sh -c "wget https://repo.radeon.com/amdgpu-install/$ROCMVERSION/ubuntu/jammy/amdgpu-install_6.4.60400-1_all.deb  --no-check-certificate" && \
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated ./amdgpu-install_6.4.60400-1_all.deb && \
         wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
         sh -c "echo deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/rocm-keyring.gpg] $DEB_ROCM_REPO jammy main > /etc/apt/sources.list.d/rocm.list" && \
         sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/rocm-keyring.gpg] https://repo.radeon.com/amdgpu/$ROCMVERSION/ubuntu jammy main > /etc/apt/sources.list.d/amdgpu.list'; \
@@ -44,7 +44,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     iputils-ping \
     jq \
     libelf-dev \
-    libncurses5-dev \
     libnuma-dev \
     libpthread-stubs0-dev \
     llvm-amdgpu \
@@ -73,10 +72,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
 # Remove unnecessary rocm components that take a lot of space
     apt-get remove -y rocblas rocfft rocsparse composablekernel-dev hipblaslt
 
-# Update the cmake to version 3.27.5
-RUN pip install --upgrade cmake==3.27.5 && \
 #Install latest ccache
-    git clone https://github.com/ccache/ccache.git && \
+RUN git clone https://github.com/ccache/ccache.git && \
     cd ccache && mkdir build && cd build && cmake .. && make install && \
 #Install ninja build tracing tools
     cd / && \
@@ -97,8 +94,7 @@ RUN pip install --upgrade cmake==3.27.5 && \
     wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb && \
     dpkg -i dumb-init_*.deb && rm dumb-init_*.deb && \
 # Install packages for processing the performance results
-    pip3 install --upgrade pip && \
-    pip3 install --upgrade pytest sqlalchemy==2.0.36 pymysql pandas==2.2.3 setuptools-rust setuptools sshtunnel==0.4.0 && \
+    pip3 install --break-system-packages --upgrade pytest pymysql pandas==2.2.3 sqlalchemy==2.0.3 setuptools-rust setuptools sshtunnel==0.4.0 && \
 # Add render group
     groupadd -f render && \
 # Install the new rocm-cmake version
