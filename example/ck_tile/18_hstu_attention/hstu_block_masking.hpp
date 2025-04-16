@@ -68,11 +68,30 @@ struct HstuBlockMaskWithLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE constexpr bool IsTokenPairInsideMask(int row, int col)
+    CK_TILE_HOST constexpr bool IsTokenPairInsideMask(int row, int col)
     {
         if(row >= max_uih_len || col >= max_uih_len)
             return false;
 
+        if(row < contextual_seqlen)
+            return true;
+
+        bool result = false;
+        if constexpr(kUseCausal)
+            result = (row >= col) && (row - col <= max_attn_len);
+        else
+            result = abs(row - col) <= max_attn_len;
+
+        if(min_full_attn_seqlen > 0)
+            result = result || (row >= max_uih_len - min_full_attn_seqlen);
+
+        return result;
+    };
+
+    // masking codes in device don't have to compare row/col with max_uih_len, since
+    // buffer_load_xxx instruction is able to return zero for out-of-boundary access
+    CK_TILE_DEVICE constexpr bool IsTokenPairInsideMask(int row, int col)
+    {
         if(row < contextual_seqlen)
             return true;
 
@@ -123,11 +142,28 @@ struct HstuBlockMaskNoLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE constexpr bool IsTokenPairInsideMask(int row, int col)
+    CK_TILE_HOST constexpr bool IsTokenPairInsideMask(int row, int col)
     {
         if(row >= max_uih_len || col >= max_uih_len)
             return false;
 
+        if(row < contextual_seqlen)
+            return true;
+
+        if constexpr(IsMasking)
+        {
+            bool result = (row >= col);
+
+            return result;
+        }
+
+        return true;
+    };
+
+    // masking codes in device don't have to compare row/col with max_uih_len, since
+    // buffer_load_xxx instruction is able to return zero for out-of-boundary access
+    CK_TILE_DEVICE constexpr bool IsTokenPairInsideMask(int row, int col)
+    {
         if(row < contextual_seqlen)
             return true;
 
@@ -157,10 +193,12 @@ CK_TILE_HOST_DEVICE constexpr auto make_hstu_block_mask_with_local(int seqlen_,
                                                                    int max_attn_len_,
                                                                    int min_full_attn_seqlen_)
 {
-    auto max_uih_len_ = seqlen_;
-
-    max_uih_len_ -= contextual_seqlen_ > 0 ? contextual_seqlen_ - 1 : 0;
-    max_uih_len_ -= num_target;
+    auto max_uih_len_ = [&]() {
+        if(contextual_seqlen_ > 0)
+            return seqlen_ - (contextual_seqlen_ - 1) - num_target;
+        else
+            return seqlen_ - num_target;
+    }();
 
     return HstuBlockMaskType{
         contextual_seqlen_, max_uih_len_, max_attn_len_, min_full_attn_seqlen_};
@@ -170,10 +208,12 @@ template <typename HstuBlockMaskType>
 CK_TILE_HOST_DEVICE constexpr auto
 make_hstu_block_mask_without_local(int seqlen_, int contextual_seqlen_, int num_target)
 {
-    auto max_uih_len_ = seqlen_;
-
-    max_uih_len_ -= contextual_seqlen_ > 0 ? contextual_seqlen_ - 1 : 0;
-    max_uih_len_ -= num_target;
+    auto max_uih_len_ = [&]() {
+        if(contextual_seqlen_ > 0)
+            return seqlen_ - (contextual_seqlen_ - 1) - num_target;
+        else
+            return seqlen_ - num_target;
+    }();
 
     return HstuBlockMaskType{contextual_seqlen_, max_uih_len_};
 };

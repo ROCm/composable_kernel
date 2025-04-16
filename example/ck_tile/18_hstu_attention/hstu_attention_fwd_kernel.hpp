@@ -575,7 +575,7 @@ struct HstuAttentionFwdKernel
         const auto q_dram = [&]() {
             const auto q_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 q_ptr,
-                make_tuple(kargs.seqlen, kargs.hdim_qk),
+                make_tuple(mask.max_uih_len, kargs.hdim_qk),
                 make_tuple(kargs.seq_stride_q, 1),
                 number<HstuAttentionPipeline::kAlignmentQ>{},
                 number<1>{});
@@ -584,20 +584,20 @@ struct HstuAttentionFwdKernel
                 return pad_tensor_view(q_dram_naive,
                                        make_tuple(number<HstuAttentionPipeline::kM0>{},
                                                   number<HstuAttentionPipeline::kSubQKHeaddim>{}),
-                                       sequence<kPadSeqLenQ, kPadHeadDimQK>{});
+                                       sequence<false, kPadHeadDimQK>{});
             }
             else
             {
                 return pad_tensor_view(q_dram_naive,
                                        make_tuple(number<HstuAttentionPipeline::kM0>{},
                                                   number<HstuAttentionPipeline::kK0>{}),
-                                       sequence<kPadSeqLenQ, kPadHeadDimQK>{});
+                                       sequence<false, kPadHeadDimQK>{});
             }
         }();
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.seqlen, kargs.hdim_qk),
+                make_tuple(mask.max_uih_len, kargs.hdim_qk),
                 make_tuple(kargs.seq_stride_k, 1),
                 number<HstuAttentionPipeline::kAlignmentK>{},
                 number<1>{});
@@ -612,7 +612,7 @@ struct HstuAttentionFwdKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.seqlen, kargs.hdim_v),
+                    make_tuple(mask.max_uih_len, kargs.hdim_v),
                     make_tuple(kargs.seq_stride_v, 1),
                     number<HstuAttentionPipeline::kAlignmentV>{},
                     number<1>{});
@@ -732,7 +732,7 @@ struct HstuAttentionFwdKernel
         auto o_dram = [&]() {
             const auto o_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 o_ptr,
-                make_tuple(kargs.seqlen, kargs.hdim_v),
+                make_tuple(mask.max_uih_len, kargs.hdim_v),
                 make_tuple(kargs.seq_stride_o, 1),
                 number<HstuAttentionPipeline::kAlignmentO>{},
                 number<1>{});
