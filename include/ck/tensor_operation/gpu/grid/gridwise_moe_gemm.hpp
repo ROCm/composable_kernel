@@ -1500,7 +1500,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -1590,7 +1590,10 @@ struct GridwiseMoeGemm
                     if constexpr(MulRoutedWeight)
                     {
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
-                        weight = weight * p_sorted_weights_2[c_token_pos + m0];
+                        if constexpr(sizeof(ADataType) < 2)
+                            weight = p_sorted_weights_2[c_token_pos + m0] * weight;
+                        else
+                            weight = p_sorted_weights_2[c_token_pos + m0];
                     }
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;
@@ -2007,7 +2010,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -2098,7 +2101,10 @@ struct GridwiseMoeGemm
                     if constexpr(MulRoutedWeight)
                     {
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
-                        weight = weight * p_sorted_weights_2[c_token_pos + m0];
+                        if constexpr(sizeof(ADataType) < 2)
+                            weight = p_sorted_weights_2[c_token_pos + m0] * weight;
+                        else
+                            weight = p_sorted_weights_2[c_token_pos + m0];
                     }
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;
