@@ -77,7 +77,9 @@ using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWC, GKZYXC, GNDHWK>
                                        std::tuple<float, NDHWGC, GKZYXC, NDHWGK>,
                                        std::tuple<ck::half_t, NDHWGC, GKZYXC, NDHWGK>,
                                        std::tuple<ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK>,
-                                       std::tuple<int8_t, NDHWGC, GKZYXC, NDHWGK>>;
+                                       std::tuple<float, NGCDHW, GKCZYX, NGKDHW>,
+                                       std::tuple<ck::half_t, NGCDHW, GKCZYX, NGKDHW>,
+                                       std::tuple<ck::bhalf_t, NGCDHW, GKCZYX, NGKDHW>>;
 
 template <typename Tuple>
 class TestGroupedConvndFwd1d : public TestGroupedConvndFwd<Tuple>
