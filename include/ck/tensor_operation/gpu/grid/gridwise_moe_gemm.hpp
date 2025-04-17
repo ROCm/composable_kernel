@@ -1315,6 +1315,14 @@ struct GridwiseMoeGemm
         auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
         decltype(c_thread_buf) c_thread_buf_up;
+
+        StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
+                                  float,
+                                  c_thread_buf.num_of_v_,
+                                  c_thread_buf.s_per_v,
+                                  true>
+            c_thread_buf_fp32;
+
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
@@ -1468,37 +1476,37 @@ struct GridwiseMoeGemm
                                         const float scale_up =
                                             p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
                                                       PerTokenQuant];
-                                        auto gate = scale_a * scale_b * c_thread_buf[cidx];
-                                        auto up   = scale_a * scale_up * c_thread_buf_up[cidx];
+                                        float gate = scale_a * scale_b * c_thread_buf[cidx];
+                                        float up   = scale_a * scale_up * c_thread_buf_up[cidx];
                                         if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
                                         {
                                             gate *= 16;
                                             up *= 16;
                                         }
                                         tensor_operation::element_wise::Silu{}(gate, gate);
-                                        c_thread_buf(cidx) = gate * up;
+                                        c_thread_buf_fp32(cidx) = gate * up;
                                     }
                                     else if(ActivationOperation == Activation::gelu_and_mul)
                                     {
                                         const float scale_up =
                                             p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
                                                       PerTokenQuant];
-                                        auto gate = scale_a * scale_b * c_thread_buf[cidx];
-                                        auto up   = scale_a * scale_up * c_thread_buf_up[cidx];
+                                        float gate = scale_a * scale_b * c_thread_buf[cidx];
+                                        float up   = scale_a * scale_up * c_thread_buf_up[cidx];
                                         if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
                                         {
                                             gate *= 16;
                                             up *= 16;
                                         }
                                         tensor_operation::element_wise::Gelu{}(gate, gate);
-                                        c_thread_buf(cidx) = gate * up;
+                                        c_thread_buf_fp32(cidx) = gate * up;
                                     }
                                 }
                                 else
                                 {
-                                    c_thread_buf(cidx) = scale_a * scale_b *
-                                                         topk_weights.AsType<float>()[m4] *
-                                                         c_thread_buf[cidx];
+                                    c_thread_buf_fp32(cidx) = scale_a * scale_b *
+                                                              topk_weights.AsType<float>()[m4] *
+                                                              c_thread_buf[cidx];
                                 }
                             });
                         });
@@ -1527,22 +1535,22 @@ struct GridwiseMoeGemm
                                 {
                                     if constexpr(ActivationOperation == Activation::silu_and_mul)
                                     {
-                                        auto gate = c_thread_buf[cidx];
-                                        auto up   = c_thread_buf_up[cidx];
+                                        float gate = c_thread_buf[cidx];
+                                        float up   = c_thread_buf_up[cidx];
                                         tensor_operation::element_wise::Silu{}(gate, gate);
-                                        c_thread_buf(cidx) = gate * up;
+                                        c_thread_buf_fp32(cidx) = gate * up;
                                     }
                                     else if(ActivationOperation == Activation::gelu_and_mul)
                                     {
-                                        auto gate = c_thread_buf[cidx];
-                                        auto up   = c_thread_buf_up[cidx];
+                                        float gate = c_thread_buf[cidx];
+                                        float up   = c_thread_buf_up[cidx];
                                         tensor_operation::element_wise::Gelu{}(gate, gate);
-                                        c_thread_buf(cidx) = gate * up;
+                                        c_thread_buf_fp32(cidx) = gate * up;
                                     }
                                 }
                                 else
                                 {
-                                    c_thread_buf(cidx) =
+                                    c_thread_buf_fp32(cidx) =
                                         topk_weights.AsType<float>()[m4] * c_thread_buf[cidx];
                                 }
                             });
@@ -1776,7 +1784,7 @@ struct GridwiseMoeGemm
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                               sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
-                                              c_thread_buf,
+                                              c_thread_buf_fp32,
                                               c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                               c_shuffle_block_buf);
 
