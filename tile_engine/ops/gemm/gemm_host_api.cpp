@@ -6,11 +6,7 @@
 #include "gemm_dispatcher.hpp"
 #include "gemm_host_api.hpp"
 
-void gemm_kernel_launch(std::size_t flop,
-                        std::size_t num_byte,
-                        ck_tile::index_t K,
-                        ck_tile::index_t kbatch,
-                        ck_tile::DeviceMem& c_m_n_dev_buf,
+void gemm_kernel_launch(ck_tile::DeviceMem& c_m_n_dev_buf,
                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                         int verify,
@@ -18,17 +14,8 @@ void gemm_kernel_launch(std::size_t flop,
                         ck_tile::GemmHostArgs& args,
                         const ck_tile::stream_config& s)
 {
-    return GemmDispatcher::dispatch(flop,
-                                    num_byte,
-                                    K,
-                                    kbatch,
-                                    c_m_n_dev_buf,
-                                    c_m_n_host_result,
-                                    c_m_n_dev_result,
-                                    verify,
-                                    trait,
-                                    args,
-                                    s);
+    return GemmDispatcher::dispatch(
+        c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, trait, args, s);
 }
 
 template <typename ADataType,
@@ -137,10 +124,6 @@ void run(const ck_tile::ArgParser& arg_parser)
               << " B Type = " << DataTypeTraits<BDataType>::name
               << " C Type = " << DataTypeTraits<CDataType>::name << std::endl;
 
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_byte =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
-
     ck_tile::HostTensor<CDataType> c_m_n_host_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
@@ -166,11 +149,7 @@ void run(const ck_tile::ArgParser& arg_parser)
                                      stride_C);
     }
 
-    gemm_kernel_launch(flop,
-                       num_byte,
-                       K,
-                       kbatch,
-                       c_m_n_dev_buf,
+    gemm_kernel_launch(c_m_n_dev_buf,
                        c_m_n_host_result,
                        c_m_n_dev_result,
                        verify,
