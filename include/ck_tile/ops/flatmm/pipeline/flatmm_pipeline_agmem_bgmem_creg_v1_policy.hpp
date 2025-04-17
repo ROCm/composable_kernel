@@ -22,17 +22,18 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t kKPack     = GetSmemPackA<Problem>();
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / 8>{}, number<kMPerBlock>{}, number<8>{}),
-            make_tuple(number<(kMPerBlock + 1) * 8>{}, number<8>{}, number<1>{}),
-            number<8>{},
+            make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
+            make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
+            number<kKPack>{},
             number<1>{});
 
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kMPerBlock),
-                       make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -58,7 +59,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
-        return Problem::VectorLoadSize;
+        return Problem::VectorLoadSize / sizeof(typename Problem::ADataType);
     }
 
     template <typename Problem>
@@ -82,7 +83,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
             constexpr index_t KPack = GetSmemPackA<Problem>();
             static_assert(KPack % K3 == 0);
             constexpr index_t K2 = KPack / K3;
-            if constexpr(get_warp_size() % (K2 * M0))
+            if constexpr(get_warp_size() >= (K2 * M0))
             {
                 constexpr index_t K1 = get_warp_size() / (K2 * M0);
                 constexpr index_t K0 = BlockSize / get_warp_size();
@@ -209,7 +210,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         static_assert(kKPack % K3 == 0);
         constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
         constexpr index_t warp_size = get_warp_size();
-        if constexpr(warp_size % (K2 * M0) == 0)
+        if constexpr(warp_size >= (K2 * M0))
         {
             constexpr index_t K1 = warp_size / (K2 * M0);
             constexpr index_t K0 = kBlockSize / warp_size;

@@ -88,6 +88,19 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         static_assert(kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
+        constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+
+        using WG = remove_cvref_t<decltype(config.template at<0>())>;
+
+        // constexpr index_t MWarp = config.template at<1>();
+        constexpr index_t NWarp = config.template at<2>();
+
+        constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
+        constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
+
+        constexpr index_t KFlatPerBlockPerIter = flatKPerWarp;
+        constexpr index_t NFlatPerBlockPerIter = flatNPerWarp;
+
         // A tile in LDS
         ADataType* p_a_lds = static_cast<ADataType*>(p_smem);
 
@@ -125,15 +138,44 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                 b_flat_distribution);
 
         // Acc register tile
-        auto c_block_tile = decltype(block_flatmm(a_lds_gemm_window, b_flat_dram_window)){};
+        auto c_block_tile = block_flatmm.MakeCBlockTile();
 
         // prefetch
         // global read 0
         auto a_block_tile = load_tile(a_copy_dram_window);
 
+        statically_indexed_array<
+            statically_indexed_array<decltype(b_flat_dram_window), KIterPerWarp>,
+            NIterPerWarp>
+            b_flat_dram_windows;
+
+        statically_indexed_array<
+            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
+            NIterPerWarp>
+            b_warp_tensor;
+
+        statically_indexed_array<
+            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
+            NIterPerWarp>
+            b_warp_tensor_2;
+
+        static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
+
+                move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                                 {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+
+                b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+            });
+        });
+
         {
             // move to 1
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
+
+            // move to next flat K
+            move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -151,40 +193,114 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             {
                 store_tile(a_copy_lds_window, tile_elementwise_in(a_element_func, a_block_tile));
             }
+            block_sync_lds();
         }
 
-        index_t iCounter = num_loop - 1;
+        index_t iCounter = num_loop / 2 - 1;
         while(iCounter > 0)
         {
             // global read i + 1
             a_block_tile = load_tile(a_copy_dram_window);
 
-            block_sync_lds();
-
             // GEMM i
-            block_flatmm(c_block_tile, a_lds_gemm_window, b_flat_dram_window);
+            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor);
 
             block_sync_lds();
+
+            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                    b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
+
+                    move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                                     {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+
+                    b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                });
+            });
 
             // move to i + 2
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
+            // move to next flat K
+            move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
+
             // LDS write i + 1
-            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
+            auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window, a_block_tile_tmp);
+
+            block_sync_lds();
+
+            // iCounter--;
+
+            // global read i + 1
+            a_block_tile = load_tile(a_copy_dram_window);
+
+            // GEMM i
+            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor_2);
+
+            block_sync_lds();
+
+            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                    b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
+
+                    move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                                     {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+
+                    b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                });
+            });
+
+            // move to i + 2
+            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
             // move to next flat K
             move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
+
+            // LDS write i + 1
+            a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
+            store_tile(a_copy_lds_window, a_block_tile_tmp);
+
+            block_sync_lds();
 
             iCounter--;
         }
 
         // tail
         {
+            // global read i + 1
+            a_block_tile = load_tile(a_copy_dram_window);
+
+            // GEMM i
+            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor);
+
+            block_sync_lds();
+
+            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                    b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
+
+                    move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                                     {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+
+                    b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                });
+            });
+
+            // move to i + 2
+            // move_tile_window(a_copy_dram_window, {0, kKPerBlock});
+
+            // LDS write i + 1
+            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
+            store_tile(a_copy_lds_window, a_block_tile_tmp);
+
+            // move to next flat K
+            // move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
+
             block_sync_lds();
 
             // GEMM num_loop - 1
-            block_flatmm(c_block_tile, a_lds_gemm_window, b_flat_dram_window);
+            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor_2);
         }
 
         return c_block_tile;
