@@ -4,7 +4,7 @@ Use the files in this folder to generate and build applications that run Matrix 
 
 # Kernel Configurations
 
-Based on user provided data type and layout, it will generate the code for all possible combinations. User can pass multiple entries for tile sizes, padding, pipeline, scheduler and epilogue. For reference please see `./configs/instance_combination.json`
+User needs to provide kernel configuration such as datatype, layout, tile size, warp size, padding, pipeline, scheduler and epilogue in the config file. For reference please see `./configs/instance_combination.json`
 
 ## Build
 ```

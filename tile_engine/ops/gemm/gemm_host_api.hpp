@@ -245,23 +245,9 @@ void gemm_host_reference(int verify,
         c_m_n_host_result.SetZero();
         c_m_n_gpu_buf_ref.SetZero();
 
-        ADataType* d_A;
-        BDataType* d_B;
-        CDataType* d_C;
-
-        ck_tile::hip_check_error(hipMalloc(&d_A, a_m_k.get_element_space_size_in_bytes()));
-        ck_tile::hip_check_error(hipMalloc(&d_B, b_k_n.get_element_space_size_in_bytes()));
-        ck_tile::hip_check_error(
-            hipMalloc(&d_C, c_m_n_host_result.get_element_space_size_in_bytes()));
-
-        ck_tile::hip_check_error(hipMemcpy(d_A,
-                                           a_m_k_dev_buf.GetDeviceBuffer(),
-                                           a_m_k.get_element_space_size_in_bytes(),
-                                           hipMemcpyHostToDevice));
-        ck_tile::hip_check_error(hipMemcpy(d_B,
-                                           b_k_n_dev_buf.GetDeviceBuffer(),
-                                           b_k_n.get_element_space_size_in_bytes(),
-                                           hipMemcpyHostToDevice));
+        ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
+        BDataType* d_B = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
+        CDataType* d_C = static_cast<CDataType*>(c_m_n_gpu_buf_ref.GetDeviceBuffer());
 
         ck_tile::reference_gemm_gpu<ADataType,
                                     BDataType,
@@ -270,15 +256,6 @@ void gemm_host_reference(int verify,
                                     ALayout,
                                     BLayout,
                                     CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
-
-        ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
-                                           d_C,
-                                           c_m_n_host_result.get_element_space_size_in_bytes(),
-                                           hipMemcpyDeviceToHost));
-
-        ck_tile::hip_check_error(hipFree(d_A));
-        ck_tile::hip_check_error(hipFree(d_B));
-        ck_tile::hip_check_error(hipFree(d_C));
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_host_result.data());
     }
