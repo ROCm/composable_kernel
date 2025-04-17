@@ -405,6 +405,15 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
             }
         }
 
+        if constexpr(std::is_same_v<ADataType, f8_t> || std::is_same_v<ADataType, bf8_t> ||
+                     std::is_same_v<BDataType, f8_t> || std::is_same_v<BDataType, bf8_t>)
+        {
+            if(ck::is_gfx11_supported())
+            {
+                return false;
+            }
+        }
+
         if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
                                                        GemmSpec == GemmSpecialization::NKPadding ||
                                                        GemmSpec == GemmSpecialization::MNKPadding ||

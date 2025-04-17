@@ -225,7 +225,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
     static constexpr index_t KPack = math::max(
         math::lcm(AK1Number, BK1Number),
-        WmmaSelector<ComputeTypeA, ComputeTypeA, ComputeTypeA, MPerWmma, NPerWmma>::selected_wmma
+        WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
             .k_per_wmma);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
@@ -1046,6 +1046,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                  ADataType,
                  BDataType,
                  ComputeTypeA,
+                 ComputeTypeB,
                  AccDataType,
                  decltype(MakeAWmmaTileDescriptor(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
                  decltype(MakeBWmmaTileDescriptor(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),

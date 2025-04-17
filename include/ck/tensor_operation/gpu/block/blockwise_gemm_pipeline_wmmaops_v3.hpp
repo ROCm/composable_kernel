@@ -17,7 +17,8 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t BlockSize,
           typename ADataType,
           typename BDataType,
-          typename ComputeDataType,
+          typename ComputeTypeA,
+          typename ComputeTypeB,
           typename AccDataType,
           typename AWmmaTileDesc,
           typename BWmmaTileDesc,
@@ -38,7 +39,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3
 template <index_t BlockSize,
           typename ADataType,
           typename BDataType,
-          typename ComputeDataType,
+          typename ComputeTypeA,
+          typename ComputeTypeB,
           typename AccDataType,
           typename AWmmaTileDesc,
           typename BWmmaTileDesc,
@@ -56,7 +58,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                         BlockSize,
                                         ADataType,
                                         BDataType,
-                                        ComputeDataType,
+                                        ComputeTypeA,
+                                        ComputeTypeB,
                                         AccDataType,
                                         AWmmaTileDesc,
                                         BWmmaTileDesc,
@@ -73,7 +76,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,
-                                         ComputeDataType,
+                                         ComputeTypeA,
+                                         ComputeTypeB,
                                          AccDataType,
                                          AWmmaTileDesc,
                                          BWmmaTileDesc,
@@ -91,7 +95,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
     using Base = BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                                     ADataType,
                                                     BDataType,
-                                                    ComputeDataType,
+                                                    ComputeTypeA,
+                                                    ComputeTypeB,
                                                     AccDataType,
                                                     AWmmaTileDesc,
                                                     BWmmaTileDesc,
@@ -281,9 +286,9 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                         index_t num_loop) const
     {
         __builtin_amdgcn_sched_barrier(0);
-        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
             a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeB>(
             b_thread_desc_.GetElementSpaceSize());
 
         // Global prefetch 1
@@ -352,24 +357,24 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
-                            vector_type<ComputeDataType, KPack / A_KRow> a_thread_vec;
-                            vector_type<ComputeDataType, KPack / B_KRow> b_thread_vec;
+                            vector_type<ComputeTypeA, KPack / A_KRow> a_thread_vec;
+                            vector_type<ComputeTypeB, KPack / B_KRow> b_thread_vec;
 
                             static_for<0, KPack / A_KRow, 1>{}([&](auto ik) {
-                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                         make_tuple(ik / A_K1, m0, k0, 0, 0, ik % A_K1))>{}];
                             });
                             static_for<0, KPack / B_KRow, 1>{}([&](auto ik) {
-                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                     b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                         make_tuple(ik / B_K1, n0, k0, 0, 0, ik % B_K1))>{}];
                             });
 
                             using wmma_input_type_a =
-                                typename vector_type<ComputeDataType, WmmaK / A_KRow>::type;
+                                typename vector_type<ComputeTypeA, WmmaK / A_KRow>::type;
                             using wmma_input_type_b =
-                                typename vector_type<ComputeDataType, WmmaK / B_KRow>::type;
+                                typename vector_type<ComputeTypeB, WmmaK / B_KRow>::type;
 
                             constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
@@ -416,24 +421,24 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        vector_type<ComputeDataType, KPack / A_KRow> a_thread_vec;
-                        vector_type<ComputeDataType, KPack / B_KRow> b_thread_vec;
+                        vector_type<ComputeTypeA, KPack / A_KRow> a_thread_vec;
+                        vector_type<ComputeTypeB, KPack / B_KRow> b_thread_vec;
 
                         static_for<0, KPack / A_KRow, 1>{}([&](auto ik) {
-                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                            a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(ik / A_K1, m0, k0, 0, 0, ik % A_K1))>{}];
                         });
                         static_for<0, KPack / B_KRow, 1>{}([&](auto ik) {
-                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                            b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(ik / B_K1, n0, k0, 0, 0, ik % B_K1))>{}];
                         });
 
                         using wmma_input_type_a =
-                            typename vector_type<ComputeDataType, WmmaK / A_KRow>::type;
+                            typename vector_type<ComputeTypeA, WmmaK / A_KRow>::type;
                         using wmma_input_type_b =
-                            typename vector_type<ComputeDataType, WmmaK / B_KRow>::type;
+                            typename vector_type<ComputeTypeB, WmmaK / B_KRow>::type;
 
                         constexpr index_t c_offset =
                             c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
