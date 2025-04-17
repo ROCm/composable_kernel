@@ -488,9 +488,9 @@ struct GemmDispatcher {
         // Use a static local variable
         static std::unordered_map<std::string, 
             std::function<void(ck_tile::DeviceMem& c_m_n_dev_buf,
-                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                         int verify,ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> kernel_map;
+                               ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                               ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                               int verify, ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> kernel_map;
         return kernel_map;
     }
 
@@ -514,10 +514,10 @@ struct GemmDispatcher {
         
         for group in self.all_kernels:
             content += f"""            kernel_map["{group}"] = [](ck_tile::DeviceMem& c_m_n_dev_buf,
-                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                         int verify, ck_tile::GemmHostArgs& args,
-                         const ck_tile::stream_config& s) {{
+                                                                  ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                                                                  ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                                                                  int verify, ck_tile::GemmHostArgs& args,
+                                                                  const ck_tile::stream_config& s) {{
                         """
             for tile in tile_params:
                 # Check if we have valid tile/warp combinations 
@@ -534,9 +534,9 @@ struct GemmDispatcher {
     
     template <typename Kernel>
     static void run_kernel(ck_tile::DeviceMem& c_m_n_dev_buf,
-                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                         int verify, ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+                           ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                           ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                           int verify, ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         float avg_time = Kernel::launch(args, s);
         std::string description = Kernel::get_name();
@@ -549,7 +549,7 @@ struct GemmDispatcher {
 
         std::cout << "Performance for " << description << " : " << avg_time << " ms, "
                 << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
-                
+
         if(verify)
             compare(args.K, args.k_batch, c_m_n_dev_result, c_m_n_host_result);
         c_m_n_dev_buf.SetZero();
