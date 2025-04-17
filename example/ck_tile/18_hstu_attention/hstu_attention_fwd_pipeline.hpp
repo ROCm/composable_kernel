@@ -428,8 +428,6 @@ struct HstuAttentionFwdPipelineQRKSVS
                            tile_elementwise_in(v_element_func, v_tiles[I0])); // store the prefetch
             }
 
-            __builtin_amdgcn_sched_barrier(0);
-
             const auto p = [&]() {
                 if constexpr(std::is_same_v<PDataType, fp16_t>)
                     return impl::cast_tile_pk_fp16_fp32<PDataType>(
