@@ -7,6 +7,8 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_gemm_universal_util.hpp"
 
+#if CK_USE_WMMA_FP8
+
 using F8   = ck::f8_t;
 using BF16 = ck::bhalf_t;
 using F32  = float;
@@ -55,3 +57,5 @@ TYPED_TEST_SUITE(TestGemmUniversal_FP8_MK_KN, KernelTypes_MK_KN);
 TYPED_TEST_SUITE(TestGemmUniversal_FP8_MK_NK, KernelTypes_MK_NK);
 
 #include "test_gemm_universal_ut_cases_fp8.inc"
+
+#endif // CK_USE_WMMA_FP8
