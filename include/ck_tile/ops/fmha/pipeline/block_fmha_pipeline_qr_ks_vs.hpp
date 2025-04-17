@@ -12,6 +12,9 @@
 #include "ck_tile/core/tensor/tile_scatter_gather.hpp"
 // #include "ck_tile/core/tensor/tile_scatter_gather_debug.hpp"
 
+// #define qk_scheduler
+#define kv_scheduler
+
 namespace ck_tile {
 
 // This pipeline is qkv all located in LDS
@@ -115,6 +118,93 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr const char* name = "qr";
 
     using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
+
+    CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
+    {
+        __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
+        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+
+        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+
+        __builtin_amdgcn_sched_group_barrier(0x020, 2, 0); // VMEM read
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto HotLoopKVScheduler()
+    {
+		__builtin_amdgcn_sched_group_barrier(0x100, 5, 0); // DS read  2
+        __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA 2
+
+        // __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read 1
+        // __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 2
+        //
+        // __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read 1
+        // __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 2
+//
+        // __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read 1
+        // __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 2
+
+        // __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+        // __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+			// __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 2
+			// __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+			//
+			// __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 2
+			// __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+			//
+			// __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+			// __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+			//
+			// __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+			// __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+			//
+			// __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write 1
+			// __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 14
+			//
+			// __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write 2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 16
+			//
+			// __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write 1
+			// __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 14
+			//
+			// __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write 2
+			// __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 16
+
+        // __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read 1
+        // __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+        // __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read 1
+        // __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+        // __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read 1
+        // __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+
+		// __builtin_amdgcn_sched_group_barrier(0x200, 1, 1); // DS write 1
+		// __builtin_amdgcn_sched_group_barrier(0x008, 2, 1); // MFMA 14
+		// __builtin_amdgcn_sched_group_barrier(0x200, 1, 1); // DS write 2
+		// __builtin_amdgcn_sched_group_barrier(0x008, 2, 1); // MFMA 16
+
+    }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -330,6 +420,12 @@ struct BlockFmhaPipelineQRKSVS
                     0); // prevent from messing up the order of global loads
             }
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
+
+#ifdef qk_scheduler
+            __builtin_amdgcn_sched_group_barrier(0x020, 4, 0); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x200, 2, 0); // DS write
+#endif
+            block_sync_lds();
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 __builtin_amdgcn_sched_barrier(
@@ -339,7 +435,7 @@ struct BlockFmhaPipelineQRKSVS
             if constexpr(k0_loops > 2)
             {
                 static_for<0, k0_loops - 2, 1>{}([&](auto i_k0) {
-                    block_sync_lds();
+                    // block_sync_lds();
                     gemm_0(s_acc,
                            get_slice_tile(q_tile,
                                           sequence<0, i_k0 * kK0>{},
@@ -352,6 +448,10 @@ struct BlockFmhaPipelineQRKSVS
                         k_lds_window,
                         tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
                     k_block_tile = load_tile(k_dram_window);                // global read i + 2
+#ifdef qk_scheduler
+                    HotLoopScheduler();
+#endif
+                    block_sync_lds();
                 });
             }
 
@@ -363,7 +463,7 @@ struct BlockFmhaPipelineQRKSVS
             });
             v_dram_window.update_page_idx(v_offsets);
             {                                                 // tail
-                block_sync_lds();
+                // block_sync_lds();
                 gemm_0(s_acc,
                        get_slice_tile(q_tile,
                                       sequence<0, (k0_loops - 2) * kK0>{},
@@ -372,6 +472,26 @@ struct BlockFmhaPipelineQRKSVS
                 block_sync_lds();
 
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
+#ifdef qk_scheduler
+                __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+#endif
                 block_sync_lds();
 
                 gemm_0(s_acc,
@@ -555,24 +675,29 @@ struct BlockFmhaPipelineQRKSVS
             }
             move_tile_window(v_dram_window, {0, kK1});
 
+
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
+#ifdef kv_scheduler
+            __builtin_amdgcn_sched_group_barrier(0x200, 2, 0); // DS write
+#endif
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
-                static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
+#ifdef kv_scheduler
+                {
                     const auto v = load_tile(v_dram_window); // load next v
                     
                     static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                        v_offsets[k0] = page_idx[kK1 * 2 + i_k1.value * kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
-                        // printf("3tid %d %d %d %d\n", threadIdx.x, v_coord[VPageIndexDim], kK1 * 2 + i_k1.value * kK1 + v_coord[VPageIndexDim] + k0.value, page_idx[kK1 + i_k1.value * kK1 + v_coord[VPageIndexDim] + k0.value]);
+                        v_offsets[k0] = page_idx[kK1 * 2 + v_coord[VPageIndexDim] + k0.value] * stride_v;
                     });
                     v_dram_window.update_page_idx(v_offsets);
+
                     block_sync_lds();
                     gemm_1(o_acc,
                            get_slice_tile(
-                               p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
+                               p, sequence<0, 0>{}, sequence<kM0, kK1>{}),
                            v_lds_window);
                     block_sync_lds();
                     if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -590,8 +715,231 @@ struct BlockFmhaPipelineQRKSVS
                                    tile_elementwise_in(v_element_func, v)); // store next v
                     }
                     move_tile_window(v_dram_window, {0, kK1});
-                });
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x020, 2, 0); // VMEM read
+                        __builtin_amdgcn_sched_group_barrier(0x200, 2, 0); // VMEM read
+                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+
+                        __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+
+                        block_sync_lds();
+                    }
+                }
+
+                {
+                    const auto v = load_tile(v_dram_window); // load next v
+                    
+                    static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                        v_offsets[k0] = page_idx[kK1 * 2 + kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
+                    });
+                    v_dram_window.update_page_idx(v_offsets);
+					__builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+					__builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+					__builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+					__builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+					__builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+					__builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+
+                    block_sync_lds();
+                    gemm_1(o_acc,
+                           get_slice_tile(
+                               p, sequence<0, kK1>{}, sequence<kM0, 2 * kK1>{}),
+                           v_lds_window);
+                    block_sync_lds();
+                    if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+                    {
+                        auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+                            Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                        shuffle_tile(v_shuffle_tmp, v);
+                        store_tile(v_lds_window,
+                                   tile_elementwise_in(v_element_func,
+                                                       v_shuffle_tmp)); // store the prefetch
+                    }
+                    else
+                    {
+                        store_tile(v_lds_window,
+                                   tile_elementwise_in(v_element_func, v)); // store next v
+                    }
+                    move_tile_window(v_dram_window, {0, kK1});
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        block_sync_lds();
+                    }
+                }
+
+                {
+                    const auto v = load_tile(v_dram_window); // load next v
+					__builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+					__builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+					__builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+					__builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+					__builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+					__builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                    
+                    static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                        v_offsets[k0] = page_idx[kK1 * 2 + 2 * kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
+                    });
+                    v_dram_window.update_page_idx(v_offsets);
+
+                    block_sync_lds();
+                    gemm_1(o_acc,
+                           get_slice_tile(
+                               p, sequence<0, 2 * kK1>{}, sequence<kM0, 3 * kK1>{}),
+                           v_lds_window);
+                    block_sync_lds();
+                    if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+                    {
+                        auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+                            Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                        shuffle_tile(v_shuffle_tmp, v);
+                        store_tile(v_lds_window,
+                                   tile_elementwise_in(v_element_func,
+                                                       v_shuffle_tmp)); // store the prefetch
+                    }
+                    else
+                    {
+                        store_tile(v_lds_window,
+                                   tile_elementwise_in(v_element_func, v)); // store next v
+                    }
+                    move_tile_window(v_dram_window, {0, kK1});
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+                        block_sync_lds();
+                    }
+
+                }
+#endif
+//                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
+//                     const auto v = load_tile(v_dram_window); // load next v
+//                     
+//                     static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+//                         v_offsets[k0] = page_idx[kK1 * 2 + i_k1.value * kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
+//                         // printf("3tid %d %d %d %d\n", threadIdx.x, v_coord[VPageIndexDim], kK1 * 2 + i_k1.value * kK1 + v_coord[VPageIndexDim] + k0.value, page_idx[kK1 + i_k1.value * kK1 + v_coord[VPageIndexDim] + k0.value]);
+//                     });
+//                     v_dram_window.update_page_idx(v_offsets);
+//
+//                     block_sync_lds();
+//                     gemm_1(o_acc,
+//                            get_slice_tile(
+//                                p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
+//                            v_lds_window);
+//                     block_sync_lds();
+//                     if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+//                     {
+//                         auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
+//                             Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+//                         shuffle_tile(v_shuffle_tmp, v);
+//                         store_tile(v_lds_window,
+//                                    tile_elementwise_in(v_element_func,
+//                                                        v_shuffle_tmp)); // store the prefetch
+//                     }
+//                     else
+//                     {
+//                         store_tile(v_lds_window,
+//                                    tile_elementwise_in(v_element_func, v)); // store next v
+//                     }
+//
+//                     block_sync_lds();
+// #ifdef kv_scheduler
+// 					__builtin_amdgcn_sched_group_barrier(0x020, 3, 0); // VMEM read
+//                     static_for<0, 8, 1>{}([&](auto i) {
+//                         ignore = i;
+//                         __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+//                         __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA 1
+//                     });
+//                     static_for<0, 4, 1>{}([&](auto i) {
+//                         ignore = i;
+//                         __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+//                         __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+//                     });
+// #endif
+//                     block_sync_lds();
+//                     move_tile_window(v_dram_window, {0, kK1});
+//                 });
             }
+            // __builtin_amdgcn_sched_barrier(0); // DS write
+
             // move K tile windows
             move_tile_window(k_dram_block_window, {kN0, 0});
             // tail
@@ -601,6 +949,28 @@ struct BlockFmhaPipelineQRKSVS
                        get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
                        v_lds_window);
                 block_sync_lds();
+
+#ifdef kv_scheduler
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read  2
+                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA 1
+#endif
             }
             page_idx += kN0;
         } while(++i_total_loops < num_total_loop);
