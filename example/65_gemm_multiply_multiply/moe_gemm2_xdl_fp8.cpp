@@ -135,7 +135,7 @@ static constexpr ck::index_t EVec          = 2;
 static constexpr ck::index_t D0Vec         = 1;
 static constexpr ck::index_t D1Vec         = 1;
 static constexpr ck::index_t D2Vec         = 1;
-static constexpr bool MulRoutedWeight      = true;
+static constexpr bool MulRoutedWeight      = false;
 using DeviceOpInstance                     = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
 ///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     DsData|     EData|     AccData|         CShuffle|           A|           B|          CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
