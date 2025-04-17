@@ -150,7 +150,7 @@ using WarpGemmMfma_f32_16x16x64_fp8_fp8 = WarpGemmImpl<WarpGemmAtrributeMfmaIter
     2>>;
 
 using WarpGemmMfma_f32_16x16x32_fp8_fp8 = WarpGemmImpl<
-     WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x32_fp8_fp8<WGAttrCtlEnum::Default_>>>;
+    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x32_fp8_fp8<WGAttrCtlEnum::Default_>>>;
 
 using WarpGemmMfma_f32_32x32x16_fp8_fp8_CTransposed =
     WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution<

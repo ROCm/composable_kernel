@@ -774,7 +774,7 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x32_f8_base
         else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
             return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_316x16x32_bf8_bf8(
                 bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
- #else
+#else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
         return CVecType{0.f};
