@@ -296,7 +296,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         (mode == mode_enum::batch ? seqlen_k : seqstart_k_host.back());
     const ck_tile::index_t kN0 = (hdim_q <= 128) ? 128 : 64;
     const ck_tile::index_t nsplits =
-        deterministic ? ck_tile::integer_divide_ceil(max_seqlen_k, kN0) : 1;
+        deterministic ? ck_tile::integer_divide_ceil(max_seqlen_k, kN0) : 74;
 
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
