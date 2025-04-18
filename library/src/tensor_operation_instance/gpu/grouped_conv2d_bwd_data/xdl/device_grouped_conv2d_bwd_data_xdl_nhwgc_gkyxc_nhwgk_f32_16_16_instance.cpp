@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_xdl_instance.hpp"
@@ -8,13 +8,13 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-// Compilation parameters for out[g, n, hi, wi, c] * wei[g, k, y, x, c] = in[g, n, ho, wo, k]
-void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_instances(
+// Compilation parameters for out[n, ho, wo, g, c] * wei[g, k, y, x, c] = in[n, hi, wi, g, k]
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_16_16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
-                                                                  GNHWK,
+                                                                  NHWGK,
                                                                   GKYXC,
                                                                   Empty_Tuple,
-                                                                  GNHWC,
+                                                                  NHWGC,
                                                                   F32,
                                                                   F32,
                                                                   Empty_Tuple,
@@ -27,19 +27,19 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_instances(
     add_device_operation_instances(
         instances,
         device_grouped_conv_bwd_data_xdl_f32_16_16_instances<2,
-                                                             GNHWK,
+                                                             NHWGK,
                                                              GKYXC,
                                                              Empty_Tuple,
-                                                             GNHWC,
+                                                             NHWGC,
                                                              ConvBwdDataDefault>{});
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(
         instances,
         device_grouped_conv_bwd_data_xdl_f32_16_16_instances<2,
-                                                             GNHWK,
+                                                             NHWGK,
                                                              GKYXC,
                                                              Empty_Tuple,
-                                                             GNHWC,
+                                                             NHWGC,
                                                              ConvBwdDataFilter1x1Stride1Pad0>{});
 }
 
