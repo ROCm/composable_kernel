@@ -27,6 +27,7 @@ struct TileGemmTraits
     using CLayout = CLayout_;
 
     static constexpr bool TransposeC = false;
+    static constexpr bool UseStructuredSparsity = false;
 };
 
 template <bool kPadM_,
