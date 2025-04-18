@@ -220,8 +220,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                              Policy::template MakeVDramTileDistribution<Problem>());
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<QKVDataType*>(static_cast<char*>(smem_ptr) +
-                                           Policy::template GetExclusiveKLdsBytes<Problem>()),
+            reinterpret_cast<QKVDataType*>(smem_ptr),
             Policy::template MakeVLdsBlockDescriptor<Problem>());
         auto v_lds_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
@@ -396,7 +395,7 @@ struct HstuAttentionFwdPipelineQRKSVS
             if constexpr(kHasDropout)
             {
                 auto randval_lds_ptr =
-                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>();
+                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
 
                 dropout.template Run<decltype(gemm_0), CompDataType, uint8_t>(
                     randval_lds_ptr, seqlen_k_start + i_loop * kN0, s, null_randval_window);
@@ -411,6 +410,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                 shuffle_tile(v_shuffle_tmp, v_tiles[I0]);
 
                 // ensure gemm_0 has finished access of k-Lds for all warps
+                // the over-lap only occurs when k0_loops is 3/5/7, NumKLdsBuffers is 2
                 if constexpr(Policy::template IsFirstVLdsBufferOverlapLastKLdsBuffer<Problem>())
                     __builtin_amdgcn_s_barrier();
 
@@ -479,6 +479,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                    get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
                    v_lds_windows[number<(k1_loops - 1) % NumVLdsBuffers>{}]);
 
+            // the over-lap only occurs when k1_loops is 3/5/7, NumVLdsBuffers is 2
             if constexpr(Policy::template IsFirstKLdsBufferOverlapLastVLdsBuffer<Problem>())
             {
                 __builtin_amdgcn_sched_barrier(0);
