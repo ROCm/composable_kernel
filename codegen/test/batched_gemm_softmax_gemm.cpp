@@ -42,16 +42,13 @@ TEST_CASE(test_problem_kernel)
     prob.K      = 1024;
     prob.O      = 1024;
     prob.TransB = true;
-    check_all<half> check1, check2;
+    check_all<half> check;
     auto a  = to_gpu(generate_buffer<half>(1024 * 1024, 0));
     auto b  = to_gpu(generate_buffer<half>(1024 * 1024, 1));
     auto b1 = to_gpu(generate_buffer<half>(1024 * 1024, 2));
     auto c  = to_gpu(generate_buffer<half>(1024 * 1024, 3));
 
-    std::string epilogue = "";
-    std::string prologue = "";
-
-    auto solutions = prob.GetSolutions("gfx90a", prologue, epilogue);
+    auto solutions = prob.GetSolutions("gfx90a");
     std::cout << "Num solutions: " << solutions.size() << std::endl;
     for(auto i = 0; i < solutions.size(); ++i)
     {
@@ -77,10 +74,8 @@ TEST_CASE(test_problem_kernel)
         k.launch(nullptr, grid_size * block_size, block_size)(
             a.data(), b.data(), b1.data(), c.data());
 
-        if(solution.GetTemplateParameter<bool>("MaskOutUpperTriangle"))
-            CHECK(report(solution, check1(rtc::from_gpu(c))));
-        else
-            CHECK(report(solution, check2(rtc::from_gpu(c))));
+        // NOTE: Solutions where MaskOutUpperTriangle is True don't produce consistent results
+        CHECK(report(solution, check(rtc::from_gpu(c))));
     }
 }
 

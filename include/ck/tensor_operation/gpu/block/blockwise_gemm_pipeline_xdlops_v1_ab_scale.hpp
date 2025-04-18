@@ -220,9 +220,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
         constexpr auto num_dsread_b_mfma =
             (num_ds_read_inst_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
 
-        constexpr auto num_pk_fma_per_kscaleblock = MPerXDL == 16 ? 2 : 8;
-        constexpr auto num_mfma_per_kscaleblock   = MPerXDL == 16 ? KPerBlock / 32 : KPerBlock / 16;
-
         // stage 1
         // Separate this part?
         // constexpr auto num_mfma_per_ds_read = sizeof(ComputeDataType) / sizeof(ADataType) >
@@ -236,59 +233,26 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
         constexpr auto num_dswrite_per_issue_b = num_ds_write_inst_b / num_buffer_load_inst_b;
 
         static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
+            ignore = i;
             static_for<0, num_dswrite_per_issue_a, 1>{}([&](auto idswrite) {
+                ignore = idswrite;
                 __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                if constexpr((i * num_mfma_per_issue + idswrite + 1) % num_mfma_per_kscaleblock ==
-                             0)
-                {
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                }
             });
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            if constexpr(num_mfma_per_issue - num_dswrite_per_issue_a >= 1)
-            {
-                static_for<0, num_mfma_per_issue - num_dswrite_per_issue_a, 1>{}([&](auto imfma) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr((i * num_mfma_per_issue + num_dswrite_per_issue_a + imfma + 1) %
-                                     num_mfma_per_kscaleblock ==
-                                 0)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                    }
-                });
-            }
+            __builtin_amdgcn_sched_group_barrier(
+                0x008, num_mfma_per_issue - num_dswrite_per_issue_a, 0); // MFMA
         });
-
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
+            ignore = i;
             static_for<0, num_dswrite_per_issue_b, 1>{}([&](auto idswrite) {
+                ignore = idswrite;
                 __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                if constexpr(((num_buffer_load_inst_a + i) * num_mfma_per_issue + idswrite + 1) %
-                                 num_mfma_per_kscaleblock ==
-                             0)
-                {
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                }
             });
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            if constexpr(num_mfma_per_issue - num_dswrite_per_issue_b >= 1)
-            {
-                static_for<0, num_mfma_per_issue - num_dswrite_per_issue_b, 1>{}([&](auto imfma) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(((num_buffer_load_inst_a + i) * num_mfma_per_issue +
-                                  num_dswrite_per_issue_b + imfma + 1) %
-                                     num_mfma_per_kscaleblock ==
-                                 0)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                    }
-                });
-            }
+            __builtin_amdgcn_sched_group_barrier(
+                0x008, num_mfma_per_issue - num_dswrite_per_issue_b, 0); // MFMA
         });
 
         // stage 2
@@ -306,11 +270,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                                                      0); // DS read
             }
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            if constexpr((num_mfma_stage1 + i + 1) % num_mfma_per_kscaleblock == 0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
         });
 
         static_for<0, num_dsread_b_mfma, 1>{}([&](auto i) {
@@ -327,12 +286,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                                                      0); // DS read
             }
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            if constexpr((num_mfma_stage1 + num_dsread_a_mfma + i + 1) % num_mfma_per_kscaleblock ==
-                         0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
         });
     }
 

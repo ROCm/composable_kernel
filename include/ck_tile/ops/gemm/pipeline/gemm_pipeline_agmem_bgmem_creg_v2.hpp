@@ -31,6 +31,9 @@ struct GemmPipelineAGmemBGmemCRegV2
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
+    static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
+    static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
@@ -122,16 +125,28 @@ struct GemmPipelineAGmemBGmemCRegV2
                              {0, 0},
                              b_copy_dram_window.get_tile_distribution());
 
-        // A LDS tile for block GEMM
-        auto a_lds_gemm_window = make_tile_window(
-            a_lds_block, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
-
-        // B LDS tile for block GEMM
-        auto b_lds_gemm_window = make_tile_window(
-            b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
-
         // Block GEMM
         constexpr auto block_gemm = Policy::template GetBlockGemm<Problem>();
+
+        // Tile distribution for load from lds
+        constexpr auto a_lds_load_tile_distr =
+            make_static_tile_distribution(decltype(block_gemm)::MakeABlockDistributionEncode());
+        constexpr auto b_lds_load_tile_distr =
+            make_static_tile_distribution(decltype(block_gemm)::MakeBBlockDistributionEncode());
+
+        // A LDS tile for block GEMM
+        auto a_lds_gemm_window =
+            make_tile_window(a_lds_block,
+                             make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+                             {0, 0},
+                             a_lds_load_tile_distr);
+
+        // B LDS tile for block GEMM
+        auto b_lds_gemm_window =
+            make_tile_window(b_lds_block,
+                             make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+                             {0, 0},
+                             b_lds_load_tile_distr);
 
         // Acc register tile
         auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};

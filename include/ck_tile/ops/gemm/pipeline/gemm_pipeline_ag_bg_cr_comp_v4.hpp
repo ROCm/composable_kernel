@@ -86,6 +86,9 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
+    static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
+    static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
+
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
@@ -140,7 +143,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             constexpr index_t A_LDS_Read_Inst_Num =
                 WaveNumN * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
             constexpr index_t B_LDS_Read_Inst_Num =
-                WaveNumM * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumM * NPerBlock * KPerBlock / (BlockSize * KPerXDL);
 
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
@@ -439,6 +442,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                             Base::LocalPrefill(
                                 b_copy_lds_window1, b_global_load_tile, b_element_func);
                         }
+                        block_sync_lds();
 
                         Base::GlobalPrefetch(
                             a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);

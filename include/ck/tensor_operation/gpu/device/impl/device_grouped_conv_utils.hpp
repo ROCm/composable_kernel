@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -59,6 +59,22 @@ constexpr bool is_NGCHW_GKYXC_NGKHW()
            is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
            is_same_v<OutLayout, tensor_layout::convolution::NGKHW>;
 }
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCHW_GKCYX_NGKHW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCHW> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKCYX> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKHW>;
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCHW_NGKHW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCHW> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKHW>;
+}
+
 // 3d
 template <typename InLayout, typename WeiLayout, typename OutLayout>
 constexpr bool is_NDHWGC_GKZYXC_NDHWGK()
@@ -81,6 +97,21 @@ constexpr bool is_NGCDHW_GKZYXC_NGKDHW()
 {
     return is_same_v<InLayout, tensor_layout::convolution::NGCDHW> &&
            is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKDHW>;
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCDHW_GKCZYX_NGKDHW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCDHW> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKCZYX> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKDHW>;
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCDHW_NGKDHW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCDHW> &&
            is_same_v<OutLayout, tensor_layout::convolution::NGKDHW>;
 }
 
