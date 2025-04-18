@@ -600,6 +600,54 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
         ck_tile::FillTrigValue<OGradDataType>{}(do_host);
     }
+    else if(init_method == 3)
+    {
+        ck_tile::FillUniformDistribution<QDataType>{1.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{1.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistribution<OGradDataType>{1.f, 1.f, seed}(do_host);
+    }
+    else if(init_method == 4)
+    {
+        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
+    }
+    else if(init_method == 5)
+    {
+        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{1.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistribution<OGradDataType>{1.f, 1.f, seed}(do_host);
+    }
+    else if(init_method == 6)
+    {
+        ck_tile::FillUniformDistribution<QDataType>{1.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{1.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistribution<OGradDataType>{1.f, 1.f, seed}(do_host);
+    }
+    else if(init_method == 7)
+    {
+        ck_tile::FillUniformDistribution<QDataType>{1.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{1.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{1.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistribution<OGradDataType>{1.f, 1.f, seed}(do_host);
+    }
+    else if(init_method == 8)
+    {
+        ck_tile::FillUniformDistribution<QDataType>{1.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{1.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistribution<OGradDataType>{1.f, 1.f, seed}(do_host);
+    }
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<AccDataType>(nhead);
@@ -619,9 +667,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
     }
 
-    // for(int iM=0; iM<128; iM++){
     //     for(int iK=0; iK<16; iK++){
-    //         printf("%04x ", *(reinterpret_cast<uint16_t*>(&(q_host(0, 0, iK, iM)))));
+    //         for(int iM=0; iM<128; iM++){
+    //             printf("%04x ", *(reinterpret_cast<uint16_t*>(&(q_host(0, 0, iK, iM)))));
+    //             if(iM%16==15){
+    //                 printf("|");
+    //             }
     //     }
     //     printf("\n");
     // }

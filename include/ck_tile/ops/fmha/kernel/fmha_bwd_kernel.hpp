@@ -1277,14 +1277,18 @@ struct FmhaBwdDQDKDVKernel
             make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
             {0, 0});
 
+        constexpr auto kSeq0 = 64;
+
         auto k_dram_window = make_tile_window(
             k_dram,
-            make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kQKHeaddim>{}),
+            // make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kQKHeaddim>{}),
+            make_tuple(number<kSeq0>{}, number<FmhaPipeline::kQKHeaddim>{}),
             {i_n0, 0});
 
         auto v_dram_window = make_tile_window(
             v_dram,
-            make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kVHeaddim>{}),
+            // make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kVHeaddim>{}),
+            make_tuple(number<kSeq0>{}, number<FmhaPipeline::kVHeaddim>{}),
             {i_n0, 0});
 
         auto do_dram_window = make_tile_window(
