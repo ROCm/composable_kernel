@@ -18,11 +18,13 @@ namespace host {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename D2DataType,
           typename AccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           index_t ActivationType_ = 0,
+          bool MulRoutedWeight    = true,
           typename ComputeTypeA   = CDataType,
           typename ComputeTypeB   = ComputeTypeA>
 struct ReferenceMoeGemm : public device::BaseOperator
@@ -40,6 +42,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                  const Tensor<BDataType>& b_e_n_k,
                  const Tensor<float>& b_scale_e_n,
                  Tensor<CDataType>& c_t_k_n,
+                 const Tensor<D2DataType>& d2,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
@@ -52,6 +55,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
               b_e_n_k_{b_e_n_k},
               b_scale_e_n_{b_scale_e_n},
               c_t_k_n_{c_t_k_n},
+              d2_{d2},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
@@ -67,6 +71,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
         const Tensor<BDataType>& b_e_n_k_;
         const Tensor<float>& b_scale_e_n_;
         Tensor<CDataType>& c_t_k_n_;
+        const Tensor<D2DataType>& d2_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -95,6 +100,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                 const int topk_id   = (arg.sorted_token_ids_(m) & 0xff000000) >> 24;
                 const int e         = arg.expert_ids_(m / arg.sorted_tile_size_);
                 const int token_cnt = arg.a_t_k_.mDesc.GetLengths()[0];
+                D2DataType v_topk_w = arg.d2_(m, 0); // expert
                 if(t < token_cnt)
                 {
                     for(int k = 0; k < K; ++k)
@@ -155,11 +161,17 @@ struct ReferenceMoeGemm : public device::BaseOperator
                     }
                     CDataType v_c{0};
                     CDataType v_c_up{0};
+                    if constexpr(MulRoutedWeight)
+                    {
+                        v_acc *= v_topk_w;
+                        v_acc_up *= v_topk_w;
+                    }
 
                     arg.c_element_op_(v_c, v_acc);
+                    arg.c_element_op_(v_c_up, v_acc_up);
+
                     if constexpr(ActivationType == 1)
                     {
-                        arg.c_element_op_(v_c_up, v_acc_up);
                         v_c = v_c * arg.b_scale_e_n_(e, n) * arg.a_scale_t_(t);
                         if constexpr(is_same_v<BDataType, pk_i4_t>)
                         {
@@ -172,7 +184,6 @@ struct ReferenceMoeGemm : public device::BaseOperator
                     }
                     else if constexpr(ActivationType == 0)
                     {
-                        arg.c_element_op_(v_c_up, v_acc_up);
                         v_c = v_c * arg.b_scale_e_n_(e, n) * arg.a_scale_t_(t);
                         if constexpr(is_same_v<BDataType, pk_i4_t>)
                         {
@@ -217,6 +228,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                              const Tensor<BDataType>& b_e_n_k,
                              const Tensor<float>& b_scale_e_n,
                              Tensor<CDataType>& c_t_k_n,
+                             const Tensor<D2DataType>& d2,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
@@ -230,6 +242,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         b_e_n_k,
                         b_scale_e_n,
                         c_t_k_n,
+                        d2,
                         a_element_op,
                         b_element_op,
                         c_element_op};

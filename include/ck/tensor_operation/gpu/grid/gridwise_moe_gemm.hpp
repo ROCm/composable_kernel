@@ -154,6 +154,7 @@ template <typename ALayout,
           index_t ActivationOperation                 = 0,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
+          bool MulRoutedWeight                        = true,
           bool PerTokenQuant                          = false,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = CDataType,
@@ -1432,7 +1433,7 @@ struct GridwiseMoeGemm
                 }
 
                 vector_type<int32_t, 4> scale_token_ids;
-                vector_type<float, 4> topk_weights; // for gemm2 only
+                vector_type<float, 4> topk_weights;
                 static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
                     const float scale_b = p_scale_b[n0 * NWave * NPerXdl * PerTokenQuant];
                     static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
@@ -1445,7 +1446,7 @@ struct GridwiseMoeGemm
                                     *c_style_pointer_cast<const vector_type<int32_t, M4>*>(
                                         p_sorted_token_ids + m_pos);
                             }
-                            if constexpr(!IsInputGemm)
+                            if constexpr(MulRoutedWeight)
                             {
                                 topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
                                     p_ds_grid[I2] + m_pos);
@@ -1478,6 +1479,11 @@ struct GridwiseMoeGemm
                                                       PerTokenQuant];
                                         float gate = scale_a * scale_b * c_thread_buf[cidx];
                                         float up   = scale_a * scale_up * c_thread_buf_up[cidx];
+                                        if constexpr(MulRoutedWeight)
+                                        {
+                                            gate = gate * topk_weights.AsType<float>()[m4];
+                                            up   = up * topk_weights.AsType<float>()[m4];
+                                        }
                                         if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
                                         {
                                             gate *= 16;
@@ -1493,6 +1499,11 @@ struct GridwiseMoeGemm
                                                       PerTokenQuant];
                                         float gate = scale_a * scale_b * c_thread_buf[cidx];
                                         float up   = scale_a * scale_up * c_thread_buf_up[cidx];
+                                        if constexpr(MulRoutedWeight)
+                                        {
+                                            gate = gate * topk_weights.AsType<float>()[m4];
+                                            up   = up * topk_weights.AsType<float>()[m4];
+                                        }
                                         if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
                                         {
                                             gate *= 16;
@@ -1504,9 +1515,13 @@ struct GridwiseMoeGemm
                                 }
                                 else
                                 {
-                                    c_thread_buf_fp32(cidx) = scale_a * scale_b *
-                                                              topk_weights.AsType<float>()[m4] *
-                                                              c_thread_buf[cidx];
+                                    c_thread_buf_fp32(cidx) =
+                                        scale_a * scale_b * c_thread_buf[cidx];
+                                    if constexpr(MulRoutedWeight)
+                                    {
+                                        c_thread_buf_fp32(cidx) = c_thread_buf_fp32(cidx) *
+                                                                  topk_weights.AsType<float>()[m4];
+                                    }
                                 }
                             });
                         });
@@ -1521,7 +1536,7 @@ struct GridwiseMoeGemm
                         static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
                             const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
                                                   m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
-                            if constexpr(!IsInputGemm)
+                            if constexpr(MulRoutedWeight)
                             {
                                 topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
                                     p_ds_grid[I2] + m_pos);
@@ -1531,12 +1546,18 @@ struct GridwiseMoeGemm
                                     blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
                                         make_tuple(m0, n0, m2 * M4 + m4));
                                 constexpr auto cidx = Number<c_offset>{};
+
                                 if constexpr(IsInputGemm) // gu fusion
                                 {
                                     if constexpr(ActivationOperation == Activation::silu_and_mul)
                                     {
                                         float gate = c_thread_buf[cidx];
                                         float up   = c_thread_buf_up[cidx];
+                                        if constexpr(MulRoutedWeight)
+                                        {
+                                            gate = gate * topk_weights.AsType<float>()[m4];
+                                            up   = up * topk_weights.AsType<float>()[m4];
+                                        }
                                         tensor_operation::element_wise::Silu{}(gate, gate);
                                         c_thread_buf_fp32(cidx) = gate * up;
                                     }
@@ -1544,14 +1565,23 @@ struct GridwiseMoeGemm
                                     {
                                         float gate = c_thread_buf[cidx];
                                         float up   = c_thread_buf_up[cidx];
+                                        if constexpr(MulRoutedWeight)
+                                        {
+                                            gate = gate * topk_weights.AsType<float>()[m4];
+                                            up   = up * topk_weights.AsType<float>()[m4];
+                                        }
                                         tensor_operation::element_wise::Gelu{}(gate, gate);
                                         c_thread_buf_fp32(cidx) = gate * up;
                                     }
                                 }
                                 else
                                 {
-                                    c_thread_buf_fp32(cidx) =
-                                        topk_weights.AsType<float>()[m4] * c_thread_buf[cidx];
+                                    c_thread_buf_fp32(cidx) = c_thread_buf[cidx];
+                                    if constexpr(MulRoutedWeight)
+                                    {
+                                        c_thread_buf_fp32(cidx) = topk_weights.AsType<float>()[m4] *
+                                                                  c_thread_buf_fp32[cidx];
+                                    }
                                 }
                             });
                         });
@@ -1694,7 +1724,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
