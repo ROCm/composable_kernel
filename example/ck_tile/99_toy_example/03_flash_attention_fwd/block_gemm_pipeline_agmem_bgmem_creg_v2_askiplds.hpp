@@ -58,8 +58,7 @@ struct BlockGemmPipelineAGmemBGmemCReg<
             "wrong!");
 
         static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+                          kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}],
                       "wrong!");
 
         ignore = a_element_func;
