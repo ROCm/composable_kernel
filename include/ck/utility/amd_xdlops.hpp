@@ -590,6 +590,35 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
         ignore = reg_c;
 #endif
     }
+
+    template <class FloatC>
+    __device__ static void Run(const bf8x32_t& reg_a,
+                               const int32_t& scale_a,
+                               const bf8x32_t& reg_b,
+                               const int32_t& scale_b,
+                               FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float4_t>()[Number<0>{}],
+                1, // cbsz
+                1, // blgp
+                0, // OPSEL
+                scale_a,
+                0, // OPSEL
+                scale_b);
+#else
+        ignore = reg_a;
+        ignore = scale_a;
+        ignore = reg_b;
+        ignore = scale_b;
+        ignore = reg_c;
+#endif
+    }
 };
 
 template <index_t MPerWave, index_t NPerWave>
