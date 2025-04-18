@@ -1,26 +1,11 @@
 # ONLY XDL_AND_WMMA_KERNELS
 set(GROUPED_CONV3D_BWD_DATA
-   xdl/comp/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_comp_instance.cpp
-   xdl/comp/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_bf16_comp_instance.cpp
-   xdl/comp/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f32_comp_instance.cpp
-   xdl/comp/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instance.cpp
-   xdl/comp/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_comp_instance.cpp
-   xdl/comp/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32_comp_instance.cpp
-
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_mem_inter_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_bf16_mem_inter_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f32_mem_inter_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_inter_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_inter_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_inter_instance.cpp
-
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_mem_intra_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_bf16_mem_intra_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f32_mem_intra_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_intra_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instance.cpp
-   xdl/mem/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_intra_instance.cpp
-
+   xdl/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
+   xdl/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_bf16_instance.cpp
+   xdl/device_grouped_conv3d_bwd_data_xdl_gndhwc_gkzyxc_gndhwk_f32_instance.cpp
+   xdl/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
+   xdl/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
+   xdl/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp
    xdl/device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkzyxc_ngkdhw_f16_instance.cpp
    xdl/device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkzyxc_ngkdhw_bf16_instance.cpp
    xdl/device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkzyxc_ngkdhw_f32_instance.cpp
@@ -41,7 +26,7 @@ set(GROUPED_CONV3D_BWD_DATA
 
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
    list(APPEND GROUPED_CONV3D_BWD_DATA
-      xdl/mem/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_input_f16_comp_bf8_f8_mem_instance.cpp)
+      xdl/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_input_f16_comp_bf8_f8_instance.cpp)
 endif()
 
 add_instance_library(device_grouped_conv3d_bwd_data_instance ${GROUPED_CONV3D_BWD_DATA})
