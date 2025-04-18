@@ -91,6 +91,12 @@ struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
 
         return a_block_dstr;
     }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeADramTileDistribution()
+    {
+        return MakeARegBlockDescriptor<Problem>();
+    }
 };
 
 } // namespace ck_tile
