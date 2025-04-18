@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -48,6 +48,7 @@ using D0Layout = Row;
 using D1Layout = Col;
 using D2Layout = ELayout;
 using DsLayout = ck::Tuple<D0Layout, D1Layout, D2Layout>;
+
 // for gate, a_scale, b_scale
 struct MulABScale
 {
@@ -298,6 +299,7 @@ int main(int argc, char* argv[])
     std::cout << "d1_e_n: " << d1_e_n.mDesc << std::endl;
     std::cout << "d2_e_n: " << d2_e_n.mDesc << std::endl;
     std::cout << "d0_t_n: " << d0_t_n.mDesc << std::endl;
+    std::cout << "d2_e_n: " << d2_e_n.mDesc << std::endl;
     std::cout << "e_t_n: " << e_t_n_host_result.mDesc << std::endl;
 
     switch(init_method)
