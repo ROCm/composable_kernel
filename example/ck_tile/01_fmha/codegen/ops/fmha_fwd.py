@@ -26,7 +26,7 @@ K0_MAX_SUBMAX_MAP = {
     64 : 64,
     96 : 128,
     128: 128,
-    128: 32,
+    160: 32,
     256: 256
 }
 
@@ -418,7 +418,8 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
             '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
         ### '96'  : FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
             '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '160' : FmhaFwdTileSize(128, 128, 32, 256, 32,  32,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            '160' : FmhaFwdTileSize(128, 128, 32, 128, 32,  160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1) if dtype == 'fp16' else 
+                    FmhaFwdTileSize(128, 128, 32, 256, 32,  32,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
             '192' : FmhaFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
             '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
         }
@@ -444,10 +445,12 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
         if dtype in ['fp16', 'bf16']:
             for mask, bias, lse, dropout in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"]):
                 if hdim == 160:
-                    pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 'f', 't', 't', bias, lse, dropout, squant, mask))
-                    pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
-                    pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 'f', 't', 't', bias, lse, dropout, squant, mask))
-                    pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
+                    if dtype == 'fp16':
+                        pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 'f', 'f', 't', bias, lse, dropout, squant, mask))
+                        pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 'f', 'f', 't', bias, lse, dropout, squant, mask))
+                    else:
+                        pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 'f', 't', 't', bias, lse, dropout, squant, mask))
+                        pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 'f', 't', 't', bias, lse, dropout, squant, mask))
                 elif hdim == 256:
                 # if True:
                     pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', bias, lse, dropout, squant, mask))

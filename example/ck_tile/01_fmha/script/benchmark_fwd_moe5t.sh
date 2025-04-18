@@ -2,7 +2,7 @@
 # TODO: run this script from CK root or build directory
 EXE="$(find . -name tile_example_fmha_fwd -type f | head -n 1)"
 VALID=1
-prec="bf16"
+prec="fp16"
 bsz=1
 hdim=160
 sk=16384
