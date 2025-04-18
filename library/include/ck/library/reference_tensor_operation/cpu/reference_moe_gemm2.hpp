@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,6 +25,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          bool MulRoutedWeight  = false,
           typename ComputeTypeA = CDataType,
           typename ComputeTypeB = ComputeTypeA>
 struct ReferenceMoeGemm2 : public device::BaseOperator
@@ -143,7 +144,14 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                     CDataType v_c{0};
                     D0DataType v_d0 = arg.d0_(m, n); // a
                     D0DataType v_d1 = arg.d1_(e, n); // b
-                    arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
+                    if constexpr(MulRoutedWeight)
+                    {
+                        arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
+                    }
+                    else
+                    {
+                        arg.c_element_op_(v_c, v_acc, v_d0, v_d1, 1.f);
+                    }
                     arg.c_t_n_(t, n) += v_c;
                 }
             };

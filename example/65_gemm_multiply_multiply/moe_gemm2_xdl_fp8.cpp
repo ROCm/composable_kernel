@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -135,6 +135,7 @@ static constexpr ck::index_t EVec          = 2;
 static constexpr ck::index_t D0Vec         = 1;
 static constexpr ck::index_t D1Vec         = 1;
 static constexpr ck::index_t D2Vec         = 1;
+static constexpr bool MulRoutedWeight      = false;
 using DeviceOpInstance                     = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
 ///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     DsData|     EData|     AccData|         CShuffle|           A|           B|          CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
@@ -164,7 +165,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
                2,        1,         S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, MulRoutedWeight, A0DataType>;
         // kernel 2: 128->32x128x128
         //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, EDataType>;
 
@@ -409,7 +410,8 @@ int main(int argc, char* argv[])
                                                           AccDataType,
                                                           PassThrough,
                                                           PassThrough,
-                                                          CDEElementOp>;
+                                                          CDEElementOp,
+                                                          MulRoutedWeight>;
         auto ref_moe_gemm = ReferenceGemmInstance{};
         auto ref_invoker  = ref_moe_gemm.MakeInvoker();
         auto ref_argument = ref_moe_gemm.MakeArgument(sorted_token_ids,
