@@ -481,10 +481,7 @@ struct HstuAttentionFwdPipelineQRKSVS
 
             // the over-lap only occurs when k1_loops is 3/5/7, NumVLdsBuffers is 2
             if constexpr(Policy::template IsFirstKLdsBufferOverlapLastVLdsBuffer<Problem>())
-            {
-                __builtin_amdgcn_sched_barrier(0);
                 __builtin_amdgcn_s_barrier();
-            };
         } while(++i_loop < num_loops);
 
         o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
