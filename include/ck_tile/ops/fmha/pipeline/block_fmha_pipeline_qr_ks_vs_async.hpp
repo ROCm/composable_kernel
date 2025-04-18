@@ -192,6 +192,9 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
 
+        const float logits_cap = 30.0f;
+        // const float logits_cap_scale = scale_s * rcp<float>(logits_cap * log2e_v<float>);
+
         // K tile in LDS
         auto k_lds_ptr   = reinterpret_cast<KDataType*>(smem_ptr);
         auto k_lds_store = generate_tuple(
@@ -435,9 +438,15 @@ struct BlockFmhaPipelineQRKSVSAsync
             else
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
-#if !CK_TILE_FMHA_FWD_FAST_EXP2
+// #if !CK_TILE_FMHA_FWD_FAST_EXP2
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-#endif
+                tile_elementwise_inout(
+                    [&logits_cap](auto& x) {
+                        x = log2e_v<float> * logits_cap * tanh_fast<float>(x * rcp<float>(logits_cap));
+                    },
+                    s_acc
+                );
+// #endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
@@ -530,9 +539,9 @@ struct BlockFmhaPipelineQRKSVSAsync
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                auto row_max = scale_s * get_validated_m(m[i_idx]);
-#endif
+// #if CK_TILE_FMHA_FWD_FAST_EXP2
+//                 auto row_max = scale_s * get_validated_m(m[i_idx]);
+// #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
@@ -543,7 +552,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                     }
                     else
                     {
-                        p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                        // p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
 #else
                     p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -568,8 +578,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                     }
                     else
                     {
-                        auto row_max = scale_s * get_validated_m(m[i_idx]);
-                        return exp2(scale_s * m_old[i_idx] - row_max);
+                        // auto row_max = scale_s * get_validated_m(m[i_idx]);
+                        // return exp2(scale_s * m_old[i_idx] - row_max);
+                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                     }
                 }();
 #else
