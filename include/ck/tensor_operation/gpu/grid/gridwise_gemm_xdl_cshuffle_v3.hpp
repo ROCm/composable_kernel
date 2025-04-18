@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -42,7 +43,7 @@ __global__ void
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid,
+        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
         p_shared,
         karg);
 #else
@@ -73,7 +74,7 @@ __global__ void
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid,
+        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
         p_shared_0,
         p_shared_1,
         karg);
@@ -82,6 +83,109 @@ __global__ void
 #endif // end of if (defined(__gfx9__))
 }
 
+/// @brief \"Universal\" GEMM kernel with SplitK support.
+///
+/// @par Overview
+///         This GEMM kernel is carrying out following mathematical equation:
+///         C{M,N} = C_op(A_op(A{M,K}) * B_op(B{K,N}))
+///         Where A, B are input tensors and C is the output tensor. The A/B/C_op are
+///         elementwise operations that could be applied on each tensor respectively.
+///         The \"universal\" gemm comes with multiple pipelines optimized for different usage
+///         scenarios. That's why it's called \"universal\". It's universal through it's design
+///         and versatilty.
+///
+/// @note   This Kernel implementation supports SplitK algorithm. It can be configured
+///         to split the dot product accumulated over the K dimension into multiple working groups.
+///         The partial products of different workgroups are then reduced using the AtomicAdd
+///         operation.
+///
+/// @tparam ALayout     A tensor data layout.
+/// @tparam BLayout     B tensor data layout.
+/// @tparam CLayout     C tensor data layout.
+/// @tparam ADataType   A tensor data type.
+/// @tparam BDataType   B tensor data type.
+/// @tparam AccDataType The accumulation data type related to the hardware
+///                         matrix-multiplication instruction.
+/// @tparam CShuffleDataType The data type used to store matrix-multiplication results into
+///                          LDS memory during \"CShuffle\" data layout optimization.
+/// @tparam CDataType   C tensor data type.
+/// @tparam AElementwiseOperation Elementwise operation applied to the A input tensor elements.
+/// @tparam BElementwiseOperation Elementwise operation applied to the B input tensor elements.
+/// @tparam CElementwiseOperation Elementwise operation applied to the C output tensor
+///                               (after GEMM).
+/// @tparam GemmSpec    Determines used "padding" version.
+/// @tparam BlockSize   The number of threads within workgroup.
+/// @tparam MPerBlock   The input/output data tile size in the M dimension.
+/// @tparam NPerBlock   The input/output data tile size in the N dimension.
+/// @tparam KPerBlock   The input data tile size in the K dimension.
+/// @tparam AK1Value    The vector load size from global memory for A tensor.
+/// @tparam BK1Value    The vector load size from global memory for B tensor.
+/// @tparam MPerXdl     M size of matrix-fused-multiply-add instruction.
+/// @tparam NPerXdl     N size of matrix-fused-multiply-add instruction.
+/// @tparam MXdlPerWave The number of iterations in the M dimension over output tile per wavefront.
+/// @tparam NXdlPerWave The number of iterations in the N dimension over output tile per wavefront.
+/// @tparam ABlockTransferThreadClusterLengths_AK0_M_AK1 Spatial thread distribution over the input
+///                                                      data. Can be interpreted as the answer
+///                                                      to the question, "How many threads can be
+///                                                      arranged on each input data axis?"
+/// @tparam ABlockTransferThreadClusterArrangeOrder The order of thread spatial distribution over
+///                                                 the input tensor dimension. Can be interpreted
+///                                                 as the answer to the question: "In which
+///                                                 order to spread threads through tensor axes?".
+/// @tparam ABlockTransferSrcAccessOrder The order of accessing input tensor axes. Can be
+///                                      interpreted as the answer to the question "Which dimension
+///                                      to read first? And which next?" etc.
+/// @tparam ABlockTransferSrcVectorDim   The index of axis on which we could do vectorized memory
+///                                      access - the one with contiguous memory.
+/// @tparam ABlockTransferSrcScalarPerVector The size of vector access instruction - the number of
+///                                          elements accessed per thread per instruction.
+/// @tparam ABlockTransferDstScalarPerVector_AK1 The size of vectorized store into LDS memory.
+/// @tparam AThreadTransferSrcResetCoordinateAfterRun   Decides whether we reset thread coordinate
+///                          (return back to the window origin) after all thread finish data copy.
+/// @tparam ABlockLdsExtraM                      Whether to use padding for LDS or not. With
+///                                              universal GEMM there's no need for padding.
+/// @tparam BBlockTransferThreadClusterLengths_BK0_N_BK1 Spatial thread distribution over the input
+///                                                      data. Can be interpreted as the answer
+///                                                      to the question: "How many threads to
+///                                                      arrange on each input data axis?"
+/// @tparam BBlockTransferThreadClusterArrangeOrder The order of thread spatial distribution over
+///                                                 the input tensor dimension. Can be interpreted
+///                                                 as the answer to the question: "In which
+///                                                 order to spread threads through tensor axes?".
+/// @tparam BBlockTransferSrcAccessOrder he order of accessing input tensor axes. Can be
+///                                      interpreted as the answer to the question "Which dimension
+///                                      to read first? And which next?" etc.
+/// @tparam BBlockTransferSrcVectorDim  The index of axis on which we could do vectorized memory
+///                                      access - the one with contiguous memory.
+/// @tparam BBlockTransferSrcScalarPerVector The size of vector access instruction - the number of
+///                                          elements accessed per thread per instruction.
+/// @tparam BBlockTransferDstScalarPerVector_BK1 The size of vectorized store into LDS memory.
+/// @tparam BThreadTransferSrcResetCoordinateAfterRun   Decides whether we reset thread coordinate
+///                          (return back to the window origin) after all thread finish data copy.
+/// @tparam BBlockLdsExtraN                      Whether to use padding for LDS or not. With
+///                                              universal GEMM there's no need for padding.
+/// @tparam CShuffleMXdlPerWavePerShuffle   The number of matrix-multiplication instructions
+///                                         results to process per wave per iteration of CShuffle
+///                                         in M dimension.
+/// @tparam CShuffleNXdlPerWavePerShuffle   The number of matrix-multiplication instructions
+///                                         results to process per wave per iteration of CShuffle
+///                                         in N dimension.
+/// @tparam CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock The spatial
+///                                         thread distribution used for storing data into output
+///                                         tensor across output data layout dimensions.
+/// @tparam CShuffleBlockTransferScalarPerVector_NPerBlock The size of vectorized memory access.
+///                                         Used when storing data to output tensor.
+/// @tparam BlkGemmPipeSched    The version of blockwise-gemm pipeline scheduler (interwave or
+///                             intrawave).
+/// @tparam BlkGemmPipelineVer  The version of blockwise-gemm pipeline.
+/// @tparam ComputeTypeA    Data type used for A input of hardware matrix-multiplication
+///                         instructions.
+/// @tparam ComputeTypeB    Data type used for B input of hardware matrix-multiplication
+///                         instructions.
+/// @tparam PermuteA            Whether the A input tensor has gridwise-gemm friendly data layout
+///                             in global memory. Currently not supported!
+/// @tparam PermuteB            Whether the B input tensor has gridwise-gemm friendly data layout
+///                             in global memory (pre-shuffled).
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -127,7 +231,9 @@ template <typename ALayout,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v4,
           typename ComputeTypeA                       = CDataType,
-          typename ComputeTypeB                       = ComputeTypeA>
+          typename ComputeTypeB                       = ComputeTypeA,
+          bool PermuteA                               = false,
+          bool PermuteB                               = false>
 struct GridwiseGemm_xdl_cshuffle_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -145,11 +251,33 @@ struct GridwiseGemm_xdl_cshuffle_v3
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
 
+    static constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
+    static constexpr bool is_single_rate_mfma =
+        (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
+          lcm_AK1_BK1 <= 4) ||
+         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8))
+            ? true
+            : false;
     static constexpr index_t KPack =
-        math::max(math::lcm(AK1Number, BK1Number),
-                  MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        math::max(lcm_AK1_BK1,
+                  MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma>::
+                      selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+
+    static constexpr index_t APackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
 
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
@@ -221,7 +349,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
 
-    __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
+    __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
         index_t M, index_t MPad, index_t K, index_t KPad, index_t StrideA, index_t AK0)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
@@ -303,7 +431,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }
     }
 
-    __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
+    __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
         index_t K, index_t KPad, index_t N, index_t NPad, index_t StrideB, index_t BK0)
     {
         const auto b_grid_desc_nraw_kraw = [&]() {
@@ -318,6 +446,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }();
 
         using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+
+        static_assert(!(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> &&
+                        GemmSpec != GemmSpecialization::Default),
+                      "pk_i4_t does not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -373,15 +505,39 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }
         else
         {
-            // not pad N or K
-            const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
-                b_grid_desc_nraw_kraw,
-                make_tuple(make_unmerge_transform(make_tuple(BK0, BK1Value)),
-                           make_pass_through_transform(N)),
-                make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            if constexpr(!PermuteB)
+            {
+                // not pad N or K
+                const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                    b_grid_desc_nraw_kraw,
+                    make_tuple(make_unmerge_transform(make_tuple(BK0, BK1Value)),
+                               make_pass_through_transform(N)),
+                    make_tuple(Sequence<1>{}, Sequence<0>{}),
+                    make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
-            return b_grid_desc_bk0_n_bk1;
+                return b_grid_desc_bk0_n_bk1;
+            }
+            else
+            {
+                // Pre-shuffled Weight
+                // BGlobal[K / KPerBlock, N, KPerBlock / K1, K1] -> BTile[K / K1, N, K1]
+                constexpr index_t BK01 = KPerBlock / BK1Value;
+                const index_t BK0_     = StrideB / BK1Value;
+                const index_t BK00     = BK0_ / BK01;
+
+                const auto b_grid_desc_bk00_n_bk01_bk1_permute =
+                    make_naive_tensor_descriptor_packed(make_tuple(BK00, N, BK01, BK1Value));
+
+                const auto b_grid_desc_bk0_n_bk1_permute = transform_tensor_descriptor(
+                    b_grid_desc_bk00_n_bk01_bk1_permute,
+                    make_tuple(make_merge_transform(make_tuple(BK00, BK01)),
+                               make_pass_through_transform(make_tuple(N)),
+                               make_pass_through_transform(BK1Value)),
+                    make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+                return b_grid_desc_bk0_n_bk1_permute;
+            }
         }
     }
 
@@ -417,6 +573,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
         }();
 
+        // pad M and N
+        return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
+                                           make_tuple(make_right_pad_transform(M, MPad - M),
+                                                      make_right_pad_transform(N, NPad - N)),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}));
+#if 0
         using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
@@ -454,6 +617,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             // not pad M or N
             return c_grid_desc_mraw_nraw;
         }
+#endif
     }
 
     struct Problem
@@ -531,39 +695,61 @@ struct GridwiseGemm_xdl_cshuffle_v3
                           index_t StrideA_,
                           index_t StrideB_,
                           index_t StrideC_,
-                          index_t k_batch_)
+                          index_t k_batch_,
+                          bool is_reduce_ = false)
             : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, k_batch_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
-              p_c_grid{p_c_grid_}
+              p_c_grid{p_c_grid_},
+              is_reduce(is_reduce_)
         {
+        }
+
+        __host__ __device__ inline bool IsReduceAdd() const
+        {
+            return (Problem::KBatch > 1) && is_reduce;
+        }
+
+        __host__ __device__ inline bool IsAtomicAdd() const
+        {
+            return (Problem::KBatch > 1) && (!is_reduce);
         }
 
         const ADataType* p_a_grid;
         const BDataType* p_b_grid;
         CDataType* p_c_grid;
+        bool is_reduce;
     };
 
     struct SplitKBatchOffset
     {
+
         __device__ SplitKBatchOffset(Argument& karg)
         {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * karg.KRead;
+                a_k_split_offset = blockIdx.z * karg.KRead / APackedSize;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * karg.KRead * karg.M;
+                a_k_split_offset = blockIdx.z * karg.KRead * karg.StrideA;
             }
 
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * karg.KRead * karg.N;
+                b_k_split_offset = blockIdx.z * karg.KRead * karg.StrideB;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * karg.KRead;
+                if constexpr(!PermuteB)
+                {
+                    b_k_split_offset = blockIdx.z * karg.KRead / BPackedSize;
+                }
+                else
+                {
+                    const int k0_offset = karg.KRead * karg.N;
+                    b_k_split_offset    = blockIdx.z * k0_offset / BPackedSize;
+                }
             }
 
             if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
@@ -574,28 +760,39 @@ struct GridwiseGemm_xdl_cshuffle_v3
             {
                 karg.K = karg.K - karg.KRead * (karg.KBatch - 1);
             }
+
+            if(karg.IsReduceAdd())
+            {
+                c_reduce_offset = blockIdx.z * karg.M * karg.N;
+            }
+            else
+            {
+                c_reduce_offset = 0;
+            }
         }
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
+        index_t c_reduce_offset;
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
         // A matrix in LDS memory, dst of blockwise copy
-        if constexpr(ABlockLdsExtraM)
+        if constexpr(ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
+            // bank conflict when writting the data into LDS, but don't worry, we have whole entire
+            // loop to hide it in v4. it may give you some benefit from less valu in compute address
             return make_naive_tensor_descriptor(
                 make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
-                make_tuple(AK1Number, Number<KPerBlock + ABlockLdsExtraM>{}, I1));
+                make_tuple(Number<MPerBlock>{} * AK1Number, AK1Number, I1));
         }
         // xor tensor transformation request more unnecessary vgpr usage, would cause register spill
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(ADataType) < 1
-                                                  ? 1
-                                                  : 32 * 4 / KPerBlock / sizeof(ADataType);
+            constexpr index_t LdsSize       = 32 * 4 / KPerBlock / sizeof(ADataType) / APackedSize;
+            constexpr auto MLdsLayer        = LdsSize < 1 ? 1 : LdsSize;
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     AK0Number * Number<MLdsLayer>{}, Number<MPerBlock / MLdsLayer>{}, AK1Number),
@@ -720,19 +917,19 @@ struct GridwiseGemm_xdl_cshuffle_v3
     __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
         // B matrix in LDS memory, dst of blockwise copy
-        if constexpr(BBlockLdsExtraN)
+        if constexpr(BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
+            // bank conflict when writting the data into LDS, but don't worry, we have whole entire
+            // loop to hide it in v4. it may give you some benefit from less valu in compute address
             return make_naive_tensor_descriptor(
                 make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
-                make_tuple(BK1Number, Number<KPerBlock + BBlockLdsExtraN>{}, I1));
+                make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1Number, BK1Number, I1));
         }
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
-            constexpr auto NLdsLayer = 32 * 4 / KPerBlock / sizeof(BDataType) < 1
-                                           ? 1
-                                           : 32 * 4 / KPerBlock / sizeof(BDataType);
-            ;
+            constexpr index_t LdsSize       = 32 * 4 / KPerBlock / sizeof(BDataType) / BPackedSize;
+            constexpr index_t NLdsLayer     = LdsSize < 1 ? 1 : LdsSize;
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
@@ -914,8 +1111,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned * sizeof(ADataType) +
-                          b_block_space_size_aligned * sizeof(BDataType)),
+        return math::max((a_block_space_size_aligned * sizeof(ADataType) / APackedSize +
+                          b_block_space_size_aligned * sizeof(BDataType) / BPackedSize),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
@@ -929,7 +1126,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
+                     !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
         {
             if(!(karg.M % MPerBlock == 0))
             {
@@ -946,7 +1144,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
+                     (is_same<tensor_layout::gemm::RowMajor, BLayout>::value))
         {
             if(!(karg.N % NPerBlock == 0))
             {
@@ -1080,16 +1279,22 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
         }
 
-        if constexpr(is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
+        if constexpr(!(is_same<remove_cvref_t<CDataType>, half_t>::value ||
+                       is_same<remove_cvref_t<CDataType>, float>::value ||
+                       is_same<remove_cvref_t<CDataType>, bhalf_t>::value ||
+                       is_same<remove_cvref_t<CDataType>, int32_t>::value))
         {
-            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            if(!karg.IsReduceAdd())
             {
-                std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__
-                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
-            }
-            if(karg.KBatch > 1)
-            {
-                return false;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__
+                              << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                if(karg.KBatch > 1)
+                {
+                    return false;
+                }
             }
         }
 
@@ -1272,8 +1477,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
             static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
+            reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) + a_block_space_size_aligned *
+                                                                            sizeof(ADataType) /
+                                                                            APackedSize),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
@@ -1666,16 +1872,16 @@ struct GridwiseGemm_xdl_cshuffle_v3
             static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared_0) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
+            bit_cast<BDataType*>(static_cast<char*>(p_shared_0) +
+                                 a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared_1) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
+            bit_cast<BDataType*>(bit_cast<char*>(p_shared_1) +
+                                 a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);

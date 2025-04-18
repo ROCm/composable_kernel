@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -340,8 +340,8 @@ struct Bilinear
     };
 
     template <>
-    __host__ __device__ constexpr void operator()<std::int8_t, std::int32_t, std::int8_t>(
-        std::int8_t& y, const std::int32_t& x0, const std::int8_t& x1) const
+    __host__ __device__ constexpr void
+    operator()<int8_t, int32_t, int8_t>(int8_t& y, const int32_t& x0, const int8_t& x1) const
     {
         y = type_convert<int8_t>(alpha_ * type_convert<float>(x0) +
                                  beta_ * type_convert<float>(x1));
@@ -636,6 +636,32 @@ struct AddSilu
 
         e = type_convert<bhalf_t>(x1_f);
     }
+};
+
+struct ConvScaleAdd
+{
+    __host__ __device__ ConvScaleAdd(float scale_in  = 1.f,
+                                     float scale_wei = 1.f,
+                                     float scale_out = 1.f)
+        : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
+    {
+    }
+
+    template <typename E, typename C, typename D>
+    __host__ __device__ void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ void
+    operator()<f8_t, float, float>(f8_t& e, const float& c, const float& d) const
+    {
+        float x;
+        Add{}.template operator()<float>(x, c * scale_in_ * scale_wei_, d);
+        e = type_convert<f8_t>(x * scale_out_);
+    };
+
+    float scale_in_;
+    float scale_wei_;
+    float scale_out_;
 };
 
 } // namespace element_wise

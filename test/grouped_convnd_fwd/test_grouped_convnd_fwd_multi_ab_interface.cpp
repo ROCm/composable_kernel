@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -207,7 +207,7 @@ TEST_F(TestGroupedConvndFwdMultiAInterface, MultiA)
     std::array<const void*, NumAs> as{nullptr, nullptr};
     const void* b = nullptr;
 
-    EXPECT_TRUE(this->template Run(as, b));
+    EXPECT_TRUE(this->Run(as, b));
 }
 
 TEST_F(TestGroupedConvndFwdMultiBInterface, MultiB)
@@ -215,7 +215,7 @@ TEST_F(TestGroupedConvndFwdMultiBInterface, MultiB)
     const void* a = nullptr;
     std::array<const void*, NumBs> bs{nullptr, nullptr};
 
-    EXPECT_TRUE(this->template Run(a, bs));
+    EXPECT_TRUE(this->Run(a, bs));
 }
 
 TEST_F(TestGroupedConvndFwdMultiABInterface, MultiAB)
@@ -223,7 +223,7 @@ TEST_F(TestGroupedConvndFwdMultiABInterface, MultiAB)
     std::array<const void*, NumAs> as{nullptr, nullptr};
     std::array<const void*, NumBs> bs{nullptr, nullptr};
 
-    EXPECT_TRUE(this->template Run(as, bs));
+    EXPECT_TRUE(this->Run(as, bs));
 }
 
 TEST_F(TestGroupedConvndFwdInterface, SingleAB)
@@ -231,5 +231,5 @@ TEST_F(TestGroupedConvndFwdInterface, SingleAB)
     const void* a = nullptr;
     const void* b = nullptr;
 
-    EXPECT_TRUE(this->template Run(a, b));
+    EXPECT_TRUE(this->Run(a, b));
 }

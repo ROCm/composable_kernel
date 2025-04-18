@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -100,7 +100,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     using GridwiseGemmPipe = remove_cvref_t<
         decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
-#if CK_WORKAROUND_DENORM_FIX
+#if CK_GFX90A_DENORM_WORKAROUND
     using AComputeDataType =
         conditional_t<is_same_v<AComputeDataType_, ck::half_t>, ck::bhalf_t, AComputeDataType_>;
     using BComputeDataType =
@@ -473,11 +473,20 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
     }
 
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
+    template <typename DsLayout, GemmSpecialization GemmSpec>
+    __host__ __device__ static auto
+    MakeDsGridDescriptor_M_N(const ck::Array<index_t, NumDTensor>& MRaws,
+                             const ck::Array<index_t, NumDTensor>& NRaws,
+                             const ck::Array<index_t, NumDTensor>& DsStride)
+#else
     template <typename DsLayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
     MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& MRaws,
                              const std::array<index_t, NumDTensor>& NRaws,
                              const std::array<index_t, NumDTensor>& DsStride)
+#endif
+
     {
         return generate_tuple(
             [&](auto i) {
@@ -626,10 +635,22 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-        constexpr index_t KPack = math::max(
-            math::lcm(AK1, BK1),
-            MfmaSelector<AComputeDataType, MPerXdl, NPerXdl, BComputeDataType>::selected_mfma
-                .k_per_blk);
+        constexpr auto lcm_AK1_BK1 = math::lcm(AK1, BK1);
+        constexpr bool is_single_rate_mfma =
+            (((is_same<AComputeDataType, half_t>::value ||
+               is_same<AComputeDataType, bhalf_t>::value) &&
+              lcm_AK1_BK1 <= 4) ||
+             (is_same<AComputeDataType, int8_t>::value && lcm_AK1_BK1 <= 8))
+                ? true
+                : false;
+
+        constexpr index_t KPack =
+            math::max(lcm_AK1_BK1,
+                      MfmaSelector<AComputeDataType,
+                                   MPerXdl,
+                                   NPerXdl,
+                                   BComputeDataType,
+                                   is_single_rate_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
@@ -941,7 +962,11 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const index_t K,
                                const index_t StrideA,
                                const index_t StrideB,
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
+                               const ck::Array<index_t, NumDTensor> StrideDs,
+#else
                                const std::array<index_t, NumDTensor> StrideDs,
+#endif
                                const index_t StrideE,
                                const Block2ETileMap& block_2_etile_map)
     {

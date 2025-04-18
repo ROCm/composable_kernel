@@ -8,6 +8,19 @@
 
 namespace ck {
 
+enum struct BlockGemmPipelineVersion
+{
+    // For GEMM
+    v1, // Naive
+    v2, // Mem
+    v3, // Comp
+    v4, // Comp, double lds buffer
+    v5, // Comp, double global prefetch register buffer
+
+    // For GEMM with preshuffled weight
+    // v1, single lds buffer
+    // v2, double lds buffer
+};
 enum struct BlockGemmPipelineScheduler
 {
     Intrawave,
@@ -72,7 +85,7 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t A_LDS_Read_Inst_Num =
         WaveNumN * MPerBlock * KPerBlock / (BlockSize * ALDSReadWidth);
     static constexpr index_t B_LDS_Read_Inst_Num =
-        WaveNumM * MPerBlock * KPerBlock / (BlockSize * BLDSReadWidth);
+        WaveNumM * NPerBlock * KPerBlock / (BlockSize * BLDSReadWidth);
 
     static constexpr index_t C_MFMA_Inst_Num =
         MPerBlock * NPerBlock * KPerBlock / (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
@@ -90,14 +103,22 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
                KPerXDL);
 
         printf(" A/B buffer load inst: %d, %d\n A/B LDS write inst: %d, %d\n A/B LDS read inst: "
-               "%d, %d\n C MFMA inst: %d\n",
+               "%d, %d\n C MFMA inst: %d\n"
+               "A/B LDS read width: %d, %d, A/B LDS write width: %d, %d, A/B buffer load width: "
+               "%d/ %d\n",
                A_Buffer_Load_Inst_Num,
                B_Buffer_Load_Inst_Num,
                A_LDS_Write_Inst_Num,
                B_LDS_Write_Inst_Num,
                A_LDS_Read_Inst_Num,
                B_LDS_Read_Inst_Num,
-               C_MFMA_Inst_Num);
+               C_MFMA_Inst_Num,
+               A_LDS_Read_Width,
+               B_LDS_Read_Width,
+               ALDSWriteWidth,
+               BLDSWriteWidth,
+               ABufferLoadWidth,
+               BBufferLoadWidth);
     }
 };
 

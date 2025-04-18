@@ -1,6 +1,6 @@
 #pragma once
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -39,8 +40,9 @@ __global__ void
                                           const BElementwiseOperation b_element_op,
                                           const CDEElementwiseOperation cde_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx103__) || defined(__gfx11__) || defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||         \
+    defined(__gfx90a__) || defined(__gfx103__) || defined(__gfx11__) || defined(__gfx94__) || \
+    defined(__gfx12__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -419,7 +421,8 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
                  CDEElementwiseOperation cde_element_op)
             : a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              cde_element_op_{cde_element_op}
+              cde_element_op_{cde_element_op},
+              gemm_kernel_host_args_{nullptr}
         {
             grid_size_ = 0;
 
@@ -537,6 +540,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
         std::vector<Tuple<index_t, index_t>> b_mtx_nraw_kraw_;
 
         index_t grid_size_;
+        void* gemm_kernel_host_args_;
     };
 
     // Invoker
@@ -544,7 +548,10 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        float Run(const Argument& arg,
+                  const StreamConfig& stream_config = StreamConfig{},
+                  hipStream_t cpy_stream            = nullptr,
+                  hipEvent_t cpy_event              = nullptr)
         {
             auto K0 = arg.gemm_desc_kernel_arg_[0].a_grid_desc_k0_m_k1_.GetLength(I0);
             bool all_has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K0);
@@ -601,12 +608,36 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
-            hipGetErrorString(
-                hipMemcpyWithStream(arg.p_workspace_,
-                                    arg.gemm_desc_kernel_arg_.data(),
-                                    arg.gemm_desc_kernel_arg_.size() * sizeof(GemmKernelArg),
-                                    hipMemcpyHostToDevice,
-                                    stream_config.stream_id_));
+            // If the user provides copy stream and copy event, we assume that they're also
+            // responsible for providing allocated host memory (eg. pinned) which
+            // would be used to copy kernel arguments to the device.
+            if(cpy_stream && cpy_event)
+            {
+                if(arg.gemm_kernel_host_args_ == nullptr)
+                {
+                    std::ostringstream err;
+                    err << "No memory has been allocated for gemm kernel host args "
+                        << "when providing the copy stream and copy event! In " << __FILE__ << ":"
+                        << __LINE__ << ", in function: " << __func__;
+                    throw std::runtime_error(err.str());
+                }
+                hipGetErrorString(hipMemcpyAsync(arg.p_workspace_,
+                                                 arg.gemm_kernel_host_args_,
+                                                 arg.group_count_ * sizeof(GemmKernelArg),
+                                                 hipMemcpyHostToDevice,
+                                                 cpy_stream));
+                hipGetErrorString(hipEventRecord(cpy_event, cpy_stream));
+                hipGetErrorString(hipEventSynchronize(cpy_event));
+            }
+            else // In this case CK owns memory allocated on host.
+            {
+                hipGetErrorString(
+                    hipMemcpyAsync(arg.p_workspace_,
+                                   arg.gemm_desc_kernel_arg_.data(),
+                                   arg.gemm_desc_kernel_arg_.size() * sizeof(GemmKernelArg),
+                                   hipMemcpyHostToDevice,
+                                   stream_config.stream_id_));
+            }
 
             auto launch_kernel = [&](auto has_main_k_block_loop,
                                      auto has_double_tail_k_block_loop) {
@@ -673,7 +704,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
         }
 
         if(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-           ck::is_gfx103_supported() || ck::is_gfx11_supported())
+           ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
@@ -760,6 +791,40 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
         return dynamic_cast<const Argument*>(p_arg)->group_count_ * sizeof(GemmKernelArg);
+    }
+
+    size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
+    {
+        return GetWorkSpaceSize(p_arg);
+    }
+
+    size_t GetHostKernelArgSize(const BaseArgument* p_arg) const { return GetWorkSpaceSize(p_arg); }
+
+    void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
+    {
+        return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
+    }
+
+    //----------------------------------------------------------------------------------------------
+    /// @brief      Sets the host kernel arguments pointer and copies that data on the host side.
+    ///             This function can be utilised to use pinned memory for the host args and
+    ///             achieve fully async data copy.
+    ///
+    /// @param      p_arg              The pointer to the Argument we're going to update.
+    /// @param[in]  p_host_kernel_args The pointer to the host memory where the kernel
+    ///                                arguments will be copied
+    void SetHostKernelArgsPointer(BaseArgument* p_arg, void* p_host_kernel_args) const
+    {
+        Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
+        if(!pArg_)
+        {
+            throw std::runtime_error("Failed to cast argument pointer!");
+        }
+
+        pArg_->gemm_kernel_host_args_ = p_host_kernel_args;
+        std::copy(pArg_->gemm_desc_kernel_arg_.begin(),
+                  pArg_->gemm_desc_kernel_arg_.end(),
+                  static_cast<GemmKernelArg*>(pArg_->gemm_kernel_host_args_));
     }
 };
 

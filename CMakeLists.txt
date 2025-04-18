@@ -26,7 +26,23 @@ set(version 1.1.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
 
-find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+# Usage: for customized Python location cmake -DCK_USE_ALTERNATIVE_PYTHON="/opt/Python-3.8.13/bin/python3.8"
+# CK Codegen requires dataclass which is added in Python 3.7
+# Python version 3.8 is required for general good practice as it is default for Ubuntu 20.04
+if(NOT CK_USE_ALTERNATIVE_PYTHON)
+   find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
+else()
+   message("Using alternative python version")
+   set(EXTRA_PYTHON_PATH)
+   # this is overly restrictive, we may need to be more flexible on the following
+   string(REPLACE "/bin/python3.8" "" EXTRA_PYTHON_PATH "${CK_USE_ALTERNATIVE_PYTHON}")
+   message("alternative python path is: ${EXTRA_PYTHON_PATH}")
+   find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+   add_definitions(-DPython3_EXECUTABLE="${CK_USE_ALTERNATIVE_PYTHON}")
+   set(Python3_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
+   set(PYTHON_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
+   set(ENV{LD_LIBRARY_PATH} "${EXTRA_PYTHON_PATH}/lib:$ENV{LD_LIBRARY_PATH}")
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -62,23 +78,42 @@ if (DTYPES)
     endif()
     message("DTYPES macro set to ${DTYPES}")
 else()
-    add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP8 -DCK_ENABLE_BF8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16)
-    set(CK_ENABLE_ALL_DTYPES "ON")
+    add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16 -DCK_ENABLE_FP8 -DCK_ENABLE_BF8)
+    set(CK_ENABLE_INT8 "ON")
+    set(CK_ENABLE_FP16 "ON")
+    set(CK_ENABLE_FP32 "ON")
+    set(CK_ENABLE_FP64 "ON")
+    set(CK_ENABLE_BF16 "ON")
+    set(CK_ENABLE_FP8 "ON")
+    set(CK_ENABLE_BF8 "ON")
 endif()
 
 #for f8/bf8_t type
 add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
+add_compile_options(-Wno-unique-object-duplication)
 
-if(DL_KERNELS)
+if(NOT DISABLE_DL_KERNELS)
     add_definitions(-DDL_KERNELS)
+    set(DL_KERNELS "ON")
     set(CK_ENABLE_DL_KERNELS "ON")
 endif()
+if(NOT DISABLE_DPP_KERNELS)
+    add_definitions(-DDPP_KERNELS)
+    set(DPP_KERNELS "ON")
+    set(CK_ENABLE_DPP_KERNELS "ON")
+endif()
+option(CK_USE_CODEGEN "Enable codegen library" OFF)
+if(CK_USE_CODEGEN)
+   add_definitions(-DCK_USE_CODEGEN)
+endif()
 
-if(INSTANCES_ONLY)
-    add_definitions(-DINSTANCES_ONLY)
-    set(CK_ENABLE_INSTANCES_ONLY "ON")
+option(CK_TIME_KERNEL "Enable kernel time tracking" ON)
+if(CK_TIME_KERNEL)
+    add_definitions(-DCK_TIME_KERNEL=1)
+else()
+    add_definitions(-DCK_TIME_KERNEL=0)
 endif()
 
 include(getopt)
@@ -105,72 +140,130 @@ rocm_setup_version(VERSION ${version})
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
 
 message("GPU_TARGETS= ${GPU_TARGETS}")
+message("GPU_ARCHS= ${GPU_ARCHS}")
+if(GPU_ARCHS)
+    #disable GPU_TARGETS to avoid conflicts, this needs to happen before we call hip package
+    unset(GPU_TARGETS CACHE)
+    unset(AMDGPU_TARGETS CACHE)
+endif()
+if(GPU_TARGETS)
+    set(USER_GPU_TARGETS 1)
+else()
+    set(USER_GPU_TARGETS 0)
+endif()
+find_package(hip REQUIRED)
+# No assumption that HIP kernels are launched with uniform block size for backward compatibility
+# SWDEV-413293 and https://reviews.llvm.org/D155213
+math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
+message("hip_version_flat=${hip_VERSION_FLAT}")
 
 message("checking which targets are supported")
-#This is the list of targets to be used in case GPU_TARGETS is not set on command line
-#These targets will be filtered and only supported ones will be used
-#Setting GPU_TARGETS on command line will override this list
-if(NOT PROFILER_ONLY)
-    rocm_check_target_ids(DEFAULT_GPU_TARGETS
-        TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+#In order to build just the CK library (without tests and examples) for all supported GPU targets
+#use -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201"
+#the GPU_TARGETS flag will be reset in this case in order to avoid conflicts.
+#
+#In order to build CK along with all tests and examples it should be OK to set GPU_TARGETS to just 1 or 2 similar architectures.
+if(NOT ENABLE_ASAN_PACKAGING)
+    if(NOT WIN32 AND ${hip_VERSION_FLAT} LESS 600300000)
+        # WORKAROUND: compiler does not yet fully support gfx12 targets, need to fix version above
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600300000 AND ${hip_VERSION_FLAT} LESS 600400000)
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201")
+    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600400000)
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201;gfx950")
+    endif()
 else()
-    add_definitions(-DPROFILER_ONLY)
-    set(GPU_TARGETS "" CACHE STRING "" FORCE)
-    if(GPU_TARGETS)
-        message(FATAL_ERROR "For PROFILE_ONLY build, please do not set GPU_TARGETS, use GPU_ARCH = gfx90, gfx94, gfx10, or gfx11")
-    endif()
-    if(GPU_ARCH MATCHES "gfx90")
-        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx908;gfx90a")
-    elseif(GPU_ARCH MATCHES "gfx94")
-        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx940;gfx941;gfx942")
-    elseif(GPU_ARCH MATCHES "gfx10")
-        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1030")
-    elseif(GPU_ARCH MATCHES "gfx11")
-        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1100;gfx1101;gfx1102")
-    else()
-        message(FATAL_ERROR "For PROFILE_ONLY build, please specify GPU_ARCH as gfx90, gfx94, gfx10, or gfx11")
-    endif()
-    set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
+    #build CK only for xnack-supported targets when using ASAN
+    set(CK_GPU_TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx942:xnack+")
 endif()
 
-message("Supported GPU_TARGETS= ${DEFAULT_GPU_TARGETS}")
-
-if(GPU_TARGETS)
-    message("Building CK for the following targets: ${GPU_TARGETS}")
+#if user set GPU_ARCHS on the cmake command line, overwrite default target list with user's list
+#otherwise, if user set GPU_TARGETS, use that set of targets
+if(GPU_ARCHS)
+    set(CK_GPU_TARGETS ${GPU_ARCHS})
 else()
-    message("Building CK for the default targets: ${DEFAULT_GPU_TARGETS}")
+    if(USER_GPU_TARGETS)
+        set(CK_GPU_TARGETS ${GPU_TARGETS})
+    endif()
 endif()
+#if the user did not set GPU_TARGETS, delete whatever was set by HIP package
+if(NOT USER_GPU_TARGETS)
+    set(GPU_TARGETS "")
+endif()
+#make sure all the targets on the list are actually supported by the current compiler
+rocm_check_target_ids(SUPPORTED_GPU_TARGETS
+        TARGETS ${CK_GPU_TARGETS})
 
-if (GPU_TARGETS)
-    if (GPU_TARGETS MATCHES "gfx9")
-        add_definitions(-DCK_USE_XDL)
-        set(CK_USE_XDL "ON")
-    endif()
-    if (GPU_TARGETS MATCHES "gfx11")
-        add_definitions(-DCK_USE_WMMA)
-        set(CK_USE_WMMA "ON")
-    endif()
-else()
-    add_definitions(-DCK_USE_WMMA -DCK_USE_XDL)
+message("Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
+
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+    message("Enabling XDL instances")
+    add_definitions(-DCK_USE_XDL)
     set(CK_USE_XDL "ON")
+endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx94" OR SUPPORTED_GPU_TARGETS MATCHES "gfx95")
+    message("Enabling FP8 gemms on native architectures")
+    add_definitions(-DCK_USE_GFX94)
+    set(CK_USE_GFX94 "ON")
+endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
+    message("Enabling WMMA instances")
+    add_definitions(-DCK_USE_WMMA)
     set(CK_USE_WMMA "ON")
+endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx12" OR SUPPORTED_GPU_TARGETS MATCHES "gfx950")
+    add_definitions(-DCK_USE_OCP_FP8)
+    set(CK_USE_OCP_FP8 "ON")
+endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx90a" OR SUPPORTED_GPU_TARGETS MATCHES "gfx94")
+    add_definitions(-DCK_USE_FNUZ_FP8)
+    set(CK_USE_FNUZ_FP8 "ON")
+endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx950")
+    add_definitions(-DCK_USE_NATIVE_MX_SUPPORT)
+    set(CK_USE_NATIVE_MX_SUPPORT "ON")
+endif()
+
+option(CK_USE_FP8_ON_UNSUPPORTED_ARCH "Enable FP8 GEMM instances on older architectures" OFF)
+if(CK_USE_FP8_ON_UNSUPPORTED_ARCH AND (SUPPORTED_GPU_TARGETS MATCHES "gfx90a" OR SUPPORTED_GPU_TARGETS MATCHES "gfx908"))
+    add_definitions(-DCK_USE_FP8_ON_UNSUPPORTED_ARCH)
+    set(CK_USE_FP8_ON_UNSUPPORTED_ARCH "ON")
 endif()
 
 # CK config file to record supported datatypes, etc.
 configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
 
-find_package(hip)
-# No assumption that HIP kernels are launched with uniform block size for backward compatibility
-# SWDEV-413293 and https://reviews.llvm.org/D155213
-math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
-message("hip_version_flat=${hip_VERSION_FLAT}")
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
-   message("Adding the fno-offload-uniform-block compiler flag")
-   add_compile_options(-fno-offload-uniform-block)
+  check_cxx_compiler_flag("-fno-offload-uniform-block" HAS_NO_OFFLOAD_UNIFORM_BLOCK)
+  if(HAS_NO_OFFLOAD_UNIFORM_BLOCK)
+    message("Adding the fno-offload-uniform-block compiler flag")
+    add_compile_options(-fno-offload-uniform-block)
+  endif()
+endif()
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500500000)
+  check_cxx_compiler_flag("-mllvm --lsr-drop-solution=1" HAS_LSR_DROP_SOLUTION)
+  if(HAS_LSR_DROP_SOLUTION)
+    message("Adding the lsr-drop-solution=1 compiler flag")
+    add_compile_options("SHELL: -mllvm --lsr-drop-solution=1")
+  endif()
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
-   message("Adding the enable-post-misched=0 compiler flag")
-   add_compile_options(-mllvm -enable-post-misched=0)
+  check_cxx_compiler_flag("-mllvm -enable-post-misched=0" HAS_ENABLE_POST_MISCHED)
+  if(HAS_ENABLE_POST_MISCHED)
+    message("Adding the enable-post-misched=0 compiler flag")
+    add_compile_options("SHELL: -mllvm -enable-post-misched=0")
+  endif()
+endif()
+set(check-coerce)
+check_cxx_compiler_flag(" -mllvm -amdgpu-coerce-illegal-types=1" check-coerce)
+if(NOT WIN32 AND check-coerce AND ${hip_VERSION_FLAT} GREATER 600241132)
+   message("Adding the amdgpu-coerce-illegal-types=1")
+   add_compile_options("SHELL: -mllvm -amdgpu-coerce-illegal-types=1")
+endif()
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+   message("Adding -amdgpu-early-inline-all=true and -amdgpu-function-calls=false")
+   add_compile_options("SHELL: -mllvm -amdgpu-early-inline-all=true")
+   add_compile_options("SHELL: -mllvm -amdgpu-function-calls=false")
 endif()
 #
 # Seperate linking jobs from compiling
@@ -225,6 +318,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 
+# https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_macros.html
+# _GLIBCXX_ASSERTIONS
+# Undefined by default. When defined, enables extra error checking in the form of
+# precondition assertions, such as bounds checking in strings and null pointer
+# checks when dereferencing smart pointers
+option(USE_GLIBCXX_ASSERTIONS "Turn on additional c++ library checks." OFF)
+if(USE_GLIBCXX_ASSERTIONS)
+  add_compile_options(-Wp,-D_GLIBCXX_ASSERTIONS)
+endif()
+
 ## HIP
 set(CMAKE_HIP_PLATFORM amd)
 set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
@@ -253,7 +356,6 @@ link_libraries(${OpenMP_gomp_LIBRARY})
 link_libraries(${OpenMP_pthread_LIBRARY})
 
 ## HIP
-find_package(HIP REQUIRED)
 # Override HIP version in config.h, if necessary.
 # The variables set by find_package() can't be overwritten,
 # therefore let's use intermediate variables.
@@ -440,7 +542,20 @@ if(BUILD_DEV)
 endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+    add_compile_options(-fcolor-diagnostics)
+endif()
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 4.9)
+    add_compile_options(-fdiagnostics-color=always)
+endif()
+
+# make check runs the entire set of examples and tests
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+# make smoke runs the tests and examples that runs within 30 seconds on gfx90a
+add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST")
+# make regression runs the tests and examples that runs for more 30 seconds on gfx90a
+add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST")
+
 
 file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
 file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
@@ -484,8 +599,7 @@ ENDFOREACH()
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
 add_subdirectory(library)
 
-if(NOT DEFINED INSTANCES_ONLY)
- if(NOT DEFINED PROFILER_ONLY)
+if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
    rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
@@ -496,23 +610,20 @@ if(NOT DEFINED INSTANCES_ONLY)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
+   add_subdirectory(tile_engine)
    if(BUILD_TESTING)
-      add_subdirectory(test)
+       add_subdirectory(test)
    endif()
+endif()
 
-   rocm_package_setup_component(profiler
-        LIBRARY_NAME composablekernel
-        PACKAGE_NAME ckprofiler
-   )
-   add_subdirectory(profiler)
-  else()
-    #When building PROFILER_ONLY, label the package with GPU_ARCH
-    rocm_package_setup_component(profiler
-       LIBRARY_NAME composablekernel
-       PACKAGE_NAME ckprofiler_${GPU_ARCH}
-    )
-    add_subdirectory(profiler)
-  endif()
+rocm_package_setup_component(profiler
+    LIBRARY_NAME composablekernel
+    PACKAGE_NAME ckprofiler
+)
+add_subdirectory(profiler)
+
+if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
+  add_subdirectory(codegen)
 endif()
 
 #Create an interface target for the include only files and call it "composablekernels"

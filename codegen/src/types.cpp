@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "ck/host/types.hpp"
 #include "ck/host/stringutils.hpp"
 #include <algorithm>
@@ -29,12 +32,20 @@ std::string ToString(DataType dt)
     throw std::runtime_error("Incorrect data type");
 }
 
+Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
+
 std::string ToString(Layout dl)
 {
     switch(dl)
     {
     case Layout::Row: return "ck::tensor_layout::gemm::RowMajor";
     case Layout::Column: return "ck::tensor_layout::gemm::ColumnMajor";
+    case Layout::GKCYX: return "ck::tensor_layout::convolution::GKCYX";
+    case Layout::GKYXC: return "ck::tensor_layout::convolution::GKYXC";
+    case Layout::GNHWK: return "ck::tensor_layout::convolution::GNHWK";
+    case Layout::GNHWC: return "ck::tensor_layout::convolution::GNHWC";
+    case Layout::NHWGC: return "ck::tensor_layout::convolution::NHWGC";
+    case Layout::NHWGK: return "ck::tensor_layout::convolution::NHWGK";
     }
     throw std::runtime_error("Incorrect layout");
 }
@@ -46,6 +57,26 @@ std::string ToString(GemmType gt)
     case GemmType::Default: return "ck::tensor_operation::device::GemmSpecialization::Default";
     }
     throw std::runtime_error("Incorrect gemm type");
+}
+
+std::string ToString(LoopScheduler ls)
+{
+    switch(ls)
+    {
+    case LoopScheduler::Default: return "ck::LoopScheduler::Default";
+    case LoopScheduler::Interwave: return "ck::LoopScheduler::Interwave";
+    }
+    throw std::runtime_error("Incorrect LoopScheduler type");
+}
+
+std::string ToString(PipelineVersion pv)
+{
+    switch(pv)
+    {
+    case PipelineVersion::v1: return "ck::PipelineVersion::v1";
+    case PipelineVersion::v2: return "ck::PipelineVersion::v2";
+    }
+    throw std::runtime_error("Incorrect PipelineVersion type");
 }
 
 std::string SequenceStr(const std::vector<int>& v)

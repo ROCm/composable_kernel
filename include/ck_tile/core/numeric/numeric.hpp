@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -77,7 +77,10 @@ struct numeric
 };
 
 template <typename T>
-struct numeric_traits;
+struct numeric_traits
+{
+    static constexpr int PackedSize = 1;
+};
 
 template <>
 struct numeric_traits<float>
@@ -89,10 +92,12 @@ struct numeric_traits<float>
     static constexpr uint32_t head_mask = 0xFF800000;
     static constexpr uint32_t mant_mask = 0x7FFFFF;
     static constexpr uint32_t exp_mask  = 0xFF;
+    static constexpr uint32_t abs_mask  = 0x7FFFFFFF;
     static constexpr uint32_t Inf       = 0x7F800000;
     static constexpr uint32_t NegInf    = 0xFF800000;
     static constexpr uint32_t NaN       = 0x7F800001;
     static constexpr uint32_t Neg0      = 0x80000000;
+    static constexpr int PackedSize     = 1;
     using bitwise_type                  = uint32_t;
 };
 

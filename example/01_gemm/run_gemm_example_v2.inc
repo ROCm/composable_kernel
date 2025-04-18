@@ -3,88 +3,6 @@
 
 #pragma once
 
-template <typename DataType>
-inline __host__ __device__ constexpr double get_rtol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 1e-1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 1.5e-1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
-template <typename DataType>
-inline __host__ __device__ constexpr double get_atol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 16.1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 8192.1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 {
@@ -115,21 +33,21 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         };
 
     auto f_get_default_stride =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(stride == 0)
+        [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
+            if(stride == -1)
             {
-                // give a chance if stride is zero, return a default packed stride
+                // give a chance if stride is -1, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
                 {
-                    return col;
+                    return static_cast<std::size_t>(col);
                 }
                 else
                 {
-                    return row;
+                    return static_cast<std::size_t>(row);
                 }
             }
             else
-                return stride;
+                return static_cast<std::size_t>(stride);
         };
 
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
@@ -161,18 +79,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
-#if 0
-    printf("B matrix:\n");
-    for (int in = 0; in < N; in++)
-    {
-        for (int ik = 0; ik < K; ik++)
-        {
-            printf("%02x ", *(reinterpret_cast<uint8_t*>(&b_k_n(ik,in))));
-            if(ik%8==7) printf("|");
-        }
-        printf("\n");
-    }
-#endif
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
@@ -240,7 +146,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     }
 
     bool pass = true;
-    if(config.do_verification)
+    if((config.do_verification == 1) || (config.do_verification == 3))
     {
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -272,7 +178,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     if(config.time_kernel)
     {
-        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+        ave_time =
+            invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 50, 100, true, 4});
 
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =

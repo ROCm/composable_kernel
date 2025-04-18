@@ -1,91 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
-#include "ck/tensor_operation/gpu/device/device_gemm_streamk.hpp"
-
-template <typename DataType>
-inline __host__ __device__ constexpr double get_rtol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 1e-1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 1.5e-1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
-
-template <typename DataType>
-inline __host__ __device__ constexpr double get_atol()
-{
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, double>)
-    {
-        return 1e-6;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::half_t>)
-    {
-        return 1e-3;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
-    {
-        return 5e-2;
-    }
-    else if constexpr(std::is_same_v<DataType, int32_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, int8_t>)
-    {
-        return 1e-1;
-    }
-    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
-    {
-        return 16.1; // 240 and 224 are acceptable
-    }
-    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
-    {
-        return 8192.1; // 57344 and 49152 are acceptable
-    }
-    else
-    {
-        return 1e-3;
-    }
-}
 
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
@@ -116,21 +32,21 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         };
 
     auto f_get_default_stride =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(stride == 0)
+        [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
+            if(stride == -1)
             {
-                // give a chance if stride is zero, return a default packed stride
+                // give a chance if stride is -1, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
                 {
-                    return col;
+                    return static_cast<std::size_t>(col);
                 }
                 else
                 {
-                    return row;
+                    return static_cast<std::size_t>(row);
                 }
             }
             else
-                return stride;
+                return static_cast<std::size_t>(stride);
         };
 
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
@@ -143,8 +59,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     switch(config.init_method)
     {
     case 0:
-        ck::utils::FillConstant<ADataType>{static_cast<ADataType>(1.f)}(a_m_k);
-        ck::utils::FillConstant<BDataType>{static_cast<BDataType>(1.f)}(b_k_n);
+        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.f)}(a_m_k);
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(1.f)}(b_k_n);
         break;
     case 1:
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
@@ -159,7 +75,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
         break;
     case 4:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{1.f, 1.f}(b_k_n);
         break;
     case 5:
@@ -173,6 +89,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_device_ref_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -193,6 +110,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_ref_buf(sizeof(CDataType) *
+                                   c_m_n_device_ref_result.mDesc.GetElementSpaceSize());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
@@ -203,23 +122,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
 
-    using BaseStreamK = ck::tensor_operation::device::DeviceGemmStreamK<ALayout,
-                                                                        BLayout,
-                                                                        CLayout,
-                                                                        ADataType,
-                                                                        BDataType,
-                                                                        CDataType,
-                                                                        AElementOp,
-                                                                        BElementOp,
-                                                                        CElementOp>;
-
     // do GEMM
     auto gemm      = DeviceGemmInstance{};
     auto invoker   = gemm.MakeInvoker();
     float ave_time = 0;
 
-    if constexpr(std::is_same<ProblemType, ProblemSize>::value &&
-                 !std::is_base_of<BaseStreamK, DeviceGemmInstance>::value)
+    if constexpr(std::is_same<ProblemType, ProblemSize>::value)
     {
         auto argument = gemm.MakeArgument(
 #ifdef BUILD_INT4_EXAMPLE
@@ -250,60 +158,13 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
     }
-    else if constexpr(std::is_same<ProblemType, ProblemSizeStreamK>::value &&
-                      std::is_base_of<BaseStreamK, DeviceGemmInstance>::value)
+    else
     {
-        auto argument = gemm.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-            static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-            static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-            static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#else
-            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-            static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#endif
-            M,
-            N,
-            K,
-            StrideA,
-            StrideB,
-            StrideC,
-            a_element_op,
-            b_element_op,
-            c_element_op,
-            problem_size.NumSKBlocks);
+        // When the Problem Type and Problem Size does not fit.
 
-        if(!gemm.IsSupportedArgument(argument))
-        {
-            std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
-
-            return true;
-        }
-
-        std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
-        if(workspace_size != 0)
-        {
-            workspace.Realloc(workspace_size);
-            gemm.SetWorkSpacePointer(&argument, workspace.GetDeviceBuffer());
-        }
-
-        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
-#if 0
-        // TODO!!!!!
-        if(workspace_size != 0){
-            float * ws_ptr = reinterpret_cast<float*>(malloc(workspace_size));
-            size_t ws_dwords = workspace_size / sizeof(float);
-            workspace.FromDevice(ws_ptr);
-
-            for(size_t i = 0; i < ws_dwords; i++) {
-                uint32_t rere = reinterpret_cast<uint32_t*>(ws_ptr)[i];
-                printf("%4lu : %f(0x%08x)\n", i, ws_ptr[i], rere);
-            }
-            free(ws_ptr);
-        }
-#endif
+        std::cerr << gemm.GetTypeString() << ": the instance does not support the problem config."
+                  << std::endl;
+        return true;
     }
 
     std::size_t flop = 2_uz * M * N * K;
@@ -317,14 +178,18 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    if(config.do_verification)
+    bool pass = true;
+
+    if((config.do_verification == 1) || (config.do_verification == 3))
     {
+        // CPU verification
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
             a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
+        std::cout << "Running verification on CPU." << std::endl;
         ref_invoker.Run(ref_argument);
 
 #ifdef BUILD_INT4_EXAMPLE
@@ -338,28 +203,50 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(c_m_n_device_result,
-                                    c_m_n_host_result,
-                                    "Error: Incorrect results!",
-                                    get_rtol<CDataType>(),
-                                    get_atol<CDataType>());
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_host_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
 #endif
     }
 
-    return true;
+    if((config.do_verification == 2) || (config.do_verification == 3))
+    {
+        // GPU verification
+        auto ref_gemm_gpu    = ReferenceGemmInstanceGPU{};
+        auto ref_invoker_gpu = ref_gemm_gpu.MakeInvoker();
+
+        auto ref_argument_gpu = ref_gemm_gpu.MakeArgument(
+            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_m_n_device_ref_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            a_element_op,
+            b_element_op,
+            c_element_op);
+
+        std::cout << "Running verification on GPU." << std::endl;
+        ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{});
+
+        c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        pass &= ck::utils::check_err(c_m_n_device_result,
+                                     c_m_n_device_ref_result,
+                                     "Error: Incorrect results!",
+                                     get_rtol<CDataType>(),
+                                     get_atol<CDataType>());
+    }
+
+    return pass == true;
 }
 
 bool run_gemm_example(int argc, char* argv[])
 {
     ProblemSize problem_size;
-    ExecutionConfig config;
-
-    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
-}
-
-bool run_gemm_streamk_example(int argc, char* argv[])
-{
-    ProblemSizeStreamK problem_size;
     ExecutionConfig config;
 
     return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);

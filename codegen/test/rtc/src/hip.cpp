@@ -1,7 +1,11 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <rtc/hip.hpp>
 #include <rtc/manage_ptr.hpp>
 #include <stdexcept>
 #include <cassert>
+#include <iostream>
 
 namespace rtc {
 
@@ -49,7 +53,10 @@ std::size_t get_available_gpu_memory()
     size_t total;
     auto status = hipMemGetInfo(&free, &total);
     if(status != hipSuccess)
-        throw std::runtime_error("Failed getting available memory: " + hip_error(status));
+    {
+        std::cerr << "Failed getting available memory: " + hip_error(status) << std::endl;
+        return (8ull * 1024ull * 1024ull * 1024ull);
+    }
     return free;
 }
 

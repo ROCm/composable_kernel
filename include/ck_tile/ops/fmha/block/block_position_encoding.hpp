@@ -43,9 +43,12 @@ enum struct AlibiMode
     FROM_BOTTOM_RIGHT = 2,
 };
 
-template <typename DataType, bool RowMajor = true>
+template <typename DataType, bool RowMajor = true, unsigned LogMaxSadOprndSize = 16>
 struct Alibi
 {
+    static_assert(1 <= LogMaxSadOprndSize && LogMaxSadOprndSize <= 32,
+                  "for LogMaxSadOprndSize <= 16, we use SAD uint16_t, otherwise, use SAD uint32_t");
+
     // RowMajor here means if pixel within the same thread are along the row, or col
     // this may impact the performance of update(), while the result are the same.
     // e.g. fwd prefer use RowMajor=true, bwd some cases prefer use RowMajor=false
@@ -77,6 +80,19 @@ struct Alibi
             }
         }();
         mode = mode_;
+    }
+
+    CK_TILE_HOST uint32_t sad(uint32_t x, uint32_t y, uint32_t acc) { return sad_u32(x, y, acc); }
+
+    CK_TILE_DEVICE uint32_t sad(uint32_t x, uint32_t y, uint32_t acc)
+    {
+        if constexpr(LogMaxSadOprndSize <= 16)
+        {
+            return sad_u16(
+                static_cast<uint16_t>(x), static_cast<uint16_t>(y), static_cast<uint16_t>(acc));
+        }
+
+        return sad_u32(x, y, acc);
     }
 
     CK_TILE_HOST_DEVICE void update(DataType& pixel, index_t row_idx, index_t col_idx)
@@ -128,7 +144,7 @@ struct EmptyPositionEncoding
 // can convert from the FA style left/right to our generic coordinate
 // if left_size < 0 && right_size = 0, it is normal causal mask
 // local is left_size >=0 or right_size >=0
-template <typename DataType, bool RowMajor = true>
+template <typename DataType, bool RowMajor = true, unsigned LogMaxSadOprndSize = 16>
 CK_TILE_HOST_DEVICE auto make_alibi_from_lr_mask(DataType slope,
                                                  index_t window_left_size,
                                                  index_t window_right_size,
@@ -142,7 +158,7 @@ CK_TILE_HOST_DEVICE auto make_alibi_from_lr_mask(DataType slope,
     AlibiMode alibi_mode =
         is_causal ? AlibiMode::VERTICAL
                   : static_cast<AlibiMode>(mask_enum) /*either top-left or bottom-right*/;
-    return Alibi<DataType, RowMajor>{slope, y_total, x_total, alibi_mode};
+    return Alibi<DataType, RowMajor, LogMaxSadOprndSize>{slope, y_total, x_total, alibi_mode};
 }
 
 // https://github.com/ofirpress/attention_with_linear_biases/blob/4b92f28a005ead2567abe2359f633e73e08f3833/fairseq/models/transformer.py#L742

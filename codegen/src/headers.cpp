@@ -1,10 +1,16 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "ck/host/headers.hpp"
 #include "ck_headers.hpp"
 
 namespace ck {
 namespace host {
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wglobal-constructors"
 const std::string config_header = "";
+#pragma clang diagnostic pop
 
 std::unordered_map<std::string_view, std::string_view> GetHeaders()
 {

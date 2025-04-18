@@ -85,7 +85,7 @@ int profile_layernorm(int argc, char* argv[])
 
         if(data_type == ck::DataTypeEnum::Half)
         {
-            ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, F32, false, rank>(
+            ck::profiler::profile_layernorm_impl<F16, F16, F16, F32, F16, F16, false, rank>(
                 do_verification, init_method, do_log, time_kernel, length);
         }
         else if(data_type == ck::DataTypeEnum::Float)

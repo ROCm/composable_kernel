@@ -97,11 +97,8 @@
 #cmakedefine CK_ENABLE_DL_KERNELS @CK_ENABLE_DL_KERNELS@
 #endif
 
-//
-// Instances supports in the current CK build
-//
-#ifndef CK_ENABLE_INSTANCES_ONLY
-#cmakedefine CK_ENABLE_INSTANCES_ONLY @CK_ENABLE_INSTANCES_ONLY@
+#ifndef CK_ENABLE_DPP_KERNELS
+#cmakedefine CK_ENABLE_DPP_KERNELS @CK_ENABLE_DPP_KERNELS@
 #endif
 
 //
@@ -116,6 +113,26 @@
 //
 #ifndef CK_USE_WMMA
 #cmakedefine CK_USE_WMMA @CK_USE_WMMA@
+#endif
+
+#ifndef CK_USE_GFX94
+#cmakedefine CK_USE_GFX94 @CK_USE_GFX94@
+#endif
+
+#ifndef CK_USE_OCP_FP8
+#cmakedefine CK_USE_OCP_FP8 @CK_USE_OCP_FP8@
+#endif
+
+#ifndef CK_USE_FNUZ_FP8
+#cmakedefine CK_USE_FNUZ_FP8 @CK_USE_FNUZ_FP8@
+#endif
+
+#ifndef CK_USE_FP8_ON_UNSUPPORTED_ARCH
+#cmakedefine CK_USE_FP8_ON_UNSUPPORTED_ARCH @CK_USE_FP8_ON_UNSUPPORTED_ARCH@
+#endif
+
+#ifndef CK_USE_NATIVE_MX_SUPPORT
+#cmakedefine CK_USE_NATIVE_MX_SUPPORT @CK_USE_NATIVE_MX_SUPPORT@
 #endif
 
 // clang-format on

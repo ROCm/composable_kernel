@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -48,6 +48,10 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                           std::is_same_v<typename Problem::CDataType, float>)
         {
             return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution{}, 4, 1);
+        }
+        else
+        {
+            static_assert(false, "Unsupported data type configuration for GEMM warp execution.");
         }
     }
 };

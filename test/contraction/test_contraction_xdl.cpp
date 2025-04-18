@@ -212,4 +212,10 @@ TYPED_TEST(TestContractionScaleMixedPrecision, scale)
     this->template Run<6>({{1, 1, 1, 3, 2, 3}, {1, 1, 1, 3, 2, 3}, {1, 1, 1, 2, 2, 4}});
     this->template Run<2>({{16, 8}, {16, 8}, {16, 8}});
     this->template Run<2>({{8, 16}, {16, 8}, {8, 16}});
+
+    // special cases
+    this->template Run<2>({{1, 1}, {16, 8}, {8, 16}});
+    this->template Run<2>({{8, 16}, {16, 8}, {1, 1}});
+    this->template Run<2>({{8, 16}, {1, 1}, {8, 16}});
+    this->template Run<2>({{1, 1}, {1, 1}, {1, 1}});
 }

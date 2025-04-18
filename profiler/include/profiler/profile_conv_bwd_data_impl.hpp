@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -82,6 +82,29 @@ bool profile_conv_bwd_data_impl(int do_verification,
     Tensor<WeiDataType> weight(wei_g_k_c_xs_desc);
     Tensor<OutDataType> output(out_g_n_k_wos_desc);
 
+    std::vector<ck::index_t> input_spatial_lengths_i32(NDimSpatial);
+    std::vector<ck::index_t> filter_spatial_lengths_i32(NDimSpatial);
+    std::vector<ck::index_t> output_spatial_lengths_i32(NDimSpatial);
+    std::vector<ck::index_t> conv_filter_strides_i32(NDimSpatial);
+    std::vector<ck::index_t> conv_filter_dilations_i32(NDimSpatial);
+    std::vector<ck::index_t> input_left_pads_i32(NDimSpatial);
+    std::vector<ck::index_t> input_right_pads_i32(NDimSpatial);
+
+    for(ck::index_t d = 0; d < NDimSpatial; d++)
+    {
+        input_spatial_lengths_i32[d] =
+            static_cast<ck::index_t>(conv_param.input_spatial_lengths_[d]);
+        filter_spatial_lengths_i32[d] =
+            static_cast<ck::index_t>(conv_param.filter_spatial_lengths_[d]);
+        output_spatial_lengths_i32[d] =
+            static_cast<ck::index_t>(conv_param.GetOutputSpatialLengths()[d]);
+        conv_filter_strides_i32[d] = static_cast<ck::index_t>(conv_param.conv_filter_strides_[d]);
+        conv_filter_dilations_i32[d] =
+            static_cast<ck::index_t>(conv_param.conv_filter_dilations_[d]);
+        input_left_pads_i32[d]  = static_cast<ck::index_t>(conv_param.input_left_pads_[d]);
+        input_right_pads_i32[d] = static_cast<ck::index_t>(conv_param.input_right_pads_[d]);
+    }
+
     std::cout << "input: " << input_host_result.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
@@ -161,16 +184,16 @@ bool profile_conv_bwd_data_impl(int do_verification,
             op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                         static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
                                         static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                        conv_param.N_,
-                                        conv_param.K_,
-                                        conv_param.C_,
-                                        conv_param.input_spatial_lengths_,
-                                        conv_param.filter_spatial_lengths_,
-                                        conv_param.output_spatial_lengths_,
-                                        conv_param.conv_filter_strides_,
-                                        conv_param.conv_filter_dilations_,
-                                        conv_param.input_left_pads_,
-                                        conv_param.input_right_pads_,
+                                        static_cast<ck::index_t>(conv_param.N_),
+                                        static_cast<ck::index_t>(conv_param.K_),
+                                        static_cast<ck::index_t>(conv_param.C_),
+                                        input_spatial_lengths_i32,
+                                        filter_spatial_lengths_i32,
+                                        output_spatial_lengths_i32,
+                                        conv_filter_strides_i32,
+                                        conv_filter_dilations_i32,
+                                        input_left_pads_i32,
+                                        input_right_pads_i32,
                                         in_element_op,
                                         wei_element_op,
                                         out_element_op);

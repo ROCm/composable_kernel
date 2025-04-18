@@ -3,6 +3,7 @@
 
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/stringutils.hpp"
+#include "ck/host/types.hpp"
 #include "ck/host/utils.hpp"
 #include <cassert>
 
@@ -10,6 +11,7 @@ namespace ck {
 namespace host {
 namespace device_gemm_multiple_d {
 
+// calculate appropriate Gemm Specification based on input tensor dimensions
 static std::string GetGemmSpec(const std::size_t m,
                                const std::size_t n,
                                const std::size_t k,
@@ -30,9 +32,46 @@ static std::string GetGemmSpec(const std::size_t m,
     return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
 }
 
+// function to update prologue/epilogue with user provided operation
+void Operation_Xdl_CShuffle::update_prologue(const std::string& pro)
+{
+    if(!pro.empty())
+    {
+        this->prologue    = pro;
+        this->cde_elem_op = "CDEElementOp";
+    }
+    else
+    {
+        this->prologue = "";
+    }
+}
+
+void Operation_Xdl_CShuffle::update_epilogue(const std::string& epi)
+{
+    if(!epi.empty())
+    {
+        this->epilogue    = epi;
+        this->cde_elem_op = "CDEElementOp";
+    }
+    else
+    {
+        this->epilogue = "";
+    }
+}
+
+// accounts for all possible combinations of Row/Col major
 static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob)
+// clang-format off
+// DeviceGemmMultipleD_Xdl_CShuffle<    Col,    Row, Row_Row_Tuple,    Row,   F16,   F16,     F32,      F32, F16_F16_Tuple,   F16, PassThrough, PassThrough, AddAddFastGelu, GemmMNKPadding,        1,    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,         1,           1,           1,               S<1, 16, 1, 4>,               1,
+
+// DeviceGemmMultipleD_Xdl_CShuffle<    Row,    Col, Row_Row_Tuple,    Row,   F16,   F16,     F32,      F32, F16_F16_Tuple,   F16, PassThrough, PassThrough, AddAddFastGelu, GemmMNKPadding,        1,    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,           1,           1,               S<1, 16, 1, 4>,               1, LoopScheduler::Default,        PipelineVersion::v1>
+// clang-format on
+
+// Hard-code tuning parameters in modularized fashion, string them together into a vector of
+// instances
+std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
+    const Problem& prob, const std::string& prologue, const std::string& epilogue)
 {
     std::vector<Operation_Xdl_CShuffle> result;
 
@@ -50,6 +89,8 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
   {   128,    64,   128,    32,   8,   8,   32,   32,    2,    2,        1},
   {   256,   128,    64,    32,   8,   8,   32,   32,    2,    1,        1},
   {   256,    64,   128,    32,   8,   8,   32,   32,    1,    2,        1},
+//  Irregular tile
+  {    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,        1},
         // clang-format on
     };
 
@@ -67,6 +108,8 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
   {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+//  Irregular tile
+  {    S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1},
         // clang-format on
     };
 
@@ -76,15 +119,17 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
 //   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|
 // Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |
 //                |               |               |               |               |               |          |
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              8,         1},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              8,         1},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              8,         1},
+  {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1},
+  {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1},
+//  Irregular tile
+  {    S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1},
         // clang-format on
-        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 8, 1},
-        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1},
-        {S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 8, 1},
-        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1},
-        {S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 8, 1},
-        {S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1},
-        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 8, 1},
-        {S<4, 64, 1>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 8, 1},
     };
 
     std::vector<operation::BlockTransferDesc> b_block_descriptions_rowmajor = {
@@ -101,6 +146,8 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
   {    S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              8,         1},
   {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1},
   {    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,         1},
+//  Irregular tile
+  {    S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1},
         // clang-format on
     };
 
@@ -118,6 +165,8 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
   {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+//  Irregular tile
+  {    S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1},
         // clang-format on
     };
 
@@ -127,6 +176,7 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
 // MXdlPerWave| NXdlPerWave|
 //  PerShuffle|  PerShuffle|
 //            |            |
+  {          1,           1},
   {          1,           1},
   {          1,           1},
   {          1,           1},
@@ -152,9 +202,12 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
   {              S<1, 16, 1, 8>,               8},
   {              S<1, 32, 1, 8>,               8},
   {              S<1, 32, 1, 8>,               8},
+//  Irregular tile
+  {              S<1, 16, 1, 4>,               1},
         // clang-format on
     };
 
+    // choose correct arrangement of tuning parameters based on the layout of each tensor
     const auto a_block_descriptions =
         prob.TransA ? a_block_descriptions_colmajor : a_block_descriptions_rowmajor;
     const auto b_block_descriptions =
@@ -165,35 +218,52 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
     assert(tile_descriptions.size() == cshuffle_descriptions.size());
     assert(tile_descriptions.size() == c_block_descriptions.size());
 
-    for(std::size_t i = 0; i < tile_descriptions.size(); i++)
+    const std::vector<std::tuple<LoopScheduler, PipelineVersion>> scheduler_pipeline_descriptions =
+        {
+            {LoopScheduler::Default, PipelineVersion::v1},
+            {LoopScheduler::Interwave, PipelineVersion::v1},
+            {LoopScheduler::Default, PipelineVersion::v2},
+        };
+    for(auto [loop_scheduler, pipeline_version] : scheduler_pipeline_descriptions)
     {
-        Operation_Xdl_CShuffle x;
-        x.tile_desc           = tile_descriptions[i];
-        x.a_block_transfer    = a_block_descriptions[i];
-        x.b_block_transfer    = b_block_descriptions[i];
-        x.cshuffle            = cshuffle_descriptions[i];
-        x.c_block_transfer    = c_block_descriptions[i];
-        x.A                   = TensorDesc{prob.ADataType, ToLayout(prob.TransA)};
-        x.B                   = TensorDesc{prob.BDataType, ToLayout(prob.TransB)};
-        x.E                   = TensorDesc{prob.EDataType, ToLayout(prob.TransE)};
-        x.Ds                  = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {
-            return TensorDesc{dt, ToLayout(trans)};
-        });
-        x.a_elem_op           = prob.AElementOp;
-        x.b_elem_op           = prob.BElementOp;
-        x.cde_elem_op         = prob.CDEElementOp;
-        x.gemm_specialization = GetGemmSpec(prob.M,
-                                            prob.N,
-                                            prob.K,
-                                            x.tile_desc.m_per_block,
-                                            x.tile_desc.n_per_block,
-                                            x.tile_desc.k_per_block);
-        result.push_back(x);
+        // Put all values together into a single operation > store into the result vector
+        for(std::size_t i = 0; i < tile_descriptions.size(); i++)
+        {
+            Operation_Xdl_CShuffle x;
+            x.tile_desc        = tile_descriptions[i];
+            x.a_block_transfer = a_block_descriptions[i];
+            x.b_block_transfer = b_block_descriptions[i];
+            x.cshuffle         = cshuffle_descriptions[i];
+            x.c_block_transfer = c_block_descriptions[i];
+            x.A                = TensorDesc{prob.ADataType, ToLayout(prob.TransA)};
+            x.B                = TensorDesc{prob.BDataType, ToLayout(prob.TransB)};
+            x.E                = TensorDesc{prob.EDataType, ToLayout(prob.TransE)};
+            x.Ds               = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {
+                return TensorDesc{dt, ToLayout(trans)};
+            });
+            x.a_elem_op        = prob.AElementOp;
+            x.b_elem_op        = prob.BElementOp;
+            x.cde_elem_op      = prob.CDEElementOp;
+            x.gemm_specialization = GetGemmSpec(prob.M,
+                                                prob.N,
+                                                prob.K,
+                                                x.tile_desc.m_per_block,
+                                                x.tile_desc.n_per_block,
+                                                x.tile_desc.k_per_block);
+            x.loop_scheduler      = loop_scheduler;
+            x.pipeline_version    = pipeline_version;
+            x.update_prologue(prologue);
+            x.update_epilogue(epilogue);
+            result.push_back(x);
+        }
     }
     return result;
 }
 
-std::vector<std::vector<Operation_Xdl_CShuffle>> Operation_Xdl_CShuffle::CreateOperations()
+// set up instances when not provided with a problem specification, use default operation values and
+// all possible layout combinations
+std::vector<std::vector<Operation_Xdl_CShuffle>>
+Operation_Xdl_CShuffle::CreateOperations(const std::string& prologue, const std::string& epilogue)
 {
     std::vector<Problem> problems;
     for(bool TransA : {true, false})
@@ -204,7 +274,8 @@ std::vector<std::vector<Operation_Xdl_CShuffle>> Operation_Xdl_CShuffle::CreateO
             prob.TransB = TransB;
             problems.push_back(prob);
         }
-    return Transform(problems, [](const Problem& p) { return CreateOperations(p); });
+    return Transform(problems,
+                     [&](const Problem& p) { return CreateOperations(p, prologue, epilogue); });
 }
 
 static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate =
@@ -222,11 +293,22 @@ static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate =
     "${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, "
     "${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, "
     "${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, "
-    "${CDEBlockTransferScalarPerVector_NPerBlock}>";
+    "${CDEBlockTransferScalarPerVector_NPerBlock}, ${LoopScheduler}, ${PipelineVersion}>";
 
+// use hardcoded instances from vector of operations to substitute values into instance template
 Solution Operation_Xdl_CShuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
+        {"name",
+         std::to_string(this->tile_desc.block_size) + "_" +
+             std::to_string(this->tile_desc.m_per_block) + "_" +
+             std::to_string(this->tile_desc.n_per_block) + "_" +
+             std::to_string(this->tile_desc.k_per_block) + "_" +
+             std::to_string(this->tile_desc.ak1) + "_" + std::to_string(this->tile_desc.bk1) + "_" +
+             std::to_string(this->tile_desc.m_per_XDL) + "_" +
+             std::to_string(this->tile_desc.n_per_XDL) + "_" +
+             std::to_string(this->tile_desc.m_Xdl_per_wave) + "_" +
+             std::to_string(this->tile_desc.n_Xdl_per_wave)},
         {"LayoutA", ToString(this->A.layout)},
         {"LayoutB", ToString(this->B.layout)},
         {"LayoutDs",
@@ -284,6 +366,8 @@ Solution Operation_Xdl_CShuffle::ToSolution() const
          this->c_block_transfer.cluster_lengths_m_block_m_wave_m_per_Xdl_n_block_n_wave_n_per_Xdl},
         {"CDEBlockTransferScalarPerVector_NPerBlock",
          std::to_string(this->c_block_transfer.scalar_per_vector_n_wave_n_per_Xdl)},
+        {"LoopScheduler", ToString(this->loop_scheduler)},
+        {"PipelineVersion", ToString(this->pipeline_version)},
     };
 
     return Solution{InterpolateString(DeviceGemmMultipleD_Xdl_CShuffleTemplate, values),

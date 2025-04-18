@@ -7,18 +7,21 @@
 #include <initializer_list>
 #include <vector>
 
-#include "ck/library/utility/host_tensor.hpp"
+#include "ck/utility/common_header.hpp"
+// __gfx9__ defined in the above header via ck.hpp
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
 
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/utility/common_header.hpp"
 #include "ck/library/utility/fill.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 #include "ck/wrapper/layout.hpp"
 #include "ck/wrapper/tensor.hpp"
 #include "ck/wrapper/operations/copy.hpp"
 #include "ck/wrapper/operations/gemm.hpp"
 #include "ck/wrapper/utils/kernel_utils.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 struct SimpleDeviceMem
 {
@@ -296,6 +299,14 @@ void PerformGemm(const ck::index_t M,
 
 int main(int argc, char* argv[])
 {
+    bool is_supported = ck::is_xdl_supported();
+    if(!is_supported)
+    {
+        std::cout << "WARNING: xdl example not supported on the platform " << ck::get_device_name()
+                  << std::endl;
+        return 0;
+    }
+
     using DataType = ck::half_t;
     const auto thread_layout =
         ck::wrapper::make_layout(ck::make_tuple(ck::Number<4>{}, ck::Number<64>{}, ck::Number<1>{}),
@@ -305,3 +316,4 @@ int main(int argc, char* argv[])
         3840, 4096, 4096, tile_shape, thread_layout);
     return 0;
 }
+#endif

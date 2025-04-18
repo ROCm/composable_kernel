@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,6 +10,7 @@
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/pk_int4.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
@@ -30,20 +31,48 @@ struct native_t
 // of compiler errors e.g. struct A; using Ax2_t = A __attribute__((ext_vector_type(2)));  -> will
 // have compiler error
 namespace impl {
+
+template <typename T_, index_t N_, typename = void>
+struct ext_vector;
+
 template <typename T_, index_t N_>
-struct ext_vector
+struct ext_vector<T_, N_, std::enable_if_t<!std::is_class_v<typename native_t<T_>::type>>>
 {
     static constexpr index_t N = N_;
-    using value_type           = typename native_t<remove_cvref_t<T_>>::type;
+    // struct type is not supported for ext_vector
+    using value_type = typename native_t<T_>::type;
+    static_assert(!std::is_class_v<value_type>);
+    using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
+};
+
+template <typename T_, index_t N_>
+struct ext_vector<T_, N_, std::enable_if_t<std::is_class_v<typename native_t<T_>::type>>>
+{
+    static constexpr index_t N = N_;
+    // struct type is not supported for ext_vector
+    using value_type = typename native_t<T_>::type::type;
     static_assert(!std::is_class_v<value_type>);
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
 
 template <typename V_, index_t Vs_, index_t N_>
-struct ext_vector<V_ __attribute__((ext_vector_type(Vs_))), N_>
+struct ext_vector<V_ __attribute__((ext_vector_type(Vs_))),
+                  N_,
+                  std::enable_if_t<!std::is_class_v<typename native_t<V_>::type>>>
 {
     static constexpr index_t N = Vs_ * N_;
     using value_type           = typename native_t<remove_cvref_t<V_>>::type;
+    static_assert(!std::is_class_v<value_type>);
+    using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
+};
+
+template <typename V_, index_t Vs_, index_t N_>
+struct ext_vector<V_ __attribute__((ext_vector_type(Vs_))),
+                  N_,
+                  std::enable_if_t<std::is_class_v<typename native_t<V_>::type>>>
+{
+    static constexpr index_t N = Vs_ * N_;
+    using value_type           = typename native_t<remove_cvref_t<V_>>::type::type;
     static_assert(!std::is_class_v<value_type>);
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
@@ -55,10 +84,11 @@ using ext_vector_t = typename impl::ext_vector<T, N>::type;
 
 // by default, any type will result in a vector_size=1 with scalar_type=T traits.
 // ... unless we have other vector_traits specialization
-template <typename T>
+template <typename T, typename>
 struct vector_traits
 {
-    using scalar_type                    = remove_cvref_t<T>;
+    using scalar_type =
+        std::conditional_t<std::is_same_v<remove_cvref_t<T>, pk_int4_t>, int8_t, remove_cvref_t<T>>;
     static constexpr index_t vector_size = 1;
 };
 
@@ -66,7 +96,7 @@ struct vector_traits
 template <typename T, index_t N>
 struct vector_traits<T __attribute__((ext_vector_type(N)))>
 {
-    using scalar_type                    = T;
+    using scalar_type = std::conditional_t<std::is_same_v<T, pk_int4_t>, int8_t, T>;
     static constexpr index_t vector_size = N;
 };
 
@@ -117,6 +147,15 @@ using int32x16_t = int32_t __attribute__((ext_vector_type(16)));
 using int32x32_t = int32_t __attribute__((ext_vector_type(32)));
 using int32x64_t = int32_t __attribute__((ext_vector_type(64)));
 
+// u32
+// using uint32_t = ...
+using uint32x2_t  = uint32_t __attribute__((ext_vector_type(2)));
+using uint32x4_t  = uint32_t __attribute__((ext_vector_type(4)));
+using uint32x8_t  = uint32_t __attribute__((ext_vector_type(8)));
+using uint32x16_t = uint32_t __attribute__((ext_vector_type(16)));
+using uint32x32_t = uint32_t __attribute__((ext_vector_type(32)));
+using uint32x64_t = uint32_t __attribute__((ext_vector_type(64)));
+
 // i16
 // using int16_t = ...
 using int16x2_t  = int16_t __attribute__((ext_vector_type(2)));
@@ -143,6 +182,15 @@ using int8x8_t  = int8_t __attribute((ext_vector_type(8)));
 using int8x16_t = int8_t __attribute((ext_vector_type(16)));
 using int8x32_t = int8_t __attribute((ext_vector_type(32)));
 using int8x64_t = int8_t __attribute((ext_vector_type(64)));
+
+// ui8
+// using uint8_t
+using uint8x2_t  = uint8_t __attribute((ext_vector_type(2)));
+using uint8x4_t  = uint8_t __attribute((ext_vector_type(4)));
+using uint8x8_t  = uint8_t __attribute((ext_vector_type(8)));
+using uint8x16_t = uint8_t __attribute((ext_vector_type(16)));
+using uint8x32_t = uint8_t __attribute((ext_vector_type(32)));
+using uint8x64_t = uint8_t __attribute((ext_vector_type(64)));
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
 // f8
@@ -182,4 +230,11 @@ using bf8x32_t = bf8_t __attribute((ext_vector_type(32)));
 using bf8x64_t = bf8_t __attribute((ext_vector_type(64)));
 #endif
 
+// pk_int4_t
+// using pk_int4_t
+using pk_int4x2_t  = int8_t __attribute((ext_vector_type(2)));
+using pk_int4x4_t  = int8_t __attribute((ext_vector_type(4)));
+using pk_int4x8_t  = int8_t __attribute((ext_vector_type(8)));
+using pk_int4x16_t = int8_t __attribute((ext_vector_type(16)));
+using pk_int4x32_t = int8_t __attribute((ext_vector_type(32)));
 } // namespace ck_tile

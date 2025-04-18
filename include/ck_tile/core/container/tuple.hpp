@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -294,7 +294,7 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
 #undef TP_COM_
 };
 
-template <typename>
+template <typename, typename = void>
 struct vector_traits;
 
 // specialization for array
@@ -396,11 +396,16 @@ struct tuple_array_impl<T, 1>
 };
 } // namespace impl
 
+template <typename F, index_t... ids>
+CK_TILE_HOST_DEVICE constexpr auto generate_tuple_for(F&& f, sequence<ids...>)
+{
+    return make_tuple(f(number<ids>{})...);
+}
+
 template <typename F, index_t N>
 CK_TILE_HOST_DEVICE constexpr auto generate_tuple(F&& f, number<N>)
 {
-    return unpack([&f](auto&&... is) { return make_tuple(f(is)...); },
-                  typename arithmetic_sequence_gen<0, N, 1>::type{});
+    return generate_tuple_for(f, make_index_sequence<N>{});
 }
 
 template <typename F, index_t N>
@@ -488,6 +493,26 @@ CK_TILE_HOST_DEVICE constexpr auto transform_tuples(F f, const X& x, const Y& y,
         f, x, y, z, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
 }
 
+namespace detail {
+
+template <typename F, typename X, index_t... Is>
+CK_TILE_HOST_DEVICE constexpr auto embed_tuples_impl(F f, const X& x, sequence<Is...>)
+{
+    return concat_tuple(f(x.at(number<Is>{}))...);
+}
+
+} // namespace detail
+
+// make sure F return at least a tuple
+// e.g. x : tuple<X, Y>, f will return tuple<Z, W>
+// this function will return
+template <typename F, typename X>
+CK_TILE_HOST_DEVICE constexpr auto embed_tuples(F f, const X& x)
+{
+    return detail::embed_tuples_impl(
+        f, x, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
+}
+
 // By default unroll to the flatten
 template <index_t Depth = 0, index_t MaxDepth = -1>
 CK_TILE_HOST_DEVICE constexpr auto unroll_nested_tuple(const tuple<>& t)
@@ -526,7 +551,7 @@ CK_TILE_HOST_DEVICE constexpr auto tuple_reverse(const tuple<Ts...>& t)
             using Idx = number<tuple<Ts...>::size() - i - 1>;
             return t.at(Idx{});
         },
-        number<tuple<Ts...>::size()()>{});
+        number<tuple<Ts...>::size()>{});
 }
 
 // Reduce tuple values in specific range using Function
@@ -603,7 +628,7 @@ template <typename... Ys,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator+=(tuple<Ys...>& y, const X& x)
 {
-    static_assert(X::Size() == sizeof...(Ys), "wrong! size not the same");
+    static_assert(X::size() == sizeof...(Ys), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Ys);
     static_for<0, NSize, 1>{}([&](auto i) { y[i] += x[i]; });
     return y;
@@ -615,7 +640,7 @@ template <typename... Ys,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator-=(tuple<Ys...>& y, const X& x)
 {
-    static_assert(X::Size() == sizeof...(Ys), "wrong! size not the same");
+    static_assert(X::size() == sizeof...(Ys), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Ys);
     static_for<0, NSize, 1>{}([&](auto i) { y[i] -= x[i]; });
     return y;
@@ -627,12 +652,20 @@ template <typename... Xs,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator+(const tuple<Xs...>& x, const Y& y)
 {
-    static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
+    static_assert(Y::size() == sizeof...(Xs), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Xs);
 
     tuple<Xs...> r;
     static_for<0, NSize, 1>{}([&](auto i) { r[i] = x[i] + y[i]; });
     return r;
+}
+
+template <typename... Xs, typename... Ys>
+CK_TILE_HOST_DEVICE constexpr auto operator+(const tuple<Xs...>& x, const tuple<Ys...>& y)
+{
+    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong!");
+    constexpr index_t NSize = sizeof...(Xs);
+    return generate_tuple([&](auto i) { return x[i] + y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs,
@@ -641,12 +674,20 @@ template <typename... Xs,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator-(const tuple<Xs...>& x, const Y& y)
 {
-    static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
+    static_assert(Y::size() == sizeof...(Xs), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Xs);
 
     tuple<Xs...> r;
     static_for<0, NSize, 1>{}([&](auto i) { r[i] = x[i] - y[i]; });
     return r;
+}
+
+template <typename... Xs, typename... Ys>
+CK_TILE_HOST_DEVICE constexpr auto operator-(const tuple<Xs...>& x, const tuple<Ys...>& y)
+{
+    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong!");
+    constexpr index_t NSize = sizeof...(Xs);
+    return generate_tuple([&](auto i) { return x[i] - y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs,
@@ -655,7 +696,7 @@ template <typename... Xs,
               false>
 CK_TILE_HOST_DEVICE constexpr auto operator*(const tuple<Xs...>& x, const Y& y)
 {
-    static_assert(Y::Size() == sizeof...(Xs), "wrong! size not the same");
+    static_assert(Y::size() == sizeof...(Xs), "wrong! size not the same");
     constexpr index_t NSize = sizeof...(Xs);
 
     tuple<Xs...> r;
@@ -684,6 +725,14 @@ template <
 CK_TILE_HOST_DEVICE constexpr auto operator*(const tuple<Xs...>& x, Y a)
 {
     return a * x;
+}
+
+template <typename... Xs, typename... Ys>
+CK_TILE_HOST_DEVICE constexpr auto operator*(const tuple<Xs...>& x, const tuple<Ys...>& y)
+{
+    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong!");
+    constexpr index_t NSize = sizeof...(Xs);
+    return generate_tuple([&](auto i) { return x[i] * y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs, typename... Ys>

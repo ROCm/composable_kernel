@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -43,8 +43,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 return true;
             }
         }
-
-        if(ck::is_gfx11_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             // on gfx11 only support for 3d is implemented
             if constexpr(NDimSpatial{} != 3)
@@ -63,6 +62,12 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             }
             // WMMA kernel is only supported for split_k=1
             if(split_k != 1)
+            {
+                return true;
+            }
+            // Skip due to the lack of kernels for NGCDHW
+            if constexpr(std::is_same_v<InLayout, NGCW> || std::is_same_v<InLayout, NGCHW> ||
+                         std::is_same_v<InLayout, NGCDHW>)
             {
                 return true;
             }
@@ -137,18 +142,32 @@ using KernelTypes2d = ::testing::Types<
     std::tuple<float, float, float, GNHWC, GKYXC, GNHWK, ck::Number<2>>,
     std::tuple<ck::half_t, ck::half_t, ck::half_t, GNHWC, GKYXC, GNHWK, ck::Number<2>>,
     std::tuple<ck::bhalf_t, float, ck::bhalf_t, GNHWC, GKYXC, GNHWK, ck::Number<2>>,
+    std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
     std::tuple<float, float, float, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
     std::tuple<ck::half_t, ck::half_t, ck::half_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
-    std::tuple<ck::bhalf_t, float, ck::bhalf_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>>;
+    std::tuple<ck::bhalf_t, float, ck::bhalf_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
+    std::tuple<float, float, float, NGCHW, GKYXC, NGKHW, ck::Number<2>>,
+    std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NGCHW, GKYXC, NGKHW, ck::Number<2>>,
+    std::tuple<ck::half_t, ck::half_t, ck::half_t, NGCHW, GKYXC, NGKHW, ck::Number<2>>,
+    std::tuple<float, float, float, NGCHW, GKCYX, NGKHW, ck::Number<2>>,
+    std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NGCHW, GKCYX, NGKHW, ck::Number<2>>,
+    std::tuple<ck::half_t, ck::half_t, ck::half_t, NGCHW, GKCYX, NGKHW, ck::Number<2>>>;
 using KernelTypes3d = ::testing::Types<
     std::tuple<float, float, float, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
     std::tuple<ck::half_t, ck::half_t, ck::half_t, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
     std::tuple<ck::bhalf_t, float, ck::bhalf_t, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
     std::tuple<int8_t, int8_t, int8_t, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
+    std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
     std::tuple<float, float, float, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
     std::tuple<ck::half_t, ck::half_t, ck::half_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
     std::tuple<ck::bhalf_t, float, ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
-    std::tuple<int8_t, int8_t, int8_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>>;
+    std::tuple<int8_t, int8_t, int8_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
+    std::tuple<float, float, float, NGCDHW, GKZYXC, NGKDHW, ck::Number<3>>,
+    std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NGCDHW, GKZYXC, NGKDHW, ck::Number<3>>,
+    std::tuple<ck::half_t, ck::half_t, ck::half_t, NGCDHW, GKZYXC, NGKDHW, ck::Number<3>>,
+    std::tuple<float, float, float, NGCDHW, GKCZYX, NGKDHW, ck::Number<3>>,
+    std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, NGCDHW, GKCZYX, NGKDHW, ck::Number<3>>,
+    std::tuple<ck::half_t, ck::half_t, ck::half_t, NGCDHW, GKCZYX, NGKDHW, ck::Number<3>>>;
 
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight1d, KernelTypes1d);
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight2d, KernelTypes2d);
@@ -171,6 +190,8 @@ TYPED_TEST(TestGroupedConvndBwdWeight2d, Test2D)
     this->conv_params.clear();
     this->conv_params.push_back(
         {2, 2, 64, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
+    this->conv_params.push_back({2, 2, 64, 3, 3, {1, 1}, {7, 7}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
+    this->conv_params.push_back({2, 2, 64, 5, 5, {1, 1}, {7, 7}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
     this->conv_params.push_back(
         {2, 2, 4, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(

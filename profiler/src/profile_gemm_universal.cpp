@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <numeric>
-#include <initializer_list>
-#include <cstdlib>
 
 #include "profiler/profile_gemm_universal_impl.hpp"
 #include "profiler_operation_registry.hpp"
@@ -26,6 +26,9 @@ enum struct GemmDataType
     F8_F16_F16,     // 4
     F16_F8_F16,     // 5
     F16_F16_F16_F8, // 6
+    F8_F8_BF16,     // 7
+    F16_I4_F16,     // 8
+    BF16_I4_BF16,   // 9
 };
 
 #define OP_NAME "gemm_universal"
@@ -36,8 +39,9 @@ int profile_gemm_universal(int argc, char* argv[])
     if(argc != 15 && argc != 18)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: f16, "
-               "comp f8)\n");
+        printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: "
+               "f16->f8; 7: f8->bf16, "
+               "comp f8; 8: f16@i4; 9: bf16@i4\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
@@ -55,6 +59,25 @@ int profile_gemm_universal(int argc, char* argv[])
         exit(1);
     }
 
+    int M;
+    int N;
+    int StrideA;
+    int StrideB;
+    // Analyze the unsupported matrix shapes, switch the M and N number
+    if(std::stoi(argv[9]) % 8 != 0 && std::stoi(argv[8]) % 8 == 0)
+    {
+        M       = std::stoi(argv[9]);
+        StrideA = std::stoi(argv[12]);
+        N       = std::stoi(argv[8]);
+        StrideB = std::stoi(argv[11]);
+    }
+    else
+    {
+        M       = std::stoi(argv[8]);
+        StrideA = std::stoi(argv[11]);
+        N       = std::stoi(argv[9]);
+        StrideB = std::stoi(argv[12]);
+    }
     const auto data_type       = static_cast<GemmDataType>(std::stoi(argv[2]));
     const auto layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
     const bool do_verification = std::stoi(argv[4]);
@@ -62,12 +85,8 @@ int profile_gemm_universal(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[6]);
     const bool time_kernel     = std::stoi(argv[7]);
 
-    const int M = std::stoi(argv[8]);
-    const int N = std::stoi(argv[9]);
     const int K = std::stoi(argv[10]);
 
-    const int StrideA = std::stoi(argv[11]);
-    const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
     const int KBatch  = std::stoi(argv[14]);
 
@@ -84,22 +103,27 @@ int profile_gemm_universal(int argc, char* argv[])
     using F32  = float;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-    using F8   = ck::f8_t;
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
+    using F8 = ck::f8_t;
+    using I4 = ck::pk_i4_t;
+#endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
 
     auto profile = [&](auto a_type,
                        auto b_type,
+                       auto comp_type,
                        auto acc_type,
                        auto c_type,
                        auto a_layout,
                        auto b_layout,
                        auto c_layout) {
-        using ADataType   = decltype(a_type);
-        using BDataType   = decltype(b_type);
-        using AccDataType = decltype(acc_type);
-        using CDataType   = decltype(c_type);
+        using ADataType       = decltype(a_type);
+        using BDataType       = decltype(b_type);
+        using ComputeDataType = decltype(comp_type);
+        using AccDataType     = decltype(acc_type);
+        using CDataType       = decltype(c_type);
 
         using ALayout = decltype(a_layout);
         using BLayout = decltype(b_layout);
@@ -111,6 +135,7 @@ int profile_gemm_universal(int argc, char* argv[])
 
         bool pass = ck::profiler::profile_gemm_universal_impl<ADataType,
                                                               BDataType,
+                                                              ComputeDataType,
                                                               AccDataType,
                                                               CDataType,
                                                               ALayout,
@@ -136,36 +161,64 @@ int profile_gemm_universal(int argc, char* argv[])
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F16{}, F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F16{}, F8{}, F32{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F8{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F16{}, F8{}, F32{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F16{}, F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F8{}, F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F8{}, F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
+#endif
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
+        return profile(BF16{}, BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Col{}, Row{});
+        return profile(BF16{}, BF16{}, BF16{}, F32{}, BF16{}, Row{}, Col{}, Row{});
     }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        return profile(BF16{}, BF16{}, BF16{}, F32{}, BF16{}, Col{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        return profile(BF16{}, BF16{}, BF16{}, F32{}, BF16{}, Col{}, Row{}, Row{});
+    }
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
+    else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(F8{}, F8{}, F8{}, F32{}, BF16{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(F8{}, F8{}, F8{}, F32{}, BF16{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::F16_I4_F16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(F16{}, I4{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_I4_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(BF16{}, I4{}, BF16{}, F32{}, BF16{}, Row{}, Col{}, Row{});
+    }
+#endif
     else
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;

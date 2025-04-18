@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,6 +22,7 @@ using I8   = int8_t;
 using I32  = int32_t;
 using F8   = ck::f8_t;
 using BF8  = ck::bf8_t;
+using I4   = ck::pk_i4_t;
 
 using Empty_Tuple = ck::Tuple<>;
 
@@ -70,9 +71,17 @@ using GKXC   = ck::tensor_layout::convolution::GKXC;
 using GKYXC  = ck::tensor_layout::convolution::GKYXC;
 using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
 
+using GKCX   = ck::tensor_layout::convolution::GKCX;
+using GKCYX  = ck::tensor_layout::convolution::GKCYX;
+using GKCZYX = ck::tensor_layout::convolution::GKCZYX;
+
 using GNWK   = ck::tensor_layout::convolution::GNWK;
 using GNHWK  = ck::tensor_layout::convolution::GNHWK;
 using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
+
+using NGKW   = ck::tensor_layout::convolution::NGKW;
+using NGKHW  = ck::tensor_layout::convolution::NGKHW;
+using NGKDHW = ck::tensor_layout::convolution::NGKDHW;
 
 //
 using NWGC   = ck::tensor_layout::convolution::NWGC;
@@ -86,6 +95,10 @@ using KZYXGC = ck::tensor_layout::convolution::KZYXGC;
 using NWGK   = ck::tensor_layout::convolution::NWGK;
 using NHWGK  = ck::tensor_layout::convolution::NHWGK;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
+
+using NGCW   = ck::tensor_layout::convolution::NGCW;
+using NGCHW  = ck::tensor_layout::convolution::NGCHW;
+using NGCDHW = ck::tensor_layout::convolution::NGCDHW;
 
 //
 using G_K         = ck::tensor_layout::convolution::G_K;
@@ -108,6 +121,7 @@ using FastGelu            = ck::tensor_operation::element_wise::FastGelu;
 using MultiplyFastGelu    = ck::tensor_operation::element_wise::MultiplyFastGelu;
 using AddMultiply         = ck::tensor_operation::element_wise::AddMultiply;
 using MultiplyAdd         = ck::tensor_operation::element_wise::MultiplyAdd;
+using MultiplyMultiply    = ck::tensor_operation::element_wise::MultiplyMultiply;
 using ScaleAdd            = ck::tensor_operation::element_wise::ScaleAdd;
 using Gelu                = ck::tensor_operation::element_wise::Gelu;
 using Swish               = ck::tensor_operation::element_wise::Swish;

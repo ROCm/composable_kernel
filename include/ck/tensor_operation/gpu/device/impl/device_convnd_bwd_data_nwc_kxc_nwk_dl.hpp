@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -1393,7 +1394,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
     {
         // check device
         if(!(ck::get_device_name() == "gfx906" || ck::is_gfx103_supported() ||
-             ck::is_gfx11_supported()))
+             ck::is_gfx11_supported() || ck::is_gfx12_supported()))
         {
             return false;
         }

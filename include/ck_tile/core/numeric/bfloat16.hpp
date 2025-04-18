@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
@@ -17,6 +17,8 @@ enum class bf16_rounding_mode
     standard = 0, // rtn
     truncate_with_nan,
     truncate,
+    standard_asm,
+    rta_asm, // round to nearest away
 };
 
 template <bf16_rounding_mode rounding =
@@ -148,6 +150,70 @@ constexpr uint16_t float_to_bf16_rtn_raw(float f)
     return uint16_t(u.int32 >> 16);
 }
 
+CK_TILE_HOST
+constexpr uint16_t float_to_bf16_rtn_asm(float f) { return float_to_bf16_rtn_raw(f); }
+
+CK_TILE_DEVICE
+uint16_t float_to_bf16_rtn_asm(float f)
+{
+    union
+    {
+        float fp32;
+        uint32_t int32;
+    } u = {f};
+
+    static constexpr uint32_t FP32_NAN            = 0x7fff0000;
+    static constexpr uint32_t ROUND_BIAS_FOR_BF16 = 0x7fff;
+
+    using uint32x2_t = uint32_t __attribute__((ext_vector_type(2)));
+    uint32x2_t check_nan;
+    uint32_t tmp;
+    asm volatile("\n \
+            v_cmp_u_f32 %0, %2, %2 \n \
+            v_bfe_u32 %1, %2, 16, 1 \n \
+            v_add3_u32 %1, %2, %1, %3 \n \
+            v_cndmask_b32 %2, %1, %4, %0 \n \
+            v_lshrrev_b32 %2, 16, %2 \n \
+            "
+                 : "=s"(check_nan), "+v"(tmp), "+v"(u.fp32)
+                 : "v"(ROUND_BIAS_FOR_BF16), "v"(FP32_NAN));
+
+    return uint16_t(u.int32);
+}
+
+// TODO: do we need this on host?
+CK_TILE_HOST
+uint16_t float_to_bf16_rta_asm(float f) { return float_to_bf16_rtn_raw(f); }
+
+CK_TILE_DEVICE
+uint16_t float_to_bf16_rta_asm(float f)
+{
+    union
+    {
+        float fp32;
+        struct
+        {
+            uint16_t lo;
+            uint16_t hi;
+        };
+    } u = {f};
+
+    const uint32_t low_nan = 0x7fff;
+    const uint32_t hi_nan  = 0x7fff0000;
+
+    using uint32x2_t = uint32_t __attribute__((ext_vector_type(2)));
+    uint32x2_t check_nan;
+
+    asm volatile("v_cmp_u_f32 %[s_cnan], %[v_x], %[v_x] \n"
+                 "v_add3_u32 %[v_x], %[v_x], %[v_blo], 1 \n"
+                 "v_cndmask_b32 %[v_x], %[v_x], %[v_bhi], %[s_cnan]"
+                 : [s_cnan] "+s"(check_nan), [v_x] "+v"(u.fp32)
+                 : [v_blo] "v"(low_nan), [v_bhi] "v"(hi_nan));
+
+    // Note: in above code snipet, we use hi 16 bit
+    return u.hi;
+}
+
 // Truncate instead of rounding, preserving SNaN
 CK_TILE_HOST_DEVICE
 constexpr uint16_t float_to_bf16_truc_nan_raw(float f)
@@ -177,8 +243,12 @@ CK_TILE_HOST_DEVICE constexpr uint16_t float_to_bf16_raw(float f, constant<round
 {
     if constexpr(rounding == bf16_rounding_mode::standard)
         return float_to_bf16_rtn_raw(f);
+    else if constexpr(rounding == bf16_rounding_mode::standard_asm)
+        return float_to_bf16_rtn_asm(f);
     else if constexpr(rounding == bf16_rounding_mode::truncate_with_nan)
         return float_to_bf16_truc_nan_raw(f);
+    else if constexpr(rounding == bf16_rounding_mode::rta_asm)
+        return float_to_bf16_rta_asm(f);
     else
         return float_to_bf16_truc_raw(f);
 }
@@ -306,6 +376,14 @@ struct numeric<bfloat16_t>
     }
 };
 
+template <>
+struct numeric_traits<bfloat16_t>
+{
+    static constexpr int exp        = 8;
+    static constexpr int mant       = 7;
+    static constexpr int PackedSize = 1;
+};
+
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
 CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST_DEVICE, bfloat16_t)
 #endif
@@ -331,7 +409,10 @@ bfloat16_t sqrt(bfloat16_t x)
 };
 
 CK_TILE_DEVICE
-bfloat16_t exp(bfloat16_t x) { return static_cast<bfloat16_t>(__expf(static_cast<float>(x))); };
+bfloat16_t exp(bfloat16_t x)
+{
+    return static_cast<bfloat16_t>(__ocml_exp_f32(static_cast<float>(x)));
+};
 
 CK_TILE_DEVICE
 bfloat16_t exp2(bfloat16_t x) { return static_cast<bfloat16_t>(exp2f(static_cast<float>(x))); };

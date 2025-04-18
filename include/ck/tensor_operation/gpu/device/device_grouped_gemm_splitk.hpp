@@ -1,6 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-#include <iostream>
-#include <vector>
 
 #include "device_grouped_gemm.hpp"
 
@@ -31,7 +31,23 @@ struct DeviceGroupedGemmSplitK : public DeviceGroupedGemm<ALayout,
                                                           BElementwiseOperation,
                                                           CElementwiseOperation>
 {
+    //----------------------------------------------------------------------------------------------
+    /// @brief      Sets the k batch size.
+    ///
+    /// @param      p_arg   Pointer to the Argument we're going to change.
+    /// @param[in]  kbatch  The kbatch value.
+    ///
     virtual void SetKBatchSize(BaseArgument* p_arg, index_t kbatch) const = 0;
+    //----------------------------------------------------------------------------------------------
+    /// @brief      Sets the k batch size.
+    ///
+    /// @param      p_arg   Pointer to the Argument we're going to change.
+    /// @param[in]  kbatch  The kbatch value.
+    ///
+    virtual void SetKBatch(BaseArgument* p_arg, index_t kbatch) const
+    {
+        this->SetKBatchSize(p_arg, kbatch);
+    };
 };
 
 } // namespace device

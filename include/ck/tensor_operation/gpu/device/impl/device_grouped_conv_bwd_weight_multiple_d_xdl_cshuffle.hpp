@@ -60,18 +60,17 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
-    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
+    const long_index_t a_batch_offset =
+        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+    const long_index_t b_batch_offset =
+        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
+    const long_index_t c_batch_offset =
+        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
 
     __shared__ FloatA p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatA)];
 
@@ -103,7 +102,7 @@ __global__ void
     compute_ptr_offset_of_batch.GetAPtrOffset(0);
     compute_ptr_offset_of_batch.GetBPtrOffset(0);
     compute_ptr_offset_of_batch.GetCPtrOffset(0);
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <index_t NDimSpatial,
@@ -864,23 +863,23 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         }
         if constexpr(NDimSpatial == 1)
         {
-            if constexpr(!is_GNWK_GKXC_GNWC<InLayout, WeiLayout, OutLayout>())
+            if constexpr(!is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>())
             {
                 return false;
             }
         }
         else if constexpr(NDimSpatial == 2)
         {
-            if constexpr(!(is_NHWGK_GKYXC_NHWGC<InLayout, WeiLayout, OutLayout>() ||
-                           is_GNHWK_GKYXC_GNHWC<InLayout, WeiLayout, OutLayout>()))
+            if constexpr(!(is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>() ||
+                           is_GNHWC_GKYXC_GNHWK<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }
         }
         else if constexpr(NDimSpatial == 3)
         {
-            if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>() ||
-                           is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>()))
+            if constexpr(!(is_NDHWGC_GKZYXC_NDHWGK<InLayout, WeiLayout, OutLayout>() ||
+                           is_GNDHWC_GKZYXC_GNDHWK<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }

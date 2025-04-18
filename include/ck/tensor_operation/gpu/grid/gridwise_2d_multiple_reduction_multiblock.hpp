@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -258,7 +258,7 @@ struct GridwiseMultipleReduction_mk_to_m_multiblock
 
             if(thread_k_cluster_id == 0)
             {
-                if(block_group_size == 0 && !float_equal_zero{}(beta_values[iR]))
+                if(!float_equal_zero{}(beta_values[iR]))
                 {
                     StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true>
                         priorDstValueBuf;

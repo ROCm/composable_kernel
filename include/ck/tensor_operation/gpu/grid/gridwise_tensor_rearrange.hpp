@@ -35,8 +35,9 @@ __global__ void
                                 const Block2ETileMap block_2_tile_map,
                                 const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||         \
+    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__) || \
+    defined(__gfx12__))
     GridwiseTensorRearrangeKernel::Run(in_grid_desc,
                                        p_in_global,
                                        out_grid_desc,
@@ -120,10 +121,10 @@ struct GridwiseTensorRearrange
             __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
         // Global Memory
-        const index_t a_batch_offset =
-            __builtin_amdgcn_readfirstlane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-        const index_t c_batch_offset =
-            __builtin_amdgcn_readfirstlane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
+        const index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+        const index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
 
         const auto in_global_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_in_global + a_batch_offset, in_grid_desc.GetElementSpaceSize());

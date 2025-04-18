@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <initializer_list>
+#include <vector>
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
@@ -152,12 +153,12 @@ struct array<T, 0>
     CK_TILE_HOST_DEVICE void print() const { printf("array{size: 0, data: []}"); }
 };
 
-template <typename>
+template <typename, typename>
 struct vector_traits;
 
 // specialization for array
 template <typename T, index_t N>
-struct vector_traits<array<T, N>>
+struct vector_traits<array<T, N>, void>
 {
     using scalar_type                    = T;
     static constexpr index_t vector_size = N;
@@ -234,6 +235,16 @@ template <typename T, index_t Size>
 CK_TILE_HOST_DEVICE constexpr bool operator!=(const array<T, Size>& a, const array<T, Size>& b)
 {
     return !(a == b);
+}
+
+template <typename T, index_t N, typename X>
+CK_TILE_HOST_DEVICE constexpr auto to_array(const std::vector<X>& x)
+{
+    array<T, N> arr;
+
+    static_for<0, N, 1>{}([&x, &arr](auto i) { arr(i) = x[i]; });
+
+    return arr;
 }
 
 template <typename T, index_t N, typename X>

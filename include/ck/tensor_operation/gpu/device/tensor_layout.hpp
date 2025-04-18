@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,6 +21,12 @@ struct ColumnMajor : public BaseTensorLayout
 {
     static constexpr const char* name = "ColumnMajor";
 };
+
+struct MFMA : public BaseTensorLayout
+{
+    static constexpr const char* name = "MFMA";
+};
+
 } // namespace gemm
 
 namespace convolution {
@@ -113,6 +119,23 @@ struct NHWGC : public BaseTensorLayout
 struct NDHWGC : public BaseTensorLayout
 {
     static constexpr const char* name = "NDHWGC";
+};
+
+// input tensor
+// packed NGCW/NGCHW/NGCDHW
+struct NGCW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGCW";
+};
+
+struct NGCHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGCHW";
+};
+
+struct NGCDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGCDHW";
 };
 
 // input tensor
@@ -325,6 +348,21 @@ struct NDHWGK : public BaseTensorLayout
     static constexpr const char* name = "NDHWGK";
 };
 
+struct NGKW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGKW";
+};
+
+struct NGKHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGKHW";
+};
+
+struct NGKDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGKDHW";
+};
+
 // output tensor
 // strided layout
 struct G_NW_K : public BaseTensorLayout
@@ -398,6 +436,7 @@ struct G_NDHW : public BaseTensorLayout
 
 } // namespace convolution
 
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <
     typename Layout,
     typename std::enable_if<std::is_base_of<BaseTensorLayout, Layout>::value, bool>::type = false>
@@ -406,6 +445,7 @@ std::ostream& operator<<(std::ostream& os, const Layout&)
     os << Layout::name;
     return os;
 }
+#endif
 
 } // namespace tensor_layout
 } // namespace ck

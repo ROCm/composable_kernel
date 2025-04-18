@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,11 +8,13 @@
 #include <iostream>
 #include <iomanip>
 #include <numeric>
-#include <thread>
 #include <utility>
 #include <vector>
+#include <functional>
+#include <fstream>
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/joinable_thread.hpp"
 #include "ck_tile/host/ranges.hpp"
 
 namespace ck_tile {
@@ -155,8 +157,13 @@ struct HostTensorDescriptor
         return space;
     }
 
+    std::size_t get_length(std::size_t dim) const { return mLens[dim]; }
+
     const std::vector<std::size_t>& get_lengths() const { return mLens; }
-    const std::vector<std::size_t>& GetStrides() const { return mStrides; }
+
+    std::size_t get_stride(std::size_t dim) const { return mStrides[dim]; }
+
+    const std::vector<std::size_t>& get_strides() const { return mStrides; }
 
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
@@ -171,7 +178,20 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
+    friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc)
+    {
+        os << "dim " << desc.get_num_of_dimension() << ", ";
+
+        os << "lengths {";
+        LogRange(os, desc.get_lengths(), ", ");
+        os << "}, ";
+
+        os << "strides {";
+        LogRange(os, desc.get_strides(), ", ");
+        os << "}";
+
+        return os;
+    }
 
     private:
     std::vector<std::size_t> mLens;
@@ -188,28 +208,11 @@ CK_TILE_HOST HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old
     for(std::size_t i = 0; i < a.get_num_of_dimension(); i++)
     {
         new_lengths[i] = a.get_lengths()[new2old[i]];
-        new_strides[i] = a.GetStrides()[new2old[i]];
+        new_strides[i] = a.get_strides()[new2old[i]];
     }
 
     return HostTensorDescriptor(new_lengths, new_strides);
 }
-
-struct joinable_thread : std::thread
-{
-    template <typename... Xs>
-    joinable_thread(Xs&&... xs) : std::thread(std::forward<Xs>(xs)...)
-    {
-    }
-
-    joinable_thread(joinable_thread&&) = default;
-    joinable_thread& operator=(joinable_thread&&) = default;
-
-    ~joinable_thread()
-    {
-        if(this->joinable())
-            this->join();
-    }
-};
 
 template <typename F, typename... Xs>
 struct ParallelTensorFunctor
@@ -278,18 +281,18 @@ struct HostTensor
     using Data       = std::vector<T>;
 
     template <typename X>
-    HostTensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.get_element_space_size())
+    HostTensor(std::initializer_list<X> lens) : mDesc(lens), mData(get_element_space_size())
     {
     }
 
     template <typename X, typename Y>
     HostTensor(std::initializer_list<X> lens, std::initializer_list<Y> strides)
-        : mDesc(lens, strides), mData(mDesc.get_element_space_size())
+        : mDesc(lens, strides), mData(get_element_space_size())
     {
     }
 
     template <typename Lengths>
-    HostTensor(const Lengths& lens) : mDesc(lens), mData(mDesc.get_element_space_size())
+    HostTensor(const Lengths& lens) : mDesc(lens), mData(get_element_space_size())
     {
     }
 
@@ -299,7 +302,7 @@ struct HostTensor
     {
     }
 
-    HostTensor(const Descriptor& desc) : mDesc(desc), mData(mDesc.get_element_space_size()) {}
+    HostTensor(const Descriptor& desc) : mDesc(desc), mData(get_element_space_size()) {}
 
     template <typename OutT>
     HostTensor<OutT> CopyAsType() const
@@ -325,15 +328,23 @@ struct HostTensor
     {
     }
 
+    std::size_t get_length(std::size_t dim) const { return mDesc.get_length(dim); }
+
     decltype(auto) get_lengths() const { return mDesc.get_lengths(); }
 
-    decltype(auto) GetStrides() const { return mDesc.GetStrides(); }
+    std::size_t get_stride(std::size_t dim) const { return mDesc.get_stride(dim); }
+
+    decltype(auto) get_strides() const { return mDesc.get_strides(); }
 
     std::size_t get_num_of_dimension() const { return mDesc.get_num_of_dimension(); }
 
     std::size_t get_element_size() const { return mDesc.get_element_size(); }
 
-    std::size_t get_element_space_size() const { return mDesc.get_element_space_size(); }
+    std::size_t get_element_space_size() const
+    {
+        constexpr index_t PackedSize = ck_tile::numeric_traits<remove_cvref_t<T>>::PackedSize;
+        return mDesc.get_element_space_size() / PackedSize;
+    }
 
     std::size_t get_element_space_size_in_bytes() const
     {
@@ -456,29 +467,55 @@ struct HostTensor
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
     {
-        return mDesc.GetOffsetFromMultiIndex(is...);
+        constexpr index_t PackedSize = ck_tile::numeric_traits<remove_cvref_t<T>>::PackedSize;
+        return mDesc.GetOffsetFromMultiIndex(is...) / PackedSize;
     }
 
     template <typename... Is>
     T& operator()(Is... is)
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        return mData[GetOffsetFromMultiIndex(is...)];
     }
 
     template <typename... Is>
     const T& operator()(Is... is) const
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        return mData[GetOffsetFromMultiIndex(is...)];
     }
 
-    T& operator()(std::vector<std::size_t> idx)
-    {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
-    }
+    T& operator()(std::vector<std::size_t> idx) { return mData[GetOffsetFromMultiIndex(idx)]; }
 
     const T& operator()(std::vector<std::size_t> idx) const
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+        return mData[GetOffsetFromMultiIndex(idx)];
+    }
+
+    HostTensor<T> transpose(std::vector<size_t> axes = {}) const
+    {
+        if(axes.empty())
+        {
+            axes.resize(this->get_num_of_dimension());
+            std::iota(axes.rbegin(), axes.rend(), 0);
+        }
+        if(axes.size() != mDesc.get_num_of_dimension())
+        {
+            throw std::runtime_error(
+                "HostTensor::transpose(): size of axes must match tensor dimension");
+        }
+        std::vector<size_t> tlengths, tstrides;
+        for(const auto& axis : axes)
+        {
+            tlengths.push_back(get_lengths()[axis]);
+            tstrides.push_back(get_strides()[axis]);
+        }
+        HostTensor<T> ret(*this);
+        ret.mDesc = HostTensorDescriptor(tlengths, tstrides);
+        return ret;
+    }
+
+    HostTensor<T> transpose(std::vector<size_t> axes = {})
+    {
+        return const_cast<HostTensor<T> const*>(this)->transpose(axes);
     }
 
     typename Data::iterator begin() { return mData.begin(); }
@@ -494,6 +531,28 @@ struct HostTensor
     typename Data::const_pointer data() const { return mData.data(); }
 
     typename Data::size_type size() const { return mData.size(); }
+
+    // return a slice of this tensor
+    // for simplicity we just copy the data and return a new tensor
+    auto slice(std::vector<size_t> s_begin, std::vector<size_t> s_end) const
+    {
+        assert(s_begin.size() == s_end.size());
+        assert(s_begin.size() == get_num_of_dimension());
+
+        std::vector<size_t> s_len(s_begin.size());
+        std::transform(
+            s_end.begin(), s_end.end(), s_begin.begin(), s_len.begin(), std::minus<size_t>{});
+        HostTensor<T> sliced_tensor(s_len);
+
+        sliced_tensor.ForEach([&](auto& self, auto idx) {
+            std::vector<size_t> src_idx(idx.size());
+            std::transform(
+                idx.begin(), idx.end(), s_begin.begin(), src_idx.begin(), std::plus<size_t>{});
+            self(idx) = operator()(src_idx);
+        });
+
+        return sliced_tensor;
+    }
 
     template <typename U = T>
     auto AsSpan() const
@@ -517,7 +576,147 @@ struct HostTensor
                                       size() * FromSize / ToSize};
     }
 
+    friend std::ostream& operator<<(std::ostream& os, const HostTensor<T>& t)
+    {
+        os << t.mDesc;
+        os << "[";
+        for(typename Data::size_type idx = 0; idx < t.mData.size(); ++idx)
+        {
+            if(0 < idx)
+            {
+                os << ", ";
+            }
+            if constexpr(std::is_same_v<T, bf16_t> || std::is_same_v<T, fp16_t>)
+            {
+                os << type_convert<float>(t.mData[idx]) << " #### ";
+            }
+            else
+            {
+                os << t.mData[idx];
+            }
+        }
+        os << "]";
+        return os;
+    }
+
+    // read data from a file, as dtype
+    // the file could dumped from torch as (targeting tensor is t here)
+    // numpy.savetxt("f.txt", t.view(-1).numpy())
+    // numpy.savetxt("f.txt", t.cpu().view(-1).numpy()) # from cuda to cpu to save
+    // numpy.savetxt("f.txt", t.cpu().view(-1).numpy(), fmt="%d")   # save as int
+    // will output f.txt, each line is a value
+    // dtype=float or int, internally will cast to real type
+    void loadtxt(std::string file_name, std::string dtype = "float")
+    {
+        std::ifstream file(file_name);
+
+        if(file.is_open())
+        {
+            std::string line;
+
+            index_t cnt = 0;
+            while(std::getline(file, line))
+            {
+                if(cnt >= static_cast<index_t>(mData.size()))
+                {
+                    throw std::runtime_error(std::string("data read from file:") + file_name +
+                                             " is too big");
+                }
+
+                if(dtype == "float")
+                {
+                    mData[cnt] = type_convert<T>(std::stof(line));
+                }
+                else if(dtype == "int" || dtype == "int32")
+                {
+                    mData[cnt] = type_convert<T>(std::stoi(line));
+                }
+                cnt++;
+            }
+            file.close();
+            if(cnt < static_cast<index_t>(mData.size()))
+            {
+                std::cerr << "Warning! reading from file:" << file_name
+                          << ", does not match the size of this tensor" << std::endl;
+            }
+        }
+        else
+        {
+            // Print an error message to the standard error
+            // stream if the file cannot be opened.
+            throw std::runtime_error(std::string("unable to open file:") + file_name);
+        }
+    }
+
+    // can save to a txt file and read from torch as:
+    // torch.from_numpy(np.loadtxt('f.txt', dtype=np.int32/np.float32...)).view([...]).contiguous()
+    void savetxt(std::string file_name, std::string dtype = "float")
+    {
+        std::ofstream file(file_name);
+
+        if(file.is_open())
+        {
+            for(auto& itm : mData)
+            {
+                if(dtype == "float")
+                    file << type_convert<float>(itm) << std::endl;
+                else if(dtype == "int")
+                    file << type_convert<int>(itm) << std::endl;
+                else
+                    // TODO: we didn't implement operator<< for all custom
+                    // data types, here fall back to float in case compile error
+                    file << type_convert<float>(itm) << std::endl;
+            }
+            file.close();
+        }
+        else
+        {
+            // Print an error message to the standard error
+            // stream if the file cannot be opened.
+            throw std::runtime_error(std::string("unable to open file:") + file_name);
+        }
+    }
+
     Descriptor mDesc;
     Data mData;
 };
+
+template <bool is_row_major>
+auto host_tensor_descriptor(std::size_t row,
+                            std::size_t col,
+                            std::size_t stride,
+                            bool_constant<is_row_major>)
+{
+    using namespace ck_tile::literals;
+
+    if constexpr(is_row_major)
+    {
+        return HostTensorDescriptor({row, col}, {stride, 1_uz});
+    }
+    else
+    {
+        return HostTensorDescriptor({row, col}, {1_uz, stride});
+    }
+}
+template <bool is_row_major>
+auto get_default_stride(std::size_t row,
+                        std::size_t col,
+                        std::size_t stride,
+                        bool_constant<is_row_major>)
+{
+    if(stride == 0)
+    {
+        if constexpr(is_row_major)
+        {
+            return col;
+        }
+        else
+        {
+            return row;
+        }
+    }
+    else
+        return stride;
+}
+
 } // namespace ck_tile

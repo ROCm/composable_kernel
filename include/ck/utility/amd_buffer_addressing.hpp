@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "data_type.hpp"
@@ -429,7 +429,8 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             (is_same<T, f8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (is_same<T, uint8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
+            (is_same<T, uint8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, pk_i4_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
     using r_t     = typename vector_type<T, N>::type;
@@ -549,8 +550,10 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
             (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, bhalf_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (is_same<T, f8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, f8_fnuz_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, bf8_fnuz_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, fp8_storage_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
@@ -560,6 +563,34 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
                                                         dst_wave_buffer_resource,
                                                         dst_thread_addr_offset,
                                                         dst_wave_addr_offset);
+}
+
+template <typename T, index_t N>
+__device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::type src_thread_data,
+                                           T* addr)
+{
+    static_assert((is_same<T, bhalf_t>::value && (N == 2 || N == 4 || N == 8)) ||
+                      (is_same<T, half_t>::value && (N == 2 || N == 4 || N == 8)),
+                  "wrong! not implemented");
+
+    if constexpr(is_same<T, half_t>::value)
+    {
+        vector_type<half_t, N> tmp{src_thread_data};
+        static_for<0, N / 2, 1>{}([&](auto i) {
+            __builtin_amdgcn_global_atomic_fadd_v2f16(bit_cast<half2_t*>(addr) + i,
+                                                      tmp.template AsType<half2_t>()[i]);
+        });
+    }
+#if defined(__gfx942__) || defined(__gfx950__)
+    else if constexpr(is_same<T, bhalf_t>::value)
+    {
+        vector_type<bhalf_t, N> tmp{src_thread_data};
+        static_for<0, N / 2, 1>{}([&](auto i) {
+            __builtin_amdgcn_global_atomic_fadd_v2bf16(bit_cast<bhalf2_t*>(addr) + i,
+                                                       tmp.template AsType<bhalf2_t>()[i]);
+        });
+    }
+#endif
 }
 
 template <typename T, index_t N>
@@ -815,8 +846,8 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 
 #else
 
-    vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
-        src_wave_buffer_resource, src_thread_addr_offset, 0);
+    vector_t tmp{amd_buffer_load_impl<scalar_t, vector_size, coherence>(
+        src_wave_buffer_resource, src_thread_addr_offset, 0)};
     return src_thread_element_valid ? tmp : vector_t(0);
 #endif
 }
@@ -845,8 +876,8 @@ amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
 
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-    vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
-        src_wave_buffer_resource, src_thread_addr_offset, 0);
+    vector_t tmp{amd_buffer_load_impl<scalar_t, vector_size, coherence>(
+        src_wave_buffer_resource, src_thread_addr_offset, 0)};
 
     return src_thread_element_valid ? tmp : vector_t(customized_value);
 }
@@ -907,18 +938,29 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
     using scalar_t                = typename scalar_type<vector_t>::type;
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-#if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
-    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
-
-    amd_buffer_atomic_add_impl<scalar_t, vector_size>(
-        src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
-#else
-    if(dst_thread_element_valid)
+    if constexpr(is_same<T, bhalf_t>::value)
     {
-        amd_buffer_atomic_add_impl<scalar_t, vector_size>(
-            src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+        if(dst_thread_element_valid)
+        {
+            amd_global_atomic_add_impl<scalar_t, vector_size>(
+                src_thread_data, p_dst_wave + dst_thread_element_offset);
+        }
     }
+    else
+    {
+#if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
+        uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
+
+        amd_buffer_atomic_add_impl<scalar_t, vector_size>(
+            src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
+#else
+        if(dst_thread_element_valid)
+        {
+            amd_buffer_atomic_add_impl<scalar_t, vector_size>(
+                src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+        }
 #endif
+    }
 }
 
 // buffer_atomic_max requires:
@@ -966,6 +1008,7 @@ llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 index_t offset,
                                 index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
 
+#ifndef __HIPCC_RTC__
 template <typename T, index_t NumElemsPerThread>
 __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
                                               const index_t global_offset,
@@ -979,28 +1022,44 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
     constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
     static_assert(bytes_per_thread == dword_bytes);
 
+#ifndef CK_CODE_GEN_RTC
     const uint32_t* global_ptr =
         reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(global_base_ptr));
+#else
+    const uint32_t* global_ptr =
+        reinterpret_cast<uint32_t*>(reinterpret_cast<size_t>(global_base_ptr));
+#endif
     const int32x4_t src_resource = make_wave_buffer_resource(global_ptr, src_element_space_size);
     const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
 
 #if CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
     T* lds_ptr = lds_base_ptr + lds_offset;
+#ifndef CK_CODE_GEN_RTC
     auto const lds_ptr_sgpr =
         __builtin_amdgcn_readfirstlane((reinterpret_cast<uintptr_t>(lds_ptr)));
+#else
+    auto const lds_ptr_sgpr = __builtin_amdgcn_readfirstlane((reinterpret_cast<size_t>(lds_ptr)));
+#endif
     asm volatile("s_mov_b32 m0, %0; \n\t"
                  "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
                  "v"(global_offset_bytes),
-                 "s"(src_resource));
+                 "s"(src_resource)
+                 : "memory");
 #else
     // LDS pointer must be attributed with the LDS address space.
     __attribute__((address_space(3))) uint32_t* lds_ptr =
+#ifndef CK_CODE_GEN_RTC
         reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
             reinterpret_cast<uintptr_t>(lds_base_ptr + lds_offset));
+#else
+        reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
+            reinterpret_cast<size_t>(lds_base_ptr + lds_offset));
+#endif
 
     llvm_amdgcn_raw_buffer_load_lds(
         src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0, 0, 0);
 #endif
 }
+#endif
 
 } // namespace ck

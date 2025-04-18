@@ -27,6 +27,7 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_n = Softmax(A_g_m_k * B0_g
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -71,7 +72,7 @@ static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecial
 #define CK_MHA_USE_WAVE_1
 #define CK_MHA_USE_WAVE_2
 #define CK_MHA_USE_WAVE_4
-#define CK_MHA_USE_WAVE_8
+//#define CK_MHA_USE_WAVE_8
 using DeviceMHAFactory = 
     std::tuple<
 #ifdef CK_MHA_USE_WAVE_1
@@ -277,10 +278,10 @@ using DeviceMHAFactory =
             S<2, 8, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 1, false,
             // CShuffleBlockTransfer MN
             1, 1, S<1, 64, 1, 2>, 8,             
-            MaskingSpec>,
+            MaskingSpec>
 #endif
 #ifdef CK_MHA_USE_WAVE_8
-        ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
+        ,ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
@@ -351,4 +352,14 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
 
 #include "run_cross_attention_wmma.inc"
 
-int main(int argc, char* argv[]) { return run(argc, argv); }
+int main(int argc, char* argv[])
+{
+    bool is_supported = ck::is_gfx11_supported();
+    if(!is_supported)
+    {
+        std::cout << "WARNING: wmma example not supported on the platform " << ck::get_device_name()
+                  << std::endl;
+        return 0;
+    }
+    return run(argc, argv);
+}

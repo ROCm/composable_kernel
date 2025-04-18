@@ -35,6 +35,8 @@ struct null_tile_window
 
     CK_TILE_DEVICE constexpr auto get_window_origin() const { return BottomTensorIndex{}; }
 
+    CK_TILE_DEVICE void init_raw() {}
+
     WindowLengths window_lengths_;
 };
 
@@ -76,6 +78,13 @@ CK_TILE_DEVICE constexpr auto make_tile_window(null_tensor_view,
                   "wrong! lengths should be static");
 
     return null_tile_window<remove_cvref_t<WindowLengths>>{window_lengths};
+}
+
+template <typename WindowLengths, typename StaticTileDistribution>
+CK_TILE_DEVICE constexpr auto make_tile_window(const null_tile_window<WindowLengths>& t,
+                                               const StaticTileDistribution&)
+{
+    return t;
 }
 
 template <typename WindowLengths>

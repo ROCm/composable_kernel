@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common_wmma.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 // kernel data types
 using InKernelDataType       = I8;
@@ -23,4 +24,14 @@ using OutElementOp = ck::tensor_operation::element_wise::AddReluAdd;
 
 #include "run_grouped_conv_fwd_bias_relu_add_wmma_example.inc"
 
-int main(int argc, char* argv[]) { return !run_grouped_conv_fwd_bias_relu_add_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    bool is_supported = ck::is_gfx11_supported();
+    if(!is_supported)
+    {
+        std::cout << "WARNING: wmma example not supported on the platform " << ck::get_device_name()
+                  << std::endl;
+        return 0;
+    }
+    return !run_grouped_conv_fwd_bias_relu_add_example(argc, argv);
+}

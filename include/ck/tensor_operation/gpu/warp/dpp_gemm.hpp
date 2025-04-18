@@ -324,55 +324,55 @@ struct DppSelector
     static constexpr auto GetDpp();
 
     template <>
-    static constexpr auto GetDpp<half_t, 8, 32>()
+    constexpr auto GetDpp<half_t, 8, 32>()
     {
         return DppInstr::dpp8_f16_8x32x2;
     }
 
     template <>
-    static constexpr auto GetDpp<half_t, 8, 16>()
+    constexpr auto GetDpp<half_t, 8, 16>()
     {
         return DppInstr::dpp8_f16_8x16x2;
     }
 
     template <>
-    static constexpr auto GetDpp<half_t, 16, 16>()
+    constexpr auto GetDpp<half_t, 16, 16>()
     {
         return DppInstr::dpp8_f16_16x16x2;
     }
 
     template <>
-    static constexpr auto GetDpp<half_t, 32, 8>()
+    constexpr auto GetDpp<half_t, 32, 8>()
     {
         return DppInstr::dpp8_f16_32x8x2;
     }
 
     template <>
-    static constexpr auto GetDpp<half_t, 1, 32>()
+    constexpr auto GetDpp<half_t, 1, 32>()
     {
         return DppInstr::dpp8_f16_1x32x2;
     }
 
     template <>
-    static constexpr auto GetDpp<half_t, 2, 32>()
+    constexpr auto GetDpp<half_t, 2, 32>()
     {
         return DppInstr::dpp8_f16_2x32x2;
     }
 
     template <>
-    static constexpr auto GetDpp<half_t, 2, 16>()
+    constexpr auto GetDpp<half_t, 2, 16>()
     {
         return DppInstr::dpp8_f16_2x16x2;
     }
 
     template <>
-    static constexpr auto GetDpp<half_t, 4, 16>()
+    constexpr auto GetDpp<half_t, 4, 16>()
     {
         return DppInstr::dpp8_f16_4x16x2;
     }
 
     template <>
-    static constexpr auto GetDpp<half_t, 4, 32>()
+    constexpr auto GetDpp<half_t, 4, 32>()
     {
         return DppInstr::dpp8_f16_4x32x2;
     }

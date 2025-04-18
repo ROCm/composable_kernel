@@ -167,7 +167,7 @@ struct StaticTensorTupleOfVectorBuffer
     // Idx is for S, not X. Idx should be aligned with X
     template <typename X,
               typename Idx,
-              typename enable_if<has_same_scalar_type<S, X>::value &&
+              typename enable_if<(has_same_scalar_type<S, X>::value || !is_native_type<S>()) &&
                                      is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
     __host__ __device__ constexpr X GetAsType(Idx) const
@@ -201,7 +201,7 @@ struct StaticTensorTupleOfVectorBuffer
     // Idx is for S, not X. Idx should be aligned with X
     template <typename X,
               typename Idx,
-              typename enable_if<has_same_scalar_type<S, X>::value &&
+              typename enable_if<(has_same_scalar_type<S, X>::value || !is_native_type<S>()) &&
                                      is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
     __host__ __device__ constexpr void SetAsType(Idx, X x)

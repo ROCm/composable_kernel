@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <vector>
@@ -248,7 +248,7 @@ int main(int argc, char* argv[])
         d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         break;
     default:
-        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<2>{});
+        a_gs_ms_ks.GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 2>{});
         b0_gs_ns_ks.GenerateTensorValue(GeneratorTensor_Diagonal<B0DataType>{});
         b1_gs_os_ns.GenerateTensorValue(GeneratorTensor_Diagonal<B1DataType>{});
         d0_gs_ms_ns.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});

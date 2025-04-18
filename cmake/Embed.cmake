@@ -233,6 +233,8 @@ function(add_embed_library EMBED_NAME)
     else()
         target_sources(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}>)
     endif()
-    target_include_directories(${EMBED_NAME} INTERFACE "${EMBED_DIR}/include")
+    target_include_directories(${EMBED_NAME} INTERFACE 
+	    $<BUILD_INTERFACE:${EMBED_DIR}/include>
+	        $<INSTALL_INTERFACE:include/ck>)
 endfunction()
 

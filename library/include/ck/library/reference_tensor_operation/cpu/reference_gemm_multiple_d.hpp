@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -74,26 +74,8 @@ struct ReferenceGemmMultipleD : public device::BaseOperator
 
                 for(int k = 0; k < K; ++k)
                 {
-                    // use PassThrough instead of ConvertBF16RTN for reference calculation
-                    if constexpr(is_same_v<AElementwiseOperation,
-                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
-                    {
-                        ck::tensor_operation::element_wise::PassThrough{}(v_a, arg.a_m_k_(m, k));
-                    }
-                    else
-                    {
-                        arg.a_element_op_(v_a, arg.a_m_k_(m, k));
-                    }
-                    // same for B matrix
-                    if constexpr(is_same_v<BElementwiseOperation,
-                                           ck::tensor_operation::element_wise::ConvertBF16RTN>)
-                    {
-                        ck::tensor_operation::element_wise::PassThrough{}(v_b, arg.b_k_n_(k, n));
-                    }
-                    else
-                    {
-                        arg.b_element_op_(v_b, arg.b_k_n_(k, n));
-                    }
+                    arg.a_element_op_(v_a, arg.a_m_k_(m, k));
+                    arg.b_element_op_(v_b, arg.b_k_n_(k, n));
 
                     v_acc +=
                         ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);

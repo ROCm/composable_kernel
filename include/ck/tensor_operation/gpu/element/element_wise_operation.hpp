@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -249,6 +249,61 @@ struct MultiplyAdd
     }
 };
 
+struct MultiplyMultiply
+{
+    template <typename E, typename C, typename D0, typename D1>
+    __host__ __device__ constexpr void
+    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, float, float, float>(
+        ck::half_t& e, const float& c, const float& d0, const float& d1) const
+    {
+        const float x0_f = c * d0 * d1;
+
+        e = ck::type_convert<ck::half_t>(x0_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, float, float, float>(
+        ck::bhalf_t& e, const float& c, const float& d0, const float& d1) const
+    {
+        const float x0_f = c * d0 * d1;
+
+        e = ck::type_convert<ck::bhalf_t>(x0_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, int, ck::half_t, ck::half_t>(
+        ck::half_t& e, const int& c, const ck::half_t& d0, const ck::half_t& d1) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
+        e = ck::type_convert<ck::half_t>(x0_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, int, float, float>(
+        ck::half_t& e, const int& c, const float& d0, const float& d1) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
+        e = ck::type_convert<ck::half_t>(x0_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, int, float, float>(
+        ck::bhalf_t& e, const int& c, const float& d0, const float& d1) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
+        e = ck::type_convert<ck::bhalf_t>(x0_f);
+    }
+};
+
 struct MultiplyAddFastGelu
 {
     template <typename E, typename C, typename D0, typename D1>
@@ -360,7 +415,7 @@ struct ScaleAddScaleAddRelu
                                                                               const float& d1) const
     {
         const float x = c * alpha1_ + alpha2_ * d0 + d1;
-        Relu{}.template operator()<float>(e, x);
+        e             = x > 0 ? x : 0;
     }
 
     template <>
@@ -371,7 +426,7 @@ struct ScaleAddScaleAddRelu
                         type_convert<float>(d1);
 
         float result = 0;
-        Relu{}.template operator()<float>(result, x);
+        result       = x > 0 ? x : 0;
 
         e = type_convert<half_t>(result);
     }
@@ -384,7 +439,7 @@ struct ScaleAddScaleAddRelu
                         type_convert<float>(d1);
 
         float result = 0;
-        Relu{}.template operator()<float>(result, x);
+        result       = x > 0 ? x : 0;
 
         e = type_convert<bhalf_t>(result);
     }
@@ -396,7 +451,7 @@ struct ScaleAddScaleAddRelu
         const float x = type_convert<float>(c) * alpha1_ + alpha2_ * d0 + d1;
 
         float result = 0;
-        Relu{}.template operator()<float>(result, x);
+        result       = x > 0 ? x : 0;
 
         e = type_convert<int8_t>(result);
     }
@@ -488,7 +543,7 @@ struct NormalizeInInfer
                                                   const T3& gamma,
                                                   const T4& beta) const
     {
-        static_assert(std::is_same<T2, float>::value || std::is_same<T2, double>::value,
+        static_assert(is_same<T2, float>::value || is_same<T2, double>::value,
                       "Data type is not supported by this operation!");
 
         using ck::type_convert;
@@ -526,26 +581,6 @@ struct UnaryTypeConvert<ck::bhalf_t, float>
     {
         y = ck::type_convert<ck::bhalf_t, float>(x);
     }
-};
-
-struct ConvInvscale
-{
-    /// @brief Op to multiply convolution results by inverted scale factors
-    /// @param e Output after scaling
-    /// @param c Convolution result
-    /// @param d0 Input scale factor
-    /// @param d1 Weights scale factor
-    /// @param d2 Output scale factor
-    template <typename E, typename C, typename D0, typename D1, typename D2>
-    __host__ __device__ void
-    operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
-
-    template <>
-    __host__ __device__ void operator()<f8_t, float, float, float, float>(
-        f8_t& e, const float& c, const float& d0, const float& d1, const float& d2) const
-    {
-        e = type_convert<f8_t>(c / d0 / d1 / d2);
-    };
 };
 
 } // namespace element_wise

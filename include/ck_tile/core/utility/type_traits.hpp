@@ -22,6 +22,23 @@ using remove_cvref_t = remove_cv_t<std::remove_reference_t<T>>;
 template <typename T>
 using remove_pointer_t = typename std::remove_pointer<T>::type;
 
+template <typename From, typename To>
+struct copy_const
+{
+    static_assert(!std::is_const_v<From>);
+
+    using type = To;
+};
+
+template <typename From, typename To>
+struct copy_const<const From, To>
+{
+    using type = std::add_const_t<typename copy_const<From, To>::type>;
+};
+
+template <typename From, typename To>
+using copy_const_t = typename copy_const<From, To>::type;
+
 namespace detail {
 template <class Default, class AlwaysVoid, template <class...> class Op, class... Args>
 struct detector
@@ -91,5 +108,23 @@ CK_TILE_HOST_DEVICE PY c_style_pointer_cast(PX p_x)
     return (PY)p_x; // NOLINT(old-style-cast, cast-align)
 #pragma clang diagnostic pop
 }
+
+template <typename CompareTo, typename... Rest>
+struct is_any_of : std::false_type
+{
+};
+
+template <typename CompareTo, typename FirstType>
+struct is_any_of<CompareTo, FirstType> : std::is_same<CompareTo, FirstType>
+{
+};
+
+template <typename CompareTo, typename FirstType, typename... Rest>
+struct is_any_of<CompareTo, FirstType, Rest...>
+    : std::integral_constant<bool,
+                             std::is_same<CompareTo, FirstType>::value ||
+                                 is_any_of<CompareTo, Rest...>::value>
+{
+};
 
 } // namespace ck_tile

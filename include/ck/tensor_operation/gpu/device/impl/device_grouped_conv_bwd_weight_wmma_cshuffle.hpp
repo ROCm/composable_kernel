@@ -692,7 +692,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
     static bool IsSupportedArgument(const Argument& arg)
     {
         // check device
-        if(ck::is_gfx11_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
@@ -710,8 +710,8 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
             return false;
         }
 
-        if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>() ||
-                       is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>()))
+        if constexpr(!(is_NDHWGC_GKZYXC_NDHWGK<InLayout, WeiLayout, OutLayout>() ||
+                       is_GNDHWC_GKZYXC_GNDHWK<InLayout, WeiLayout, OutLayout>()))
         {
             return false;
         }

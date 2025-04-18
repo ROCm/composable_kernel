@@ -13,7 +13,7 @@
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_tile_loop_multply.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_tile_loop_multiply.hpp"
 
 #include "ck/host_utility/hip_check_error.hpp"
 
@@ -120,7 +120,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     constexpr ck::index_t NumDTensor = 1;
 
     using GroupedGemmKernelArgument =
-        ck::tensor_operation::device::GroupedGemmTileLoopKernelArguments<NumDTensor>;
+        ck::tensor_operation::device::GroupedGemmKernelArgument<NumDTensor>;
 
     std::vector<GroupedGemmKernelArgument> grouped_gemm_kernel_args_;
     grouped_gemm_kernel_args_.reserve(group_count);

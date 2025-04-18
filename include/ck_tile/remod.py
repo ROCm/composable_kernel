@@ -1,3 +1,4 @@
+from datetime import datetime
 import pathlib
 from pathlib import Path
 import subprocess
@@ -6,10 +7,11 @@ import copy
 
 NS = 'ck_tile'
 OPS = 'ops'
+REF = 'ref'
 OPS_COMMON = 'common' # common header will be duplicated into ops/* other module
 
-HEADER_COMMON = """// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.\n
+HEADER_COMMON = f"""// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-{datetime.now().year}, Advanced Micro Devices, Inc. All rights reserved.\n
 """
 
 # aa/bb/cc/file.hpp -> (aa, bb, cc, file.hpp)
@@ -28,6 +30,9 @@ class submodule_t:
     def push(self, f):
         if len(f.parents) != 1: # ignore ./xxx.hpp
             mod = get_module(f)
+            # ref is supposed to include one header on demand
+            if mod == REF:
+                return
             if mod == OPS:
                 if mod not in self.m.keys():
                     self.m[mod] = dict()
