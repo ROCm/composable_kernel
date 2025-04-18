@@ -26,7 +26,7 @@ struct TileGemmTraits
     using BLayout = BLayout_;
     using CLayout = CLayout_;
 
-    static constexpr bool TransposeC = false;
+    static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
 };
 
