@@ -61,8 +61,8 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetKSingleSmemElementSpaceSize()
     {
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPack     = GetSmemKPackK<Problem>();
         constexpr index_t kKVector   = GetAlignmentK<Problem>();
 
@@ -100,8 +100,8 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
-        constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock     = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock     = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
         constexpr index_t kKVector       = GetAlignmentK<Problem>();
 
@@ -147,8 +147,8 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
         using QKVDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(QKVDataType);
 
@@ -300,8 +300,8 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
                              typename Problem::GemmAccDataType,
                              Problem::kNumGemm0Warps * get_warp_size(),
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                                    Problem::BlockFmhaShape::kN0,
-                                                    Problem::BlockFmhaShape::kK0>,
+                                                    Problem::BlockFmhaShape::kK1,
+                                                    Problem::BlockFmhaShape::kQKHeaddim>,
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
