@@ -423,6 +423,7 @@ struct ThreadwiseTensorSliceTransfer_v2
     SrcCoord src_coord_;
 }; // namespace ck
 
+
 template <typename SrcData,
           typename DstData,
           typename SrcDesc,
@@ -434,7 +435,7 @@ template <typename SrcData,
           index_t SrcScalarStrideInVector,
           bool SrcResetCoordinateAfterRun,
           index_t scale_gather_num,
-          bool InvalidElementAsNaN                                        = false,
+          bool InvalidElementAsNaN                                        = false,          
           typename enable_if<DstDesc::IsKnownAtCompileTime(), bool>::type = false>
 struct ThreadwiseTensorSliceTransfer_v2_gather
 {
@@ -457,10 +458,9 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
             return 1;
     }();
 
-    __device__ constexpr ThreadwiseTensorSliceTransfer_v2_gather(
-        const SrcDesc& src_desc,
-        const Index& src_slice_origin_idx,
-        const StaticallyIndexedArray<index_t, scale_gather_num>& scale_gather_offsets)
+    __device__ constexpr ThreadwiseTensorSliceTransfer_v2_gather(const SrcDesc& src_desc,
+                                                          const Index& src_slice_origin_idx,
+                                                          const StaticallyIndexedArray<index_t, scale_gather_num>& scale_gather_offsets)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin_idx)),
           scale_gather_offsets_(scale_gather_offsets)
     {
@@ -480,8 +480,9 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
         auto adjusted_origin_idx = [&]() {
             Index idx;
 
-            static_for<0, nDim, 1>{}(
-                [&](auto i) { idx(i) = i.value == 0 ? 0 : src_slice_origin_idx[Number<i>{}]; });
+            static_for<0, nDim, 1>{}([&](auto i) {
+                idx(i) = i.value == 0 ? 0 : src_slice_origin_idx[Number<i>{}];
+            });
 
             return idx;
         }();
@@ -526,35 +527,29 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
         static_for<0, scale_gather_num, 1>{}([&](auto gather_idx) {
-            constexpr auto current_dst_origin =
-                to_multi_index(dst_slice_origin_idx) + make_multi_index(gather_idx, 0);
+            auto current_dst_origin = to_multi_index(dst_slice_origin_idx) + make_multi_index(gather_idx, 0);
 
             static_for<0, num_access, 1>{}([&](auto idx_1d) {
-                typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type
-                    src_vector;
+                typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type src_vector;
 
                 using src_vector_t =
-                    typename vector_type_maker<SrcData,
-                                               SrcScalarPerVector / PackedSize>::type::type;
+                    typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type::type;
                 constexpr auto src_data_idx = SpaceFillingCurve::GetIndex(idx_1d);
 
                 const bool is_src_valid =
-                    coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc,
-                                                                                src_coord_);
+                    coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
 
                 // copy data from src_buf into src_vector
                 src_vector.template AsType<src_vector_t>()(Number<0>{}) =
-                    src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize +
-                                                           scale_gather_offsets_(gather_idx),
-                                                       is_src_valid);
+                    src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize + scale_gather_offsets_(gather_idx),
+                                                    is_src_valid);
 
                 // copy data from src_vector into dst_buf
                 static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                     constexpr index_t dst_offset =
-                        dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) +
-                                                 src_data_idx + i * src_scalar_step_in_vector);
-                    constexpr auto full_dst_offset =
-                        dst_desc.CalculateOffset(current_dst_origin) + dst_offset;
+                        dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
+                                                    i * src_scalar_step_in_vector);
+                    auto full_dst_offset = dst_desc.CalculateOffset(current_dst_origin) + dst_offset;
 
                     if constexpr(InvalidElementAsNaN)
                     {
@@ -565,7 +560,7 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
                     }
                     else
                     {
-                        dst_buf(Number<full_dst_offset>{}) =
+                        dst_buf(full_dst_offset) =
                             type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
                     }
                 });
@@ -651,6 +646,8 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
     SrcCoord src_coord_;
     StaticallyIndexedArray<index_t, scale_gather_num> scale_gather_offsets_;
 }; // namespace ck
+
+
 
 // Assume:
 //   1. src_desc and dst_desc are not known at compile-time
