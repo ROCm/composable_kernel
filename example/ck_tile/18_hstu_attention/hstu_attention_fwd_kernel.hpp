@@ -579,20 +579,10 @@ struct HstuAttentionFwdKernel
                 make_tuple(kargs.seq_stride_q, 1),
                 number<HstuAttentionPipeline::kAlignmentQ>{},
                 number<1>{});
-            if constexpr(HstuAttentionPipeline::kQLoadOnce)
-            {
-                return pad_tensor_view(q_dram_naive,
-                                       make_tuple(number<HstuAttentionPipeline::kM0>{},
-                                                  number<HstuAttentionPipeline::kSubQKHeaddim>{}),
-                                       sequence<false, kPadHeadDimQK>{});
-            }
-            else
-            {
-                return pad_tensor_view(q_dram_naive,
-                                       make_tuple(number<HstuAttentionPipeline::kM0>{},
-                                                  number<HstuAttentionPipeline::kK0>{}),
-                                       sequence<false, kPadHeadDimQK>{});
-            }
+            return pad_tensor_view(q_dram_naive,
+                                   make_tuple(number<HstuAttentionPipeline::kM0>{},
+                                              number<HstuAttentionPipeline::kSubQKHeaddim>{}),
+                                   sequence<false, kPadHeadDimQK>{});
         }();
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -604,7 +594,7 @@ struct HstuAttentionFwdKernel
 
             return pad_tensor_view(k_dram_naive,
                                    make_tuple(number<HstuAttentionPipeline::kN0>{},
-                                              number<HstuAttentionPipeline::kK0>{}),
+                                              number<HstuAttentionPipeline::kQKHeaddim>{}),
                                    sequence<false, kPadHeadDimQK>{});
         }();
         const auto v_dram = [&]() {
@@ -645,22 +635,19 @@ struct HstuAttentionFwdKernel
             }
         }();
 
-        auto q_dram_window = make_tile_window(
-            q_dram,
-            [&]() {
-                if constexpr(HstuAttentionPipeline::kQLoadOnce)
-                    return make_tuple(number<HstuAttentionPipeline::kM0>{},
-                                      number<HstuAttentionPipeline::kSubQKHeaddim>{});
-                else
-                    return make_tuple(number<HstuAttentionPipeline::kM0>{},
-                                      number<HstuAttentionPipeline::kK0>{});
-            }(),
-            {i_m0, 0});
+        auto q_dram_window =
+            make_tile_window(q_dram,
+                             [&]() {
+                                 return make_tuple(number<HstuAttentionPipeline::kM0>{},
+                                                   number<HstuAttentionPipeline::kQKHeaddim>{});
+                             }(),
+                             {i_m0, 0});
 
-        auto k_dram_window = make_tile_window(
-            k_dram,
-            make_tuple(number<HstuAttentionPipeline::kN0>{}, number<HstuAttentionPipeline::kK0>{}),
-            {0, 0});
+        auto k_dram_window =
+            make_tile_window(k_dram,
+                             make_tuple(number<HstuAttentionPipeline::kN0>{},
+                                        number<HstuAttentionPipeline::kQKHeaddim>{}),
+                             {0, 0});
 
         auto v_dram_window = make_tile_window(
             v_dram,
