@@ -43,6 +43,7 @@ struct FmhaFwdSplitKVKernel
     static constexpr bool kPadSeqLenK       = FmhaPipeline::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ      = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV      = FmhaPipeline::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = FmhaPipeline::kHasLogitsSoftCap;
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
@@ -95,7 +96,7 @@ struct FmhaFwdSplitKVKernel
             "w" + _TS_(g1wt::at(ck_tile::number<0>{})) + "x" + _TS_(g1wt::at(ck_tile::number<1>{})) + "x" + _TS_(g1wt::at(ck_tile::number<2>{})) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
-            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) + 
+            (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) + 
             (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kStoreLSE ? "_lse" : "" ) + (kDoFp8StaticQuant ? "_squant" : "") + (kIsPagedKV ? "_pagedkv" : "" );
         #undef _SS_
         #undef _TS_
@@ -147,6 +148,28 @@ struct FmhaFwdSplitKVKernel
 
         ck_tile::index_t split_stride_lse_acc;
         ck_tile::index_t split_stride_o_acc;
+    };
+
+    struct LogitsSoftCapKargs
+    {
+        LogitsSoftCapKargs() = default;
+
+        void init_logits_soft_cap(float logits_soft_cap_)
+        {
+            if(0 < logits_soft_cap_)
+            {
+                logits_soft_cap     = logits_soft_cap_;
+                logits_soft_cap_rcp = 1.f / logits_soft_cap;
+            }
+            else
+            {
+                logits_soft_cap     = 0.f;
+                logits_soft_cap_rcp = 0.f;
+            }
+        }
+
+        float logits_soft_cap;
+        float logits_soft_cap_rcp;
     };
 
     struct CommonBiasKargs
@@ -206,7 +229,8 @@ struct FmhaFwdSplitKVKernel
                                                 EmptyKargs<0>>>,
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>,
-          std::conditional_t<kIsPagedKV, CommonPageBlockTableKargs, CacheBatchIdxKargs>
+          std::conditional_t<kIsPagedKV, CommonPageBlockTableKargs, CacheBatchIdxKargs>,
+          std::conditional_t<kHasLogitsSoftCap, LogitsSoftCapKargs, EmptyKargs<3>>
     {
         const int32_t* seqlen_k_ptr;
 
@@ -228,7 +252,8 @@ struct FmhaFwdSplitKVKernel
                                                 EmptyKargs<0>>>,
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>,
-          std::conditional_t<kIsPagedKV, GroupModePageBlockTableKargs, EmptyKargs<3>>
+          std::conditional_t<kIsPagedKV, GroupModePageBlockTableKargs, EmptyKargs<3>>,
+          std::conditional_t<kHasLogitsSoftCap, LogitsSoftCapKargs, EmptyKargs<4>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -267,6 +292,7 @@ struct FmhaFwdSplitKVKernel
               const void* cache_batch_idx,
               float scale_s,
               float scale_p,
+              float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
@@ -323,6 +349,7 @@ struct FmhaFwdSplitKVKernel
                     {},                   // placeholder for mask
                     {},                   // placeholder for fp8_static_quant args
                     {},                   // placeholder for paged-block table or cache_batch_idx
+                    {},                   // placeholder for logits_soft_cap
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr),
                     batch_stride_q,
                     batch_stride_k,
@@ -362,6 +389,10 @@ struct FmhaFwdSplitKVKernel
         {
             kargs.cache_batch_idx = reinterpret_cast<const int32_t*>(cache_batch_idx);
         }
+        if constexpr(kHasLogitsSoftCap)
+        {
+            kargs.init_logits_soft_cap(logits_soft_cap);
+        }
 
         return kargs;
     }
@@ -391,6 +422,7 @@ struct FmhaFwdSplitKVKernel
               bool is_gappy,
               float scale_s,
               float scale_p,
+              float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
@@ -443,6 +475,7 @@ struct FmhaFwdSplitKVKernel
                     {},                   // placeholder for mask
                     {},                   // placeholder for fp8_static_quant args
                     {},                   // placeholder for paged-block table
+                    {},                   // placeholder for logits_soft_cap
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr),
@@ -476,6 +509,10 @@ struct FmhaFwdSplitKVKernel
             kargs.batch_stride_block_table = batch_stride_block_table;
             kargs.page_block_size          = page_block_size;
             kargs.is_gappy                 = is_gappy;
+        }
+        if constexpr(kHasLogitsSoftCap)
+        {
+            kargs.init_logits_soft_cap(logits_soft_cap);
         }
 
         return kargs;
@@ -990,6 +1027,7 @@ struct FmhaFwdSplitKVKernel
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
+                                      kargs,
                                       kv_l2p_offset,
                                       smem_ptr);
             }
@@ -1007,6 +1045,7 @@ struct FmhaFwdSplitKVKernel
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
+                                      kargs,
                                       kv_l2p_offset,
                                       smem_ptr);
             }
