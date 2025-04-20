@@ -25,7 +25,7 @@ template <AddressSpaceEnum BufferAddressSpace,
           typename ElementSpaceSize,
           bool InvalidElementUseNumericalZeroValue,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
-          typename IndexType = index_t>
+          typename IndexType               = index_t>
 struct DynamicBuffer
 {
     using type = T;
@@ -380,13 +380,14 @@ struct DynamicBuffer
             (is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0) ||
             (is_same_v<remove_cvref_t<scalar_t>, bhalf_t> && scalar_per_x_vector % 2 == 0);
 #elif CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && (!CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT)
-        bool constexpr use_amd_buffer_addressing = sizeof(IndexType) <= sizeof(int32_t) && is_same_v<remove_cvref_t<scalar_t>, int32_t>;
+        bool constexpr use_amd_buffer_addressing =
+            sizeof(IndexType) <= sizeof(int32_t) && is_same_v<remove_cvref_t<scalar_t>, int32_t>;
 #elif(!CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER) && CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
         bool constexpr use_amd_buffer_addressing =
-        sizeof(IndexType) <= sizeof(int32_t) && (
-            is_same_v<remove_cvref_t<scalar_t>, float> ||
-            (is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0) ||
-            (is_same_v<remove_cvref_t<scalar_t>, bhalf_t> && scalar_per_x_vector % 2 == 0));
+            sizeof(IndexType) <= sizeof(int32_t) &&
+            (is_same_v<remove_cvref_t<scalar_t>, float> ||
+             (is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0) ||
+             (is_same_v<remove_cvref_t<scalar_t>, bhalf_t> && scalar_per_x_vector % 2 == 0));
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif
@@ -424,8 +425,9 @@ struct DynamicBuffer
         static_assert(GetAddressSpace() == AddressSpaceEnum::Global, "only support global mem");
 
 #if CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64
-        using scalar_t                           = typename scalar_type<remove_cvref_t<T>>::type;
-        bool constexpr use_amd_buffer_addressing = sizeof(IndexType) <= sizeof(int32_t) && is_same_v<remove_cvref_t<scalar_t>, double>;
+        using scalar_t = typename scalar_type<remove_cvref_t<T>>::type;
+        bool constexpr use_amd_buffer_addressing =
+            sizeof(IndexType) <= sizeof(int32_t) && is_same_v<remove_cvref_t<scalar_t>, double>;
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif
@@ -462,7 +464,8 @@ template <AddressSpaceEnum BufferAddressSpace,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
           typename T,
           typename ElementSpaceSize>
-__host__ __device__ constexpr auto make_long_dynamic_buffer(T* p, ElementSpaceSize element_space_size)
+__host__ __device__ constexpr auto make_long_dynamic_buffer(T* p,
+                                                            ElementSpaceSize element_space_size)
 {
     return DynamicBuffer<BufferAddressSpace, T, ElementSpaceSize, true, coherence, long_index_t>{
         p, element_space_size};
