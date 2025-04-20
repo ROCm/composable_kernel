@@ -1383,7 +1383,8 @@ CK_TILE_DEVICE double exp<double>(double x)
 template <typename T>
 CK_TILE_DEVICE T tanh_fast(T x)
 {
-    return type_convert<T>((exp<T>(2.0 * type_convert<float>(x)) - 1.0) / (exp<T>(2.0 * type_convert<float>(x)) + 1.0));
+    return type_convert<T>((exp<T>(2.0 * type_convert<float>(x)) - 1.0) /
+                           (exp<T>(2.0 * type_convert<float>(x)) + 1.0));
 };
 
 template <>
@@ -1395,10 +1396,10 @@ CK_TILE_DEVICE float tanh_fast<float>(float x)
     // return e;
 
     float a = 2.0f * log2e_v<float> * x;
-    a = __builtin_amdgcn_exp2f(a);
-    a = __builtin_amdgcn_rcpf(a + 1.0f);
-    a = 2 * a;
-    a = 1 - a;
+    a       = __builtin_amdgcn_exp2f(a);
+    a       = __builtin_amdgcn_rcpf(a + 1.0f);
+    a       = 2 * a;
+    a       = 1 - a;
     return a;
 
     // float e, r, s, t, d;
