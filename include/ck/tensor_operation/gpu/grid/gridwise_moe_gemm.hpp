@@ -194,7 +194,6 @@ struct GridwiseMoeGemm
     // static constexpr index_t NumTokens = 1;
     static constexpr index_t SortedTileSize = MPerBlock;
 
-
     static constexpr auto MakeDsGridPointer()
     {
         return generate_tuple(
@@ -1471,11 +1470,11 @@ struct GridwiseMoeGemm
                                     else if(ActivationOperation == Activation::gelu)
                                     {
                                         const float scale_up =
-                                        p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
-                                                  PerTokenQuant];
+                                            p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
+                                                      PerTokenQuant];
                                         auto gate = scale_a * scale_b * c_thread_buf[cidx];
                                         auto up   = scale_a * scale_up * c_thread_buf_up[cidx];
-                                        if constexpr (is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
                                         {
                                             gate *= 16;
                                             up *= 16;
@@ -1490,7 +1489,7 @@ struct GridwiseMoeGemm
                                                       PerTokenQuant];
                                         auto gate = scale_a * scale_b * c_thread_buf[cidx];
                                         auto up   = scale_a * scale_up * c_thread_buf_up[cidx];
-                                        if constexpr (is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
                                         {
                                             gate *= 16;
                                             up *= 16;
