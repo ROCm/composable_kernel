@@ -47,14 +47,18 @@ struct BlockFmhaPipelineQRKSVS
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
-    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr auto BiasEnum     = Problem::BiasEnum;
-    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
-    static constexpr bool kHasDropout  = Problem::kHasDropout;
+    static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
+    static constexpr auto BiasEnum          = Problem::BiasEnum;
+    static constexpr bool kStoreLSE         = Problem::kStoreLSE;
+    static constexpr bool kHasDropout       = Problem::kHasDropout;
+
+    static_assert(CK_TILE_FMHA_FWD_FAST_EXP2 ||
+                  (!CK_TILE_FMHA_FWD_FAST_EXP2 && !kHasLogitsSoftCap));
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -128,7 +132,8 @@ struct BlockFmhaPipelineQRKSVS
               typename SAccElementFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename LogitsSoftCapParams>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -147,6 +152,7 @@ struct BlockFmhaPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
+               const LogitsSoftCapParams& logits_soft_cap_params,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -164,6 +170,8 @@ struct BlockFmhaPipelineQRKSVS
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
+
+        (void)logits_soft_cap_params;
 
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
@@ -614,7 +622,8 @@ struct BlockFmhaPipelineQRKSVS
               typename BiasDramBlockWindowTmp,
               typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename LogitsSoftCapParams>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
@@ -625,6 +634,7 @@ struct BlockFmhaPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
+               const LogitsSoftCapParams& logits_soft_cap_params,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -645,6 +655,7 @@ struct BlockFmhaPipelineQRKSVS
                           mask,
                           position_encoding,
                           scale_s,
+                          logits_soft_cap_params,
                           smem_ptr,
                           dropout);
     }
