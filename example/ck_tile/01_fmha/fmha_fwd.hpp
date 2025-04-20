@@ -143,6 +143,8 @@ struct fmha_fwd_args
     float scale_p;
     float scale_o;
 
+    float logits_soft_cap;
+
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
     ck_tile::index_t stride_v;
@@ -231,6 +233,8 @@ struct fmha_fwd_splitkv_args
     float scale_s;
     float scale_p;
     float scale_o;
+
+    float logits_soft_cap;
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
@@ -333,6 +337,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.scale_s,
                                              args.scale_p,
                                              args.scale_o,
+                                             args.logits_soft_cap,
                                              args.stride_q,
                                              args.stride_k,
                                              args.stride_v,
@@ -371,6 +376,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.scale_s,
                                              args.scale_p,
                                              args.scale_o,
+                                             args.logits_soft_cap,
                                              args.stride_q,
                                              args.stride_k,
                                              args.stride_v,
@@ -443,6 +449,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.is_gappy,
                                      args.scale_s,
                                      args.scale_p,
+                                     args.logits_soft_cap,
                                      args.stride_q,
                                      args.stride_k,
                                      args.stride_v,
@@ -485,6 +492,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.cache_batch_idx,
                                      args.scale_s,
                                      args.scale_p,
+                                     args.logits_soft_cap,
                                      args.stride_q,
                                      args.stride_k,
                                      args.stride_v,
@@ -630,6 +638,7 @@ template <ck_tile::index_t HDim_,
           ck_tile::index_t kK0BlockLength_,
           bool kIsVLayoutRowMajor_,
           ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
+          bool kHasLogitsSoftCap_,
           typename FmhaMask_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kStoreLse_,
@@ -652,6 +661,7 @@ struct fmha_fwd_traits_
     static constexpr ck_tile::index_t kK0BlockLength = kK0BlockLength_;
     static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
     static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
+    static constexpr bool kHasLogitsSoftCap          = kHasLogitsSoftCap_;
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
     static constexpr auto BiasEnum                   = BiasEnum_;
     static constexpr bool kStoreLse                  = kStoreLse_;
@@ -677,6 +687,7 @@ template <ck_tile::index_t HDim_,
           ck_tile::index_t kK0BlockLength_,
           bool kIsVLayoutRowMajor_,
           ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
+          bool kHasLogitsSoftCap_,
           typename FmhaMask_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kStoreLse_,
@@ -699,6 +710,7 @@ struct fmha_fwd_splitkv_traits_
     static constexpr ck_tile::index_t kK0BlockLength = kK0BlockLength_;
     static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
     static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
+    static constexpr bool kHasLogitsSoftCap          = kHasLogitsSoftCap_;
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
     static constexpr auto BiasEnum                   = BiasEnum_;
     static constexpr bool kStoreLse                  = kStoreLse_;
@@ -784,6 +796,7 @@ struct fmha_fwd_traits
     std::string data_type;
     bool is_group_mode;
     bool is_v_rowmajor;
+    bool has_logits_soft_cap;
     mask_enum mask_type;
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
     bool has_lse;
@@ -800,6 +813,7 @@ struct fmha_fwd_splitkv_traits
     std::string data_type;
     bool is_group_mode;
     bool is_v_rowmajor;
+    bool has_logits_soft_cap;
     mask_enum mask_type;
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
     bool has_lse;
