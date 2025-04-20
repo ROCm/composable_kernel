@@ -192,7 +192,7 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
 
-        const float logits_cap = 30.0f;
+        const float logits_cap     = 30.0f;
         const float logits_cap_rev = 0.0333333f;
         // const float logits_cap_scale = scale_s * rcp<float>(logits_cap * log2e_v<float>);
 
@@ -439,16 +439,16 @@ struct BlockFmhaPipelineQRKSVSAsync
             else
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
-// #if !CK_TILE_FMHA_FWD_FAST_EXP2
+                // #if !CK_TILE_FMHA_FWD_FAST_EXP2
                 float scale_lo = scale_s * 0.6931472f;
-// #if !CK_TILE_FMHA_FWD_FAST_EXP2
+                // #if !CK_TILE_FMHA_FWD_FAST_EXP2
                 tile_elementwise_inout(
                     [&scale_lo, &logits_cap, &logits_cap_rev](auto& x) {
-                        x = log2e_v<SaccDataType> * logits_cap * tanh_fast<SaccDataType>(x * scale_lo * logits_cap_rev);
+                        x = log2e_v<SaccDataType> * logits_cap *
+                            tanh_fast<SaccDataType>(x * scale_lo * logits_cap_rev);
                     },
-                    s_acc
-                );
-// #endif
+                    s_acc);
+                // #endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
@@ -541,9 +541,9 @@ struct BlockFmhaPipelineQRKSVSAsync
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-// #if CK_TILE_FMHA_FWD_FAST_EXP2
-//                 auto row_max = scale_s * get_validated_m(m[i_idx]);
-// #endif
+                // #if CK_TILE_FMHA_FWD_FAST_EXP2
+                //                 auto row_max = scale_s * get_validated_m(m[i_idx]);
+                // #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
