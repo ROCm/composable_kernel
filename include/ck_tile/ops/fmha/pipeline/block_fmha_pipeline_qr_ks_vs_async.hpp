@@ -62,7 +62,9 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
 
-    static_assert(CK_TILE_FMHA_FWD_FAST_EXP2 ||
+    static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
+                   (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
+                    !kHasLogitsSoftCap)) ||
                   (!CK_TILE_FMHA_FWD_FAST_EXP2 && !kHasLogitsSoftCap));
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
