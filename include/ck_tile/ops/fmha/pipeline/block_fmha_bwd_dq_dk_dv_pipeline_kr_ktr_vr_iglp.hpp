@@ -179,16 +179,19 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         KDataType* k_lds_ptr =
             static_cast<KDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
-        auto k_lds = make_tensor_view<address_space_enum::lds>(
+        auto k_lds_write = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsWriteBlockDescriptor<Problem>());
 
         auto k_lds_write_window =
-            make_tile_window(k_lds, make_tuple(number<kSeq0>{}, number<kQKHeaddim>{}), {0, 0});
+            make_tile_window(k_lds_write, make_tuple(number<kSeq0>{}, number<kQKHeaddim>{}), {0, 0});
+
+        auto k_lds_read = make_tensor_view<address_space_enum::lds>(
+            k_lds_ptr, Policy::template MakeKLdsReadBlockDescriptor<Problem>());
 
         auto k_lds_read_window =
-            make_tile_window(k_lds_write_window.get_bottom_tensor_view(),
+            make_tile_window(k_lds_read,
                              make_tuple(number<kSeq0>{}, number<kQKHeaddim>{}),
-                             k_lds_write_window.get_window_origin(),
+                             {0, 0},
                              Policy::template MakeKRegSliceBlockDescriptor<Problem>());
 
         auto k_reg_tensor = make_static_distributed_tensor<KDataType>(
@@ -205,17 +208,21 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         VDataType* v_lds_ptr =
             static_cast<VDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
 
-        auto v_lds = make_tensor_view<address_space_enum::lds>(
+        auto v_lds_write = make_tensor_view<address_space_enum::lds>(
             v_lds_ptr, Policy::template MakeVLdsWriteBlockDescriptor<Problem>());
 
         auto v_lds_write_window =
-            make_tile_window(v_lds, make_tuple(number<kSeq0>{}, number<kVHeaddim>{}), {0, 0});
+            make_tile_window(v_lds_write, make_tuple(number<kSeq0>{}, number<kVHeaddim>{}), {0, 0});
+
+        auto v_lds_read = make_tensor_view<address_space_enum::lds>(
+            v_lds_ptr, Policy::template MakeVLdsReadBlockDescriptor<Problem>());
 
         auto v_lds_read_window =
-            make_tile_window(v_lds_write_window.get_bottom_tensor_view(),
+            make_tile_window(v_lds_read,
                              make_tuple(number<kSeq0>{}, number<kVHeaddim>{}),
-                             v_lds_write_window.get_window_origin(),
+                             {0, 0},
                              Policy::template MakeVRegSliceBlockDescriptor<Problem>());
+        // CK_TILE_PRINT<decltype(v_lds_read_window)>();
 
         auto v_reg_tensor = make_static_distributed_tensor<VDataType>(
             Policy::template MakeVRegBlockDescriptor<Problem>());
@@ -270,6 +277,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
 #elif 1
         // Looped data loading
+        __builtin_amdgcn_sched_barrier(0);
         static_for<0, kN0 / kSeq0, 1>{}([&](auto i_n0) {
             auto k_block_tile = load_tile(k_dram_window);
 #if 0
@@ -373,6 +381,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             block_sync_lds();
         });
 
+        __builtin_amdgcn_sched_barrier(0);
         static_for<0, kN0 / kSeq0, 1>{}([&](auto i_n0) {
             auto v_block_tile = load_tile(v_dram_window);
             move_tile_window(v_dram_window, {kSeq0, 0});
@@ -388,6 +397,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                            sequence<(i_n0 + 1) * kSeq0, kVHeaddim>{});
             block_sync_lds();
         });
+        __builtin_amdgcn_sched_barrier(0);
 #if 0
         if(get_block_1d_id()==0 && get_thread_local_1d_id()<256){
                 printf("Tid: %03d, K: %04x %04x %04x %04x %04x %04x %04x %04x \n",

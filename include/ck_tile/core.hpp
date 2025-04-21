@@ -2,7 +2,13 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+template <auto ...val>
+[[deprecated("Help function to print value")]]
+inline constexpr void CK_TILE_PRINT() {}
+template <typename ...type>
+[[deprecated("Help function to print value")]]
+inline constexpr void CK_TILE_PRINT() {}
+ 
 #include "ck_tile/core/algorithm/cluster_descriptor.hpp"
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
 #include "ck_tile/core/algorithm/indexing_adaptor.hpp"

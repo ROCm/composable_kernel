@@ -781,7 +781,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 number<K1 * KBit0>{},
                 number<K1>{},
                 number<1>{}),
-            number<K1 * KBit0 * KBit3>{},
+            number<K1>{},
             number<1>{});
 
         constexpr auto lds_16x128_block_desc = transform_tensor_descriptor(
@@ -850,7 +850,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                        number<MPair * MRow>{},
                        number<MPair>{},
                        number<1>{}),
-            number<MPair * MRow * KGroup>{},
+            number<MPair>{},
             number<1>{});
 
         constexpr auto lds_16x128_trans_block_desc = transform_tensor_descriptor(
@@ -923,7 +923,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 number<K1 * KBit0>{},
                 number<K1>{},
                 number<1>{}),
-            number<K1 * KBit0 * KBit3>{},
+            number<K1>{},
             number<1>{});
 
         constexpr auto lds_64x128_block_desc = transform_tensor_descriptor(
@@ -938,6 +938,73 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                                                        number<KBit0>{},
                                                                        number<K1>{}))),
             make_tuple(sequence<0, 4, 5, 8, 2>{}, sequence<1, 3, 9, 7, 6, 10, 11>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return lds_64x128_block_desc;
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto Make64x128LdsReadBlockDescriptor()
+    {
+        constexpr index_t MWarp   = 2;
+        constexpr index_t KWarp   = 2;
+        constexpr index_t KRow    = 2;
+        constexpr index_t MRow   = 2;
+        constexpr index_t KBit0   = 2;
+        constexpr index_t KBit1   = 2;
+        constexpr index_t KBit2   = 2;
+        constexpr index_t KBit3   = 2;
+        constexpr index_t K1      = 2;
+        constexpr index_t MPair   = 2;
+        constexpr index_t MRepeat = 2;
+        constexpr index_t MGroup  = 4;
+
+        // K:HeadDim, M:Seq, 13 Dimensions Total
+        //        I W T  I V
+        // Total: 4*4*64*4*2 = 2^13
+
+        // I       W      I      T     W      I             T  T  T  T  T   V
+        // 4       2      2      2     2      2             2  2  2  2  2   2
+        // MGroup, KWarp, MPair, KRow, MWarp, MRepeat, KBit<1, 2, 4, 3, 0>, K1
+        // M = 2^6
+        // K = 2^7
+
+        constexpr auto lds_64x128_block_desc_raw = make_naive_tensor_descriptor(
+            make_tuple(number<MGroup>{},
+                       number<KWarp>{},
+                       number<MPair>{},
+                       number<KRow>{},
+                       number<MWarp>{},
+                       number<MRepeat>{},
+                       number<KBit1>{},
+                       number<KBit2>{},
+                       number<MRow>{},
+                       number<K1 * KBit0 * KBit3>{}),
+            make_tuple(
+                number<K1 * KBit0 * KBit3 * MRow * KBit2 *
+                       KBit1*(MRepeat * MWarp * KRow * MPair + 1) * KWarp>{},
+                number<K1 * KBit0 * KBit3 * MRow * KBit2 *
+                       KBit1*(MRepeat * MWarp * KRow * MPair + 1)>{},
+                number<K1 * KBit0 * KBit3 * MRow*(KBit2 * KBit1 * MRepeat * MWarp * KRow + 1)>{},
+                number<K1 * KBit0 * KBit3 * MRow * KBit2 * KBit1 * MRepeat * MWarp>{},
+                number<K1 * KBit0 * KBit3 * MRow * KBit2 * KBit1 * MRepeat>{},
+                number<K1 * KBit0 * KBit3 * MRow * KBit2 * KBit1>{},
+                number<K1 * KBit0 * KBit3 * MRow * KBit2>{},
+                number<K1 * KBit0 * KBit3 * MRow>{},
+                number<K1 * KBit0 * KBit3>{},
+                number<1>{}),
+            number<K1 * KBit0 * KBit3>{},
+            number<1>{});
+
+        constexpr auto lds_64x128_block_desc = transform_tensor_descriptor(
+            lds_64x128_block_desc_raw,
+            make_tuple(make_merge_transform_v3_division_mod(make_tuple(
+                           number<MGroup>{}, number<MWarp>{}, number<MRepeat>{}, number<MRow>{}, number<MPair>{})),
+                       make_merge_transform_v3_division_mod(make_tuple(number<KWarp>{},
+                                                                       number<KRow>{},
+                                                                       number<K1 * KBit0 * KBit3>{},
+                                                                       number<KBit2>{},
+                                                                       number<KBit1>{}))),
+            make_tuple(sequence<0, 4, 5, 8, 2>{}, sequence<1, 3, 9, 7, 6>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return lds_64x128_block_desc;
@@ -996,7 +1063,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                        number<MPair * MRow>{},
                        number<MPair>{},
                        number<1>{}),
-            number<MPair * MRow * KGroup>{},
+            number<MPair>{},
             number<1>{});
 
         constexpr auto lds_64x128_trans_block_desc = transform_tensor_descriptor(
@@ -1205,6 +1272,12 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsReadBlockDescriptor()
+    {
+        return Make64x128LdsReadBlockDescriptor();
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKRegSliceBlockDescriptor()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
@@ -1216,7 +1289,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         // constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
         constexpr index_t kNPerBlock = kKVSeq0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
@@ -1248,7 +1321,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
@@ -1285,6 +1358,12 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsReadBlockDescriptor()
+    {
+        return Make64x128LdsReadBlockDescriptor();
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVRegSliceBlockDescriptor()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
@@ -1295,7 +1374,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<1>{});
 
         constexpr index_t kNPerBlock = kKVSeq0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK2;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
@@ -1327,7 +1406,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<1>{});
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK2;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
@@ -1342,7 +1421,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         constexpr auto v_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             v_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
-
+        CK_TILE_PRINT<decltype(v_block_dstr_encode)>();
         constexpr auto v_block_dstr = make_static_tile_distribution(v_block_dstr_encode);
 
         return v_block_dstr;
