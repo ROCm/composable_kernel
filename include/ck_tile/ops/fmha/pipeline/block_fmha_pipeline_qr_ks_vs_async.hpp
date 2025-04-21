@@ -448,13 +448,13 @@ struct BlockFmhaPipelineQRKSVSAsync
 #else
                 if constexpr(kHasLogitsSoftCap)
                 {
-                    float scale_lo = scale_s * 0.6931472f;
+                    float scale_lo =
+                        scale_s * 0.6931472f * logits_soft_cap_params.logits_soft_cap_rcp;
+                    float logits_cap =
+                        log2e_v<SaccDataType> * logits_soft_cap_params.logits_soft_cap;
                     tile_elementwise_inout(
-                        [&scale_lo,
-                         &logits_cap = logits_soft_cap_params.logits_soft_cap,
-                         &logits_cap_rev = logits_soft_cap_params.logits_soft_cap_rcp](auto& x) {
-                            x = log2e_v<SaccDataType> * logits_cap *
-                                tanh_fast<SaccDataType>(x * scale_lo * logits_cap_rev);
+                        [&scale_lo, &logits_cap](auto& x) {
+                            x = logits_cap * tanh_fast<SaccDataType>(x * scale_lo);
                         },
                         s_acc);
                 }
