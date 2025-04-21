@@ -32,6 +32,8 @@ struct GemmPipelineProblemBase
 
     static constexpr bool TransposeC = Traits::TransposeC;
 
+    static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
+
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 
     static constexpr bool kPadM = Traits::kPadM;
@@ -194,7 +196,8 @@ struct UniversalGemmPipelineProblem
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum    = TailNum_;
 
-    static constexpr bool TransposeC = Traits::TransposeC;
+    static constexpr bool TransposeC            = Traits::TransposeC;
+    static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 };
 
 } // namespace ck_tile
