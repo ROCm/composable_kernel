@@ -43,6 +43,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
     static constexpr bool kPadSeqLenK       = FmhaPipeline::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ      = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV      = FmhaPipeline::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = FmhaPipeline::kHasLogitsSoftCap;
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
@@ -96,7 +97,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
             "w" + _TS_(g0wt::at(ck_tile::number<0>{})) + "x" + _TS_(g0wt::at(ck_tile::number<1>{})) + "x" + _TS_(g0wt::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(g1wt::at(ck_tile::number<0>{})) + "x" + _TS_(g1wt::at(ck_tile::number<1>{})) + "x" + _TS_(g1wt::at(ck_tile::number<2>{})) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
-            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
+            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) + (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) +
             (kDoFp8StaticQuant ? "_squant" : "_nsquant") + (kIsPagedKV ? "_pagedkv" : "_npagedkv" );
@@ -152,6 +153,28 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
         ck_tile::index_t split_stride_o_acc;
     };
 
+    struct LogitsSoftCapKargs
+    {
+        LogitsSoftCapKargs() = default;
+
+        void init_logits_soft_cap(float logits_soft_cap_)
+        {
+            if(0 < logits_soft_cap_)
+            {
+                logits_soft_cap     = logits_soft_cap_;
+                logits_soft_cap_rcp = 1.f / logits_soft_cap;
+            }
+            else
+            {
+                logits_soft_cap     = 0.f;
+                logits_soft_cap_rcp = 0.f;
+            }
+        }
+
+        float logits_soft_cap;
+        float logits_soft_cap_rcp;
+    };
+
     struct CommonBiasKargs
     {
         const void* bias_ptr               = nullptr;
@@ -205,7 +228,8 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
                                                 EmptyKargs<0>>>,
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>,
-          std::conditional_t<kIsPagedKV, CommonPageBlockTableKargs, EmptyKargs<3>>
+          std::conditional_t<kIsPagedKV, CommonPageBlockTableKargs, EmptyKargs<3>>,
+          std::conditional_t<kHasLogitsSoftCap, LogitsSoftCapKargs, EmptyKargs<4>>
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k; // when using paged-kvcache, this will be stride/size for
@@ -225,7 +249,8 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
                                                 EmptyKargs<0>>>,
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>,
-          std::conditional_t<kIsPagedKV, CommonPageBlockTableKargs, EmptyKargs<3>>
+          std::conditional_t<kIsPagedKV, CommonPageBlockTableKargs, EmptyKargs<3>>,
+          std::conditional_t<kHasLogitsSoftCap, LogitsSoftCapKargs, EmptyKargs<4>>
     {
         const int32_t* seqstart_q_ptr;
 
@@ -264,6 +289,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
 #endif
               float scale_s,
               float scale_p,
+              float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
@@ -320,6 +346,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
                     {},                   // placeholder for mask
                     {},                   // placeholder for fp8_static_quant args
                     {},                   // placeholder for paged-block table
+                    {},                   // placeholder for logits_soft_cap
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -358,6 +385,10 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
             kargs.page_block_size   = page_block_size;
 #endif
         }
+        if constexpr(kHasLogitsSoftCap)
+        {
+            kargs.init_logits_soft_cap(logits_soft_cap);
+        }
 
         return kargs;
     }
@@ -388,6 +419,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
 #endif
               float scale_s,
               float scale_p,
+              float logits_soft_cap,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
@@ -440,6 +472,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
                     {},                   // placeholder for mask
                     {},                   // placeholder for fp8_static_quant args
                     {},                   // placeholder for paged-block table
+                    {},                   // placeholder for logits_soft_cap
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     batch_stride_k,
                     batch_stride_v};
@@ -474,6 +507,10 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
             kargs.kv_last_page_lens = reinterpret_cast<const int32_t*>(kv_last_page_lens);
             kargs.page_block_size   = page_block_size;
 #endif
+        }
+        if constexpr(kHasLogitsSoftCap)
+        {
+            kargs.init_logits_soft_cap(logits_soft_cap);
         }
 
         return kargs;

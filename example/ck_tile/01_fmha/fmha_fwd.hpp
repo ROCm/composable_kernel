@@ -391,6 +391,85 @@ struct fmha_batch_prefill_args
         drop_seed_offset;
 };
 
+struct fmha_batch_decode_args
+{
+    const void* q_ptr;
+    const void* k_ptr;
+    const void* v_ptr;
+    const void* bias_ptr; // bias or alibi_slope pointer
+    void* lse_acc_ptr;
+    void* o_acc_ptr;
+    void* lse_ptr;
+    void* o_ptr;
+
+    // the real seqlen_q & seqlen_k are decided by following:
+    // batch mode (kvcache):
+    //             seqlen_q = kargs.seqlen_q
+    //             seqlen_k = kargs.page_block_size * (kargs.kv_indptr[b + 1] - kargs.kv_indptr[b] -
+    //             1) +
+    //                        kargs.kv_last_page_lens[b]
+    // group mode (kvcache):
+    //             seqlen_q = kargs.seqstart_q_ptr[b + 1] - kargs.seqstart_q_ptr[b]
+    //             seqlen_k = kargs.page_block_size * (kargs.kv_indptr[b + 1] - kargs.kv_indptr[b] -
+    //             1) +
+    //                        kargs.kv_last_page_lens[b]
+    const void* seqstart_q_ptr;
+
+    ck_tile::index_t seqlen_q;
+    ck_tile::index_t seqlen_k;
+    ck_tile::index_t batch;
+    ck_tile::index_t max_seqlen_q;
+    ck_tile::index_t hdim_q;
+    ck_tile::index_t hdim_v;
+    ck_tile::index_t nhead_q;
+    ck_tile::index_t nhead_k;
+    ck_tile::index_t num_splits;
+
+    // SGLang-style page table
+    int32_t num_total_pages;
+    void* kv_indptr;
+    void* kv_page_indices;
+#if 0 // we assume page_block_size=1 for now
+    void* kv_last_page_lens;
+    ck_tile::index_t page_block_size;
+#endif
+
+    float scale_s;
+    float scale_p;
+    float scale_o;
+
+    float logits_soft_cap;
+
+    ck_tile::index_t stride_q;
+    ck_tile::index_t stride_k;
+    ck_tile::index_t stride_v;
+    ck_tile::index_t stride_bias; // if alibi, b*h need set this to h, 1*h need set this to 0
+    ck_tile::index_t stride_o_acc;
+    ck_tile::index_t stride_o;
+    ck_tile::index_t nhead_stride_q;
+    ck_tile::index_t nhead_stride_k;
+    ck_tile::index_t nhead_stride_v;
+    ck_tile::index_t nhead_stride_bias;
+    ck_tile::index_t nhead_stride_lse;
+    ck_tile::index_t nhead_stride_lse_acc;
+    ck_tile::index_t nhead_stride_o_acc;
+    ck_tile::index_t nhead_stride_o;
+    ck_tile::index_t batch_stride_q;
+    ck_tile::index_t batch_stride_k;
+    ck_tile::index_t batch_stride_v;
+    ck_tile::index_t batch_stride_bias;
+    ck_tile::index_t batch_stride_lse;
+    ck_tile::index_t batch_stride_lse_acc;
+    ck_tile::index_t batch_stride_o_acc;
+    ck_tile::index_t batch_stride_o;
+    ck_tile::index_t split_stride_lse_acc;
+    ck_tile::index_t split_stride_o_acc;
+
+    ck_tile::index_t window_size_left;
+    ck_tile::index_t window_size_right;
+    ck_tile::index_t mask_type;
+};
+
 template <typename FmhaKernel>
 auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
 {
@@ -603,8 +682,8 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
     return ck_tile::make_tuple(kargs, grids);
 }
 
-template <typename Kernel>
-auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_splitkv_args args)
+template <typename Kernel, typename HostArgs>
+auto fmha_fwd_splitkv_combine_create_kargs_and_grids(HostArgs args)
 {
     assert(args.nhead_q % args.nhead_k == 0);
     auto kargs = [&] {
@@ -824,6 +903,113 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
     }
 }
 
+template <typename Kernel>
+auto fmha_batch_decode_create_kargs_and_grids(fmha_batch_decode_args args)
+{
+    assert(args.nhead_q % args.nhead_k == 0);
+    auto kargs = [&] {
+        // create group mode kernel arguments
+        if constexpr(Kernel::kIsGroupMode)
+        {
+            return Kernel::MakeKargs(args.q_ptr,
+                                     args.k_ptr,
+                                     args.v_ptr,
+                                     args.bias_ptr,
+                                     args.lse_acc_ptr,
+                                     args.o_acc_ptr,
+                                     args.batch,
+                                     args.seqstart_q_ptr,
+                                     args.hdim_q,
+                                     args.hdim_v,
+                                     args.nhead_q,
+                                     args.nhead_q / args.nhead_k,
+                                     args.num_splits,
+                                     args.num_total_pages,
+                                     args.kv_indptr,
+                                     args.kv_page_indices,
+#if 0 // we assume page_block_size=1 for now
+                                     args.kv_last_page_lens,
+                                     args.page_block_size,
+#endif
+                                     args.scale_s,
+                                     args.scale_p,
+                                     args.logits_soft_cap,
+                                     args.stride_q,
+                                     args.stride_k,
+                                     args.stride_v,
+                                     args.stride_bias,
+                                     args.stride_o_acc,
+                                     args.nhead_stride_q,
+                                     args.nhead_stride_k,
+                                     args.nhead_stride_v,
+                                     args.nhead_stride_bias,
+                                     args.nhead_stride_lse_acc,
+                                     args.nhead_stride_o_acc,
+                                     args.batch_stride_k, // only used for paged-kvcache
+                                     args.batch_stride_v, // only used for paged-kvcache
+                                     args.split_stride_lse_acc,
+                                     args.split_stride_o_acc,
+                                     args.window_size_left,
+                                     args.window_size_right,
+                                     args.mask_type);
+        }
+        else
+        { // create batch mode kernel arguments
+            return Kernel::MakeKargs(args.q_ptr,
+                                     args.k_ptr,
+                                     args.v_ptr,
+                                     args.bias_ptr,
+                                     args.lse_acc_ptr,
+                                     args.o_acc_ptr,
+                                     args.batch,
+                                     args.seqlen_q,
+                                     args.seqlen_k,
+                                     args.hdim_q,
+                                     args.hdim_v,
+                                     args.nhead_q,
+                                     args.nhead_q / args.nhead_k,
+                                     args.num_splits,
+                                     args.num_total_pages,
+                                     args.kv_indptr,
+                                     args.kv_page_indices,
+#if 0 // we assume page_block_size=1 for now
+                                     args.kv_last_page_lens,
+                                     args.page_block_size,
+#endif
+                                     args.scale_s,
+                                     args.scale_p,
+                                     args.logits_soft_cap,
+                                     args.stride_q,
+                                     args.stride_k,
+                                     args.stride_v,
+                                     args.stride_bias,
+                                     args.stride_o_acc,
+                                     args.nhead_stride_q,
+                                     args.nhead_stride_k,
+                                     args.nhead_stride_v,
+                                     args.nhead_stride_bias,
+                                     args.nhead_stride_lse_acc,
+                                     args.nhead_stride_o_acc,
+                                     args.batch_stride_q,
+                                     args.batch_stride_k,
+                                     args.batch_stride_v,
+                                     args.batch_stride_bias,
+                                     args.batch_stride_lse_acc,
+                                     args.batch_stride_o_acc,
+                                     args.split_stride_lse_acc,
+                                     args.split_stride_o_acc,
+                                     args.window_size_left,
+                                     args.window_size_right,
+                                     args.mask_type);
+        }
+    }();
+
+    dim3 grids = Kernel::GridSize(
+        args.batch, args.nhead_q, args.nhead_k, args.max_seqlen_q, args.hdim_v, args.num_splits);
+
+    return ck_tile::make_tuple(kargs, grids);
+}
+
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <ck_tile::index_t HDim_,
           typename DataType_,
@@ -1036,6 +1222,64 @@ struct fmha_batch_prefill_traits_
 template <typename Traits_>
 float fmha_batch_prefill_(const ck_tile::stream_config&, fmha_batch_prefill_args);
 
+template <ck_tile::index_t HDim_,
+          typename DataType_,
+          bool kIsGroupMode_,
+          ck_tile::index_t kM0_,
+          ck_tile::index_t kN0_,
+          ck_tile::index_t kK0_,
+          ck_tile::index_t kN1_,
+          ck_tile::index_t kK1_,
+          ck_tile::index_t kK0BlockLength_,
+          bool kIsVLayoutRowMajor_,
+          ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
+          bool kHasLogitsSoftCap_,
+          typename FmhaMask_,
+          ck_tile::BlockAttentionBiasEnum BiasEnum_,
+          bool kStoreLse_,
+          bool kDoFp8StaticQuant_,
+          bool kIsPagedKV_,
+          bool kPadS_,
+          bool kPadSK_,
+          bool kPadD_,
+          bool kPadDv_>
+struct fmha_batch_decode_traits_
+{
+    static constexpr ck_tile::index_t HDim           = HDim_;
+    using DataType                                   = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode               = kIsGroupMode_;
+    static constexpr ck_tile::index_t kM0            = kM0_;
+    static constexpr ck_tile::index_t kN0            = kN0_;
+    static constexpr ck_tile::index_t kK0            = kK0_;
+    static constexpr ck_tile::index_t kN1            = kN1_;
+    static constexpr ck_tile::index_t kK1            = kK1_;
+    static constexpr ck_tile::index_t kK0BlockLength = kK0BlockLength_;
+    static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
+    static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
+    static constexpr bool kHasLogitsSoftCap          = kHasLogitsSoftCap_;
+    using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
+    static constexpr auto BiasEnum                   = BiasEnum_;
+    static constexpr bool kStoreLse                  = kStoreLse_;
+    static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
+    static constexpr bool kPadS                      = kPadS_;
+    static constexpr bool kPadSK                     = kPadSK_;
+    static constexpr bool kPadD                      = kPadD_;
+    static constexpr bool kPadDv                     = kPadDv_;
+    static constexpr bool kIsPagedKV                 = kIsPagedKV_;
+};
+
+template <typename Traits_>
+void fmha_batch_decode_oneshot_(const ck_tile::stream_config&, fmha_batch_decode_args);
+
+template <typename Traits_>
+std::string fmha_batch_decode_get_name_();
+
+template <typename Traits_>
+void fmha_batch_decode_combine_oneshot_(const ck_tile::stream_config&, fmha_batch_decode_args);
+
+template <typename Traits_>
+std::string fmha_batch_decode_combine_get_name_();
+
 // This is the public API, will be generated by script
 struct fmha_fwd_traits
 {
@@ -1102,3 +1346,21 @@ struct fmha_batch_prefill_traits
 float fmha_batch_prefill(fmha_batch_prefill_traits,
                          fmha_batch_prefill_args,
                          const ck_tile::stream_config&);
+
+struct fmha_batch_decode_traits
+{
+    int hdim_q;
+    int hdim_v;
+    std::string data_type;
+    bool is_group_mode;
+    bool is_v_rowmajor;
+    bool has_logits_soft_cap;
+    mask_enum mask_type;
+    bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
+    bool has_lse;
+    bool do_fp8_static_quant;
+    // TODO: padding check is inside this api
+};
+float fmha_batch_decode(fmha_batch_decode_traits,
+                        fmha_batch_decode_args,
+                        const ck_tile::stream_config&);

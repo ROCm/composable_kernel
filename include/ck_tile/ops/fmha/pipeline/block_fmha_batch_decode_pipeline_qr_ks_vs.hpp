@@ -61,6 +61,11 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
     static constexpr bool kIsPagedKV        = Problem::kIsPagedKV;
     static constexpr bool kHasUnevenSplits  = Problem::kHasUnevenSplits;
 
+    static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
+                   (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
+                    !kHasLogitsSoftCap)) ||
+                  (!CK_TILE_FMHA_FWD_FAST_EXP2 && !kHasLogitsSoftCap));
+
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
     static constexpr index_t kAlignmentQ =
