@@ -118,4 +118,30 @@ struct TileFmhaBwdConvertQGradTraits
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadSeqLenK_ /* padding for seqlen_k */,
+          bool kPadHeadDimQ_ /* paddding for hdim_q */,
+          bool kPadHeadDimV_ /* paddding for hdim_v */,
+          bool kHasLogitsSoftCap_,
+          BlockAttentionBiasEnum BiasEnum_,
+          bool kHasBiasGrad_,
+          bool kStoreLSE_,
+          bool kHasDropout_,
+          bool kDoFp8StaticQuant_,
+          index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
+struct TileFmhaBatchPrefillTraits
+{
+    static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
+    static constexpr bool kPadSeqLenK       = kPadSeqLenK_;
+    static constexpr bool kPadHeadDimQ      = kPadHeadDimQ_;
+    static constexpr bool kPadHeadDimV      = kPadHeadDimV_;
+    static constexpr bool kHasLogitsSoftCap = kHasLogitsSoftCap_;
+    static constexpr auto BiasEnum          = BiasEnum_;
+    static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
+    static constexpr bool kStoreLSE         = kStoreLSE_;
+    static constexpr bool kHasDropout       = kHasDropout_;
+    static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
+    static constexpr index_t kBlockPerCu    = kBlockPerCu_;
+};
+
 } // namespace ck_tile
