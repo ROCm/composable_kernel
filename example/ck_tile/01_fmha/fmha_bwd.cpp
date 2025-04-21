@@ -15,6 +15,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include "ck_tile/core.hpp"
 
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
@@ -354,7 +355,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
         // ck_tile::FillConstant<QDataType>{1}(q_host);
         // ck_tile::FillConstant<KDataType>{1}(k_host);
-        // ck_tile::FillConstant<OGradDataType>{2}(do_host);
+        // ck_tile::FillConstant<OGradDataType>{0}(do_host);
     }
     else if(init_method == 2)
     {
@@ -740,10 +741,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         else if(mask.type == mask_enum::window_generic)
         {
+            auto r = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
+                mask.left, mask.right, real_seqlen_q, real_seqlen_k);
+            auto mask_tmp = FmhaMasks::GenericMask{r.at(ck_tile::number<0>{}), r.at(ck_tile::number<1>{}), real_seqlen_q, real_seqlen_k};
+            std::cout << "\nhost_mask_y: " << r.at(ck_tile::number<0>{}) << ", host_mask_x: " << r.at(ck_tile::number<1>{}) << std::endl;
             ck_tile::reference_batched_masking<AccDataType>(
-                s_host_ref,
-                ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                    mask.left, mask.right, real_seqlen_q, real_seqlen_k));
+                s_host_ref, mask_tmp
+                );
         }
         else
         {
@@ -814,7 +818,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
             randval_host_refs.push_back(randval_host_ref);
         }
     }
-
+    // for (int i = 0; i < 384; i++) {
+    //     std::cout << (*std::next(std::begin(lse_host), i)) << ", " << std::endl;
+    // }
     o_buf.ToDevice(o_host.data());
     lse_buf.ToDevice(lse_host.data());
     dq_buf.SetZero();

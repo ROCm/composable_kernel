@@ -246,7 +246,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 192 * 128)
+            if(err_count < 512)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
