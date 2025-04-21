@@ -1107,7 +1107,7 @@ struct GridwiseMoeGemmBlockScale
         }
 
         // check gridwise gemm pipeline
-#if 1
+#if 0
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
         if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
@@ -1373,14 +1373,15 @@ struct GridwiseMoeGemmBlockScale
 
         // get each thread's offset in the scale tensor
         // A scale
-        const index_t token_scale_pos = block_m_id * MPerBlock / ScaleBlockK + a_thread_offset;
+        const index_t token_scale_pos = block_m_id * MPerBlock / ScaleBlockM;
 
         if(token_scale_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
         StaticallyIndexedArray<index_t, MXdlPerWave> scale_gather_offsets;
         static_for<0, MXdlPerWave, 1>{}([&](auto m0) {
-            const index_t fused_token = p_sorted_token_ids[token_scale_pos + m0];
-            index_t token_offset      = fused_token & 0xffffff;
+            const index_t fused_token =
+                p_sorted_token_ids[token_scale_pos + m0 * MPerXdl + a_thread_offset];
+            index_t token_offset = fused_token & 0xffffff;
             if constexpr(!IsInputGemm)
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
@@ -1388,6 +1389,10 @@ struct GridwiseMoeGemmBlockScale
             scale_gather_offsets(m0) =
                 token_offset * math::integer_divide_ceil(problem.K, ScaleBlockK);
         });
+
+        // printf("blkid: %d, tid:%d, a_thread_offset: %d, scale_gather_offsets: %d\n", block_m_id,
+        // threadIdx.x, a_thread_offset,
+        //        scale_gather_offsets(Number<0>{}));
 
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2_gather<AScaleType,
