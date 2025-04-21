@@ -1359,7 +1359,8 @@ CK_TILE_DEVICE T rcp(T x)
 template <typename T>
 CK_TILE_DEVICE T exp(T x)
 {
-    return type_convert<T>(__ocml_exp_f32(type_convert<float>(x)));
+    // __expf in llvm using __builtin_amdgcn_exp2f, which is very fast
+    return type_convert<T>(__expf(type_convert<float>(x)));
 };
 
 template <>
@@ -1371,7 +1372,8 @@ CK_TILE_DEVICE fp16_t exp<fp16_t>(fp16_t x)
 template <>
 CK_TILE_DEVICE float exp<float>(float x)
 {
-    return __ocml_exp_f32(x);
+    // __expf in llvm using __builtin_amdgcn_exp2f, which is very fast
+    return __expf(x);
 };
 
 template <>
