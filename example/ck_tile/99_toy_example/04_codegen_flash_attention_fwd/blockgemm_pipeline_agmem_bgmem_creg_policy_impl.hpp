@@ -36,20 +36,47 @@ __host__ __device__ static constexpr auto make_b_lds_block_descriptor_3d_pad()
 {
     constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
     constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+    constexpr index_t kKPack = 8;
+
+    using BDataType = remove_cvref_t<typename Problem::BDataType>;
+
+    constexpr auto DataTypeSize = sizeof(BDataType);
+    constexpr auto NLdsLayer =
+        (32 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / DataTypeSize);
 
     constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
-        make_tuple(number<kKPerBlock / 8>{}, number<kNPerBlock>{}, number<8>{}),
-        make_tuple(number<(kNPerBlock + 1) * 8>{}, number<8>{}, number<1>{}),
-        number<8>{},
+        make_tuple(number<kKPerBlock / kKPack * NLdsLayer>{},
+                number<kNPerBlock / NLdsLayer>{},
+                number<kKPack>{}),
+        make_tuple(number<kKPack>{}, number<kKPerBlock * NLdsLayer>{}, number<1>{}),
+        number<kKPack>{},
         number<1>{});
 
-    constexpr auto b_lds_block_desc =
-        transform_tensor_descriptor(b_lds_block_desc_0,
-                                    make_tuple(make_pass_through_transform(kNPerBlock),
-                                               make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
-                                    make_tuple(sequence<1>{}, sequence<0, 2>{}),
-                                    make_tuple(sequence<0>{}, sequence<1>{}));
+    constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
+        b_lds_block_desc_0,
+        make_tuple(make_xor_transform(make_tuple(number<kNPerBlock / NLdsLayer>{},
+                                                number<kKPerBlock / kKPack * NLdsLayer>{})),
+                make_pass_through_transform(number<kKPack>{})),
+        make_tuple(sequence<1, 0>{}, sequence<2>{}),
+        make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
+    constexpr auto b_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+        b_lds_block_desc_permuted,
+        make_tuple(make_unmerge_transform(
+                    make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                    make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
+                    make_pass_through_transform(number<kKPack>{})),
+        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+        make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+
+    constexpr auto b_lds_block_desc = transform_tensor_descriptor(
+        b_lds_block_desc_xk0_mnldslayer_mn_xk1,
+        make_tuple(make_merge_transform(
+                    make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
+                    make_merge_transform(
+                    make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+        make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
+        make_tuple(sequence<0>{}, sequence<1>{}));
     return b_lds_block_desc;
 }
 

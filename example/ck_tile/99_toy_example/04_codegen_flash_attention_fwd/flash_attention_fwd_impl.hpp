@@ -68,23 +68,45 @@ struct FlashAttentionFwdImpl
     {
         constexpr index_t kNPerBlock = kN1PerBlock;
         constexpr index_t kKPerBlock = kK1PerBlock;
-        constexpr index_t kPad       = 1;
-        // 2% faster than use kK1 = 8
-        constexpr index_t kK1 = 4;
+        constexpr index_t kKPack = 4;
+
+        constexpr auto dataTypeSize = sizeof(VDataType);
+        constexpr auto NLdsLayer =
+            (32 * 4 / kKPerBlock / dataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / dataTypeSize);
 
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / kK1>{}, number<kNPerBlock>{}, number<kK1>{}),
-            make_tuple(number<(kNPerBlock + kPad) * kK1>{}, number<kK1>{}, number<1>{}),
-            number<kK1>{},
+            make_tuple(number<kKPerBlock / kKPack * NLdsLayer>{},
+                    number<kNPerBlock / NLdsLayer>{},
+                    number<kKPack>{}),
+            make_tuple(number<kKPack>{}, number<kKPerBlock * NLdsLayer>{}, number<1>{}),
+            number<kKPack>{},
             number<1>{});
 
-        constexpr auto b_lds_block_desc = transform_tensor_descriptor(
+        constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
             b_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(kNPerBlock),
-                       make_merge_transform(make_tuple(number<kKPerBlock / kK1>{}, number<kK1>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+            make_tuple(make_xor_transform(make_tuple(number<kNPerBlock / NLdsLayer>{},
+                                                    number<kKPerBlock / kKPack * NLdsLayer>{})),
+                    make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
+        constexpr auto b_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+            b_lds_block_desc_permuted,
+            make_tuple(make_unmerge_transform(
+                        make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                        make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
+                        make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+
+        constexpr auto b_lds_block_desc = transform_tensor_descriptor(
+            b_lds_block_desc_xk0_mnldslayer_mn_xk1,
+            make_tuple(make_merge_transform(
+                        make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
+                        make_merge_transform(
+                        make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
         return b_lds_block_desc;
     }
 
@@ -140,7 +162,7 @@ struct FlashAttentionFwdImpl
 
         // Q/K/V DRAM and DRAM window
         const auto q_dram = make_naive_tensor_view<address_space_enum::global>(
-            q_ptr, make_tuple(M0, kHeadDim), make_tuple(StrideQ, 1), number<32>{}, number<1>{});
+            q_ptr, make_tuple(M0, K0), make_tuple(StrideQ, 1), number<32>{}, number<1>{});
 
         const auto k_dram = make_naive_tensor_view<address_space_enum::global>(
             k_ptr, make_tuple(N0, K0), make_tuple(StrideK, 1), number<32>{}, number<1>{});
