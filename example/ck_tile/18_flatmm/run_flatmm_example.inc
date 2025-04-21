@@ -25,7 +25,7 @@ static constexpr inline auto is_row_major(Layout layout_)
 
 // mfma_type, 0:32x32, 1:16x16
 template <typename T>
-auto shuffle_b(const ck_tile::HostTensor<T>& t, std::string mfma_dtype, int mfma_type = 0)
+auto shuffle_b(const ck_tile::HostTensor<T>& t, std::string mfma_dtype, int mfma_type)
 {
     assert(t.get_lengths().size() == 2);
     int n_ = t.get_lengths()[1];
@@ -183,7 +183,8 @@ int run_flatmm_example_with_layouts(int argc,
 
     // do pre-shuffle
     std::string mfma                              = arg_parser.get_str("prec");
-    ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b(b_origin_host, mfma, 0);
+    ck_tile::index_t mfma_type = is_8bit_type<BDataType>::value ? 1 : 0;
+    ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b(b_origin_host, mfma, mfma_type);
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
 
