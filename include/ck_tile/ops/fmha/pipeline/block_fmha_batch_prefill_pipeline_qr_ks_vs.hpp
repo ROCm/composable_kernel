@@ -112,7 +112,7 @@ struct BlockFmhaBatchPrefillWithPagedKVCachePipelineQRKSVS
             else
             {
                 return 1;
-            };
+            }
         }
     }();
 
