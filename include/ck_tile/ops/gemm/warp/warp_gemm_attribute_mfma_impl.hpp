@@ -976,6 +976,10 @@ using WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_bf8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, bf8_t, Ctrl_>;
 
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+using WarpGemmAttributeMfmaImpl_f32_16x16x32_bf8_bf8 =
+    WarpGemmAttributeMfmaImpl_f32_16x16x32_f8_base<bf8_t, bf8_t, Ctrl_>;
+
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_fp8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<bf8_t, fp8_t, Ctrl_>;
 
