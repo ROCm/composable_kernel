@@ -787,26 +787,42 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t N0 = kNPerBlock / N1; // P
 
             constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-            static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-            constexpr index_t K3     = total_pixels / N1;
             constexpr index_t kKPack = GetSmemKPackV<Problem>();
-            static_assert(kKPack % K3 == 0);
-            constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
-            if constexpr(get_warp_size() % (K2 * N0) == 0)
+            constexpr index_t K3     = total_pixels / N1;
+            if constexpr(total_pixels % N1 != 0 || kKPack % K3 != 0) {
+                constexpr index_t K0 = kBlockSize / get_warp_size();
+                constexpr index_t N2 = 2;
+                constexpr index_t N1_m = 32/N2;
+                constexpr index_t N0_m = kNPerBlock / (N2 * N1_m);
+                constexpr index_t K1 = get_warp_size() / N1_m;
+                constexpr index_t K2 = kKPerBlock/K1;
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<N0_m, N1_m, N2>, 
+                                                    sequence<K0, K1, K2>>,
+                                               tuple<sequence<2>, sequence<2, 1>>, // K0, K1 N0
+                                               tuple<sequence<0>, sequence<1, 1>>,
+                                               sequence<1, 2, 1>,  // N0 K2 N2
+                                               sequence<0, 2, 2>>{});
+            } else if constexpr(get_warp_size() % (kKPack / K3 * N0) == 0)
             {
+                printf("!!!!\n\n\n");
+                constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
                 constexpr index_t K1 = get_warp_size() / (K2 * N0);
                 constexpr index_t K0 = kBlockSize / get_warp_size();
                 static_assert(kKPerBlock == K0 * K1 * K2 * K3);
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<1>,
                                                tuple<sequence<N0, N1>, sequence<K0, K1, K2, K3>>,
-                                               tuple<sequence<2>, sequence<2, 1, 2>>,
+                                               tuple<sequence<2>, sequence<2, 1, 2>>, // K0, K1 N0 K2
                                                tuple<sequence<0>, sequence<1, 0, 2>>,
-                                               sequence<2, 1>,
+                                               sequence<2, 1>, // K3 N1
                                                sequence<3, 1>>{});
             }
             else
             {
+                printf("!!!!\n\n\n");
+                constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
                 constexpr index_t K1   = (K2 * N0) / get_warp_size();
                 constexpr index_t K2_m = K2 / K1;
                 constexpr index_t K0   = kBlockSize / get_warp_size() / K1;
@@ -860,26 +876,42 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t N1           = GetAlignmentV<Problem>();
         constexpr index_t N0           = kNPerBlock / N1;
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-        static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-        constexpr index_t K3     = total_pixels / N1;
         constexpr index_t kKPack = GetSmemKPackV<Problem>();
-        static_assert(kKPack % K3 == 0);
-        constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
-        if constexpr(get_warp_size() % (K2 * N0) == 0)
+        constexpr index_t K3     = total_pixels / N1;
+        if constexpr(total_pixels % N1 != 0 || kKPack % K3 != 0) {
+            constexpr index_t K0 = kBlockSize / get_warp_size();
+            constexpr index_t N2 = 2;
+            constexpr index_t N1_m = 32/N2;
+            constexpr index_t N0_m = kNPerBlock / (N2 * N1_m);
+            constexpr index_t K1 = get_warp_size() / N1_m;
+            constexpr index_t K2 = kKPerBlock/K1;
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0_m, N1_m, N2>, 
+                                                sequence<K0, K1, K2>>,
+                                           tuple<sequence<2>, sequence<2, 1>>, // K0, K1 N0
+                                           tuple<sequence<0>, sequence<1, 1>>,
+                                           sequence<1, 1, 2>,  // N0 K2 <-> N2
+                                           sequence<0, 2, 2>>{});
+        } else if constexpr(get_warp_size() % (kKPack / K3 * N0) == 0)
         {
+                printf("!!!!\n\n\n");
+            constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
             constexpr index_t K1 = get_warp_size() / (K2 * N0);
             constexpr index_t K0 = kBlockSize / get_warp_size();
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
                                            tuple<sequence<N0, N1>, sequence<K0, K1, K2, K3>>,
-                                           tuple<sequence<2>, sequence<2, 1, 2>>,
+                                           tuple<sequence<2>, sequence<2, 1, 2>>, // K0, K1 N0 K2
                                            tuple<sequence<0>, sequence<1, 0, 2>>,
-                                           sequence<1, 2>,
+                                           sequence<1, 2>, // N1 K3
                                            sequence<1, 3>>{});
         }
         else
         {
+                printf("!!!!\n\n\n");
+            constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
             constexpr index_t K1   = (K2 * N0) / get_warp_size();
             constexpr index_t K2_m = K2 / K1;
             constexpr index_t K0   = kBlockSize / get_warp_size() / K1;
