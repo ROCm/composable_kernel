@@ -247,7 +247,7 @@ struct HstuAttentionFwdPipelineQRKSVS
         const auto f_silu = [](CompDataType& x) {
             const auto one = ck_tile::type_convert<CompDataType>(1.0f);
 
-            return x = x / (one + exp2(-log2e_v<CompDataType> * x));
+            return x = x / (one + exp(-x));
         };
 
         using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
