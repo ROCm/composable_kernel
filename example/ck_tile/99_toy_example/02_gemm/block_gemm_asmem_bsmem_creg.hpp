@@ -43,7 +43,7 @@ struct BlockGemmASmemBSmemCReg
     static constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
     static constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-#if defined(ENABLE_INSTRUCTION_SCH)
+#if defined(ENABLE_PREFETCH)
     // A block tile distribution for load from lds
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
@@ -92,16 +92,16 @@ struct BlockGemmASmemBSmemCReg
     using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
     using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
 
-    ALdsTile a_warp_tile_;
-    ALdsTile b_warp_tile_;
+    ALdsTile aWarpTile;
+    BLdsTile bWarpTile;
 
     // Prefetch from LDS to warp register
     template <typename ASmemBlockWindow, typename BSmemBlockWindow>
     CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                         const BSmemBlockWindow& b_block_window)
     {
-        load_tile(a_warp_tile_, a_block_window);
-        load_tile(b_warp_tile_, b_block_window);
+        aWarpTile = load_tile(a_block_window);
+        bWarpTile = load_tile(b_block_window);
     }
 #endif
 
@@ -178,23 +178,23 @@ struct BlockGemmASmemBSmemCReg
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                 // read A warp tensor from A block tensor
                 AWarpTensor a_warp_tensor;
-#if defined(ENABLE_INSTRUCTION_SCH)
+#if defined(ENABLE_PREFETCH)
 #pragma message ("local data share prefetch")
-                a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+                a_warp_tensor.get_thread_buffer() = aWarpTile.get_y_sliced_thread_data(
                     merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                     merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 #else
-                load_tile(a_warp_tensor, a_warp_windows(mIter)(kIter));
+                a_warp_tensor = load_tile(a_warp_windows(mIter)(kIter));
 #endif
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     // read B warp tensor from B block tensor
                     BWarpTensor b_warp_tensor;
-#if defined(ENABLE_INSTRUCTION_SCH)
-                    b_warp_tensor.get_thread_buffer() = b_warp_tile_.get_y_sliced_thread_data(
+#if defined(ENABLE_PREFETCH)
+                    b_warp_tensor.get_thread_buffer() = bWarpTile.get_y_sliced_thread_data(
                         merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 #else
-                    load_tile(b_warp_tensor, b_warp_windows(nIter)(kIter));
+                    b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
 #endif
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
@@ -305,22 +305,22 @@ struct BlockGemmASmemBSmemCReg
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                 // read A warp tensor from A block tensor
                 AWarpTensor a_warp_tensor;
-#if defined(ENABLE_INSTRUCTION_SCH)
-                a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+#if defined(ENABLE_PREFETCH)
+                a_warp_tensor.get_thread_buffer() = aWarpTile.get_y_sliced_thread_data(
                     merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                     merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 #else
-                load_tile(a_warp_tensor, a_warp_windows(mIter)(kIter));
+                a_warp_tensor = load_tile(a_warp_windows(mIter)(kIter));
 #endif
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     // read B warp tensor from B block tensor
                     BWarpTensor b_warp_tensor;
-#if defined(ENABLE_INSTRUCTION_SCH)
-                    b_warp_tensor.get_thread_buffer() = b_warp_tile_.get_y_sliced_thread_data(
+#if defined(ENABLE_PREFETCH)
+                    b_warp_tensor.get_thread_buffer() = bWarpTile.get_y_sliced_thread_data(
                         merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 #else
-                    load_tile(b_warp_tensor, b_warp_windows(nIter)(kIter));
+                    b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
 #endif
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
