@@ -90,25 +90,35 @@ struct FlashAttentionFwd
                                const index_t BatchStrideV,
                                const index_t BatchStrideO) const
     {
-        // divide problem
-        const index_t num_tile_m0 = M0 / kM0PerBlock;
-        const index_t num_tile_n1 = N1 / kN1PerBlock;
-
         const index_t id_block = get_block_id();
 
+        const index_t num_tile_m0 = integer_divide_ceil(M0, kM0PerBlock);
+        const index_t num_tile_n1 = integer_divide_ceil(N1, kN1PerBlock);
+
+#if defined(GEMM_OPT)
+        const auto block2tile = MakeBlock2TileMap(num_tile_m0, num_tile_n1);
+
+        const index_t id_tile_batch = id_block / num_tile_n1 / num_tile_m0;
+        const auto id_tile = block2tile(id_block - id_tile_batch * num_tile_n1 * num_tile_m0);
+
+        const index_t iBatch = __builtin_amdgcn_readfirstlane(id_tile_batch);
+        const index_t iM0    = __builtin_amdgcn_readfirstlane(id_tile.template get(number<0>{}) % num_tile_m0 * kM0PerBlock);
+        const index_t iN1    = __builtin_amdgcn_readfirstlane(id_tile.template get(number<1>{}) % num_tile_n1 * kN1PerBlock);
+
+#else
         const auto f = [](index_t dividend, index_t divisor) {
             index_t quotient = dividend / divisor;
             index_t modulus  = dividend - quotient * divisor;
 
             return make_tuple(quotient, modulus);
         };
-
         const auto [itmp, id_tile_n]          = f(id_block, num_tile_n1);
         const auto [id_tile_batch, id_tile_m] = f(itmp, num_tile_m0);
-
         const index_t iBatch = __builtin_amdgcn_readfirstlane(id_tile_batch);
         const index_t iM0    = __builtin_amdgcn_readfirstlane(id_tile_m * kM0PerBlock);
         const index_t iN1    = __builtin_amdgcn_readfirstlane(id_tile_n * kN1PerBlock);
+
+#endif
 
         const auto kernel_impl = FlashAttentionFwdImpl<QDataType,
                                                        KDataType,
