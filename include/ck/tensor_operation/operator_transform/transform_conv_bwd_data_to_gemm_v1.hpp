@@ -205,7 +205,7 @@ struct TransformConvBwdDataToGemm_v1
                                   const ConvSpatialDimsType& input_left_pads,
                                   const ConvSpatialDimsType& input_right_pads,
                                   const ConvSpatialDimsType& tildes,
-                                  const index_t batch_k)
+                                  const index_t batch_k = 1)
         : Hi_{c_g_n_c_wis_lengths[HIdx]},
           Wi_{c_g_n_c_wis_lengths[WIdx]},
           Ho_{a_g_n_k_wos_lengths[HIdx]},
