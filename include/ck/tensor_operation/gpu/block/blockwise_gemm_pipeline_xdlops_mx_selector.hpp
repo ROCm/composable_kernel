@@ -7,6 +7,35 @@
 
 namespace ck {
 
+/**
+ * @brief Define matrix data types that have hardware support for MX GEMMs
+ */
+template <typename T>
+static constexpr bool is_scale_mfma_data_type()
+{
+    return is_same_v<T, f8_ocp_t> || is_same_v<T, bf8_ocp_t> || is_same_v<T, f6_t> ||
+           is_same_v<T, bf6_t> || is_same_v<T, f4_t>;
+}
+
+/**
+ * @brief Define scale data types that have hardware support for MX GEMMs
+ */
+template <typename T>
+static constexpr bool is_scale_mfma_scale_type()
+{
+    return is_same_v<T, e8m0_bexp_t>;
+}
+
+/**
+ * @brief Combination of data types that have hardware support for MX GEMMs
+ */
+template <typename ADataType, typename BDataType, typename AScaleDataType, typename BScaleDataType>
+static constexpr bool scale_mfma_hw_support()
+{
+    return is_scale_mfma_data_type<ADataType>() && is_scale_mfma_data_type<BDataType>() &&
+           is_scale_mfma_scale_type<AScaleDataType>() && is_scale_mfma_scale_type<BScaleDataType>();
+}
+
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           BlockGemmPipelineScheduler BlkGemmPipeSche,
           index_t ThreadBlockSize,
@@ -34,6 +63,8 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t KPack>
 constexpr auto BlockGemmMXPipeline_Selector()
 {
+
+    // Hardware MX GEMM pipeline
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
         return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
@@ -43,8 +74,6 @@ constexpr auto BlockGemmMXPipeline_Selector()
                                                   AScaleDataType,
                                                   BDataType,
                                                   BScaleDataType,
-                                                  ComputeDataType,
-                                                  AccDataType,
                                                   ATileDesc,
                                                   BTileDesc,
                                                   AMmaTileDesc,
@@ -62,7 +91,7 @@ constexpr auto BlockGemmMXPipeline_Selector()
     }
     else
     {
-        std::cerr << "BlockGemmPipeline configuration is not available" << std::endl;
+        std::cerr << "MX GEMM Pipeline configuration is not available" << std::endl;
     }
 }
 

@@ -19,7 +19,7 @@
       "values": [256]
     },
     "tile_k": {
-      "values": [64]
+      "values": [64, 32]
     },
     "warp_m": {
       "values": [2]
