@@ -34,10 +34,6 @@ subtrees:
     title: Composable Kernel vector utilities
   - file: reference/Composable-Kernel-API-reference.rst
     title: Composable Kernel API reference
-    subtrees:
-    - entries:
-      - file: doxygen/html/files
-        title: CK header files
   - file: reference/Composable-Kernel-wrapper.rst
     title: Composable Kernel Wrapper
 
