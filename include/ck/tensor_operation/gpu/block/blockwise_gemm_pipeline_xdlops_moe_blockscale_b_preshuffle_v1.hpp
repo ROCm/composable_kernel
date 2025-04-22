@@ -426,6 +426,12 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
             });
         });
 
+        // printf("blockIdx.y = %d, blockIdx.x = %d, threadIdx.x = %d, c_scale_thread_buf = <%f>\n",
+        //        blockIdx.y,
+        //        blockIdx.x,
+        //        threadIdx.x,
+        //        c_scale_thread_buf[Number<0>{}]);
+
         // Local prefill A1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I0);
 
@@ -552,6 +558,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
                                         b_thread_vec.template AsType<mfma_input_type>(),
                                         c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
                                 });
+
                                 constexpr index_t c_offset =
                                     c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 

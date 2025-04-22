@@ -155,7 +155,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
                A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,   GemmSpec,   
                256,  Scale_Block_M, Scale_Block_N, Scale_Block_K,
-               32,   128,    128,
+               MPerBlock,   128,    128,
                16,   16,
                32,   32,
                1,    1,
@@ -306,6 +306,34 @@ int main(int argc, char* argv[])
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
+    case 4:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{}); // 1
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+        break;
+    case 5:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{}); // 1
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+        break;
+    case 6:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{}); // 1
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{}); // 1
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+        break;
+    case 7:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+        break;
     default:
         a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
@@ -383,7 +411,7 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-#if 1
+#if 0
     // printf the input tensor
     // printf a tensor
     printf("a0_t_k_k: \n");
@@ -394,7 +422,7 @@ int main(int argc, char* argv[])
             printf("topk: %d: ", tk);
             for(int k = 0; k < K; ++k)
             {
-                printf("%f ", ck::type_convert<float>(a0_t_k_k(t, tk, k)));
+                printf("%.1f ", ck::type_convert<float>(a0_t_k_k(t, tk, k)));
             }
             printf("\n");
         }
@@ -409,26 +437,26 @@ int main(int argc, char* argv[])
             printf("topk: %d: ", tk);
             for(int k = 0; k < (K + Scale_Block_K - 1) / Scale_Block_K; ++k)
             {
-                printf("%f ", ck::type_convert<float>(a1_t_k_k(t, tk, k)));
+                printf("%.1f ", ck::type_convert<float>(a1_t_k_k(t, tk, k)));
             }
             printf("\n");
         }
     }
 
     // printf b tensor
-    // printf("b0_e_n_k: \n");
-    // for (int e=0; e < experts; ++e)
-    // {
-    //     for (int k=0; k < K; ++k)
-    //     {
-    //         printf("expert: %d: ", e);
-    //         for (int n=0; n < N; ++n)
-    //         {
-    //             printf("%f ", ck::type_convert<float>(b0_e_n_k(e, k, n)));
-    //         }
-    //         printf("\n");
-    //     }
-    // }
+    printf("b0_e_n_k: \n");
+    for (int e=0; e < experts; ++e)
+    {
+        for (int k=0; k < K; ++k)
+        {
+            printf("expert: %d: ", e);
+            for (int n=0; n < N; ++n)
+            {
+                printf("%.1f ", ck::type_convert<float>(b0_e_n_k(e, k, n)));
+            }
+            printf("\n");
+        }
+    }
 
     // printf b scale tensor
     printf("b1_e_n_k: \n");
@@ -439,7 +467,7 @@ int main(int argc, char* argv[])
             printf("expert: %d: ", e);
             for(int n = 0; n < (N + Scale_Block_N - 1) / Scale_Block_N; ++n)
             {
-                printf("%f ", ck::type_convert<float>(b1_e_n_k(e, k, n)));
+                printf("%.1f ", ck::type_convert<float>(b1_e_n_k(e, k, n)));
             }
             printf("\n");
         }
