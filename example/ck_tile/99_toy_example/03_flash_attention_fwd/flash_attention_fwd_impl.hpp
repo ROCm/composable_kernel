@@ -310,6 +310,7 @@ struct FlashAttentionFwdImpl
 
             if constexpr(k1_loops > 1)
             {
+                __builtin_amdgcn_sched_barrier(0);
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     const auto v = load_tile(v_dram_window); // load next v
                     block_sync_lds();
@@ -321,6 +322,9 @@ struct FlashAttentionFwdImpl
                     block_sync_lds();
                     store_tile(v_lds_window, v);
                     move_tile_window(v_dram_window, {0, kK1PerBlock});
+
+                    gemm1.template HotLoopScheduler<8, 4>();
+                    __builtin_amdgcn_sched_barrier(0);
                 });
             }
             // tail
