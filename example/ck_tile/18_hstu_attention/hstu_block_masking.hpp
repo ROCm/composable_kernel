@@ -64,7 +64,7 @@ struct HstuBlockMaskWithLocal
                 index_t x_start = max(0, i_y - max_attn_len);
                 index_t x_end   = min(i_y + YTile, max_uih_len);
 
-                return ck_tile::make_tuple(x_start, x_end);
+                return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
             };
         };
     }
