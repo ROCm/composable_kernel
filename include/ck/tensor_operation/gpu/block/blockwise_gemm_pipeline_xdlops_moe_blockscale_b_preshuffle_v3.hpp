@@ -746,25 +746,21 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         __builtin_amdgcn_sched_barrier(0);
 
-        static_for<0, MRepeat, 1>{}([&](auto m0) {
-            a_scale_thread_copy.Run(a_scale_grid_desc,
-                                    a_scale_grid_buf,
-                                    a_scale_thread_desc,
-                                    make_tuple(m0, I0),
-                                    a_scale_thread_buf);
-            a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                   a_scale_thread_copy_step.At(Number<0>{}));
-        });
+        a_scale_thread_copy.Run(a_scale_grid_desc,
+                                a_scale_grid_buf,
+                                a_scale_thread_desc,
+                                make_tuple(I0, I0),
+                                a_scale_thread_buf);
 
         if constexpr(NumKBlockPerScale == 1)
         {
             a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                   a_scale_thread_copy_step.At(Number<2>{}));
+                                                   a_scale_thread_copy_step.At(Number<1>{}));
         }
         else
         {
             a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                   a_scale_thread_copy_step.At(Number<1>{}));
+                                                   a_scale_thread_copy_step.At(Number<0>{}));
         }
 
         b_scale_thread_copy.Run(b_scale_grid_desc,
@@ -786,25 +782,21 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
-        static_for<0, MRepeat, 1>{}([&](auto m0) {
-            a_scale_thread_copy.Run(a_scale_grid_desc,
-                                    a_scale_grid_buf,
-                                    a_scale_thread_desc,
-                                    make_tuple(m0, I0),
-                                    a_scale_thread_buf);
-            a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                   a_scale_thread_copy_step.At(Number<0>{}));
-        });
+        a_scale_thread_copy.Run(a_scale_grid_desc,
+                                a_scale_grid_buf,
+                                a_scale_thread_desc,
+                                make_tuple(I0, I0),
+                                a_scale_thread_buf);
 
         if constexpr(NumKBlockPerScale == 1)
         {
             a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                   a_scale_thread_copy_step.At(Number<2>{}));
+                                                   a_scale_thread_copy_step.At(Number<1>{}));
         }
         else
         {
             a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                                   a_scale_thread_copy_step.At(Number<1>{}));
+                                                   a_scale_thread_copy_step.At(Number<0>{}));
         }
 
         b_scale_thread_copy.Run(b_scale_grid_desc,
@@ -970,25 +962,22 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                         c_scale_thread_buf(m0) = a_scale_thread_buf[m0] * b_scale_thread_buf[I0];
                     });
 
-                    static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        a_scale_thread_copy.Run(a_scale_grid_desc,
-                                                a_scale_grid_buf,
-                                                a_scale_thread_desc,
-                                                make_tuple(m0, I0),
-                                                a_scale_thread_buf);
-                        a_scale_thread_copy.MoveSrcSliceWindow(
-                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<0>{}));
-                    });
+
+                    a_scale_thread_copy.Run(a_scale_grid_desc,
+                                            a_scale_grid_buf,
+                                            a_scale_thread_desc,
+                                            make_tuple(I0, I0),
+                                            a_scale_thread_buf);
 
                     if constexpr(NumKBlockPerScale == 1)
                     {
                         a_scale_thread_copy.MoveSrcSliceWindow(
-                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<2>{}));
+                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<1>{}));
                     }
                     else
                     {
                         a_scale_thread_copy.MoveSrcSliceWindow(
-                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<1>{}));
+                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<0>{}));
                     }
 
                     b_scale_thread_copy.Run(b_scale_grid_desc,
