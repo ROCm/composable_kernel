@@ -117,7 +117,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
 #if CK_USE_RNE_BF16_CONVERSION
     return bf16_convert_rtn<bhalf_t>(x);
 #else
-    return uint16_t(uint32_t{x} >> 16);
+    return uint16_t(static_cast<uint32_t>(x) >> 16);
 #endif
 }
 
