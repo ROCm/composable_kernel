@@ -149,7 +149,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
                2,        1,         S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
 #else
-static constexpr ck::index_t MPerBlock = 32;
+static constexpr ck::index_t MPerBlock = 128;
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
                Row, Col, DsLayout, ELayout,
                A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
@@ -158,10 +158,10 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
                MPerBlock,   128,    128,
                16,   16,
                32,   32,
-               1,    1,
+               2,    2,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               1,    1,   S<1, 8, 1, 32>, S<2, 1, 1, 1>,
+               2,    1,   S<1, 8, 1, 32>, S<2, 1, 1, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
 #endif
 // clang-format on
@@ -180,7 +180,7 @@ int main(int argc, char* argv[])
     ck::index_t N               = 6144;
     ck::index_t K               = 4096;
     ck::index_t experts         = 8;
-    ck::index_t valid_tile_num  = 2;
+    ck::index_t valid_tile_num  = 13;
     ck::index_t sorted_tile_num = valid_tile_num + 3;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
@@ -232,9 +232,9 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
 
     max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
-    int eids[]         = {0, 1, 3, 3, 3};
+    // int eids[]         = {0, 1, 3, 3, 3};
     // int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
-    // int eids[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
+    int eids[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];
@@ -278,7 +278,9 @@ int main(int argc, char* argv[])
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     e_t_n_device_result.SetZero();
     std::cout << "a0_t_k_k: " << a0_t_k_k.mDesc << std::endl;
+    std::cout << "a1_t_k_k: " << a1_t_k_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
+    std::cout << "b1_e_n_k: " << b1_e_n_k.mDesc << std::endl;
     std::cout << "d2_e_n: " << d2_e_n.mDesc << std::endl;
     std::cout << "e_t_n: " << e_t_n_host_result.mDesc << std::endl;
 
@@ -290,7 +292,7 @@ int main(int argc, char* argv[])
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0, 1.0});
         break;
     case 2:
         a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
@@ -307,32 +309,18 @@ int main(int argc, char* argv[])
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     case 4:
-        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
-        a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{}); // 1
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0, 1.0});
         break;
     case 5:
-        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
-        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{}); // 1
-        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
-        break;
-    case 6:
-        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
-        a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{}); // 1
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{}); // 1
-        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
-        break;
-    case 7:
-        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0, 1.0});
         break;
     default:
         a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
@@ -445,11 +433,11 @@ int main(int argc, char* argv[])
 
     // printf b tensor
     printf("b0_e_n_k: \n");
-    for (int e=0; e < experts; ++e)
+    for (int e=0; e < 2; ++e)
     {
+        printf("expert: %d: \n", e);
         for (int k=0; k < K; ++k)
         {
-            printf("expert: %d: ", e);
             for (int n=0; n < N; ++n)
             {
                 printf("%.1f ", ck::type_convert<float>(b0_e_n_k(e, k, n)));
@@ -521,7 +509,7 @@ int main(int argc, char* argv[])
             {
                 for(int n = 0; n < N; ++n)
                 {
-                    b_e_n_k(e, k, n) = ck::type_convert<float>(b0_preshuffled(e, k, n)) *
+                    b_e_n_k(e, k, n) = ck::type_convert<float>(b0_e_n_k(e, k, n)) *
                                        b1_e_n_k(e, k / Scale_Block_K, n / Scale_Block_N);
                 }
             }
@@ -561,6 +549,28 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
+
+#if 0
+        printf("e_t_n_device_result: \n");
+        for(int t = 0; t < tokens; ++t)
+        {
+            for(int n = 0; n < N; ++n)
+            {
+                printf("%.2f ", ck::type_convert<float>(e_t_n_device_result(t, n)));
+            }
+            printf("\n");
+        }
+
+        printf("e_t_n_host_result: \n");
+        for(int t = 0; t < tokens; ++t)
+        {
+            for(int n = 0; n < N; ++n)
+            {
+                printf("%.2f ", ck::type_convert<float>(e_t_n_host_result(t, n)));
+            }
+            printf("\n");
+        }
+#endif
         // e_t_n_device_result.savetxt("out.txt");
         // e_t_n_host_result.savetxt("ref.txt");
         return ck::utils::check_err(

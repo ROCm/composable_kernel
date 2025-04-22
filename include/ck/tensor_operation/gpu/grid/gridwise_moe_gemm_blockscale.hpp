@@ -31,7 +31,7 @@ template <typename GridwiseGemm,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           bool IsInputGemm         = false,
-          TailNumber TailNum       = TailNumber::Even>
+          TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
