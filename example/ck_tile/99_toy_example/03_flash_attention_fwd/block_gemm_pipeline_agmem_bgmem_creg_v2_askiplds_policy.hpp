@@ -76,13 +76,13 @@ struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
         constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WG::kM);
         constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
 
-        constexpr auto a_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<NWarp>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-            tuple<sequence<1, 0>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
+        constexpr auto a_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
 
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});

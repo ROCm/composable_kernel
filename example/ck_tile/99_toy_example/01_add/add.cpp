@@ -57,9 +57,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "block x-size = " << BlockTile::at(ck_tile::number<0>{}) << std::endl;
     std::cout << "grid size " << kGridSize << std::endl;
 
-    using Shape = ck_tile::AddShape<BlockWarps, BlockTile, WarpTile, Vector>;
-    using Porblem =
-        ck_tile::AddProblem<XDataType, ComputeDataType, YDataType, Shape>;
+    using Shape   = ck_tile::AddShape<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Porblem = ck_tile::AddProblem<XDataType, ComputeDataType, YDataType, Shape>;
 
     using Kernel = ck_tile::Add<Porblem>;
 
@@ -85,8 +84,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(do_validation)
     {
-        ck_tile::reference_add<XDataType, YDataType>(
-           x_host_a, x_host_b, y_host_ref);
+        ck_tile::reference_add<XDataType, YDataType>(x_host_a, x_host_b, y_host_ref);
         y_buf.FromDevice(y_host_dev.mData.data());
         pass = ck_tile::check_err(y_host_dev, y_host_ref);
 

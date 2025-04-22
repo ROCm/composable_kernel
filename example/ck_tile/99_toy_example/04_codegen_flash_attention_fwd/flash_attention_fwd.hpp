@@ -16,11 +16,7 @@
 
 namespace ck_tile {
 
-
-template <typename QDataType,
-          typename KDataType,
-          typename VDataType,
-          typename ODataType>
+template <typename QDataType, typename KDataType, typename VDataType, typename ODataType>
 struct FlashAttnArgs
 {
     // Pointers to device buffers for Q, K, V, O
@@ -29,28 +25,25 @@ struct FlashAttnArgs
     VDataType* v_ptr;
     ODataType* o_ptr;
 
-    // Problem sizes  
+    // Problem sizes
     index_t M0;
     index_t N0;
     index_t K0;
     index_t N1;
     index_t Batch;
 
-    // Strides within a batch  
-    index_t strideQ;  
-    index_t strideK;  
-    index_t strideV;  
-    index_t strideO;  
+    // Strides within a batch
+    index_t strideQ;
+    index_t strideK;
+    index_t strideV;
+    index_t strideO;
 
-    // Batch strides  
-    index_t batchStrideQ;  
-    index_t batchStrideK;  
-    index_t batchStrideV;  
-    index_t batchStrideO;  
+    // Batch strides
+    index_t batchStrideQ;
+    index_t batchStrideK;
+    index_t batchStrideV;
+    index_t batchStrideO;
 };
-
-
-
 
 // S[M0, N0] = Q[M0, K0] * K[N0, K0]
 // P[M0, N0] = Softmax(S[M0, N0])
@@ -102,8 +95,10 @@ struct FlashAttentionFwd
         const auto id_tile = block2tile(id_block - id_tile_batch * num_tile_n1 * num_tile_m0);
 
         const index_t iBatch = __builtin_amdgcn_readfirstlane(id_tile_batch);
-        const index_t iM0    = __builtin_amdgcn_readfirstlane(id_tile.template get(number<0>{}) % num_tile_m0 * kM0PerBlock);
-        const index_t iN1    = __builtin_amdgcn_readfirstlane(id_tile.template get(number<1>{}) % num_tile_n1 * kN1PerBlock);
+        const index_t iM0    = __builtin_amdgcn_readfirstlane(id_tile.template get(number<0>{}) %
+                                                           num_tile_m0 * kM0PerBlock);
+        const index_t iN1    = __builtin_amdgcn_readfirstlane(id_tile.template get(number<1>{}) %
+                                                           num_tile_n1 * kN1PerBlock);
 
 #else
         const auto f = [](index_t dividend, index_t divisor) {
@@ -114,9 +109,9 @@ struct FlashAttentionFwd
         };
         const auto [itmp, id_tile_n]          = f(id_block, num_tile_n1);
         const auto [id_tile_batch, id_tile_m] = f(itmp, num_tile_m0);
-        const index_t iBatch = __builtin_amdgcn_readfirstlane(id_tile_batch);
-        const index_t iM0    = __builtin_amdgcn_readfirstlane(id_tile_m * kM0PerBlock);
-        const index_t iN1    = __builtin_amdgcn_readfirstlane(id_tile_n * kN1PerBlock);
+        const index_t iBatch                  = __builtin_amdgcn_readfirstlane(id_tile_batch);
+        const index_t iM0 = __builtin_amdgcn_readfirstlane(id_tile_m * kM0PerBlock);
+        const index_t iN1 = __builtin_amdgcn_readfirstlane(id_tile_n * kN1PerBlock);
 
 #endif
 
@@ -179,7 +174,7 @@ struct FlashAttentionFwd
 //     static constexpr index_t kK0PerBlock = kK0PerBlock_;
 //     static constexpr index_t kN1PerBlock = kN1PerBlock_;
 //     static constexpr index_t kK1PerBlock = kK1PerBlock_;
-    
+
 //     static constexpr ck_tile::index_t kWarpPerCu    = 8; // 2 warps per SIMD
 //     static constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / warpSize;
 //     static constexpr ck_tile::index_t kBlockPerCu   = kWarpPerCu / kWarpPerBlock;
@@ -215,7 +210,7 @@ struct FlashAttentionFwd
 //           typename VDataType,
 //           typename ODataType,
 //           typename Traits_>
-// float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
+// float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a,
 //                           const ck_tile::stream_config& stream_config);
 
 // // TODO: fwd_common.cpp
@@ -224,13 +219,13 @@ struct FlashAttentionFwd
 //           typename VDataType,
 //           typename ODataType,
 //           typename Traits_>
-// float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
+// float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a,
 //                           const ck_tile::stream_config& stream_config) {
-//     using SaccDataType        = typename Traits_::SaccDataType;                                                                           
-//     using SMPLComputeDataType = typename Traits_::SMPLComputeDataType;                                                                           
-//     using PDataType           = typename Traits_::PDataType;                                                                           
-//     using OaccDataType        = typename Traits_::OaccDataType;                                                                           
-    
+//     using SaccDataType        = typename Traits_::SaccDataType;
+//     using SMPLComputeDataType = typename Traits_::SMPLComputeDataType;
+//     using PDataType           = typename Traits_::PDataType;
+//     using OaccDataType        = typename Traits_::OaccDataType;
+
 //     index_t kGridSize = a.Batch * (a.M0 / Traits_::kM0PerBlock) * (a.N1 / Traits_::kN1PerBlock);
 
 //     std::cout << "grid size " << kGridSize << std::endl;
@@ -284,7 +279,7 @@ struct FlashAttentionFwd
 //           typename PDataType,
 //           typename OaccDataType,
 //           typename ODataType>
-// float flash_attention_fwd(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
+// float flash_attention_fwd(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a,
 //                           const ck_tile::stream_config& stream_config) {
 //     constexpr ck_tile::index_t kM0PerBlock = 128;
 //     constexpr ck_tile::index_t kN0PerBlock = 128;
@@ -295,25 +290,24 @@ struct FlashAttentionFwd
 //     constexpr ck_tile::index_t kBlockSize = 256;
 //     constexpr ck_tile::index_t kHeadDim   = 128;
 
-//     return flash_attention_fwd_<QDataType, 
-//                                 KDataType, 
-//                                 VDataType, 
-//                                 ODataType, 
-//                                 traits_<SaccDataType, 
-//                                         SMPLComputeDataType, 
-//                                         PDataType, 
+//     return flash_attention_fwd_<QDataType,
+//                                 KDataType,
+//                                 VDataType,
+//                                 ODataType,
+//                                 traits_<SaccDataType,
+//                                         SMPLComputeDataType,
+//                                         PDataType,
 //                                         OaccDataType,
-//                                         kBlockSize, 
-//                                         kHeadDim, 
-//                                         kM0PerBlock, 
-//                                         kN0PerBlock, 
-//                                         kK0PerBlock, 
-//                                         kN1PerBlock, 
+//                                         kBlockSize,
+//                                         kHeadDim,
+//                                         kM0PerBlock,
+//                                         kN0PerBlock,
+//                                         kK0PerBlock,
+//                                         kN1PerBlock,
 //                                         kK1PerBlock>>
 //             (a, stream_config);
 
 // }
-
 
 // TODO: change to only declare
 // TODO: fwd_api.cpp
@@ -325,8 +319,7 @@ template <typename QDataType,
           typename PDataType,
           typename OaccDataType,
           typename ODataType>
-float flash_attention_fwd(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
+float flash_attention_fwd(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a,
                           const stream_config& stream_config);
-
 
 } // namespace ck_tile

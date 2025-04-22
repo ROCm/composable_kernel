@@ -23,4 +23,3 @@ struct BlockGemmPipelineProblem
 };
 
 } // namespace ck_tile
-

@@ -158,32 +158,30 @@ int main(int argc, char* argv[])
                                       kGemmNPerBlock,
                                       kGemmKPerBlock>;
 
-    float ave_time =
-        ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
-                               ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                    gemm_kernel{},
-                                    kGridSize,
-                                    kBlockSize,
-                                    0,
-                                    static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
-                                    static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
-                                    static_cast<CDataType*>(c_buf.GetDeviceBuffer()),
-                                    M,
-                                    N,
-                                    K,
-                                    Lda,
-                                    Ldb,
-                                    Ldc,
-                                    CElementFunction{}));
-    auto pass = true;
+    float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 5, 1000},
+                                            ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+                                                gemm_kernel{},
+                                                kGridSize,
+                                                kBlockSize,
+                                                0,
+                                                static_cast<ADataType*>(a_buf.GetDeviceBuffer()),
+                                                static_cast<BDataType*>(b_buf.GetDeviceBuffer()),
+                                                static_cast<CDataType*>(c_buf.GetDeviceBuffer()),
+                                                M,
+                                                N,
+                                                K,
+                                                Lda,
+                                                Ldb,
+                                                Ldc,
+                                                CElementFunction{}));
+    auto pass      = true;
 
     if(verification)
     {
         // reference gemm
         ck_tile::HostTensor<CDataType> c_host_ref(c_lengths, c_strides);
-        reference_basic_gemm<ADataType, ADataType, AccDataType, CDataType>(a_host,
-                                                                           b_host,
-                                                                           c_host_ref);
+        reference_basic_gemm<ADataType, ADataType, AccDataType, CDataType>(
+            a_host, b_host, c_host_ref);
         c_buf.FromDevice(c_host_dev.mData.data());
         pass &= ck_tile::check_err(c_host_dev, c_host_ref);
         std::cout << "valid:" << (pass ? "y" : "n") << std::endl;
@@ -202,4 +200,3 @@ int main(int argc, char* argv[])
 
     return !pass;
 }
-

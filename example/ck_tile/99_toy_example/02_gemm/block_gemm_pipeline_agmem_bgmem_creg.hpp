@@ -80,17 +80,16 @@ struct BlockGemmPipelineAGmemBGmemCReg
             WaveNumM * kNPerBlock * kKPerBlock / (kBlockSize * AB_LDS_RW_Width);
 
         constexpr index_t C_MFMA_Inst_Num = kMPerBlock * kNPerBlock * kKPerBlock /
-                                            (kBlockSize / WaveSize) /
-                                            (MPerXDL * NPerXDL * KPerXDL);
+                                            (kBlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
 
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
-        constexpr auto num_ds_read_inst_a =
-            AB_LDS_RW_Width * sizeof(ADataType) / kPackedSize == 16 ? A_LDS_Read_Inst_Num :
-                                                                        A_LDS_Read_Inst_Num / 2;
-        constexpr auto num_ds_read_inst_b =
-            AB_LDS_RW_Width * sizeof(BDataType) / kPackedSize == 16 ? B_LDS_Read_Inst_Num :
-                                                                        B_LDS_Read_Inst_Num / 2;
+        constexpr auto num_ds_read_inst_a = AB_LDS_RW_Width * sizeof(ADataType) / kPackedSize == 16
+                                                ? A_LDS_Read_Inst_Num
+                                                : A_LDS_Read_Inst_Num / 2;
+        constexpr auto num_ds_read_inst_b = AB_LDS_RW_Width * sizeof(BDataType) / kPackedSize == 16
+                                                ? B_LDS_Read_Inst_Num
+                                                : B_LDS_Read_Inst_Num / 2;
 
         constexpr auto num_ds_write_inst_a = A_LDS_Write_Inst_Num;
         constexpr auto num_ds_write_inst_b = B_LDS_Write_Inst_Num;
@@ -123,8 +122,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
         //                                           ? sizeof(ComputeDataType) /
         //                                           sizeof(ADataType) : sizeof(ComputeDataType)
         //                                           / sizeof(BDataType);
-        constexpr auto num_mfma_stage1 =
-            num_mfma_inst - (num_dsread_a_mfma + num_dsread_b_mfma);
+        constexpr auto num_mfma_stage1 = num_mfma_inst - (num_dsread_a_mfma + num_dsread_b_mfma);
         constexpr auto num_mfma_per_issue =
             num_mfma_stage1 / (num_buffer_load_inst_a + num_buffer_load_inst_b);
         constexpr auto num_dswrite_per_issue_a = num_ds_write_inst_a / num_buffer_load_inst_a;
@@ -138,62 +136,65 @@ struct BlockGemmPipelineAGmemBGmemCReg
             ignore = i;
             static_for<0, num_dswrite_per_issue_a, 1>{}([&](auto idswrite) {
                 ignore = idswrite;
-                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0);                      // DS write
                 __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_dswrite_a, 0); // MFMA
             });
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             __builtin_amdgcn_sched_group_barrier(0x008,
-                num_mfma_per_issue - num_mfma_per_dswrite_a * num_dswrite_per_issue_a, 0); // MFMA
+                                                 num_mfma_per_issue - num_mfma_per_dswrite_a *
+                                                                          num_dswrite_per_issue_a,
+                                                 0); // MFMA
         });
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
             ignore = i;
             static_for<0, num_dswrite_per_issue_b, 1>{}([&](auto idswrite) {
                 ignore = idswrite;
-                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0);                      // DS write
                 __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_dswrite_b, 0); // MFMA
             });
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             __builtin_amdgcn_sched_group_barrier(0x008,
-                num_mfma_per_issue - num_mfma_per_dswrite_b * num_dswrite_per_issue_b, 0); // MFMA
+                                                 num_mfma_per_issue - num_mfma_per_dswrite_b *
+                                                                          num_dswrite_per_issue_b,
+                                                 0); // MFMA
         });
 
         // stage 2
         static_for<0, num_dsread_a_mfma, 1>{}([&](auto i) {
             if constexpr((num_ds_read_inst_a - (i + 1) * ds_read_a_mfma_rate) >=
-                            ds_read_a_mfma_rate)
+                         ds_read_a_mfma_rate)
             {
                 __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
             }
             else
             {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x100,
-                    num_ds_read_inst_a - (num_dsread_a_mfma - 1) * ds_read_a_mfma_rate,
-                    0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x100,
+                                                     num_ds_read_inst_a - (num_dsread_a_mfma - 1) *
+                                                                              ds_read_a_mfma_rate,
+                                                     0); // DS read
             }
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
         });
 
         static_for<0, num_dsread_b_mfma, 1>{}([&](auto i) {
             if constexpr((num_ds_read_inst_b - (i + 1) * ds_read_b_mfma_rate) >=
-                            ds_read_b_mfma_rate)
+                         ds_read_b_mfma_rate)
             {
                 __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
             }
             else
             {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x100,
-                    num_ds_read_inst_b - (num_dsread_b_mfma - 1) * ds_read_b_mfma_rate,
-                    0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x100,
+                                                     num_ds_read_inst_b - (num_dsread_b_mfma - 1) *
+                                                                              ds_read_b_mfma_rate,
+                                                     0); // DS read
             }
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
         });
     }
 #endif
 
-    template <typename ADramBlockWindowTmp,
-              typename BDramBlockWindowTmp>
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
     CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                         const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                         index_t num_loop,
@@ -201,12 +202,12 @@ struct BlockGemmPipelineAGmemBGmemCReg
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
-            std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
+                std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
             "wrong!");
 
         static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                      kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                      kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+                          kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                          kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
         // -----------------------------------------------------------------------------------------
@@ -220,8 +221,8 @@ struct BlockGemmPipelineAGmemBGmemCReg
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         constexpr index_t a_lds_block_space_size_aligned =
-            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(),
-                                        16) * 16;
+            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16) *
+            16;
 
         // B tile in LDS
         BDataType* p_b_lds = static_cast<BDataType*>(
@@ -234,40 +235,44 @@ struct BlockGemmPipelineAGmemBGmemCReg
         // A DRAM tile window for load
         auto a_copy_dram_window =
             make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                            make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                            a_dram_block_window_tmp.get_window_origin(),
-                            Policy::template MakeADramTileDistribution<Problem>());
+                             make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+                             a_dram_block_window_tmp.get_window_origin(),
+                             Policy::template MakeADramTileDistribution<Problem>());
 
         // A LDS tile window for store
         auto a_copy_lds_window =
             make_tile_window(a_lds_block,
-                            make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                            {0, 0},
-                            a_copy_dram_window.get_tile_distribution());
+                             make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+                             {0, 0},
+                             a_copy_dram_window.get_tile_distribution());
 
         // B DRAM tile window for load
         auto b_copy_dram_window =
             make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                            make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
-                            b_dram_block_window_tmp.get_window_origin(),
-                            Policy::template MakeBDramTileDistribution<Problem>());
+                             make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+                             b_dram_block_window_tmp.get_window_origin(),
+                             Policy::template MakeBDramTileDistribution<Problem>());
 
         // B LDS tile window for store
         auto b_copy_lds_window =
             make_tile_window(b_lds_block,
-                            make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
-                            {0, 0},
-                            b_copy_dram_window.get_tile_distribution());
+                             make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+                             {0, 0},
+                             b_copy_dram_window.get_tile_distribution());
 
 #if defined(ENABLE_PREFETCH)
         // A LDS tile for block GEMM
         auto a_lds_gemm_window = make_tile_window(
-            a_lds_block, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0},
+            a_lds_block,
+            make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+            {0, 0},
             make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode()));
 
         // B LDS tile for block GEMM
         auto b_lds_gemm_window = make_tile_window(
-            b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0},
+            b_lds_block,
+            make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+            {0, 0},
             make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode()));
 #else
         // A LDS tile for block GEMM
@@ -285,14 +290,11 @@ struct BlockGemmPipelineAGmemBGmemCReg
         // Acc register tile
         auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};
 
-
         using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
         using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
 
-        using ABlockTile =
-            decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
-        using BBlockTile =
-            decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
+        using ABlockTile = decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
+        using BBlockTile = decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
 
         ABlockTile a_block_tile;
         BBlockTile b_block_tile;
@@ -314,7 +316,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
         a_block_tile = load_tile(a_copy_dram_window);
         b_block_tile = load_tile(b_copy_dram_window);
 
-        if (num_loop > 1)
+        if(num_loop > 1)
         {
             move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
             move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
@@ -338,7 +340,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
         __builtin_amdgcn_sched_barrier(0);
 
         // Main body
-        if (num_loop > 2)
+        if(num_loop > 2)
         {
             index_t i = 0;
             do
@@ -373,7 +375,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
         }
 
         // Tail
-        if (num_loop > 1)
+        if(num_loop > 1)
         {
             block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             block_sync_lds();
@@ -398,7 +400,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
 
         index_t iCounter = num_loop - 1;
 
-        while (iCounter > 0)
+        while(iCounter > 0)
         {
             a_block_tile = load_tile(a_copy_dram_window);
             b_block_tile = load_tile(b_copy_dram_window);

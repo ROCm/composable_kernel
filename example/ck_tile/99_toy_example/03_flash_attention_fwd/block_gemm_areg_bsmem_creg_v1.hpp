@@ -54,12 +54,10 @@ struct BlockGemmARegBSmemCRegV1
             NPerBlock * KPerBlock / (kBlockSize * B_LDS_RW_Width);
 
         constexpr index_t B_LDS_Read_Inst_Num =
-            WaveNumM * NPerBlock * KPerBlock /
-            (kBlockSize * B_LDS_RW_Width);
+            WaveNumM * NPerBlock * KPerBlock / (kBlockSize * B_LDS_RW_Width);
 
-        constexpr index_t C_MFMA_Inst_Num =
-            MPerBlock * NPerBlock * KPerBlock / (kBlockSize / WaveSize) /
-            (MPerXDL * NPerXDL * KPerXDL);
+        constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
+                                            (kBlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
 
         // B split schedule
         constexpr auto num_ds_read_inst_b = B_LDS_RW_Width * sizeof(BDataType) / kPackedSize == 16
@@ -92,8 +90,8 @@ struct BlockGemmARegBSmemCRegV1
             ignore = i;
             static_for<0, num_dswrite_per_issue_b, 1>{}([&](auto idswrite) {
                 ignore = idswrite;
-                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_dswrite_b, 0);     // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0);                      // DS write
+                __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_dswrite_b, 0); // MFMA
             });
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             __builtin_amdgcn_sched_group_barrier(0x008,
@@ -126,17 +124,19 @@ struct BlockGemmARegBSmemCRegV1
                                const ABlockTensorTmp& a_block_tensor_tmp,
                                const BBlockWindowTmp& b_block_window_tmp) const
     {
-        static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
-                      std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
-                      std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
-                      "wrong!");
+        static_assert(
+            std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
+                std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
+                std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+            "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
         constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
         constexpr index_t KPerBlock = ABlockTensorTmp{}.get_lengths()[number<1>{}];
 
         static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
-                      KPerBlock == BlockGemmShape::kK, "wrong!");
+                          KPerBlock == BlockGemmShape::kK,
+                      "wrong!");
 
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -154,13 +154,13 @@ struct BlockGemmARegBSmemCRegV1
 
         const index_t iNWarp = get_warp_id() % NWarp;
 
-        constexpr auto a_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<NWarp>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-            tuple<sequence<1, 0>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
+        constexpr auto a_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
 
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
@@ -190,11 +190,14 @@ struct BlockGemmARegBSmemCRegV1
         auto b_warp_window_tmp = make_tile_window(
             b_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<WG::kN>{}, number<WG::kK>{}),
-            {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN, b_block_window_tmp.get_window_origin().at(number<1>{})},
+            {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN,
+             b_block_window_tmp.get_window_origin().at(number<1>{})},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-        statically_indexed_array<statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
-                                 NIterPerWarp> b_warp_windows;
+        statically_indexed_array<
+            statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
+            NIterPerWarp>
+            b_warp_windows;
 
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -206,9 +209,11 @@ struct BlockGemmARegBSmemCRegV1
         });
 
         // check C-block-distribution
-        static_assert(std::is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
-                      remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
-                      .get_static_tile_distribution_encoding())>>, "wrong!");
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
+                           remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
+            "wrong!");
 
         using AWarpDstr = typename WG::AWarpDstr;
         using CWarpDstr = typename WG::CWarpDstr;
@@ -216,8 +221,10 @@ struct BlockGemmARegBSmemCRegV1
         using AWarpTensor = typename WG::AWarpTensor;
         using CWarpTensor = typename WG::CWarpTensor;
 
-        constexpr auto a_warp_y_lengths = to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_lengths = to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto a_warp_y_lengths =
+            to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
@@ -260,16 +267,18 @@ struct BlockGemmARegBSmemCRegV1
     __device__ auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
                                const BBlockWindowTmp& b_block_window_tmp) const
     {
-        static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
-                      std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>>,
-                      "wrong!");
+        static_assert(
+            std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
+                std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>>,
+            "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
         constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
         constexpr index_t KPerBlock = ABlockTensorTmp{}.get_lengths()[number<1>{}];
 
         static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
-                      KPerBlock == BlockGemmShape::kK, "wrong!");
+                          KPerBlock == BlockGemmShape::kK,
+                      "wrong!");
 
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -287,13 +296,13 @@ struct BlockGemmARegBSmemCRegV1
 
         const index_t iNWarp = get_warp_id() % NWarp;
 
-        constexpr auto a_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<NWarp>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-            tuple<sequence<1, 0>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
+        constexpr auto a_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
 
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
@@ -324,11 +333,14 @@ struct BlockGemmARegBSmemCRegV1
         auto b_warp_window_tmp = make_tile_window(
             b_block_window_tmp.get_bottom_tensor_view(),
             make_tuple(number<WG::kN>{}, number<WG::kK>{}),
-            {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN, b_block_window_tmp.get_window_origin().at(number<1>{})},
+            {b_block_window_tmp.get_window_origin().at(number<0>{}) + iNWarp * WG::kN,
+             b_block_window_tmp.get_window_origin().at(number<1>{})},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-        statically_indexed_array<statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
-                                 NIterPerWarp> b_warp_windows;
+        statically_indexed_array<
+            statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
+            NIterPerWarp>
+            b_warp_windows;
 
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -348,8 +360,10 @@ struct BlockGemmARegBSmemCRegV1
         using AWarpTensor = typename WG::AWarpTensor;
         using CWarpTensor = typename WG::CWarpTensor;
 
-        constexpr auto a_warp_y_lengths = to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_lengths = to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto a_warp_y_lengths =
+            to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};

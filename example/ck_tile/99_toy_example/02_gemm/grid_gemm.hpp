@@ -55,10 +55,8 @@ struct GridGemm
 
         __shared__ char p_smem_char[block_gemm_pipeline.GetStaticLdsSize()];
 
-        const auto acc_block_tile = block_gemm_pipeline(a_block_window,
-                                                        b_block_window,
-                                                        K / kKPerBlock,
-                                                        p_smem_char);
+        const auto acc_block_tile =
+            block_gemm_pipeline(a_block_window, b_block_window, K / kKPerBlock, p_smem_char);
 
         // cast to CDataType and apply CElementFunction
         const auto c_block_tile = tile_elementwise_in(
