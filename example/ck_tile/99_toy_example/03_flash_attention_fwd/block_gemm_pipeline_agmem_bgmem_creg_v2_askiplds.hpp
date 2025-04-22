@@ -134,6 +134,8 @@ struct BlockGemmPipelineAGmemBGmemCReg<
             b_block_tile = load_tile(b_copy_dram_window);
         }
 
+        __builtin_amdgcn_sched_barrier(0);
+
         if constexpr(k_loops > 2)
         {
             static_for<0, k_loops - 2, 1>{}([&](auto i_k0) {
@@ -158,6 +160,9 @@ struct BlockGemmPipelineAGmemBGmemCReg<
 
                 store_tile(b_copy_lds_window, b_block_tile);
                 b_block_tile = load_tile(b_copy_dram_window);
+
+                block_gemm.HotLoopScheduler();
+                __builtin_amdgcn_sched_barrier(0);
             });
         }
 
@@ -276,6 +281,7 @@ struct BlockGemmPipelineAGmemBGmemCReg<
             b_block_tile = load_tile(b_copy_dram_window);
         }
 
+        __builtin_amdgcn_sched_barrier(0);
         if constexpr(k_loops > 2)
         {
             static_for<0, k_loops - 2, 1>{}([&](auto i_k0) {
@@ -293,6 +299,9 @@ struct BlockGemmPipelineAGmemBGmemCReg<
 
                 store_tile(b_copy_lds_window, b_block_tile);
                 b_block_tile = load_tile(b_copy_dram_window);
+
+                block_gemm.HotLoopScheduler();
+                __builtin_amdgcn_sched_barrier(0);
             });
         }
 
