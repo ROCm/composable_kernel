@@ -16,7 +16,6 @@
 #include "block_gemm_areg_bsmem_creg_v1.hpp"
 #include "ck_tile/ops/reduce.hpp"
 
-
 namespace ck_tile {
 
 // S[M0, N0] = Q[M0, K0] * K[N0, K0]
@@ -40,27 +39,25 @@ template <typename QDataType,
 struct FlashAttentionFwdImpl
 {
     // block gemm0 pipeline
-    using BlockGemm0Problem = BlockGemmPipelineProblem<
-        QDataType,
-        KDataType,
-        SaccDataType,
-        kBlockSize,
-        TileGemmShape<kM0PerBlock, kN0PerBlock, kK0PerBlock>>;
+    using BlockGemm0Problem =
+        BlockGemmPipelineProblem<QDataType,
+                                 KDataType,
+                                 SaccDataType,
+                                 kBlockSize,
+                                 TileGemmShape<kM0PerBlock, kN0PerBlock, kK0PerBlock>>;
 
     using BlockGemm0Policy =
         BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy<kHeadDim>;
 
-    using BlockGemm0Pipeline =
-        BlockGemmPipelineAGmemBGmemCReg<BlockGemm0Problem, BlockGemm0Policy>;
+    using BlockGemm0Pipeline = BlockGemmPipelineAGmemBGmemCReg<BlockGemm0Problem, BlockGemm0Policy>;
 
     // block gemm1
     using BlockGemm1 = BlockGemmARegBSmemCRegV1<
-        BlockGemmARegBSmemCRegProblem<
-            PDataType,
-            VDataType,
-            OaccDataType,
-            kBlockSize,
-            TileGemmShape<kM0PerBlock, kN1PerBlock, kK1PerBlock>>,
+        BlockGemmARegBSmemCRegProblem<PDataType,
+                                      VDataType,
+                                      OaccDataType,
+                                      kBlockSize,
+                                      TileGemmShape<kM0PerBlock, kN1PerBlock, kK1PerBlock>>,
         BlockGemmARegBSmemCRegV1DefaultPolicy>;
 
     // 3d, with padding
@@ -68,7 +65,7 @@ struct FlashAttentionFwdImpl
     {
         constexpr index_t kNPerBlock = kN1PerBlock;
         constexpr index_t kKPerBlock = kK1PerBlock;
-        constexpr index_t kKPack = 4;
+        constexpr index_t kKPack     = 4;
 
         constexpr auto dataTypeSize = sizeof(VDataType);
         constexpr auto NLdsLayer =
@@ -76,8 +73,8 @@ struct FlashAttentionFwdImpl
 
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack * NLdsLayer>{},
-                    number<kNPerBlock / NLdsLayer>{},
-                    number<kKPack>{}),
+                       number<kNPerBlock / NLdsLayer>{},
+                       number<kKPack>{}),
             make_tuple(number<kKPack>{}, number<kKPerBlock * NLdsLayer>{}, number<1>{}),
             number<kKPack>{},
             number<1>{});
@@ -85,26 +82,26 @@ struct FlashAttentionFwdImpl
         constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
             b_lds_block_desc_0,
             make_tuple(make_xor_transform(make_tuple(number<kNPerBlock / NLdsLayer>{},
-                                                    number<kKPerBlock / kKPack * NLdsLayer>{})),
-                    make_pass_through_transform(number<kKPack>{})),
+                                                     number<kKPerBlock / kKPack * NLdsLayer>{})),
+                       make_pass_through_transform(number<kKPack>{})),
             make_tuple(sequence<1, 0>{}, sequence<2>{}),
             make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
         constexpr auto b_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
             b_lds_block_desc_permuted,
             make_tuple(make_unmerge_transform(
-                        make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
-                        make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
-                        make_pass_through_transform(number<kKPack>{})),
+                           make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                       make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
+                       make_pass_through_transform(number<kKPack>{})),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
             make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
 
         constexpr auto b_lds_block_desc = transform_tensor_descriptor(
             b_lds_block_desc_xk0_mnldslayer_mn_xk1,
-            make_tuple(make_merge_transform(
-                        make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
-                        make_merge_transform(
-                        make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(
+                make_merge_transform(
+                    make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
+                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
         return b_lds_block_desc;
@@ -125,11 +122,11 @@ struct FlashAttentionFwdImpl
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<1>, sequence<2, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 1>>{});
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 
     __device__ static constexpr index_t GetStaticLdsSize()
@@ -190,8 +187,8 @@ struct FlashAttentionFwdImpl
 
         // V LDS and LDS window
         // V LDS occupies the same LDS allocation Q/K LDS
-        auto v_lds = make_tensor_view<address_space_enum::lds>(reinterpret_cast<VDataType*>(smem_ptr),
-                                                               MakeVLdsBlockDescriptor());
+        auto v_lds = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<VDataType*>(smem_ptr), MakeVLdsBlockDescriptor());
 
         auto v_lds_window = make_tile_window(
             v_lds, make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}), {0, 0});
@@ -229,8 +226,8 @@ struct FlashAttentionFwdImpl
         auto l     = MLBlockTileType{};
 
         tile_elementwise_inout([](auto& e) { e = 0; }, o_acc);
-        tile_elementwise_inout([](auto& e) { e = std::numeric_limits<SMPLComputeDataType>::lowest(); },
-                               m);
+        tile_elementwise_inout(
+            [](auto& e) { e = std::numeric_limits<SMPLComputeDataType>::lowest(); }, m);
         tile_elementwise_inout([](auto& e) { e = 0; }, l);
 
         // loop over Column of S (J loop)

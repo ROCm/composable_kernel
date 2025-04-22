@@ -36,10 +36,7 @@ struct AddShape
         warpSize * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
 };
 
-template <typename XDataType_,
-          typename ComputeDataType_,
-          typename YDataType_,
-          typename BlockShape_>
+template <typename XDataType_, typename ComputeDataType_, typename YDataType_, typename BlockShape_>
 struct AddProblem
 {
     using XDataType       = remove_cvref_t<XDataType_>;
@@ -76,7 +73,8 @@ struct Add
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
 
-    CK_TILE_DEVICE void operator()(const XDataType* p_x_a, const XDataType* p_x_b, YDataType* p_y, index_t M, index_t N) const
+    CK_TILE_DEVICE void operator()(
+        const XDataType* p_x_a, const XDataType* p_x_b, YDataType* p_y, index_t M, index_t N) const
     {
         using S = typename Problem::BlockShape;
 
@@ -98,14 +96,14 @@ struct Add
         const auto iM = get_block_id() * S::Block_M;
 
         auto x_window_a = make_tile_window(x_m_n_a,
-                                         make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                                         {iM, 0},
-                                         Policy::template MakeXBlockTileDistribution<Problem>());
+                                           make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                           {iM, 0},
+                                           Policy::template MakeXBlockTileDistribution<Problem>());
 
         auto x_window_b = make_tile_window(x_m_n_b,
-                                         make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                                         {iM, 0},
-                                         Policy::template MakeXBlockTileDistribution<Problem>());
+                                           make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                           {iM, 0},
+                                           Policy::template MakeXBlockTileDistribution<Problem>());
 
         auto y_window = make_tile_window(y_m_n,
                                          make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
@@ -117,17 +115,17 @@ struct Add
 
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
-            const auto xa = load_tile(x_window_a);
-            const auto xb = load_tile(x_window_b);
+            const auto xa  = load_tile(x_window_a);
+            const auto xb  = load_tile(x_window_b);
             auto y_compute = load_tile(y_window);
 
             constexpr auto spans = decltype(xa)::get_distributed_spans();
             sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                 sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx          = ck_tile::make_tuple(idx0, idx1);
-                    const auto x = ck_tile::type_convert<ComputeDataType>(xa[i_j_idx]);
-                    const auto y = ck_tile::type_convert<ComputeDataType>(xb[i_j_idx]);
-                    y_compute(i_j_idx) = x + y;
+                    constexpr auto i_j_idx = ck_tile::make_tuple(idx0, idx1);
+                    const auto x           = ck_tile::type_convert<ComputeDataType>(xa[i_j_idx]);
+                    const auto y           = ck_tile::type_convert<ComputeDataType>(xb[i_j_idx]);
+                    y_compute(i_j_idx)     = x + y;
                 });
             });
 

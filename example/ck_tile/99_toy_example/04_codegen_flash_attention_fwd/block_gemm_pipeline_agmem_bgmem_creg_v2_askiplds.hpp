@@ -207,8 +207,9 @@ struct BlockGemmPipelineAGmemBGmemCReg<
                                         const ARegBlockTensorTmp& a_reg_block_tensor_tmp,
                                         void* p_smem) const
     {
-        static_assert(std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
-                      "wrong!");
+        static_assert(
+            std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
+            "wrong!");
 
         static_assert(kNPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kKPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
@@ -334,9 +335,9 @@ struct BlockGemmPipelineAGmemBGmemCReg<
     {
         return operator()(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            [](const ADataType & a) { return a; },
             b_dram_block_window_tmp,
-            [](const BDataType& b) { return b; },
+            [](const BDataType & b) { return b; },
             a_reg_block_tensor_tmp,
             p_smem);
     }
@@ -348,7 +349,7 @@ struct BlockGemmPipelineAGmemBGmemCReg<
     {
         return operator()(
             b_dram_block_window_tmp,
-            [](const BDataType& b) { return b; },
+            [](const BDataType & b) { return b; },
             a_reg_block_tensor_tmp,
             p_smem);
     }

@@ -38,7 +38,7 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kMPerBlock),
-                    make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<0>{}, sequence<1, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -52,7 +52,7 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kMPerBlock),
-                    make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<0>{}, sequence<1, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -66,7 +66,7 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kMPerBlock),
-                    make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -79,8 +79,8 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack * MLdsLayer>{},
-                    number<kMPerBlock / MLdsLayer>{},
-                    number<kKPack>{}),
+                       number<kMPerBlock / MLdsLayer>{},
+                       number<kKPack>{}),
             make_tuple(number<kKPack>{}, number<kKPerBlock * MLdsLayer>{}, number<1>{}),
             number<kKPack>{},
             number<1>{});
@@ -88,26 +88,26 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_xor_transform(make_tuple(number<kMPerBlock / MLdsLayer>{},
-                                                    number<kKPerBlock / kKPack * MLdsLayer>{})),
-                    make_pass_through_transform(number<kKPack>{})),
+                                                     number<kKPerBlock / kKPack * MLdsLayer>{})),
+                       make_pass_through_transform(number<kKPack>{})),
             make_tuple(sequence<1, 0>{}, sequence<2>{}),
             make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
         constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
             a_lds_block_desc_permuted,
             make_tuple(make_unmerge_transform(
-                        make_tuple(number<MLdsLayer>{}, number<kKPerBlock / kKPack>{})),
-                        make_pass_through_transform(number<kMPerBlock / MLdsLayer>{}),
-                        make_pass_through_transform(number<kKPack>{})),
+                           make_tuple(number<MLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                       make_pass_through_transform(number<kMPerBlock / MLdsLayer>{}),
+                       make_pass_through_transform(number<kKPack>{})),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
             make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
 
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_xk0_mnldslayer_mn_xk1,
-            make_tuple(make_merge_transform(
-                        make_tuple(number<kMPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
-                        make_merge_transform(
-                        make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(
+                make_merge_transform(
+                    make_tuple(number<kMPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
+                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 #endif
@@ -132,7 +132,7 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr auto b_lds_block_desc = transform_tensor_descriptor(
             b_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kNPerBlock),
-                    make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<0>{}, sequence<1, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -146,7 +146,7 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr auto b_lds_block_desc = transform_tensor_descriptor(
             b_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kNPerBlock),
-                    make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<0>{}, sequence<1, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -160,7 +160,7 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr auto b_lds_block_desc = transform_tensor_descriptor(
             b_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kNPerBlock),
-                    make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -173,8 +173,8 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
 
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack * NLdsLayer>{},
-                    number<kNPerBlock / NLdsLayer>{},
-                    number<kKPack>{}),
+                       number<kNPerBlock / NLdsLayer>{},
+                       number<kKPack>{}),
             make_tuple(number<kKPack>{}, number<kKPerBlock * NLdsLayer>{}, number<1>{}),
             number<kKPack>{},
             number<1>{});
@@ -182,26 +182,26 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
         constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
             b_lds_block_desc_0,
             make_tuple(make_xor_transform(make_tuple(number<kNPerBlock / NLdsLayer>{},
-                                                    number<kKPerBlock / kKPack * NLdsLayer>{})),
-                    make_pass_through_transform(number<kKPack>{})),
+                                                     number<kKPerBlock / kKPack * NLdsLayer>{})),
+                       make_pass_through_transform(number<kKPack>{})),
             make_tuple(sequence<1, 0>{}, sequence<2>{}),
             make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
         constexpr auto b_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
             b_lds_block_desc_permuted,
             make_tuple(make_unmerge_transform(
-                        make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
-                        make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
-                        make_pass_through_transform(number<kKPack>{})),
+                           make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                       make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
+                       make_pass_through_transform(number<kKPack>{})),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
             make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
 
         constexpr auto b_lds_block_desc = transform_tensor_descriptor(
             b_lds_block_desc_xk0_mnldslayer_mn_xk1,
-            make_tuple(make_merge_transform(
-                        make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
-                        make_merge_transform(
-                        make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(
+                make_merge_transform(
+                    make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
+                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 #endif
@@ -228,11 +228,11 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<1>, sequence<2, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 1>>{});
+                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 
     template <typename Problem>
@@ -254,11 +254,11 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<1>, sequence<2, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 1>>{});
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 
 #if defined(ENABLE_INSTRUCTION_SCH)
@@ -313,7 +313,7 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, KPerBlock>();
@@ -322,7 +322,7 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB()
     {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, KPerBlock>();

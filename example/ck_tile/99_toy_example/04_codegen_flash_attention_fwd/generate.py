@@ -1,23 +1,15 @@
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+#SPDX - License - Identifier : MIT
+#Copyright(c) 2025, Advanced Micro Devices, Inc.All rights reserved.
 
-import argparse
-from enum import IntEnum
-from pathlib import Path
-import sys
-from typing import List, Optional, Any
-import functools
-import itertools
-import copy
-from dataclasses import dataclass
+import argparse from enum import IntEnum from pathlib import Path import sys from typing import List, Optional, Any import functools import itertools import copy from dataclasses import dataclass
 
-# def get_if_str(idx, total, last_else=True):
-#     if idx == 0:
-#         return 'if'
-#     elif idx < total - 1:
-#         return 'else if'
-#     else:
-#         return 'else' if last_else else 'else if'
+#def get_if_str(idx, total, last_else = True):
+#if idx == 0:
+#return 'if'
+#elif idx < total - 1:
+#return 'else if'
+#else:
+#return 'else' if last_else else 'else if'
 
 def get_if_str(size_, total, last_else=True):
     if size_ == "small":
@@ -90,77 +82,80 @@ using traits_ = flash_attention_fwd_traits_<SaccDataType,
                                           kK1PerBlock>;
 """
 
-#     API_COMMON_HEADER = """
-# // SPDX-License-Identifier: MIT
-# // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+#API_COMMON_HEADER = "" \
+                     "
+#// SPDX-License-Identifier: MIT
+#// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
-# #include <ck_tile/core.hpp>
+# #include<ck_tile / core.hpp>
 # #include "flash_attention_fwd.hpp"
-# #include <iostream>
+# #include<iostream>
 
 # #pragma once
 
-# using S = ck_tile::stream_config;
-# using A = FlashAttnArgs;
+#using S = ck_tile::stream_config;
+#using A = FlashAttnArgs;
 
-# {F_traits_define}
+#{F_traits_define }
 
-# template <typename QDataType,
-#           typename KDataType,
-#           typename VDataType,
-#           typename ODataType,
-#           typename Traits_>
-# float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a, 
-#                           const ck_tile::stream_config& stream_config) {{
-#     using SaccDataType        = typename Traits_::SaccDataType;                                                                           
-#     using SMPLComputeDataType = typename Traits_::SMPLComputeDataType;                                                                           
-#     using PDataType           = typename Traits_::PDataType;                                                                           
-#     using OaccDataType        = typename Traits_::OaccDataType;                                                                           
-    
-#     index_t kGridSize = a.Batch * (a.M0 / Traits_::kM0PerBlock) * (a.N1 / Traits_::kN1PerBlock);
+#template < typename QDataType,
+#typename KDataType,
+#typename VDataType,
+#typename ODataType,
+#typename Traits_>
+#float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, ODataType>& a,
+#const ck_tile::stream_config& stream_config){{
+#using SaccDataType        = typename Traits_::SaccDataType;
+#using SMPLComputeDataType = typename Traits_::SMPLComputeDataType;
+#using PDataType           = typename Traits_::PDataType;
+#using OaccDataType        = typename Traits_::OaccDataType;
 
-#     if(stream_config.log_level_ > 0)
-#         std::cout << ", " << "FlashAttentionFwd<" << Traits_::kBlockSize << "," << Traits_::kHeadDim << ">" << std::flush;
+#index_t kGridSize = a.Batch * (a.M0 / Traits_::kM0PerBlock) * (a.N1 / Traits_::kN1PerBlock);
 
-#     return ck_tile::launch_kernel(stream_config,
-#         ck_tile::make_kernel<Traits_::kBlockSize, Traits_::kBlockPerCu>(
-#         ck_tile::FlashAttentionFwd<QDataType,
-#                                    KDataType,
-#                                    VDataType,
-#                                    SaccDataType,
-#                                    SMPLComputeDataType,
-#                                    PDataType,
-#                                    OaccDataType,
-#                                    ODataType,
-#                                    Traits_::kBlockSize,
-#                                    Traits_::kHeadDim,
-#                                    Traits_::kM0PerBlock,
-#                                    Traits_::kN0PerBlock,
-#                                    Traits_::kK0PerBlock,
-#                                    Traits_::kN1PerBlock,
-#                                    Traits_::kK1PerBlock>{{}},
-#         kGridSize,
-#         Traits_::kBlockSize,
-#         0,
-#         a.q_ptr,
-#         a.k_ptr,
-#         a.v_ptr,
-#         a.o_ptr,
-#         a.M0,
-#         a.N0,
-#         a.K0,
-#         a.N1,
-#         a.Batch,
-#         a.strideQ,        // StrideQ
-#         a.strideK,        // StrideK
-#         a.strideV,        // StrideV
-#         a.strideO,        // StrideO
-#         a.batchStrideQ,   // BatchStrideQ
-#         a.batchStrideK,   // BatchStrideK
-#         a.batchStrideV,   // BatchStrideV
-#         a.batchStrideO)); // BatchStrideO
-# }}
-# """
+#if (stream_config.log_level_ > 0)
+#std::cout << ", " << "FlashAttentionFwd<" << Traits_::kBlockSize << "," << Traits_::kHeadDim \
+           << ">" << std::flush;
+
+#return ck_tile::launch_kernel(stream_config,
+#ck_tile::make_kernel < Traits_::kBlockSize, Traits_::kBlockPerCu>(
+#ck_tile::FlashAttentionFwd < QDataType,
+#KDataType,
+#VDataType,
+#SaccDataType,
+#SMPLComputeDataType,
+#PDataType,
+#OaccDataType,
+#ODataType,
+#Traits_::kBlockSize,
+#Traits_::kHeadDim,
+#Traits_::kM0PerBlock,
+#Traits_::kN0PerBlock,
+#Traits_::kK0PerBlock,
+#Traits_::kN1PerBlock,
+#Traits_::kK1PerBlock>{{} },
+#kGridSize,
+#Traits_::kBlockSize,
+# 0,
+#a.q_ptr,
+#a.k_ptr,
+#a.v_ptr,
+#a.o_ptr,
+#a.M0,
+#a.N0,
+#a.K0,
+#a.N1,
+#a.Batch,
+#a.strideQ,        // StrideQ
+#a.strideK,        // StrideK
+#a.strideV,        // StrideV
+#a.strideO,        // StrideO
+#a.batchStrideQ,   // BatchStrideQ
+#a.batchStrideK,   // BatchStrideK
+#a.batchStrideV,   // BatchStrideV
+#a.batchStrideO)); // BatchStrideO
+#} }
+#"" \
+ "
 
     API_BASE = """
 // SPDX-License-Identifier: MIT
@@ -204,14 +199,19 @@ template float flash_attention_fwd<ck_tile::half_t, ck_tile::half_t, ck_tile::ha
 }}
 """
 
-#     API_PER_DTYPE = """    {F_if}(std::is_same_v<QDataType, {F_q_type}> && std::is_same_v<KDataType, {F_k_type}> && std::is_same_v<VDataType, {F_v_type}> && std::is_same_v<ODataType, {F_o_type}>) {{
-# {F_per_size_case}
-#     }}
-# """
-#     API_PER_SIZE_CASE = """        {F_if} {F_SIZE_COND} {{
-# {F_inner_dispatch}
-#         }}
-# """
+#API_PER_DTYPE = \
+    ""           \
+    "    {F_if}(std::is_same_v<QDataType, {F_q_type}> && std::is_same_v<KDataType, {F_k_type}> && std::is_same_v<VDataType, {F_v_type}> && std::is_same_v<ODataType, {F_o_type}>) {{
+#{F_per_size_case }
+#} }
+#"" \
+ "
+#API_PER_SIZE_CASE = "" \
+                     "        {F_if} {F_SIZE_COND} {{
+#{F_inner_dispatch }
+#} }
+#"" \
+ "
     API_INNER_CASE = """            {F_if} {F_VEC_COND}
                 r = flash_attention_fwd_<QDataType, KDataType, VDataType, ODataType, traits_<{F_trait_name}>>(a, stream_config);
 """
@@ -430,7 +430,7 @@ float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, 
 }}
 """
     def content_api(self, args) -> str:
-        # Sort based on dtype
+#Sort based on dtype
         t_dtype_dict = {}
         blobs = self.get_blobs(args)
         
@@ -464,28 +464,28 @@ float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, 
                             size_cond = "(a.M0 >= 4096 || a.N0 >= 4096)"
                         
                         inner_str += self.API_INNER_CASE.format(
-                            # F_if=get_if_str(idx_in_size, len_in_size, False),
+#F_if = get_if_str(idx_in_size, len_in_size, False),
                             F_if=get_if_str(size_, len_in_size, False),
                             F_VEC_COND=size_cond,
                             F_trait_name=ins.trait_name
                         )
-                
-                # size_str += self.API_PER_SIZE_CASE.format(
-                #     F_if=get_if_str(i_size, len(blob_per_t)),
-                #     F_SIZE_COND=size_cond,
-                #     F_inner_dispatch=inner_str
-                # )
+
+#size_str += self.API_PER_SIZE_CASE.format(
+#F_if             = get_if_str(i_size, len(blob_per_t)),
+#F_SIZE_COND      = size_cond,
+#F_inner_dispatch = inner_str
+#)
                 size_str += inner_str
-            
-            # q_type, k_type, v_type, o_type = dtype_.split(',')
-            # d_str += self.API_PER_DTYPE.format(
-            #     F_if=get_if_str(i_d, len(t_dtype_dict)), 
-            #     F_q_type=DATA_TYPE_MAP[q_type],
-            #     F_k_type=DATA_TYPE_MAP[k_type],
-            #     F_v_type=DATA_TYPE_MAP[v_type],
-            #     F_o_type=DATA_TYPE_MAP[o_type],
-            #     F_per_size_case=size_str
-            # )
+
+#q_type, k_type, v_type, o_type = dtype_.split(',')
+#d_str += self.API_PER_DTYPE.format(
+#F_if            = get_if_str(i_d, len(t_dtype_dict)),
+#F_q_type        = DATA_TYPE_MAP[q_type],
+#F_k_type        = DATA_TYPE_MAP[k_type],
+#F_v_type        = DATA_TYPE_MAP[v_type],
+#F_o_type        = DATA_TYPE_MAP[o_type],
+#F_per_size_case = size_str
+#)
             d_str += size_str
 
         api_base = self.API_BASE.format(
@@ -498,33 +498,33 @@ float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, 
         h_traits = self.h_traits
         h_instance = self.h_instance
 
-        # Define kernel configurations for different size categories
+#Define kernel configurations for different size categories
         trait_dict = {
             "small": [
                 h_traits('fp32', 'fp32', 'fp32', 'fp32', 128, 128, 128, 128, 32, 128, 32),
-                # h_traits('fp32', 'fp32', 'fp32', 'fp32', 256, 128, 128, 64, 32, 64, 32),
+#h_traits('fp32', 'fp32', 'fp32', 'fp32', 256, 128, 128, 64, 32, 64, 32),
             ],
             "medium": [
                 h_traits('fp32', 'fp32', 'fp32', 'fp32', 128, 128, 128, 128, 32, 128, 32),
-                # h_traits('fp32', 'fp32', 'fp32', 'fp32', 256, 128, 256, 128, 32, 128, 32),
+#h_traits('fp32', 'fp32', 'fp32', 'fp32', 256, 128, 256, 128, 32, 128, 32),
             ],
             "large": [
                 h_traits('fp32', 'fp32', 'fp32', 'fp32', 256, 128, 128, 128, 32, 128, 32),
-                # h_traits('fp32', 'fp32', 'fp32', 'fp32', 512, 128, 256, 256, 32, 256, 32),
+#h_traits('fp32', 'fp32', 'fp32', 'fp32', 512, 128, 256, 256, 32, 256, 32),
             ]
         }
 
-        # Toy example only support fp16
+#Toy example only support fp16
         dtype_combinations = [
             "fp16,fp16,fp16,fp16"
-        #    "bf16,bf16,bf16,bf16"
+#"bf16,bf16,bf16,bf16"
         ]
 
         total_blob = []
         for dtype_pair in dtype_combinations:
             for size_category in trait_dict:
                 traits = trait_dict[size_category]
-                # Convert data types for the current dtype_pair
+#Convert data types for the current dtype_pair
                 q_type, k_type, v_type, o_type = dtype_pair.split(',')
                 current_traits = []
                 for t in traits:
@@ -545,10 +545,10 @@ float flash_attention_fwd_(const FlashAttnArgs<QDataType, KDataType, VDataType, 
         blobs = self.get_blobs(args)
         
         with list_p.open('w') as list_f:
-            # API related files
+#API related files
             list_f.write(str(w_p / (self.name_api + ".cpp")) + "\n")
             list_f.write(str(w_p / (self.name_common_header + ".hpp")) + "\n")
-            # Kernel instance files
+#Kernel instance files
             for b in blobs:
                 list_f.write(str(w_p / (b.name + ".cpp")) + "\n")
 
