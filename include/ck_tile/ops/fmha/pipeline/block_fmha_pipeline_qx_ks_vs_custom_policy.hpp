@@ -790,7 +790,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t kKPack       = GetSmemKPackV<Problem>();
             constexpr index_t K3           = total_pixels / N1;
             constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
-            if constexpr(total_pixels % N1 != 0 || kKPack % K3 != 0) // if K2 or K2 is not divisible
+            if constexpr(total_pixels % N1 != 0 || kKPack % K3 != 0) // if K2 or K3 is not divisible
             {
                 constexpr index_t kNPack = 32;
                 static_assert(kNPerBlock % kNPack == 0);
