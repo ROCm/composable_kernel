@@ -89,6 +89,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     // reset input to zero
     in_device_buf.SetZero();
 
+    float max_accumulated_value = 0;
     if(do_verification)
     {
         auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
@@ -115,6 +116,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                                                   in_element_op);
 
         ref_invoker.Run(ref_argument);
+        max_accumulated_value = *std::max_element(in_host.mData.begin(), in_host.mData.end());
     }
 
     std::string best_op_name;
@@ -168,7 +170,32 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
             {
                 in_device_buf.FromDevice(in_device.mData.data());
 
-                pass = pass & ck::utils::check_err(in_device, in_host);
+                using ComputeType = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
+                                                       OutDataType,
+                                                       WeiDataType>;
+                using AccDataType =
+                    std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
+                const index_t num_accums = conv_param.K_;
+                // Calculate thresholds
+                auto rtol = ck::utils::get_relative_threshold<ComputeType, InDataType, AccDataType>(
+                    num_accums / split_k_for_run);
+                auto atol = ck::utils::get_absolute_threshold<ComputeType, InDataType, AccDataType>(
+                    max_accumulated_value / split_k_for_run, num_accums / split_k_for_run);
+                // Calculate error due to split_k accumulation
+                auto rtol_split_k =
+                    ck::utils::get_relative_threshold<InDataType, InDataType, InDataType>(
+                        split_k_for_run);
+                auto atol_split_k =
+                    ck::utils::get_absolute_threshold<InDataType, InDataType, InDataType>(
+                        max_accumulated_value, split_k_for_run);
+                // Use higher threshold
+                rtol = std::max(rtol, rtol_split_k);
+                atol = std::max(atol, atol_split_k);
+
+                pass = pass & ck::utils::check_err(
+                                  in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                std::cout << "Relative error threshold: " << rtol
+                          << " Absolute error threshold: " << atol << std::endl;
 
                 if(do_log)
                 {
