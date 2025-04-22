@@ -16,8 +16,10 @@ enum struct GemmMatrixLayout
 
 enum struct GemmDataType
 {
-    F8_F8_F16,  // 0
-    F8_F8_BF16, // 1
+    F8_F8_F16,      // 0
+    F8_F8_BF16,     // 1
+    F16_F16_F16,    // 2
+    BF16_BF16_BF16, // 3
 };
 
 #define OP_NAME "gemm_multiply_multiply_weight_preshuffle"
@@ -28,7 +30,7 @@ int profile_gemm_multiply_multiply_weight_preshuffle(int argc, char* argv[])
     if(argc != 16 && argc != 20)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: f8->f16; 1: f8->bf16;\n");
+        printf("arg2: data type (0: f8->f16; 1: f8->bf16; 2: f16->f16; 3: bf16->bf16;\n");
         printf("arg3: matrix layout (0: A[m, k] * B[MFMA] = C[m, n];\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
@@ -155,6 +157,16 @@ int profile_gemm_multiply_multiply_weight_preshuffle(int argc, char* argv[])
     {
         return profile(
             F8{}, F8{}, F8{}, F32{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_MFMA_MN)
+    {
+        return profile(
+            F16{}, F16{}, F16{}, F32{}, F32{}, F32{}, F16{}, Row{}, Col{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_MFMA_MN)
+    {
+        return profile(
+            BF16{}, BF16{}, BF16{}, F32{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{}, Col{}, Row{});
     }
     else
     {

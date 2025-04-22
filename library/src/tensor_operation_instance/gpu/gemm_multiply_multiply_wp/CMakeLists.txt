@@ -77,6 +77,18 @@ list(APPEND GEMM_MULTIPLY_MULTIPLY_WEIGHT_PRESHUFFLE_INSTANCES
         f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instance_p4_padding.cpp
         f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instance_p5_padding.cpp
         f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instance_p6_padding.cpp
+
+        f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_p1_instance.cpp
+        f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_p2_instance.cpp
+        f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_p3_instance.cpp
+        f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_compute_p1_instance.cpp
+        f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_compute_p2_instance.cpp
+
+        bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_p1_instance.cpp
+        bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_p2_instance.cpp
+        bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_p3_instance.cpp
+        bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_compute_p1_instance.cpp
+        bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_compute_p2_instance.cpp
         )
 
 set_source_files_properties(f8_f8_bf16/device_gemm_multiply_multiply_wp_xdl_f8_f8_bf16_mk_mfma_mn_p1_default_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
@@ -154,5 +166,17 @@ set_source_files_properties(f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8
 set_source_files_properties(f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instance_p4_padding.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
 set_source_files_properties(f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instance_p5_padding.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
 set_source_files_properties(f8_f8_f16/device_gemm_multiply_multiply_wp_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instance_p6_padding.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+
+set_source_files_properties(f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_p1_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+set_source_files_properties(f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_p2_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+set_source_files_properties(f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_p3_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+set_source_files_properties(f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_compute_p1_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+set_source_files_properties(f16_f16_f16/device_gemm_multiply_multiply_wp_xdl_f16_f16_f16_mk_mfma_mn_compute_p2_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+
+set_source_files_properties(bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_p1_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+set_source_files_properties(bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_p2_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+set_source_files_properties(bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_p3_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+set_source_files_properties(bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_compute_p1_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+set_source_files_properties(bf16_bf16_bf16/device_gemm_multiply_multiply_wp_xdl_bf16_bf16_bf16_mk_mfma_mn_compute_p2_instance.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
 
 add_instance_library(device_gemm_multiply_multiply_wp_instance ${GEMM_MULTIPLY_MULTIPLY_WEIGHT_PRESHUFFLE_INSTANCES})
