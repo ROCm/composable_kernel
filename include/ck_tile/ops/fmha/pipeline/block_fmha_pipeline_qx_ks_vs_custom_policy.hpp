@@ -806,7 +806,6 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                                sequence<0, 2, 2>>{});
             } else if constexpr(get_warp_size() % (kKPack / K3 * N0) == 0)
             {
-                printf("!!!!\n\n\n");
                 constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
                 constexpr index_t K1 = get_warp_size() / (K2 * N0);
                 constexpr index_t K0 = kBlockSize / get_warp_size();
@@ -821,7 +820,6 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             }
             else
             {
-                printf("!!!!\n\n\n");
                 constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
                 constexpr index_t K1   = (K2 * N0) / get_warp_size();
                 constexpr index_t K2_m = K2 / K1;
@@ -895,7 +893,6 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                            sequence<0, 2, 2>>{});
         } else if constexpr(get_warp_size() % (kKPack / K3 * N0) == 0)
         {
-                printf("!!!!\n\n\n");
             constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
             constexpr index_t K1 = get_warp_size() / (K2 * N0);
             constexpr index_t K0 = kBlockSize / get_warp_size();
@@ -910,7 +907,6 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         }
         else
         {
-                printf("!!!!\n\n\n");
             constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
             constexpr index_t K1   = (K2 * N0) / get_warp_size();
             constexpr index_t K2_m = K2 / K1;

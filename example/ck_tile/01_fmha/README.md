@@ -71,6 +71,7 @@ args:
   -drop_seed    seed for random number generator (default:1)
 -drop_offset    offset for random number generator (default:0)
  -drop_prefs    seed and offset values are present on GPU; 0 - host, 1 - device/GPU (default:0)
+ -num_splits    number of splits for key/value. 0 to determine actual number by heuristic (default:1)
      -warmup    number of iterations before benchmark the kernel (default:5)
      -repeat    number of iterations to benchmark the kernel (default:20)
 ```
