@@ -377,7 +377,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static constexpr bool isMultiD               = NumDTensor > 0;
     static constexpr GemmSpecialization GemmSpec = GemmSpecialization::MNKPadding;
     static constexpr bool IsSplitKSupported =
-        CDEBlockTransferScalarPerVector_NPerBlock % 2 == 0 || sizeof(EDataType) % 4 == 0;
+        (CDEBlockTransferScalarPerVector_NPerBlock % 2 == 0 || sizeof(EDataType) % 4 == 0) &&
+        !isMultiD;
 
     // TODO: Add support for different A and B data types.
     using ABDataType = ADataType;
@@ -2014,22 +2015,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         const index_t ConvK = arg.b_g_k_c_xs_lengths_[1];
         const index_t ConvC = arg.b_g_k_c_xs_lengths_[2];
 
-        for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
+        if constexpr(!isMultiD)
         {
-            const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I1);
-            const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_container_[i].GetLength(I1);
-            const index_t GemmK = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I0) *
-                                  arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I2);
-
-            typename GridwiseGemm::Argument gemm_arg{
-                nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
-
-            const auto num_k_loop = gemm_arg.AK0 / (KPerBlock / AK1);
-            if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+            for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
             {
-                if(num_k_loop <= GridwiseGemm::BlockwiseGemmPipe::PrefetchStages)
+                const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I1);
+                const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_container_[i].GetLength(I1);
+                const index_t GemmK = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I0) *
+                                      arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I2);
+
+                typename GridwiseGemm::Argument gemm_arg{
+                    nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
+
+                const auto num_k_loop = gemm_arg.AK0 / (KPerBlock / AK1);
+                if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
                 {
-                    return false;
+                    if(num_k_loop <= GridwiseGemm::BlockwiseGemmPipe::PrefetchStages)
+                    {
+                        return false;
+                    }
                 }
             }
         }
