@@ -18,10 +18,11 @@ inline DeviceResources GetDeviceResources() {
     DeviceResources res;
     hipDeviceProp_t props;
     
-    // Fix the unused result error by storing the return value
-    hipError_t status = hipGetDeviceProperties(&props, 0); // Use current device
-    if (status != hipSuccess) {
-        // Handle error (optional)
+    
+    hipError_t status = hipGetDeviceProperties(&props, 0); 
+    if (status != hipSuccess)
+    {
+        props.multiProcessorCount = 0; 
         res.computeUnits = 0;
         res.totalMemory = 0;
         res.deviceName = "Unknown";
@@ -58,3 +59,4 @@ inline DeviceCapabilityTier DetermineDeviceTier()
 
 } // namespace test
 } // namespace ck
+
