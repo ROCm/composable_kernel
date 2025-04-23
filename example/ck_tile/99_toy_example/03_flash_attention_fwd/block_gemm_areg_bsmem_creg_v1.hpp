@@ -36,7 +36,7 @@ struct BlockGemmARegBSmemCRegV1
         constexpr index_t NPerBlock = BlockGemmShape::kN;
         constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-        constexpr auto config     = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr auto config     = Policy::template GetWarpGemmMWarpNWarp<Problem, MPerBlock>();
         using WG                  = remove_cvref_t<decltype(config.template get<0>())>;
         constexpr index_t MPerXDL = WG::kM;
         constexpr index_t NPerXDL = WG::kN;
