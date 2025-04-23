@@ -307,7 +307,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
         // Gemm pipeline start
 
 #if defined(ENABLE_PREFETCH)
-
+#pragma message("global prefetch")
         // Initialize C
         tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
@@ -342,7 +342,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
         // Main body
         if(num_loop > 2)
         {
-            index_t i = 0;
+            index_t iCounter = 0;
             do
             {
                 block_sync_lds();
