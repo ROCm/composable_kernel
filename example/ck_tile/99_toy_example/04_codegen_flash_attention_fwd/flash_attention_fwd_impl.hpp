@@ -4,17 +4,15 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
-#include "ck_tile/core/tensor/tile_distribution.hpp"
-
-#include "tile_gemm_shape.hpp"
-#include "../../../example/ck_tile/99_toy_example/02_gemm/block_gemm_pipeline_agmem_bgmem_creg.hpp"
+#include "ck_tile/ops/reduce.hpp"
 
 #include "block_gemm_pipeline_agmem_bgmem_creg_v2_askiplds.hpp"
 #include "block_gemm_pipeline_problem.hpp"
 #include "block_gemm_areg_bsmem_creg_v1.hpp"
-#include "ck_tile/ops/reduce.hpp"
+#include "tile_gemm_shape.hpp"
 
 namespace ck_tile {
 

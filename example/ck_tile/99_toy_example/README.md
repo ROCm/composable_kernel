@@ -51,5 +51,5 @@ make -j basic_flash_attention_fwd
 
 ### **Flash Attention Forward Example**
 ```sh
-./bin/basic_flash_attention_fwd 1 0 1
+./bin/basic_flash_attention_fwd 1 1
 ```
