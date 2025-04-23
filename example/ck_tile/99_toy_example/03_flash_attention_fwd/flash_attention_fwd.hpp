@@ -8,10 +8,10 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 
-#include "../../../example/ck_tile/99_toy_example/02_gemm/block_gemm_pipeline_agmem_bgmem_creg.hpp"
 #include "block_gemm_pipeline_problem.hpp"
 #include "block_gemm_areg_bsmem_creg_v1.hpp"
 #include "flash_attention_fwd_impl.hpp"
+
 
 namespace ck_tile {
 
@@ -115,7 +115,8 @@ struct FlashAttentionFwd
         const index_t num_tile_m0 = integer_divide_ceil(M0, kM0PerBlock);
         const index_t num_tile_n1 = integer_divide_ceil(N1, kN1PerBlock);
 
-#if defined(GEMM_OPT)
+#if defined(TOY_FA_FWD_OPT)
+#pragma message("Enable toy FA fwd opt")
         const auto block2tile = MakeBlock2TileMap(num_tile_m0, num_tile_n1);
 
         const index_t id_tile_batch = id_block / num_tile_n1 / num_tile_m0;

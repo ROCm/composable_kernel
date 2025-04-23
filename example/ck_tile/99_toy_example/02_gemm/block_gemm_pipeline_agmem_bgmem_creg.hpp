@@ -306,11 +306,11 @@ struct BlockGemmPipelineAGmemBGmemCReg
         // -------------------------------------------------------------------------------------
         // Gemm pipeline start
 
-#if defined(ENABLE_PREFETCH)
-#pragma message("global prefetch")
         // Initialize C
         tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
+#if defined(ENABLE_PREFETCH)
+#pragma message("global prefetch")
         // Prefetch
         // Global read 0
         a_block_tile = load_tile(a_copy_dram_window);
@@ -325,7 +325,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
             store_tile(a_copy_lds_window, a_block_tile);
             store_tile(b_copy_lds_window, b_block_tile);
 
-            // Global read 0
+            // Global read 1
             a_block_tile = load_tile(a_copy_dram_window);
             b_block_tile = load_tile(b_copy_dram_window);
             move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
@@ -347,11 +347,11 @@ struct BlockGemmPipelineAGmemBGmemCReg
             {
                 block_sync_lds();
 
-                // LDS write 0
+                // LDS write 1
                 store_tile(a_copy_lds_window, a_block_tile);
                 store_tile(b_copy_lds_window, b_block_tile);
 
-                // Global read 0
+                // Global read 2
                 a_block_tile = load_tile(a_copy_dram_window);
                 b_block_tile = load_tile(b_copy_dram_window);
                 move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
@@ -387,18 +387,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
         block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 #else
         // non-prefetch
-        a_block_tile = load_tile(a_copy_dram_window);
-        b_block_tile = load_tile(b_copy_dram_window);
-        move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-        move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
-        store_tile(a_copy_lds_window, a_block_tile);
-        store_tile(b_copy_lds_window, b_block_tile);
-
-        block_sync_lds();
-        block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-        block_sync_lds();
-
-        index_t iCounter = num_loop - 1;
+        index_t iCounter = num_loop;
 
         while(iCounter > 0)
         {

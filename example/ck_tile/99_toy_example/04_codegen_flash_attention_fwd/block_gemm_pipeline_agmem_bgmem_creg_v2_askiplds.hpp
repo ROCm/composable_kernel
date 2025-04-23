@@ -13,16 +13,13 @@ namespace ck_tile {
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
-template <typename Problem, index_t kHeadDim>
-struct BlockGemmPipelineAGmemBGmemCReg<
-    Problem,
-    BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy<kHeadDim>>
+template <typename Problem, typename Policy>
+struct BlockGemmPipelineAGmemBGmemCReg
 {
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using Policy = BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy<kHeadDim>;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -134,6 +131,8 @@ struct BlockGemmPipelineAGmemBGmemCReg<
             b_block_tile = load_tile(b_copy_dram_window);
         }
 
+        __builtin_amdgcn_sched_barrier(0);
+
         if constexpr(k_loops > 2)
         {
             static_for<0, k_loops - 2, 1>{}([&](auto i_k0) {
@@ -158,6 +157,9 @@ struct BlockGemmPipelineAGmemBGmemCReg<
 
                 store_tile(b_copy_lds_window, b_block_tile);
                 b_block_tile = load_tile(b_copy_dram_window);
+
+                block_gemm.HotLoopScheduler();
+                __builtin_amdgcn_sched_barrier(0);
             });
         }
 
@@ -217,6 +219,9 @@ struct BlockGemmPipelineAGmemBGmemCReg<
 
         ignore = b_element_func;
 
+        // Block GEMM
+        constexpr auto block_gemm = Policy::template GetBlockGemm<Problem>();
+
         // A tile in Reg，blockTensor
         // This tensor distribution used to construct both distributed tensor for local buffer store
         // and read. without buffer address info
@@ -256,58 +261,90 @@ struct BlockGemmPipelineAGmemBGmemCReg<
 
         // B LDS tile for block GEMM
         auto b_lds_gemm_window = make_tile_window(
-            b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
-
-        // Block GEMM
-        constexpr auto block_gemm = Policy::template GetBlockGemm<Problem>();
+            b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0},
+            make_static_tile_distribution(block_gemm.MakeBBlockDistributionEncode()));
 
         // Acc register tile
         auto c_block_tile = decltype(block_gemm(
             get_slice_tile(a_copy_reg_tensor, sequence<0, 0>{}, sequence<kMPerBlock, kKPerBlock>{}),
             b_lds_gemm_window)){};
 
-        auto b_block_tile = load_tile(b_copy_dram_window);
+
         tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
+#if !defined(TOY_FA_FWD_OPT)
+        static_for<0, k_loops, 1>{}([&](auto i_k0) {
+            auto b_block_tile = load_tile(b_copy_dram_window);
+            move_tile_window(b_copy_dram_window, {0, kKPerBlock});
+            store_tile(b_copy_lds_window, b_block_tile);
+            block_sync_lds();
+            block_gemm(c_block_tile,
+                        get_slice_tile(a_copy_reg_tensor,
+                                        sequence<0, i_k0 * kKPerBlock>{},
+                                        sequence<kMPerBlock, (i_k0 + 1) * kKPerBlock>{}),
+                        b_copy_lds_window);
+            block_sync_lds();
+        });
+#else
+        using BLdsTile = typename decltype(block_gemm)::BLdsTile;
+        BLdsTile bWarpTile;
+
+        // Global read 0
+        auto b_block_tile = load_tile(b_copy_dram_window);
         if constexpr(k_loops > 1)
         {
             move_tile_window(b_copy_dram_window, {0, kKPerBlock});
 
+            // LDS write 0
             store_tile(b_copy_lds_window, b_block_tile);
+
+            // Global read 1
             b_block_tile = load_tile(b_copy_dram_window);
+            move_tile_window(b_copy_dram_window, {0, kKPerBlock});
+
+            block_sync_lds();
+
+            // LDS read 0
+            bWarpTile = load_tile(b_lds_gemm_window);
         }
 
         if constexpr(k_loops > 2)
         {
+            __builtin_amdgcn_sched_barrier(0);
             static_for<0, k_loops - 2, 1>{}([&](auto i_k0) {
                 block_sync_lds();
 
+                // LDS write 1
+                store_tile(b_copy_lds_window, b_block_tile);
+
+                // Global read 2
+                b_block_tile = load_tile(b_copy_dram_window);
+                move_tile_window(b_copy_dram_window, {0, kKPerBlock});
+
                 block_gemm(c_block_tile,
-                           get_slice_tile(a_copy_reg_tensor,
-                                          sequence<0, i_k0 * kKPerBlock>{},
-                                          sequence<kMPerBlock, (i_k0 + 1) * kKPerBlock>{}),
-                           b_copy_lds_window);
+                        get_slice_tile(a_copy_reg_tensor,
+                                        sequence<0, i_k0 * kKPerBlock>{},
+                                        sequence<kMPerBlock, (i_k0 + 1) * kKPerBlock>{}),
+                                        bWarpTile);
 
                 block_sync_lds();
 
-                move_tile_window(b_copy_dram_window, {0, kKPerBlock});
+                // LDS read 1
+                bWarpTile = load_tile(b_lds_gemm_window);
 
-                store_tile(b_copy_lds_window, b_block_tile);
-                b_block_tile = load_tile(b_copy_dram_window);
+                block_gemm.HotLoopScheduler();
+                __builtin_amdgcn_sched_barrier(0);
             });
         }
-
         // tail
         {
             if constexpr(k_loops > 1)
             {
-                block_sync_lds();
-
                 block_gemm(c_block_tile,
                            get_slice_tile(a_copy_reg_tensor,
                                           sequence<0, (k_loops - 2) * kKPerBlock>{},
                                           sequence<kMPerBlock, (k_loops - 1) * kKPerBlock>{}),
-                           b_copy_lds_window);
+                                          bWarpTile);
 
                 block_sync_lds();
             }
@@ -315,13 +352,15 @@ struct BlockGemmPipelineAGmemBGmemCReg<
 
             block_sync_lds();
 
+            bWarpTile = load_tile(b_lds_gemm_window);
+
             block_gemm(c_block_tile,
                        get_slice_tile(a_copy_reg_tensor,
                                       sequence<0, (k_loops - 1) * kKPerBlock>{},
                                       sequence<kMPerBlock, k_loops * kKPerBlock>{}),
-                       b_copy_lds_window);
+                                      bWarpTile);
         }
-
+#endif
         return c_block_tile;
     }
 
