@@ -361,11 +361,11 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
             return false;
         }
 
-        // Padding to release this restriction
-        if(arg.N % NPerBlock != 0 || arg.K % KPerBlock != 0)
-        {
-            return false;
-        }
+        // // Padding to release this restriction
+        // if(arg.N % NPerBlock != 0 || arg.K % KPerBlock != 0)
+        // {
+        //     return false;
+        // }
 
         return GridwiseGemm::CheckValidity(arg);
     }
