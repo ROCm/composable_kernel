@@ -378,7 +378,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static constexpr GemmSpecialization GemmSpec = GemmSpecialization::MNKPadding;
     static constexpr bool IsSplitKSupported =
         (CDEBlockTransferScalarPerVector_NPerBlock % 2 == 0 || sizeof(EDataType) % 4 == 0) &&
-        !isMultiD;
+        std::is_same_v<remove_cvref_t<CDEElementwiseOp>, element_wise::PassThrough>;
 
     // TODO: Add support for different A and B data types.
     using ABDataType = ADataType;
