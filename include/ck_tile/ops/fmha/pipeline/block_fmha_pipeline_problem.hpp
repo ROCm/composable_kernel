@@ -20,6 +20,7 @@ template <typename QDataType_,
           typename ODataType_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
+          typename AttentionVariant_,
           typename FmhaMask_,
           typename Traits_>
 struct BlockFmhaPipelineProblem
@@ -36,6 +37,7 @@ struct BlockFmhaPipelineProblem
     using OaccDataType          = remove_cvref_t<OaccDataType_>;
     using ODataType             = remove_cvref_t<ODataType_>;
     using BlockFmhaShape        = remove_cvref_t<BlockFmhaShape_>;
+    using AttentionVariant      = remove_cvref_t<AttentionVariant_>;
     using FmhaMask              = remove_cvref_t<FmhaMask_>;
     using Traits                = remove_cvref_t<Traits_>;
 
@@ -70,6 +72,7 @@ template <typename QDataType_,
           typename ODataType_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
+          typename AttentionVariant_,
           typename FmhaMask_,
           typename Traits_>
 struct BlockFmhaFwdSplitKVPipelineProblem
@@ -85,6 +88,7 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     using OaccDataType        = remove_cvref_t<OaccDataType_>;
     using ODataType           = remove_cvref_t<ODataType_>;
     using BlockFmhaShape      = remove_cvref_t<BlockFmhaShape_>;
+    using AttentionVariant    = remove_cvref_t<AttentionVariant_>;
     using FmhaMask            = remove_cvref_t<FmhaMask_>;
     using Traits              = remove_cvref_t<Traits_>;
 

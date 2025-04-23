@@ -28,6 +28,7 @@ struct BlockFmhaPipelineQRKSVS
     using PDataType             = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType             = remove_cvref_t<typename Problem::ODataType>;
+    using AttentionVariant      = remove_cvref_t<typename Problem::AttentionVariant>;
     using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
@@ -135,7 +136,7 @@ struct BlockFmhaPipelineQRKSVS
               typename PComputeElementFunction,
               typename OAccElementFunction,
               typename PositionEncoding,
-              typename LogitsSoftCapParams>
+              typename AttentionVariantParams>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -154,7 +155,8 @@ struct BlockFmhaPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               const LogitsSoftCapParams& logits_soft_cap_params,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -173,6 +175,7 @@ struct BlockFmhaPipelineQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
+#define USE_VARIANT 1
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
             static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
@@ -389,17 +392,19 @@ struct BlockFmhaPipelineQRKSVS
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                tile_elementwise_inout(
+                    [&variant, &variant_params](auto& x) {
+                        x = variant.LogitsTransform(variant_params,
+                                                    variant.QueryTransform(variant_params, x));
+                    },
+                    s_acc);
 #else
                 if constexpr(kHasLogitsSoftCap)
                 {
-                    float scale_lo = scale_s * 0.6931472f;
                     tile_elementwise_inout(
-                        [&scale_lo,
-                         &logits_cap = logits_soft_cap_params.logits_soft_cap,
-                         &logits_cap_rev = logits_soft_cap_params.logits_soft_cap_rcp](auto& x) {
-                            x = log2e_v<SaccDataType> * logits_cap *
-                                tanh_fast<SaccDataType>(x * scale_lo * logits_cap_rev);
+                        [&variant, &variant_params](auto& x) {
+                            x = variant.LogitsTransform(variant_params,
+                                                        variant.QueryTransform(variant_params, x));
                         },
                         s_acc);
                 }
@@ -650,7 +655,7 @@ struct BlockFmhaPipelineQRKSVS
               typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename PositionEncoding,
-              typename LogitsSoftCapParams>
+              typename AttentionVariantParams>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
@@ -661,7 +666,8 @@ struct BlockFmhaPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               const LogitsSoftCapParams& logits_soft_cap_params,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -682,7 +688,8 @@ struct BlockFmhaPipelineQRKSVS
                           mask,
                           position_encoding,
                           scale_s,
-                          logits_soft_cap_params,
+                          variant,
+                          variant_params,
                           smem_ptr,
                           dropout);
     }
