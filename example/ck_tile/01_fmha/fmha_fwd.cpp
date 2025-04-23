@@ -724,6 +724,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // Assume bias is in [-1.f, 1.f] in original fp32
         ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, seed}(bias_host);
     }
+    else if(init_method == "cnst") // fill with constant
+    {
+        ck_tile::FillConstant<QDataType>{1.f}(q_host);
+        ck_tile::FillIncConstant<KDataType>{1.f}(k_host);
+        ck_tile::FillConstant<KDataType>{1.f}(knew_host);
+        // ck_tile::FillConstant<VDataType>{1.f}(v_host);
+        // ck_tile::FillConstant<VDataType>{1.f}(vnew_host);
+
+        // ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        // ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        // ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(knew_host);
+        ck_tile::FillIncConstant<VDataType>{1.f}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(vnew_host);
+
+    }
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<SaccDataType>(nhead);
@@ -1375,6 +1390,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::scales(scale_s));
 
+
         if(bias.type == bias_enum::elementwise_bias)
         {
             // elementwise bias
@@ -1516,6 +1532,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         auto [rtol, atol] = get_elimit<DataTypeConfig>(init_method);
         bool cur_pass     = ck_tile::check_err(
             o_host_result, o_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
+
+        q_host_ref.savetxt("query.bin");
+        k_host_ref.savetxt("key.bin");
+        v_host_ref.savetxt("value.bin");
+        s_host_ref.savetxt("s.bin");
+        p_host_ref.savetxt("p.bin");
+        o_host_result.savetxt("output-fmha.bin");
+        o_host_ref.savetxt("output-ref.bin");
+
         pass &= cur_pass;
         if(!cur_pass)
         {

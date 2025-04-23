@@ -170,9 +170,9 @@ float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
     if(s.log_level_ > 0)
         std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << ", " << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << ", " << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << std::flush;
     return ck_tile::launch_kernel(s,
-        [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a); }},
-        [=](const ck_tile::stream_config& s_){{ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_>(s_, a); }},
-        [=](const ck_tile::stream_config& s_){{ fmha_bwd_convert_dq_oneshot_<convert_dq_trait_>(s_, a); }}
+        [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a); return hipPeekAtLastError() == hipSuccess; }},
+        [=](const ck_tile::stream_config& s_){{ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_>(s_, a); return hipPeekAtLastError() == hipSuccess; }},
+        [=](const ck_tile::stream_config& s_){{ fmha_bwd_convert_dq_oneshot_<convert_dq_trait_>(s_, a); return hipPeekAtLastError() == hipSuccess; }}
     );
 }}
 
@@ -545,12 +545,6 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= dpad == dvpad
                     if not cond:
                         continue
-            # aiter::mha_bwd C++ api integration
-            elif receipt == 600:
-                    cond = dtype in ['fp16', 'bf16']
-                    cond &= dpad == dvpad
-                    if not cond:
-                        continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())
             gen.append(k)
 
@@ -686,11 +680,6 @@ def get_bwd_dot_do_o_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaB
             elif receipt == 400:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
-                    if not cond:
-                        continue
-            # aiter::mha_bwd C++ api integration
-            elif receipt == 600:
-                    cond = dtype in ['fp16', 'bf16']
                     if not cond:
                         continue
             gen.append(k)
@@ -843,11 +832,6 @@ def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[Fmh
             elif receipt == 400:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
-                    if not cond:
-                        continue
-            # aiter::mha_bwd C++ api integration
-            elif receipt == 600:
-                    cond = dtype in ['fp16', 'bf16']
                     if not cond:
                         continue
             gen.append(k)

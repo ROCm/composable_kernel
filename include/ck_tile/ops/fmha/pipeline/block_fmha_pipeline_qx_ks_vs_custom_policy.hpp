@@ -394,19 +394,19 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t kBlockSize   = Problem::kBlockSize;
-            constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
-            constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
-            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+            constexpr index_t kBlockSize   = Problem::kBlockSize; //256
+            constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1; // 128
+            constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1; // 64
+            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize; //16 
             constexpr index_t kMaxVecLoad =
-                min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType)));
-            constexpr index_t kMinVecLoad = 4 / sizeof(VDataType);
+                min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType))); // 8
+            constexpr index_t kMinVecLoad = 4 / sizeof(VDataType); // 2
 
             constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
-                                             ? kMaxVecLoad
+                                             ? kMaxVecLoad //8
                                              : (total_pixels / kMinVecLoad);
 
-            return kVecLoad;
+            return kVecLoad; //8
         }
         else
         {
@@ -854,17 +854,17 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
         static_assert(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>);
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1; // 128
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1; // 64
 
-        constexpr index_t N1           = GetAlignmentV<Problem>();
+        constexpr index_t N1           = GetAlignmentV<Problem>(); // 8
         constexpr index_t N0           = kNPerBlock / N1;
-        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize; //16
         static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-        constexpr index_t K3     = total_pixels / N1;
-        constexpr index_t kKPack = GetSmemKPackV<Problem>();
+        constexpr index_t K3     = total_pixels / N1; // 16 / 8 = 2
+        constexpr index_t kKPack = GetSmemKPackV<Problem>(); // 8
         static_assert(kKPack % K3 == 0);
-        constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
+        constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave // 4
         if constexpr(get_warp_size() % (K2 * N0) == 0)
         {
             constexpr index_t K1 = get_warp_size() / (K2 * N0);

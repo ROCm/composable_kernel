@@ -8,6 +8,7 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
+#include <cwchar>
 
 namespace ck_tile {
 
@@ -301,9 +302,57 @@ struct BlockFmhaPipelineQRKSVS
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
             }
+			// if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+			// {
+			// 	constexpr auto config = decltype(gemm_1)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+			// 	using WG = remove_cvref_t<decltype(config.template at<0>())>;
+			//
+			//
+			// 	constexpr int32_t MWarp = BlockFmhaShape::Gemm0BlockWarps::at(ck_tile::number<0>{});
+			// 	constexpr int32_t NWarp = BlockFmhaShape::Gemm0BlockWarps::at(ck_tile::number<1>{});
+			//
+			// 	constexpr int32_t kNPerBlock = BlockFmhaShape::kN1;
+			// 	constexpr int32_t kKPerBlock = BlockFmhaShape::kK1;
+			//
+			// 	constexpr int32_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
+			// 	constexpr int32_t KIterPerWarp = kKPerBlock / WG::kK;
+			//
+			// 	constexpr auto k_tile_outer_encode =
+			// 		ck_tile::tile_distribution_encoding<
+			// 			ck_tile::sequence<MWarp>,
+			// 			ck_tile::tuple<ck_tile::sequence<NIterPerWarp, NWarp>, ck_tile::sequence<KIterPerWarp>>,
+			// 			ck_tile::tuple<ck_tile::sequence<0, 1>>,
+			// 			ck_tile::tuple<ck_tile::sequence<0, 1>>,
+			// 			ck_tile::sequence<1, 2>,
+			// 			ck_tile::sequence<0, 0>>{};
+			//
+			// 	constexpr auto k_dram_block_dstr_encode = ck_tile::detail::make_embed_tile_distribution_encoding(
+			// 		k_tile_outer_encode, typename WG::BWarpDstrEncoding{});
+			//
+			// 	auto k_lds_dis = ck_tile::make_static_tile_distribution(k_dram_block_dstr_encode);
+			//
+			// 	auto b_warp_window_tmp = make_tile_window(
+			// 		k_lds_window.get_bottom_tensor_view(),
+			// 		make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+			// 		k_lds_window.get_window_origin(),
+			// 		k_lds_dis);
+			//
+			// 	auto b_tile = load_tile(b_warp_window_tmp);
+			// 	constexpr auto v_spans = decltype(b_tile)::get_distributed_spans();
+			// 	sweep_tile_span(v_spans[number<0>{}], [&](auto idx0) {
+			// 		sweep_tile_span(v_spans[number<1>{}], [&](auto idx1) {
+			// 			constexpr auto i_j_idx = make_tuple(idx0, idx1);
+			// 			const auto tile_idx = get_x_indices_from_distributed_indices(
+			// 				b_tile.get_tile_distribution(), i_j_idx);
+			// 				printf("threadIdx.x[%d], k[%d, %d] = %f\n", threadIdx.x, tile_idx.at(number<0>{}), tile_idx.at(number<1>{}), bf16_to_float(b_tile[i_j_idx]));
+			// 				// printf("threadIdx.x[%d], v_shuffle_tmp = %f \n", threadIdx.x, static_cast<float>(v_shuffle_tmp[i_j_idx])));
+			// 		});
+			// 	});
+			// }
 
             if constexpr(k0_loops > 2)
             {
+
                 static_for<0, k0_loops - 2, 1>{}([&](auto i_k0) {
                     block_sync_lds();
                     gemm_0(s_acc,
@@ -384,6 +433,7 @@ struct BlockFmhaPipelineQRKSVS
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
 #endif
             }
+
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
@@ -392,13 +442,19 @@ struct BlockFmhaPipelineQRKSVS
                                                            k_origin.at(number<0>{}),
                                                            number<kM0>{},
                                                            number<kN0>{});
+
+                // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                //     printf("threadIdx.x[%d], loop[%d], q_tile[%d], k[%d], %d \n", threadIdx.x, i_total_loops, q_origin.at(number<0>{}), k_origin.at(number<0>{}), static_cast<int32_t>(need_perpixel_check));
                 if(need_perpixel_check)
                 {
                     set_tile_if(
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col);
+                            auto ret = mask.IsOutOfBound(row, col);
+                            // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                            //     printf("threadIdx.x[%d], q_tile[%d, %d], k[%d, %d], %d \n", threadIdx.x, row, q_origin.at(number<0>{}), col, k_origin.at(number<0>{}), static_cast<int32_t>(ret));
+                            return ret;
                         });
                 }
             }
@@ -409,7 +465,7 @@ struct BlockFmhaPipelineQRKSVS
                 sequence<1>{},
                 f_max,
                 -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
-            block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
+            block_tile_reduce_sync(m_local, f_max, bool_constant<true>{});
 
             const auto m_old = m; // m{j-1}
             tile_elementwise_inout(
@@ -441,6 +497,8 @@ struct BlockFmhaPipelineQRKSVS
                 auto row_max = scale_s * get_validated_m(m[i_idx]);
 #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                    // const auto tile_idx = get_x_indices_from_distributed_indices(
+                    //     p_compute.get_tile_distribution(), make_tuple(idx0, idx1));
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                     if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
@@ -452,16 +510,31 @@ struct BlockFmhaPipelineQRKSVS
                     {
                         p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
                     }
+                    // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                    //     printf("threadIdx.x[%d], s_acc[%d, %d] = %f p = %f m = %f \n", threadIdx.x, tile_idx.at(number<0>{}), tile_idx.at(number<1>{}), static_cast<float>(s[i_j_idx]), static_cast<float>(p_compute[i_j_idx]), static_cast<float>(get_validated_m(m[i_idx])));
 #else
                     p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
 #endif
                 });
             });
+            // {
+            //     constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
+            //     sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
+            //         sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
+            //             const auto tile_idx = get_x_indices_from_distributed_indices(
+            //                 s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
+            //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+            //             if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+            //                 printf("threadIdx.x[%d], s_acc[%d, %d] = %f p = %f \n", threadIdx.x, tile_idx.at(number<0>{}), tile_idx.at(number<1>{}), static_cast<float>(s_acc[i_j_idx]), static_cast<float>(p_compute[i_j_idx]));
+            //         });
+            //     });
+            // }
+
 
             auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
-            block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+            block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<true>{});
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
@@ -503,10 +576,37 @@ struct BlockFmhaPipelineQRKSVS
             {
                 auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                     Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                // {
+                //     constexpr auto v_spans = decltype(v_prefetch)::get_distributed_spans();
+                //     sweep_tile_span(v_spans[number<0>{}], [&](auto idx0) {
+                //         sweep_tile_span(v_spans[number<1>{}], [&](auto idx1) {
+                //             const auto tile_idx = get_x_indices_from_distributed_indices(
+                //                 v_prefetch.get_tile_distribution(), make_tuple(idx0, idx1));
+                //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                //             if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                //                 printf("threadIdx.x[%d], v_prefetch[%d, %d] = %f\n", threadIdx.x, tile_idx.at(number<0>{}), tile_idx.at(number<1>{}), bf16_to_float(v_prefetch[i_j_idx]));
+                //         });
+                //     });
+                //
+                // }
                 shuffle_tile(v_shuffle_tmp, v_prefetch);
                 store_tile(
                     v_lds_window,
                     tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
+                // {
+                //     constexpr auto v_spans = decltype(v_shuffle_tmp)::get_distributed_spans();
+                //     sweep_tile_span(v_spans[number<0>{}], [&](auto idx0) {
+                //         sweep_tile_span(v_spans[number<1>{}], [&](auto idx1) {
+                //             const auto tile_idx = get_x_indices_from_distributed_indices(
+                //                 v_shuffle_tmp.get_tile_distribution(), make_tuple(idx0, idx1));
+                //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                //             if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                //                 printf("threadIdx.x[%d], v_shuffle_tmp[%d, %d] = %f\n", threadIdx.x, tile_idx.at(number<0>{}), tile_idx.at(number<1>{}), bf16_to_float(v_shuffle_tmp[i_j_idx]));
+                //                 // printf("threadIdx.x[%d], v_shuffle_tmp = %f \n", threadIdx.x, static_cast<float>(v_shuffle_tmp[i_j_idx])));
+                //         });
+                //     });
+                //
+                // }
             }
             else
             {
@@ -515,16 +615,103 @@ struct BlockFmhaPipelineQRKSVS
             }
             move_tile_window(v_dram_window, {0, kK1});
 
+
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
+
+
+                // if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                // {
+                //     constexpr auto config = decltype(gemm_1)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+                //     using WG = remove_cvref_t<decltype(config.template at<0>())>;
+                //
+                //
+                //     constexpr int32_t MWarp = BlockFmhaShape::Gemm1BlockWarps::at(ck_tile::number<0>{});
+                //     constexpr int32_t NWarp = BlockFmhaShape::Gemm1BlockWarps::at(ck_tile::number<1>{});
+                //
+                //     constexpr int32_t kNPerBlock = BlockFmhaShape::kN1;
+                //     constexpr int32_t kKPerBlock = BlockFmhaShape::kK1;
+                //
+                //     constexpr int32_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
+                //     constexpr int32_t KIterPerWarp = kKPerBlock / WG::kK;
+                //
+                //     constexpr auto k_tile_outer_encode =
+                //         ck_tile::tile_distribution_encoding<
+                //             ck_tile::sequence<MWarp>,
+                //             ck_tile::tuple<ck_tile::sequence<NIterPerWarp, NWarp>, ck_tile::sequence<KIterPerWarp>>,
+                //             ck_tile::tuple<ck_tile::sequence<0, 1>>,
+                //             ck_tile::tuple<ck_tile::sequence<0, 1>>,
+                //             ck_tile::sequence<1, 2>,
+                //             ck_tile::sequence<0, 0>>{};
+                //
+                //     constexpr auto k_dram_block_dstr_encode = ck_tile::detail::make_embed_tile_distribution_encoding(
+                //         k_tile_outer_encode, typename WG::BWarpDstrEncoding{});
+                //
+                //     auto v_lds_dis = ck_tile::make_static_tile_distribution(k_dram_block_dstr_encode);
+                //
+                //     auto b_warp_window_tmp = make_tile_window(
+                //         v_lds_window.get_bottom_tensor_view(),
+                //         make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+                //         v_lds_window.get_window_origin(),
+                //         v_lds_dis);
+                //
+                //     auto b_tile = load_tile(b_warp_window_tmp);
+                //     constexpr auto v_spans = decltype(b_tile)::get_distributed_spans();
+                //     sweep_tile_span(v_spans[number<0>{}], [&](auto idx0) {
+                //         sweep_tile_span(v_spans[number<1>{}], [&](auto idx1) {
+                //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                //             const auto tile_idx = get_x_indices_from_distributed_indices(
+                //                 b_tile.get_tile_distribution(), i_j_idx);
+                //                 printf("threadIdx.x[%d], v_shuffle_tmp[%d, %d] = %f\n", threadIdx.x, tile_idx.at(number<0>{}), tile_idx.at(number<1>{}), bf16_to_float(b_tile[i_j_idx]));
+                //                 // printf("threadIdx.x[%d], v_shuffle_tmp = %f \n", threadIdx.x, static_cast<float>(v_shuffle_tmp[i_j_idx])));
+                //         });
+                //     });
+                // }
+                if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+                {
+                    constexpr auto config = decltype(gemm_1)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+                    using WG = remove_cvref_t<decltype(config.template at<0>())>;
+
+                    auto v_lds_dis = ck_tile::make_static_tile_distribution(typename WG::BWarpDstrEncoding{});
+
+                    auto b_warp_window_tmp = make_tile_window(
+                        v_lds_window.get_bottom_tensor_view(),
+                        make_tuple(number<128>{}, number<64>{}),
+                        v_lds_window.get_window_origin(),
+                        v_lds_dis);
+
+                    auto b_tile = load_tile(b_warp_window_tmp);
+					printf("threadIdx.x[%d], v_shuffle_tmp[%d]\n", threadIdx.x, b_tile.get_thread_buffer_size());
+                    for (int i = 0; i < b_tile.get_thread_buffer_size(); ++i) {
+                        printf("  threadIdx.x[%d], v_shuffle_tmp[%f] \n", threadIdx.x, bf16_to_float(b_tile.get_thread_buffer()[i]));
+                    }
+                    printf("\n");
+					// sweep_tile(b_tile, [&](auto idx) {
+     //                     printf("threadIdx.x[%d], v_shuffle_tmp[%d] = %f\n", threadIdx.x, idx.value, bf16_to_float(b_tile[idx]));
+					// });
+                    // sweep_tile_span(v_spans[number<0>{}], [&](auto idx0) {
+                    //     sweep_tile_span(v_spans[number<1>{}], [&](auto idx1) {
+                    //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    //         const auto tile_idx = get_x_indices_from_distributed_indices(
+                    //             b_tile.get_tile_distribution(), i_j_idx);
+                    //             printf("threadIdx.x[%d], v_shuffle_tmp[%d, %d] = %f\n", threadIdx.x, tile_idx.at(number<0>{}), tile_idx.at(number<1>{}), bf16_to_float(b_tile[i_j_idx]));
+                    //             // printf("threadIdx.x[%d], v_shuffle_tmp = %f \n", threadIdx.x, static_cast<float>(v_shuffle_tmp[i_j_idx])));
+                    //     });
+                    // };
+                }
+
+
+
+
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     const auto v = load_tile(v_dram_window); // load next v
                     block_sync_lds();
-                    gemm_1(o_acc,
+                    // gemm_1(o_acc,
+                    gemm_0(o_acc,
                            get_slice_tile(
                                p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
                            v_lds_window);
@@ -551,11 +738,26 @@ struct BlockFmhaPipelineQRKSVS
             // tail
             {
                 block_sync_lds();
-                gemm_1(o_acc,
+                // gemm_1(o_acc,
+                gemm_0(o_acc,
                        get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
                        v_lds_window);
                 block_sync_lds();
             }
+
+
+            // {
+            //     sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+            //         constexpr auto i_idx = make_tuple(idx0);
+            //         sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+            //             const auto tile_idx = get_x_indices_from_distributed_indices(
+            //                 o_acc.get_tile_distribution(), make_tuple(idx0, idx1));
+            //             constexpr auto i_j_idx = make_tuple(idx0, idx1);
+            //             if (blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+            //                 printf("threadIdx.x[%d], o_acc[%d, %d] = %f p = %f m = %f \n", threadIdx.x, tile_idx.at(number<0>{}), tile_idx.at(number<1>{}), static_cast<float>(o_acc[i_j_idx]), static_cast<float>(p_compute[i_j_idx]), static_cast<float>(l[i_idx]));
+            //         });
+            //     });
+            // }
         } while(++i_total_loops < num_total_loop);
 
         // store lse

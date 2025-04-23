@@ -346,17 +346,41 @@ struct FillStepRange
 template <typename T>
 struct FillConstant
 {
-    T value_{0};
+    float value_{1.f};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::fill(first, last, value_);
+        std::fill(first, last, ck_tile::type_convert<T>(value_));
     }
 
     template <typename ForwardRange>
     auto operator()(ForwardRange&& range) const -> std::void_t<
         decltype(std::declval<const FillConstant&>()(std::begin(std::forward<ForwardRange>(range)),
+                                                     std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
+template <typename T>
+struct FillIncConstant
+{
+    float value_{1.f};
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        (void)last;
+        for (int i = 0; i < 128; ++i) {
+            std::fill(first + 128 * i, first + 128 * (i + 1), ck_tile::type_convert<T>(value_ * (i + 1)));
+        }
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const -> std::void_t<
+        decltype(std::declval<const FillIncConstant&>()(std::begin(std::forward<ForwardRange>(range)),
                                                      std::end(std::forward<ForwardRange>(range))))>
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
