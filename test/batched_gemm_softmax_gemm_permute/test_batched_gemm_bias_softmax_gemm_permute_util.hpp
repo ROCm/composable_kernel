@@ -9,6 +9,8 @@
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
 #include "profiler/profile_batched_gemm_bias_softmax_gemm_permute_impl.hpp"
 
+#include <hip/hip_runtime.h>
+
 using ck::tensor_operation::device::GemmSpecialization;
 using ck::tensor_operation::device::MaskingSpecialization;
 using ck::tensor_operation::device::TensorSpecialization;
@@ -378,3 +380,53 @@ struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128
         return gemm.IsSupportedArgument(argument);
     }
 };
+
+namespace ck {
+namespace test {
+    
+    struct DeviceResources 
+    {
+        int computeUnits;
+        size_t totalMemory;
+        std::string deviceName;
+        // Add other relevant properties as needed
+    };
+    
+    inline DeviceResources GetDeviceResources() 
+    {
+        DeviceResources res;
+        hipDeviceProp_t props;
+        hipGetDeviceProperties(&props, 0); // Use current device
+        
+        res.computeUnits = props.multiProcessorCount;
+        res.totalMemory = props.totalGlobalMem;
+        res.deviceName = props.name;
+        
+        return res;
+    }
+    
+    // Device capability tiers
+    enum class DeviceCapabilityTier 
+    {
+        LOW,      
+        MEDIUM,  
+        HIGH     
+    };
+    
+    inline DeviceCapabilityTier DetermineDeviceTier()
+    {
+        DeviceResources res = GetDeviceResources();
+        
+     
+        if (res.computeUnits < 80) 
+        { 
+            return DeviceCapabilityTier::LOW;
+        } else if (res.computeUnits < 120) {
+            return DeviceCapabilityTier::MEDIUM;
+        } else {
+            return DeviceCapabilityTier::HIGH;
+        }
+    }
+    
+} // namespace test
+} // namespace ck
