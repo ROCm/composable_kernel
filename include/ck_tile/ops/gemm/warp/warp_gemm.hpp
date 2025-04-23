@@ -187,35 +187,19 @@ using WarpGemmMfma_f32_16x16x32_bf8_bf8 = WarpGemmImpl<
 
 
 
-#if defines(__gfx950__)
+#if defined(__gfx950__)
 
 using WarpGemmMfma_f32_16x16x128_fp8_fp8 = WarpGemmImpl<
     WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_fp8<WGAttrCtlEnum::Default_>>>;
 
-using WarpGemmMfma_f32_16x16x128_fp8_fp6 = WarpGemmImpl<
-    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_fp6<WGAttrCtlEnum::Default_>>>;
+using WarpGemmMfma_f32_16x16x128_fp8_bf8 = WarpGemmImpl<
+    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_bf8<WGAttrCtlEnum::Default_>>>;
 
-using WarpGemmMfma_f32_16x16x128_fp8_fp4 = WarpGemmImpl<
-    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_fp4<WGAttrCtlEnum::Default_>>>;
+using WarpGemmMfma_f32_16x16x128_bf8_fp8 = WarpGemmImpl<
+    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_bf8_fp8<WGAttrCtlEnum::Default_>>>;
 
-using WarpGemmMfma_f32_16x16x128_fp6_fp8 = WarpGemmImpl<
-    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp6_fp8<WGAttrCtlEnum::Default_>>>;
-
-using WarpGemmMfma_f32_16x16x128_fp6_fp6 = WarpGemmImpl<
-    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp6_fp6<WGAttrCtlEnum::Default_>>>;
-
-using WarpGemmMfma_f32_16x16x128_fp6_fp4 = WarpGemmImpl<
-    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp6_fp4<WGAttrCtlEnum::Default_>>>;
-
-using WarpGemmMfma_f32_16x16x128_fp4_fp8 = WarpGemmImpl<
-    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp4_fp8<WGAttrCtlEnum::Default_>>>;
-
-using WarpGemmMfma_f32_16x16x128_fp4_fp6 = WarpGemmImpl<
-    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp4_fp6<WGAttrCtlEnum::Default_>>>;
-
-using WarpGemmMfma_f32_16x16x128_fp4_fp4 = WarpGemmImpl<
-    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp4_fp4<WGAttrCtlEnum::Default_>>>;
-
+using WarpGemmMfma_f32_16x16x128_bf8_bf8 = WarpGemmImpl<
+    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_bf8_bf8<WGAttrCtlEnum::Default_>>>;
 #endif
 
 
