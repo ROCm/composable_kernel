@@ -130,6 +130,8 @@ struct BlockGemmARegBSmemCRegV1
                 std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
             "wrong!");
 
+        static_assert((BlockGemmShape::kM == BlockGemmShape::kN), "wrong!");
+
         constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
         constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
         constexpr index_t KPerBlock = ABlockTensorTmp{}.get_lengths()[number<1>{}];
@@ -138,7 +140,7 @@ struct BlockGemmARegBSmemCRegV1
                           KPerBlock == BlockGemmShape::kK,
                       "wrong!");
 
-        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem, MPerBlock>();
 
         using WG = remove_cvref_t<decltype(config.template get<0>())>;
 
@@ -272,6 +274,8 @@ struct BlockGemmARegBSmemCRegV1
                 std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>>,
             "wrong!");
 
+        static_assert((BlockGemmShape::kM == BlockGemmShape::kN), "wrong!");
+
         constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
         constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
         constexpr index_t KPerBlock = ABlockTensorTmp{}.get_lengths()[number<1>{}];
@@ -280,7 +284,7 @@ struct BlockGemmARegBSmemCRegV1
                           KPerBlock == BlockGemmShape::kK,
                       "wrong!");
 
-        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem, MPerBlock>();
 
         using WG = remove_cvref_t<decltype(config.template get<0>())>;
 

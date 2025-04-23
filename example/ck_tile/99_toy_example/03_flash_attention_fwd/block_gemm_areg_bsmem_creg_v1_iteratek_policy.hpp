@@ -10,10 +10,25 @@ namespace ck_tile {
 
 struct BlockGemmARegBSmemCRegV1K8Policy
 {
-    template <typename Problem>
+    template <typename Problem, index_t kM0>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemmMWarpNWarp()
     {
-        return make_tuple(WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution{}, 4, 1);
+        if constexpr (kM0 == 64)
+        {
+            return make_tuple(WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution{}, 4, 1);
+        }
+        else if constexpr (kM0 == 32)
+        {
+            return make_tuple(WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution{}, 2, 1);
+        }
+        else if constexpr (kM0 == 128)
+        {
+            return make_tuple(WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution{}, 4, 1);
+        }
+        else
+        {
+            static_assert(false, "Unsupported configuration for warp execution.");
+        }
     }
 };
 

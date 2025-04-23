@@ -61,11 +61,13 @@ struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
         constexpr auto blockgemm = GetBlockGemm<Problem>();
         using BlockGemm          = remove_cvref_t<decltype(blockgemm)>;
 
+        static_assert((Problem::BlockGemmShape::kM == Problem::BlockGemmShape::kN), "wrong!");
+
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = AKDim;
 
         constexpr auto config =
-            BlockGemm::BlockGemmPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+            BlockGemm::BlockGemmPolicy::template GetWarpGemmMWarpNWarp<Problem, kMPerBlock>();
 
         using WG = remove_cvref_t<decltype(config.template get<0>())>;
 
