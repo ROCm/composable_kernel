@@ -383,50 +383,53 @@ struct DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128
 
 namespace ck {
 namespace test {
-    
-    struct DeviceResources 
+
+struct DeviceResources
+{
+    int computeUnits;
+    size_t totalMemory;
+    std::string deviceName;
+    // Add other relevant properties as needed
+};
+
+inline DeviceResources GetDeviceResources()
+{
+    DeviceResources res;
+    hipDeviceProp_t props;
+    hipGetDeviceProperties(&props, 0); // Use current device
+
+    res.computeUnits = props.multiProcessorCount;
+    res.totalMemory  = props.totalGlobalMem;
+    res.deviceName   = props.name;
+
+    return res;
+}
+
+// Device capability tiers
+enum class DeviceCapabilityTier
+{
+    LOW,
+    MEDIUM,
+    HIGH
+};
+
+inline DeviceCapabilityTier DetermineDeviceTier()
+{
+    DeviceResources res = GetDeviceResources();
+
+    if(res.computeUnits < 80)
     {
-        int computeUnits;
-        size_t totalMemory;
-        std::string deviceName;
-        // Add other relevant properties as needed
-    };
-    
-    inline DeviceResources GetDeviceResources() 
-    {
-        DeviceResources res;
-        hipDeviceProp_t props;
-        hipGetDeviceProperties(&props, 0); // Use current device
-        
-        res.computeUnits = props.multiProcessorCount;
-        res.totalMemory = props.totalGlobalMem;
-        res.deviceName = props.name;
-        
-        return res;
+        return DeviceCapabilityTier::LOW;
     }
-    
-    // Device capability tiers
-    enum class DeviceCapabilityTier 
+    else if(res.computeUnits < 120)
     {
-        LOW,      
-        MEDIUM,  
-        HIGH     
-    };
-    
-    inline DeviceCapabilityTier DetermineDeviceTier()
-    {
-        DeviceResources res = GetDeviceResources();
-        
-     
-        if (res.computeUnits < 80) 
-        { 
-            return DeviceCapabilityTier::LOW;
-        } else if (res.computeUnits < 120) {
-            return DeviceCapabilityTier::MEDIUM;
-        } else {
-            return DeviceCapabilityTier::HIGH;
-        }
+        return DeviceCapabilityTier::MEDIUM;
     }
-    
+    else
+    {
+        return DeviceCapabilityTier::HIGH;
+    }
+}
+
 } // namespace test
 } // namespace ck

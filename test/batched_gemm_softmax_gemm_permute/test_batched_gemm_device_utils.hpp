@@ -7,14 +7,16 @@
 namespace ck {
 namespace test {
 
-struct DeviceResources {
+struct DeviceResources
+{
     int computeUnits;
     size_t totalMemory;
     std::string deviceName;
     // Add other relevant properties as needed
 };
 
-inline DeviceResources GetDeviceResources() {
+inline DeviceResources GetDeviceResources()
+{
     DeviceResources res;
     hipDeviceProp_t props;
     
@@ -24,35 +26,41 @@ inline DeviceResources GetDeviceResources() {
     {
         props.multiProcessorCount = 0; 
         res.computeUnits = 0;
-        res.totalMemory = 0;
-        res.deviceName = "Unknown";
+        res.totalMemory  = 0;
+        res.deviceName   = "Unknown";
         return res;
     }
-    
+
     res.computeUnits = props.multiProcessorCount;
-    res.totalMemory = props.totalGlobalMem;
-    res.deviceName = props.name;
-    
+    res.totalMemory  = props.totalGlobalMem;
+    res.deviceName   = props.name;
+
     return res;
 }
 
 // Device capability tiers
-enum class DeviceCapabilityTier {
-    LOW,      // Low resources devices (CU less than 80)
-    MEDIUM,   // Mid-range devices
-    HIGH      // High resources devices (CU hiher than 100)
+enum class DeviceCapabilityTier
+{
+    LOW,    // Low resources devices (CU less than 80)
+    MEDIUM, // Mid-range devices
+    HIGH    // High resources devices (CU hiher than 100)
 };
 
-inline DeviceCapabilityTier DetermineDeviceTier() 
+inline DeviceCapabilityTier DetermineDeviceTier()
 {
     DeviceResources res = GetDeviceResources();
-    
+
     // Adjust these thresholds based on your device specifics
-    if (res.computeUnits < 80) { 
+    if(res.computeUnits < 80)
+    {
         return DeviceCapabilityTier::LOW;
-    } else if (res.computeUnits < 100) {
+    }
+    else if(res.computeUnits < 100)
+    {
         return DeviceCapabilityTier::MEDIUM;
-    } else {
+    }
+    else
+    {
         return DeviceCapabilityTier::HIGH;
     }
 }
