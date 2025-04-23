@@ -4,7 +4,6 @@
 #pragma once
 
 #include "blockgemm_pipeline_agmem_bgmem_creg_policy_impl.hpp"
-#include "../../../example/ck_tile/99_toy_example/02_gemm/block_gemm_pipeline_agmem_bgmem_creg.hpp"
 
 namespace ck_tile {
 
