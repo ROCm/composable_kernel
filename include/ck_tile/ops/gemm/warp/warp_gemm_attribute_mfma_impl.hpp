@@ -61,6 +61,69 @@ enum class WGAttrCtlEnum
         DISPATCH_MFMA_(mfma_, "+a", "v", "v", "a")     \
     }
 
+// V_MFMA_F32_16x16x32_BF16
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+struct WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K32
+{
+    static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
+    using ADataType                     = bf16_t;
+    using BDataType                     = bf16_t;
+    using CDataType                     = float;
+
+    using AVecType = ext_vector_t<bf16_t, 8>;
+    using BVecType = ext_vector_t<bf16_t, 8>;
+    using CVecType = ext_vector_t<float, 4>;
+
+    static constexpr index_t kM = 16;
+    static constexpr index_t kN = 16;
+    static constexpr index_t kK = 32;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
+    static constexpr index_t kAMLane     = 16;
+    static constexpr index_t kBNLane     = 16;
+    static constexpr index_t kABKLane    = 4;
+    static constexpr index_t kABKPerLane = 8;
+
+    static constexpr index_t kCMLane     = 4;
+    static constexpr index_t kCNLane     = 16;
+    static constexpr index_t kCM0PerLane = 1;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        DISPATCH_MFMA_CTRL_("v_mfma_f32_16x16x32_bf16", Ctrl)
+        else
+        {
+#if defined(__gfx950__)
+            c_vec = __builtin_amdgcn_mfma_f32_16x16x32_bf16(a_vec, b_vec, c_vec, 0, 0, 0);
+#else
+            ck_tile::ignore = c_vec;
+            ck_tile::ignore = a_vec;
+            ck_tile::ignore = b_vec;
+#endif
+        }
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx950__)
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f32_16x16x32_bf16(a_vec, b_vec, fp32x4_t{0.f}, 0, 0, 0));
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+        return CVecType{0.f};
+#endif
+    }
+};
 // FP16
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 struct WarpGemmAttributeMfmaImplF16F16F32M32N32K8
@@ -180,6 +243,69 @@ struct WarpGemmAttributeMfmaImplF16F16F32M16N16K16
 #if defined(__gfx9__)
         return bit_cast<CVecType>(
             __builtin_amdgcn_mfma_f32_16x16x16f16(a_vec, b_vec, fp32x4_t{0.f}, 0, 0, 0));
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+        return CVecType{0.f};
+#endif
+    }
+};
+
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+struct WarpGemmAttributeMfmaImplF16F16F32M16N16K32
+{
+    static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
+    using ADataType                     = fp16_t;
+    using BDataType                     = fp16_t;
+    using CDataType                     = float;
+
+    using AVecType = ext_vector_t<fp16_t, 8>;
+    using BVecType = ext_vector_t<fp16_t, 8>;
+    using CVecType = ext_vector_t<float, 4>;
+
+    static constexpr index_t kM = 16;
+    static constexpr index_t kN = 16;
+    static constexpr index_t kK = 32;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
+    static constexpr index_t kAMLane     = 16;
+    static constexpr index_t kBNLane     = 16;
+    static constexpr index_t kABKLane    = 4;
+    static constexpr index_t kABKPerLane = 8;
+
+    static constexpr index_t kCMLane     = 4;
+    static constexpr index_t kCNLane     = 16;
+    static constexpr index_t kCM0PerLane = 1;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        DISPATCH_MFMA_CTRL_("v_mfma_f32_16x16x32f16", Ctrl)
+        else
+        {
+#if defined(__gfx950__)
+            c_vec = __builtin_amdgcn_mfma_f32_16x16x32_f16(a_vec, b_vec, c_vec, 0, 0, 0);
+#else
+            ck_tile::ignore = c_vec;
+            ck_tile::ignore = a_vec;
+            ck_tile::ignore = b_vec;
+#endif
+        }
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx950__)
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f32_16x16x32_f16(a_vec, b_vec, fp32x4_t{0.f}, 0, 0, 0));
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;

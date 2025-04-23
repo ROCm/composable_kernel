@@ -402,7 +402,6 @@ int run_gemm_example_with_layouts(int argc,
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
                                   rtol_atol.at(ck_tile::number<1>{}));
-
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
