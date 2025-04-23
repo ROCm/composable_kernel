@@ -11,7 +11,8 @@
 using S = ck_tile::stream_config;
 using A = add_rmsnorm2d_rdquant_fwd_args;
 
-template <typename DataType_,
+template <typename InputDataType_,
+          typename QuantizedDataType_,
           ck_tile::index_t Repeat_M_,         // each thread repeat along M
           ck_tile::index_t Repeat_N_,         // each thread repeat along N
           ck_tile::index_t ThreadPerBlock_M_, // num threads along M
@@ -20,7 +21,8 @@ template <typename DataType_,
           bool kPadN_,
           bool kSaveInvRms_,
           bool kTwoPass_>
-using trait_ = add_rmsnorm2d_rdquant_fwd_traits_<DataType_,
+using trait_ = add_rmsnorm2d_rdquant_fwd_traits_<InputDataType_,
+                                                 QuantizedDataType_,
                                                  Repeat_M_,
                                                  Repeat_N_,
                                                  ThreadPerBlock_M_,
@@ -33,16 +35,17 @@ using trait_ = add_rmsnorm2d_rdquant_fwd_traits_<DataType_,
 template <typename Traits_>
 float add_rmsnorm2d_rdquant_fwd_(const S& s, A a)
 {
-    using DataType = typename Traits_::DataType;
+    using InputDataType     = typename Traits_::InputDataType;
+    using QuantizedDataType = typename Traits_::QuantizedDataType;
 
     using PipelineProblem = ck_tile::AddRmsnorm2dRdquantFwdPipelineProblem<
-        typename AddRmsnormRdquantTypeConfig<DataType>::ADataType,
-        typename AddRmsnormRdquantTypeConfig<DataType>::BDataType,
-        typename AddRmsnormRdquantTypeConfig<DataType>::GammaDataType,
-        typename AddRmsnormRdquantTypeConfig<DataType>::ComputeDataType,
-        typename AddRmsnormRdquantTypeConfig<DataType>::XDataType,
-        typename AddRmsnormRdquantTypeConfig<DataType>::YScaleDataType,
-        typename AddRmsnormRdquantTypeConfig<DataType>::QYDataType,
+        typename AddRmsnormRdquantTypeConfig<InputDataType, QuantizedDataType>::ADataType,
+        typename AddRmsnormRdquantTypeConfig<InputDataType, QuantizedDataType>::BDataType,
+        typename AddRmsnormRdquantTypeConfig<InputDataType, QuantizedDataType>::GammaDataType,
+        typename AddRmsnormRdquantTypeConfig<InputDataType, QuantizedDataType>::ComputeDataType,
+        typename AddRmsnormRdquantTypeConfig<InputDataType, QuantizedDataType>::XDataType,
+        typename AddRmsnormRdquantTypeConfig<InputDataType, QuantizedDataType>::YScaleDataType,
+        typename AddRmsnormRdquantTypeConfig<InputDataType, QuantizedDataType>::QYDataType,
         typename Traits_::Shape,
         Traits_::kPadN,
         Traits_::kSaveX,

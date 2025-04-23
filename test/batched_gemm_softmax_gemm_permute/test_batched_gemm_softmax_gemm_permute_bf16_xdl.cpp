@@ -103,7 +103,6 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16_Irregul
                                                    {256, 64, 160, 64, 1, 16},
                                                    {1024, 1024, 80, 80, 1, 16},
                                                    {1024, 64, 80, 64, 1, 16},
-                                                   {4096, 4096, 40, 40, 1, 16},
                                                    {4096, 64, 40, 64, 1, 16}};
     this->bench_   = true;
     this->verify_  = false;
@@ -113,6 +112,7 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16_Irregul
 
 TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16)
 {
+
     // Get device capability tier
     auto deviceTier = ck::test::DetermineDeviceTier();
     
@@ -155,6 +155,7 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16)
         std::cout << "Running full benchmarks for high-performance device" << std::endl;
     }
     
+
     this->bench_  = true;
     this->verify_ = false;
     this->Run();

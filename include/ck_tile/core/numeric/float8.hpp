@@ -207,9 +207,6 @@ using bf8_t     = unsigned _BitInt(8);
 using bf8_raw_t = uint8_t;
 #endif
 
-template <typename T>
-struct numeric_traits;
-
 template <>
 struct numeric_traits<fp8_t>
 {
@@ -225,6 +222,7 @@ struct numeric_traits<fp8_t>
     static constexpr fp8_interpretation f8_interpret = fp8_interpretation::E4M3_FNUZ;
 #endif
     static constexpr uint8_t abs_mask = 0x7F;
+    static constexpr int PackedSize   = 1;
 };
 
 template <>
@@ -242,6 +240,7 @@ struct numeric_traits<bf8_t>
     static constexpr fp8_interpretation f8_interpret = fp8_interpretation::E5M2_FNUZ;
 #endif
     static constexpr uint8_t abs_mask = 0x7F;
+    static constexpr int PackedSize   = 1;
 };
 
 // below is sw fp8 conversion, not utilizing hw instruction
@@ -524,7 +523,7 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
     int exponent                = (x & 0x7F) >> SrcT_mant;
     if constexpr(is_fnuz)
     {
-        if(x == 0x80)
+        if((x & 0xff) == 0x80)
         {
             return fNaN;
         }

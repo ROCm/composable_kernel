@@ -8,7 +8,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_128_128_128_comp_default_instances(
+void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_default_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD_ABScale<Row,
                                                             Col,
                                                             Tuple<>,
@@ -19,7 +19,7 @@ void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_128_128_128_comp_default_i
                                                             F32,
                                                             Tuple<>,
                                                             BF16,
-                                                            128,
+                                                            1,
                                                             128,
                                                             128,
                                                             PassThrough,
@@ -28,7 +28,7 @@ void add_device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_128_128_128_comp_default_i
 {
     add_device_operation_instances(
         instances,
-        device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_128_128_128_comp_instances<GemmDefault>{});
+        device_gemm_ab_scale_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_instances<GemmDefault>{});
 }
 
 } // namespace instance

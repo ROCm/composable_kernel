@@ -67,16 +67,22 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
-        constexpr index_t smem_size_a = sizeof(typename Problem::ADataType) *
-                                        MakeALdsBlockDescriptor<Problem>().get_element_space_size();
+        constexpr index_t PackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<typename Problem::ADataType>>::PackedSize;
+        constexpr index_t smem_size_a =
+            sizeof(typename Problem::ADataType) *
+            MakeALdsBlockDescriptor<Problem>().get_element_space_size() / PackedSize;
         return smem_size_a;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
-        constexpr index_t smem_size_b = sizeof(typename Problem::BDataType) *
-                                        MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
+        constexpr index_t PackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<typename Problem::BDataType>>::PackedSize;
+        constexpr index_t smem_size_b =
+            sizeof(typename Problem::BDataType) *
+            MakeBLdsBlockDescriptor<Problem>().get_element_space_size() / PackedSize;
         return smem_size_b;
     }
 
@@ -123,7 +129,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
             constexpr index_t KPack = GetSmemPackA<Problem>();
             static_assert(KPack % K3 == 0);
             constexpr index_t K2 = KPack / K3;
-            if constexpr(get_warp_size() % (K2 * M0))
+            if constexpr(get_warp_size() >= (K2 * M0))
             {
                 constexpr index_t K1 = get_warp_size() / (K2 * M0);
                 constexpr index_t K0 = BlockSize / get_warp_size();
@@ -213,7 +219,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
             constexpr index_t KPack = GetSmemPackB<Problem>();
             static_assert(KPack % K3 == 0);
             constexpr index_t K2 = KPack / K3;
-            if constexpr(get_warp_size() % (K2 * N0) == 0)
+            if constexpr(get_warp_size() >= (K2 * N0))
             {
                 constexpr index_t K1 = get_warp_size() / (K2 * N0);
                 constexpr index_t K0 = BlockSize / get_warp_size();
@@ -338,7 +344,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
     {
         using ALayout   = remove_cvref_t<typename Problem::ALayout>;
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>);
+        static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
@@ -387,8 +393,8 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         using AccDataType     = float;
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                typename Problem::BDataType,
+        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
+                                                typename Problem::ComputeDataType,
                                                 AccDataType,
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),

@@ -8,9 +8,16 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/host/concat.hpp"
+#include "ck_tile/core/utility/env.hpp"
 
 namespace ck_tile {
 
+/// @brief The GEMM problem definition.
+///
+/// @par Overview
+///      This structure defines the GEMM problem configuration by stating all required information
+///      like M,N,K sizes and respective strides.
 struct GemmProblem
 {
     CK_TILE_HOST GemmProblem() = default;
@@ -28,6 +35,12 @@ struct GemmProblem
     index_t stride_C;
 };
 
+/// @brief The GEMM kernel host arguments.
+///
+/// @par Overview
+///      This structure is passed to @ref GemmKernel "GemmKernel" when creating kernel arguments
+///      object. It contain all necessary information required to build proper kernel argument
+///      and launch kernel on GPU.
 struct GemmHostArgs : public GemmProblem
 {
     CK_TILE_HOST GemmHostArgs() = default;
@@ -55,6 +68,69 @@ struct GemmHostArgs : public GemmProblem
     index_t k_batch;
 };
 
+/// @brief The GEMM kernel device arguments.
+struct GemmKernelArgs
+{
+    /// @brief The A input tensor's pointer to device memory.
+    const void* a_ptr;
+    /// @brief The B input tensor's pointer to device memory.
+    const void* b_ptr;
+    /// @brief The C output tensor's pointer to device memory.
+    void* c_ptr;
+    /// @brief GEMM's M dimension size.
+    index_t M;
+    /// @brief GEMM's N dimension size.
+    index_t N;
+    /// @brief GEMM's K dimension size.
+    index_t K;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of A tensor.
+    index_t stride_A;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of B tensor.
+    index_t stride_B;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of C tensor.
+    index_t stride_C;
+    index_t k_batch;
+};
+
+/// @brief The GEMM kernel template.
+///
+/// @paragraph Overview Overview
+///            This class provides the generic matrix multiplication kernel template. By semantic
+///            division of GEMM algorithm into following parts we achieve flexible, versatile
+///            and robust kernel implementation.
+///
+///            @li @b Prolog - The start of GEMM kernel implementation in @ref operator()
+///                function call operator" which determines the work scope of each workgroup.
+///            @li @b GemmPipeline - The core part @a "heart" of matrix multiplication algorithm.
+///                This is the place where each workgroup is loading data from global memory and
+///                carrying out dot products.
+///            @li @b Epilogue - The @a "final" part of matrix multiplication implementation
+///                 responsible for storing results to global memory. This is also the place where
+///                 any additional operator fusion may take place.
+///
+///            Additionally both @ref GemmPipeline_ "GemmPipeline" and @ref EpiloguePipeline_
+///            "EpiloguePipeline" are parameterized with so called @a Policy which determines all
+///            internal details of those functional parts. You can think of it like both gemm and
+///            epilogue pipelines provides the control-flow logic controlled by policies. Moreover
+///            the policy is responsible for definition of all necessary data layouts and thread's
+///            work distribution.
+///
+/// @tparam TilePartitioner_    The type of class providing mapping of workgroup index into the
+///                             output data tile to be calculated. It determines the workgroup to
+///                             data relationship (or in other words - which data would be
+///                             processed and calculated by which workgroup).
+/// @tparam GemmPipeline_       The type of class which provides the core part of matrix
+///                             multiplication. This class should provide implementation of data
+///                             loading from global memory and performing block-wise matrix
+///                             multiplication. You can think of it as a work done by single
+///                             workgroup point of view.
+/// @tparam EpiloguePipeline_   The type of class providing the final part of matrix
+///                             multiplication implementation. It is responsible for storing
+///                             results calculated by @ref GemmPipeline_ "GemmPipeline" to
+///                             the output C tensor in global memory.
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GemmKernel
 {
@@ -75,26 +151,19 @@ struct GemmKernel
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
 
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>, GemmPipeline::GetName());
+        // clang-format on
+    }
+
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
         return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
-
-    struct GemmKernelArgs
-    {
-        const void* a_ptr;
-        const void* b_ptr;
-        void* c_ptr;
-        index_t M;
-        index_t N;
-        index_t K;
-        index_t stride_A;
-        index_t stride_B;
-        index_t stride_C;
-        index_t k_batch;
-    };
 
     CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const GemmHostArgs& hostArgs)
     {
@@ -121,34 +190,34 @@ struct GemmKernel
                                      const std::size_t k_id = blockIdx.z)
         {
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
-            const index_t K_t   = kargs.k_batch * K1;
-            const index_t KRead = (kargs.K + K_t - 1) / K_t * K1;
+            const index_t K_t   = __builtin_amdgcn_readfirstlane(kargs.k_batch * K1);
+            const index_t KRead = __builtin_amdgcn_readfirstlane((kargs.K + K_t - 1) / K_t * K1);
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = k_id * KRead;
+                a_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead);
             }
             else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = k_id * KRead * kargs.stride_A;
+                a_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead * kargs.stride_A);
             }
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = k_id * KRead * kargs.stride_B;
+                b_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead * kargs.stride_B);
             }
             else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = k_id * KRead;
+                b_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead);
             }
 
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
             {
-                splitted_k = KRead;
+                splitted_k = __builtin_amdgcn_readfirstlane(KRead);
             }
             else
             {
-                splitted_k = kargs.K - KRead * (kargs.k_batch - 1);
+                splitted_k = __builtin_amdgcn_readfirstlane(kargs.K - KRead * (kargs.k_batch - 1));
             }
         }
 
@@ -159,28 +228,37 @@ struct GemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs& kargs)
     {
-        if constexpr(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
+        if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                      is_any_of<CDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.k_batch != 1)
             {
-                std::cerr << "Conditions not met for Kbatch >1 !" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
+                }
                 return false;
             }
         }
 
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
-            if(kargs.K % TilePartitioner::KPerBlock != 0 && GemmPipeline::kPadK == false)
+            if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
+               GemmPipeline::kPadK == false)
             {
-                std::cerr << "Can't support K that is not a multiple of KPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock "
+                                  "without padding!");
+                }
                 return false;
             }
             if(kargs.K % GemmPipeline::GetVectorSizeA() != 0)
             {
-                std::cerr << "K is not a multiple of vector load size for A tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
+                }
                 return false;
             }
         }
@@ -188,14 +266,19 @@ struct GemmKernel
         {
             if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
             {
-                std::cerr << "Can't support M that is not a multiple of MPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR(
+                        "Can't support M that is not a multiple of MPerBlock without padding!");
+                }
                 return false;
             }
             if(kargs.M % GemmPipeline::GetVectorSizeA() != 0)
             {
-                std::cerr << "M is not a multiple of vector load size for A tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
+                }
                 return false;
             }
         }
@@ -204,29 +287,40 @@ struct GemmKernel
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
-                std::cerr << "Can't support N that is not a multiple of NPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR(
+                        "Can't support N that is not a multiple of NPerBlock without padding!");
+                }
                 return false;
             }
             if(kargs.N % GemmPipeline::GetVectorSizeB() != 0)
             {
-                std::cerr << "N is not a multiple of vector load size for B tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
+                }
                 return false;
             }
         }
         else
         {
-            if(kargs.K % TilePartitioner::KPerBlock != 0 && GemmPipeline::kPadK == false)
+            if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
+               GemmPipeline::kPadK == false)
             {
-                std::cerr << "Can't support K that is not a multiple of KPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock "
+                                  "without padding!");
+                }
                 return false;
             }
             if(kargs.K % GemmPipeline::GetVectorSizeB() != 0)
             {
-                std::cerr << "K is not a multiple of vector load size for B tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("K is not a multiple of vector load size for B tensor!");
+                }
                 return false;
             }
         }
@@ -235,14 +329,19 @@ struct GemmKernel
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
-                std::cerr << "Can't support N that is not a multiple of NPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR(
+                        "Can't support N that is not a multiple of NPerBlock without padding!");
+                }
                 return false;
             }
-            if(kargs.N % EpiloguePipeline::template GetVectorSizeC<CDataType>() != 0)
+            if(kargs.N % EpiloguePipeline::GetVectorSizeC() != 0)
             {
-                std::cerr << "N is not a multiple of vector load size for C tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("N is not a multiple of vector load size for C tensor!");
+                }
                 return false;
             }
         }
@@ -250,14 +349,19 @@ struct GemmKernel
         {
             if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
             {
-                std::cerr << "Can't support M that is not a multiple of MPerBlock"
-                             " without padding!"
-                          << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR(
+                        "Can't support M that is not a multiple of MPerBlock without padding!");
+                }
                 return false;
             }
-            if(kargs.M % EpiloguePipeline::template GetVectorSizeC<CDataType>() != 0)
+            if(kargs.M % EpiloguePipeline::GetVectorSizeC() != 0)
             {
-                std::cerr << "M is not a multiple of vector load size for C tensor!" << std::endl;
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("M is not a multiple of vector load size for C tensor!");
+                }
                 return false;
             }
         }
@@ -271,6 +375,7 @@ struct GemmKernel
                                                    const GemmKernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
+        static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
@@ -295,21 +400,63 @@ struct GemmKernel
         const auto& b_tensor_view = [&]() {
             if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    b_ptr,
-                    make_tuple(splitk_batch_offset.splitted_k, kargs.N),
-                    make_tuple(kargs.stride_B, 1),
-                    number<GemmPipeline::GetVectorSizeB()>{},
-                    number<1>{});
+                if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
+                {
+                    constexpr index_t K1          = GemmPipeline::GetSmemPackB();
+                    const index_t K0              = splitk_batch_offset.splitted_k / K1;
+                    constexpr index_t VectorSizeB = std::min(K1, GemmPipeline::GetVectorSizeB());
+                    const auto b_k0_n_k1_desc =
+                        make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
+                                                     make_tuple(kargs.N * K1, K1, I1),
+                                                     number<VectorSizeB>{},
+                                                     number<1>{});
+                    const auto b_n_k_desc = transform_tensor_descriptor(
+                        b_k0_n_k1_desc,
+                        make_tuple(make_merge_transform(make_tuple(K0, K1)),
+                                   make_pass_through_transform(kargs.N)),
+                        make_tuple(sequence<0, 2>{}, sequence<1>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{}));
+                    return make_tensor_view<address_space_enum::global>(b_ptr, b_n_k_desc);
+                }
+                else
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        b_ptr,
+                        make_tuple(splitk_batch_offset.splitted_k, kargs.N),
+                        make_tuple(kargs.stride_B, 1),
+                        number<GemmPipeline::GetVectorSizeB()>{},
+                        number<1>{});
+                }
             }
             else
             {
-                return make_naive_tensor_view<address_space_enum::global>(
-                    b_ptr,
-                    make_tuple(kargs.N, splitk_batch_offset.splitted_k),
-                    make_tuple(kargs.stride_B, 1),
-                    number<GemmPipeline::GetVectorSizeB()>{},
-                    number<1>{});
+                if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
+                {
+                    constexpr index_t K1          = GemmPipeline::GetSmemPackB();
+                    const index_t K0              = splitk_batch_offset.splitted_k / K1;
+                    constexpr index_t VectorSizeB = std::min(K1, GemmPipeline::GetVectorSizeB());
+                    const auto b_k0_n_k1_desc =
+                        make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
+                                                     make_tuple(kargs.N * K1, K1, I1),
+                                                     number<VectorSizeB>{},
+                                                     number<1>{});
+                    const auto b_n_k_desc = transform_tensor_descriptor(
+                        b_k0_n_k1_desc,
+                        make_tuple(make_merge_transform(make_tuple(K0, K1)),
+                                   make_pass_through_transform(kargs.N)),
+                        make_tuple(sequence<0, 2>{}, sequence<1>{}),
+                        make_tuple(sequence<1>{}, sequence<0>{}));
+                    return make_tensor_view<address_space_enum::global>(b_ptr, b_n_k_desc);
+                }
+                else
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        b_ptr,
+                        make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                        make_tuple(kargs.stride_B, 1),
+                        number<GemmPipeline::GetVectorSizeB()>{},
+                        number<1>{});
+                }
             }
         }();
 
@@ -321,7 +468,7 @@ struct GemmKernel
                     c_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_C, 1),
-                    number<EpiloguePipeline::template GetVectorSizeC<CDataType>()>{},
+                    number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
             }
             else
@@ -455,7 +602,9 @@ struct GemmKernel
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
      * @param c_ptr output C pointer
+     * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
+     * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k batch.
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
@@ -465,7 +614,7 @@ struct GemmKernel
     CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
                                        const BDataType* b_ptr,
                                        CDataType* c_ptr,
-                                       void* smem_ptr,
+                                       void* smem_ptr_0,
                                        const GemmKernelArgs& kargs,
                                        const SplitKBatchOffset& splitk_batch_offset,
                                        const index_t block_idx_m,
@@ -478,25 +627,80 @@ struct GemmKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
-        const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
+        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window = gemm_tile_windows.at(I0);
         const auto& b_block_window = gemm_tile_windows.at(I1);
-        const auto& c_block_tile =
-            GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
+
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, num_loop, smem_ptr_0);
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
         EpiloguePipeline{}
             .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                c_block_window, c_block_tile, smem_ptr);
+                c_block_window, c_block_tile, smem_ptr_0);
+    }
+
+    /**
+     * @brief Runs single GEMM problem cooperatively by whole workgroup.
+     *
+     * @note RunGEMM2LDS in with two shared memory buffers using the ping pong buffer mechanism.
+     *
+     * @param a_ptr input A pointer
+     * @param b_ptr input B pointer
+     * @param c_ptr output C pointer
+     * @param smem_ptr_0 The starting pointer of 1st shared memory block.
+     * @param smem_ptr_1 The starting pointer of 2nd shared memory block.
+     * @param kargs GEMM kernel arguments
+     * @param splitk_batch_offset Utility structure used to calculate k batch.
+     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
+     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
+     *
+     * @tparam DstInMemOp Destination memory operation (default: set).
+     */
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
+    CK_TILE_DEVICE static void RunGemm2LDS(const ADataType* a_ptr,
+                                           const BDataType* b_ptr,
+                                           CDataType* c_ptr,
+                                           void* __restrict__ smem_ptr_0,
+                                           void* __restrict__ smem_ptr_1,
+                                           const GemmKernelArgs& kargs,
+                                           const SplitKBatchOffset& splitk_batch_offset,
+                                           const index_t block_idx_m,
+                                           const index_t block_idx_n)
+    {
+        // Create Gemm tensor views, pad views and tile windows
+        const auto& gemm_tensor_views_tuple =
+            MakeGemmTensorViews<DstInMemOp>(a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
+        auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+
+        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+
+        // Run GEMM cooperatively by whole workgroup.
+        const auto& a_block_window = gemm_tile_windows.at(I0);
+        const auto& b_block_window = gemm_tile_windows.at(I1);
+
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
+
+        // Run Epilogue Pipeline
+        auto& c_block_window = gemm_tile_windows.at(I2);
+
+        EpiloguePipeline{}
+            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                c_block_window, c_block_tile, smem_ptr_0);
     }
 
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
     {
-        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
+        const auto blockId  = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
         const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
@@ -509,21 +713,54 @@ struct GemmKernel
         CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
 
         // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
+        __shared__ char smem_ptr_0[GetSmemSize()];
 
-        if(kargs.k_batch == 1)
+        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            __shared__ char smem_ptr_1[GetSmemSize()];
+            if(kargs.k_batch == 1)
+            {
+                RunGemm2LDS(a_ptr,
+                            b_ptr,
+                            c_ptr,
+                            smem_ptr_0,
+                            smem_ptr_1,
+                            kargs,
+                            splitk_batch_offset,
+                            i_m,
+                            i_n);
+            }
+            else
+            {
+                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                               is_any_of<CDataType, fp16_t, bf16_t>::value))
+                {
+                    RunGemm2LDS<memory_operation_enum::atomic_add>(a_ptr,
+                                                                   b_ptr,
+                                                                   c_ptr,
+                                                                   smem_ptr_0,
+                                                                   smem_ptr_1,
+                                                                   kargs,
+                                                                   splitk_batch_offset,
+                                                                   i_m,
+                                                                   i_n);
+                }
+            }
         }
         else
         {
-            // Do not compile in case where we have unsupported
-            // VectorSizeC & data type configuration.
-            if constexpr(!(EpiloguePipeline::template GetVectorSizeC<CDataType>() % 2 != 0 &&
-                           is_any_of<CDataType, fp16_t, bf16_t>::value))
+            if(kargs.k_batch == 1)
             {
-                RunGemm<memory_operation_enum::atomic_add>(
-                    a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+                RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+            }
+            else
+            {
+                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                               is_any_of<CDataType, fp16_t, bf16_t>::value))
+                {
+                    RunGemm<memory_operation_enum::atomic_add>(
+                        a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+                }
             }
         }
     }

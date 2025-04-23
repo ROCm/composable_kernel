@@ -30,8 +30,127 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType, 
-          typename ALayout, typename BLayout, typename CLayout>
+template <typename Tensor,
+          typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+void permute_tensor_b(Tensor& tensor)
+{
+    using GemmShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
+        ck_tile::
+            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
+        GemmConfig::PermuteA,
+        GemmConfig::PermuteB>;
+
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
+                                                                 GemmConfig::kPadN,
+                                                                 GemmConfig::kPadK,
+                                                                 GemmConfig::DoubleSmemBuffer,
+                                                                 ALayout,
+                                                                 BLayout,
+                                                                 CLayout,
+                                                                 GemmConfig::TransposeC,
+                                                                 GemmConfig::UseStructuredSparsity>;
+
+    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                       BDataType,
+                                                                       AccDataType,
+                                                                       GemmShape,
+                                                                       GemmUniversalTraits,
+                                                                       GEMM_PIPELINE_SCHEDULER,
+                                                                       true,
+                                                                       ck_tile::TailNumber::Full>;
+
+    using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+
+    const ck_tile::index_t K  = tensor.get_length(0);
+    const ck_tile::index_t N  = tensor.get_length(1);
+    const ck_tile::index_t K1 = GemmPipeline::GetSmemPackB();
+    const ck_tile::index_t K0 = K / K1;
+
+    Tensor tensor_copy = tensor;
+
+    // int K0, N, K1
+    for(int j = 0; j < K0; j++)
+    {
+        for(int i = 0; i < N; i++)
+        {
+            for(int jj = 0; jj < K1; jj++)
+            {
+                tensor(j * N * K1 + i * K1 + jj) = tensor_copy(i * K + (j * K1 + jj));
+            }
+        }
+    }
+}
+
+template <typename Tensor>
+void permute_vectors_i4x4_b(Tensor& tensor)
+{
+    const ck_tile::index_t K = tensor.get_length(0);
+    const ck_tile::index_t N = tensor.get_length(1);
+    // vector pk_i4x4 permute
+    for(int i = 0; i < N; i++)
+    {
+        for(int j = 0; j < K; j += 8)
+        {
+            int8_t input[8];
+
+            for(int k = 0; k < 4; k++)
+            {
+                int8_t i4x2      = tensor(j + k * 2, i).data;
+                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+            }
+
+            // permute 01234567->20643175
+            {
+                int8_t hi   = input[2];
+                int8_t lo   = input[0];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 0, i) = i4x2;
+            }
+
+            {
+                int8_t hi   = input[6];
+                int8_t lo   = input[4];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 2, i) = i4x2;
+            }
+
+            {
+                int8_t hi   = input[3];
+                int8_t lo   = input[1];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 4, i) = i4x2;
+            }
+
+            {
+                int8_t hi   = input[7];
+                int8_t lo   = input[5];
+                int8_t i4x2 = (hi << 4) | lo;
+
+                tensor(j + 6, i) = i4x2;
+            }
+        }
+    }
+}
+
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
                   ck_tile::DeviceMem& c_m_n_dev_buf,
@@ -57,9 +176,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_B = stride_B;
     args.stride_C = stride_C;
 
-    float ave_time = gemm_calc<ADataType, BDataType, AccDataType, CDataType, 
-                               ALayout, BLayout, CLayout>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+    float ave_time =
+        gemm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -67,21 +186,25 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
-              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " A_Layout =" << ALayout::name 
-              << " B_Layout =" << BLayout::name 
-              << " C_Layout =" << CLayout::name
-              << " A Type = " << DataTypeTraits<ADataType>::name 
-              << " B Type = " << DataTypeTraits<BDataType>::name 
-              << " C Type = " << DataTypeTraits<CDataType>::name                             
+    std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
+              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
+              << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
+              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
+              << " B_Type=" << DataTypeTraits<BDataType>::name
+              << " C_Type=" << DataTypeTraits<CDataType>::name
+              << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
               << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
 
     return ave_time;
 }
 
-template <typename PrecType, typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType = ADataType,
+          typename CDataType = ADataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 int run_gemm_example_with_layouts(int argc,
                                   char* argv[],
                                   const ALayout a_layout                  = ALayout{},
@@ -92,10 +215,7 @@ int run_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using ADataType = typename GemmBasicTypeConfig<PrecType>::ADataType;
-    using BDataType = typename GemmBasicTypeConfig<PrecType>::BDataType;
-    using CDataType = typename GemmBasicTypeConfig<PrecType>::CDataType;
-    using AccDataType = typename GemmBasicTypeConfig<PrecType>::AccDataType;        
+    using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -105,9 +225,10 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    ck_tile::index_t kbatch = arg_parser.get_int("split_k");
-    int n_warmup            = arg_parser.get_int("warmup");
-    int n_repeat            = arg_parser.get_int("repeat");
+    ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
+    int n_warmup                 = arg_parser.get_int("warmup");
+    int n_repeat                 = arg_parser.get_int("repeat");
+    ck_tile::index_t init_method = arg_parser.get_int("init");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -120,32 +241,82 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-    // TODO: add different init types
-    ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-    ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
+    if(init_method == 0)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+    }
+    else if(init_method == 1)
+    {
+        ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
+        ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
+    }
+    else if(init_method == 2)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
+    }
+    else
+    {
+        a_m_k.SetZero();
+        b_k_n.SetZero();
+    }
+
+    if(GemmConfig::UseStructuredSparsity)
+    {
+        ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
+    }
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
+    static_assert(!GemmConfig::PermuteA, "Not implemented");
+    if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+    {
+        // Permute vector pk_i4x4 data for device implementation
+        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+        if constexpr(GemmConfig::PermuteB)
+        {
+            permute_tensor_b<decltype(b_k_n_dev),
+                             ADataType,
+                             BDataType,
+                             AccDataType,
+                             CDataType,
+                             ALayout,
+                             BLayout,
+                             CLayout>(b_k_n_dev);
+        }
+        permute_vectors_i4x4_b(b_k_n_dev);
+        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+    }
+    else
+    {
+        if constexpr(GemmConfig::PermuteB)
+        {
+            std::cout << "Permute for this DataType is not implemented." << std::endl;
+            return false;
+        }
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+    }
+
     a_m_k_dev_buf.ToDevice(a_m_k.data());
-    b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ADataType, BDataType, AccDataType, CDataType, 
-                ALayout, BLayout, CLayout>(a_m_k_dev_buf,
-                                           b_k_n_dev_buf,
-                                           c_m_n_dev_buf,
-                                           M,
-                                           N,
-                                           K,
-                                           stride_A,
-                                           stride_B,
-                                           stride_C,
-                                           kbatch,
-                                           n_warmup,
-                                           n_repeat);
+    invoke_gemm<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+        a_m_k_dev_buf,
+        b_k_n_dev_buf,
+        c_m_n_dev_buf,
+        M,
+        N,
+        K,
+        stride_A,
+        stride_B,
+        stride_C,
+        kbatch,
+        n_warmup,
+        n_repeat);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
@@ -160,9 +331,9 @@ int run_gemm_example_with_layouts(int argc,
             a_m_k, b_k_n, c_m_n_host_ref);
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>
-                                    (K, kbatch, max_accumulated_value);
-        pass                 = ck_tile::check_err(c_m_n_dev_result,
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+        pass = ck_tile::check_err(c_m_n_dev_result,
                                   c_m_n_host_ref,
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
@@ -171,10 +342,15 @@ int run_gemm_example_with_layouts(int argc,
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
-        std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            // Restore input for B for gpu reference
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
         ck_tile::HostTensor<CDataType> c_m_n_gpu_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_gpu_ref.get_element_space_size_in_bytes());
@@ -185,17 +361,18 @@ int run_gemm_example_with_layouts(int argc,
         BDataType* d_B;
         CDataType* d_C;
 
-        ck_tile::hip_check_error(hipMalloc(&d_A, M * K * sizeof(ADataType)));
-        ck_tile::hip_check_error(hipMalloc(&d_B, N * K * sizeof(BDataType)));
-        ck_tile::hip_check_error(hipMalloc(&d_C, M * N * sizeof(CDataType)));
+        ck_tile::hip_check_error(hipMalloc(&d_A, a_m_k.get_element_space_size_in_bytes()));
+        ck_tile::hip_check_error(hipMalloc(&d_B, b_k_n.get_element_space_size_in_bytes()));
+        ck_tile::hip_check_error(
+            hipMalloc(&d_C, c_m_n_dev_result.get_element_space_size_in_bytes()));
 
         ck_tile::hip_check_error(hipMemcpy(d_A,
                                            a_m_k_dev_buf.GetDeviceBuffer(),
-                                           M * K * sizeof(ADataType),
+                                           a_m_k.get_element_space_size_in_bytes(),
                                            hipMemcpyHostToDevice));
         ck_tile::hip_check_error(hipMemcpy(d_B,
                                            b_k_n_dev_buf.GetDeviceBuffer(),
-                                           N * K * sizeof(BDataType),
+                                           b_k_n.get_element_space_size_in_bytes(),
                                            hipMemcpyHostToDevice));
 
         ck_tile::reference_gemm_gpu<ADataType,
@@ -208,7 +385,7 @@ int run_gemm_example_with_layouts(int argc,
 
         ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
                                            d_C,
-                                           M * N * sizeof(CDataType),
+                                           c_m_n_dev_result.get_element_space_size_in_bytes(),
                                            hipMemcpyDeviceToHost));
 
         ck_tile::hip_check_error(hipFree(d_A));
@@ -218,18 +395,17 @@ int run_gemm_example_with_layouts(int argc,
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
         const float max_accumulated_value =
             *std::max_element(c_m_n_gpu_ref.mData.begin(), c_m_n_gpu_ref.mData.end());
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>
-                                    (K, kbatch, max_accumulated_value);
-        pass                 = ck_tile::check_err(c_m_n_dev_result,
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+        pass = ck_tile::check_err(c_m_n_dev_result,
                                   c_m_n_gpu_ref,
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
                                   rtol_atol.at(ck_tile::number<1>{}));
-
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
-        std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
 
     return pass;

@@ -101,8 +101,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
         for(int i = 0; i < group_count; i++)
         {
             Ms.push_back(256 + 256 * i);
-            Ns.push_back(128 + 128 * i);
-            Ks.push_back(128 + 64 * i);
+            Ns.push_back(256 + 512 * i);
+            Ks.push_back(256 + 64 * i);
 
             stride_As.push_back(Ks[i]);
             stride_Bs.push_back(Ks[i]);
@@ -169,7 +169,10 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
-        gemm_descs.push_back({p_a, p_b, p_c, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+        // TODO Add support for kbatch > 1 in grouped gemm
+        static constexpr ck_tile::index_t k_batch = 1;
+        gemm_descs.push_back(
+            {p_a, p_b, p_c, k_batch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
     }
 
     invoke_gemm<ALayout, BLayout, CLayout>(warmup, repeat, group_count, gemm_descs);
@@ -202,7 +205,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
                       << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                       << std::endl;
         }
-        std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
 
     return pass;
