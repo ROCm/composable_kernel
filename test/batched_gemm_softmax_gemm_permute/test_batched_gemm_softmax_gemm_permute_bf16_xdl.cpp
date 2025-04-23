@@ -109,52 +109,46 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16_Irregul
     this->Run();
 }
 
-
 TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16)
 {
 
     // Get device capability tier
     auto deviceTier = ck::test::DetermineDeviceTier();
-    
+
     // Configure test sizes based on device tier
-    if (deviceTier == ck::test::DeviceCapabilityTier::LOW) {
-        // Minimal test sizes for low resource devices 
+    if(deviceTier == ck::test::DeviceCapabilityTier::LOW)
+    {
+        // Minimal test sizes for low resource devices
         this->lengths_ = std::vector<std::vector<int>>{
-            {256, 256, 64, 64, 16, 8},
-            {256, 256, 128, 128, 16, 8},
-            {512, 512, 64, 64, 8, 4}
-        };
+            {256, 256, 64, 64, 16, 8}, {256, 256, 128, 128, 16, 8}, {512, 512, 64, 64, 8, 4}};
         std::cout << "Running reduced benchmarks for low-resource device" << std::endl;
-    } 
-    else if (deviceTier == ck::test::DeviceCapabilityTier::MEDIUM) {
+    }
+    else if(deviceTier == ck::test::DeviceCapabilityTier::MEDIUM)
+    {
         // Medium test sizes
-        this->lengths_ = std::vector<std::vector<int>>{
-            {256, 256, 64, 64, 24, 12},
-            {256, 256, 128, 128, 24, 12},
-            {512, 512, 64, 64, 16, 8},
-            {512, 512, 128, 128, 16, 8},
-            {1024, 1024, 64, 64, 8, 4},
-            {1024, 1024, 128, 128, 8, 4}
-        };
+        this->lengths_ = std::vector<std::vector<int>>{{256, 256, 64, 64, 24, 12},
+                                                       {256, 256, 128, 128, 24, 12},
+                                                       {512, 512, 64, 64, 16, 8},
+                                                       {512, 512, 128, 128, 16, 8},
+                                                       {1024, 1024, 64, 64, 8, 4},
+                                                       {1024, 1024, 128, 128, 8, 4}};
         std::cout << "Running medium benchmarks for mid-tier device" << std::endl;
     }
-    else {
-        // Full test sizes for high resource devices 
-        this->lengths_ = std::vector<std::vector<int>>{
-            {256, 256, 64, 64, 48, 16},
-            {256, 256, 128, 128, 48, 16},
-            {512, 512, 64, 64, 48, 16},
-            {512, 512, 128, 128, 48, 16},
-            {1024, 1024, 64, 64, 48, 16},
-            {1024, 1024, 128, 128, 48, 16},
-            {2048, 2048, 64, 64, 48, 16},
-            {2048, 2048, 128, 128, 48, 16},
-            {4096, 4096, 64, 64, 48, 16},
-            {4096, 4096, 128, 128, 48, 16}
-        };
+    else
+    {
+        // Full test sizes for high resource devices
+        this->lengths_ = std::vector<std::vector<int>>{{256, 256, 64, 64, 48, 16},
+                                                       {256, 256, 128, 128, 48, 16},
+                                                       {512, 512, 64, 64, 48, 16},
+                                                       {512, 512, 128, 128, 48, 16},
+                                                       {1024, 1024, 64, 64, 48, 16},
+                                                       {1024, 1024, 128, 128, 48, 16},
+                                                       {2048, 2048, 64, 64, 48, 16},
+                                                       {2048, 2048, 128, 128, 48, 16},
+                                                       {4096, 4096, 64, 64, 48, 16},
+                                                       {4096, 4096, 128, 128, 48, 16}};
         std::cout << "Running full benchmarks for high-performance device" << std::endl;
     }
-    
 
     this->bench_  = true;
     this->verify_ = false;
@@ -172,21 +166,26 @@ TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteInterface, GemmSpecializationS
     int P = 120; // requires padding
     int Q = 128; // do not require padding
 
-     // For lower-end devices, we might need to skip some tests
-    if (deviceTier == ck::test::DeviceCapabilityTier::LOW) {
+    // For lower-end devices, we might need to skip some tests
+    if(deviceTier == ck::test::DeviceCapabilityTier::LOW)
+    {
         // For low-tier devices, only test a subset of specializations
         // Ordered from simpler to more complex cases
 
         // Skip  cases for low-resource devices
-        //EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::Default>{}.IsSupported(Q, Q, Q, Q));
-      
-        // EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::MPadding>{}.IsSupported(P, Q, Q, Q));
-        // EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::NPadding>{}.IsSupported(Q, P, Q, Q));
+        // EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::Default>{}.IsSupported(Q,
+        // Q, Q, Q));
 
-        // //EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::Default>{}.IsSupported(Q, Q, Q, Q));
-        // EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::KPadding>{}.IsSupported(Q, Q, P, Q));
-        
-       
+        // EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::MPadding>{}.IsSupported(P,
+        // Q, Q, Q));
+        // EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::NPadding>{}.IsSupported(Q,
+        // P, Q, Q));
+
+        // //EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::Default>{}.IsSupported(Q,
+        // Q, Q, Q));
+        // EXPECT_TRUE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::KPadding>{}.IsSupported(Q,
+        // Q, P, Q));
+
         std::cout << "Skipping GemmSpecialization tests for low-resource device" << std::endl;
         return;
     }
@@ -214,13 +213,25 @@ TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteInterface, GemmSpecializationS
 
 TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteInterface, GemmSpecializationSizeMismatch)
 {
-    EXPECT_FALSE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::Default>{}.IsSupported(128, 128, 120, 128));
-    EXPECT_FALSE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::MNKPadding>{}.IsSupported(128, 128, 128, 120));
-    // Kernel can't support odd K size because SrcVectorDim == KDim and must satisfy SizeKRaw % ABSrcScalarPerVector == 0
-    EXPECT_FALSE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 129, 128));
-    EXPECT_FALSE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 130, 128));
-    // Kernel can't support odd O size because SrcVectorDim == ODim and must satisfy SizeORaw % B1SrcScalarPerVector == 0
-    EXPECT_FALSE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::MNKOPadding>{}.IsSupported(128, 128, 128, 129));
+    EXPECT_FALSE(
+        DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<GemmSpecialization::Default>{}
+            .IsSupported(128, 128, 120, 128));
+    EXPECT_FALSE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<
+                     GemmSpecialization::MNKPadding>{}
+                     .IsSupported(128, 128, 128, 120));
+    // Kernel can't support odd K size because SrcVectorDim == KDim and must satisfy SizeKRaw %
+    // ABSrcScalarPerVector == 0
+    EXPECT_FALSE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<
+                     GemmSpecialization::MNKOPadding>{}
+                     .IsSupported(128, 128, 129, 128));
+    EXPECT_FALSE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<
+                     GemmSpecialization::MNKOPadding>{}
+                     .IsSupported(128, 128, 130, 128));
+    // Kernel can't support odd O size because SrcVectorDim == ODim and must satisfy SizeORaw %
+    // B1SrcScalarPerVector == 0
+    EXPECT_FALSE(DeviceInstanceWrapper_G2M1N1K1O1_TNTT_BF16_M128_N128_K32_O128<
+                     GemmSpecialization::MNKOPadding>{}
+                     .IsSupported(128, 128, 128, 129));
     // clang-format on
 }
 
