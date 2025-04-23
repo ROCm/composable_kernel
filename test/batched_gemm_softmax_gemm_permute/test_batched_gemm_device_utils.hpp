@@ -19,15 +19,14 @@ inline DeviceResources GetDeviceResources()
 {
     DeviceResources res;
     hipDeviceProp_t props;
-    
-    
-    hipError_t status = hipGetDeviceProperties(&props, 0); 
-    if (status != hipSuccess)
+
+    hipError_t status = hipGetDeviceProperties(&props, 0);
+    if(status != hipSuccess)
     {
-        props.multiProcessorCount = 0; 
-        res.computeUnits = 0;
-        res.totalMemory  = 0;
-        res.deviceName   = "Unknown";
+        props.multiProcessorCount = 0;
+        res.computeUnits          = 0;
+        res.totalMemory           = 0;
+        res.deviceName            = "Unknown";
         return res;
     }
 
@@ -67,4 +66,3 @@ inline DeviceCapabilityTier DetermineDeviceTier()
 
 } // namespace test
 } // namespace ck
-
