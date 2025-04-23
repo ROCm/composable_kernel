@@ -14,6 +14,7 @@
 #include "block_gemm_areg_bsmem_creg_v1.hpp"
 #include "tile_gemm_shape.hpp"
 
+
 namespace ck_tile {
 
 // S[M0, N0] = Q[M0, K0] * K[N0, K0]
@@ -152,6 +153,10 @@ struct FlashAttentionFwdImpl
         constexpr auto I0 = number<0>{};
         constexpr auto I1 = number<1>{};
 
+        // Block GEMM0 pipeline and Block GEMM1
+        constexpr auto gemm0_pipeline = BlockGemm0Pipeline{};
+        constexpr auto gemm1          = BlockGemm1{};
+
         // allocate LDS
         __shared__ char smem_ptr[GetStaticLdsSize()];
 
@@ -179,7 +184,6 @@ struct FlashAttentionFwdImpl
                              make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}),
                              {iN1, 0},
                              MakeVDramTileDistribution());
-
         // Q in register
         auto q_reg_tensor = load_tile(q_dram_window);
 
@@ -188,12 +192,22 @@ struct FlashAttentionFwdImpl
         auto v_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<VDataType*>(smem_ptr), MakeVLdsBlockDescriptor());
 
+#if defined(TOY_FA_FWD_OPT)
+        // V LDS tile window for store
+        auto v_copy_lds_window =
+            make_tile_window(v_lds,
+                                make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}),
+                                {0, 0},
+                                v_dram_window.get_tile_distribution());
+
+        // V LDS tile for block GEMM
+        auto v_lds_gemm_window = make_tile_window(
+            v_lds, make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}), {0, 0},
+            make_static_tile_distribution(gemm1.MakeBBlockDistributionEncode()));
+#else
         auto v_lds_window = make_tile_window(
             v_lds, make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}), {0, 0});
-
-        // Block GEMM0 pipeline and Block GEMM1
-        constexpr auto gemm0_pipeline = BlockGemm0Pipeline{};
-        constexpr auto gemm1          = BlockGemm1{};
+#endif
 
         // reduction function for softmax
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
@@ -239,9 +253,10 @@ struct FlashAttentionFwdImpl
             const auto s =
                 tile_elementwise_in(type_convert<SMPLComputeDataType, SaccDataType>, s_acc);
 
+#if defined(TOY_FA_FWD_OPT)
             // prefetch load v tile
-            const auto v_prefetch = load_tile(v_dram_window);
-
+            auto v_prefetch = load_tile(v_dram_window);
+#endif
             // m_local = rowmax(S{j})
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
                 s, sequence<1>{}, f_max, std::numeric_limits<SMPLComputeDataType>::lowest());
@@ -291,10 +306,30 @@ struct FlashAttentionFwdImpl
                     o_acc(i_j_idx) *= tmp;
                 });
             });
-
             block_sync_lds();
-            store_tile(v_lds_window, v_prefetch);
-            move_tile_window(v_dram_window, {0, kK1PerBlock});
+#if !defined(TOY_FA_FWD_OPT)
+            // type cast Pcompute{j} into P{j}
+            const auto p =
+                tile_elementwise_in(type_convert<PDataType, SMPLComputeDataType>, p_compute);
+
+            // Oacc{j}
+            constexpr index_t k1_loops = kN0PerBlock / kK1PerBlock;
+
+            static_for<0, k1_loops, 1>{}([&](auto i_k1) {
+                const auto v = load_tile(v_dram_window); // load next v
+                move_tile_window(v_dram_window, {0, kK1PerBlock});
+                store_tile(v_lds_window, v);
+                block_sync_lds();
+                gemm1(o_acc,
+                        get_slice_tile(p,
+                                        sequence<0, i_k1 * kK1PerBlock>{},
+                                        sequence<kM0PerBlock, (i_k1 + 1) * kK1PerBlock>{}),
+                        v_lds_window);
+                block_sync_lds();
+            });
+#else
+            using VLdsTile = typename decltype(gemm1)::BLdsTile;
+            VLdsTile vWarpTile;
 
             // type cast Pcompute{j} into P{j}
             const auto p =
@@ -305,33 +340,59 @@ struct FlashAttentionFwdImpl
 
             if constexpr(k1_loops > 1)
             {
+                move_tile_window(v_dram_window, {0, kK1PerBlock});
+                store_tile(v_copy_lds_window, v_prefetch);
+                v_prefetch = load_tile(v_dram_window);
+                move_tile_window(v_dram_window, {0, kK1PerBlock});
+                block_sync_lds();
+                vWarpTile = load_tile(v_lds_gemm_window);
+            }
+            if constexpr(k1_loops > 2)
+            {
                 __builtin_amdgcn_sched_barrier(0);
-                static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
-                    const auto v = load_tile(v_dram_window); // load next v
+                static_for<0, k1_loops - 2, 1>{}([&](auto i_k1) {
                     block_sync_lds();
-                    gemm1(o_acc,
-                          get_slice_tile(p,
-                                         sequence<0, i_k1 * kK1PerBlock>{},
-                                         sequence<kM0PerBlock, (i_k1 + 1) * kK1PerBlock>{}),
-                          v_lds_window);
-                    block_sync_lds();
-                    store_tile(v_lds_window, v);
+
+                    // LDS write 1
+                    store_tile(v_copy_lds_window, v_prefetch);
+
+                    // Global read 2
+                    v_prefetch = load_tile(v_dram_window);
                     move_tile_window(v_dram_window, {0, kK1PerBlock});
 
+                    gemm1(o_acc,
+                        get_slice_tile(p,
+                                        sequence<0, i_k1 * kK1PerBlock>{},
+                                        sequence<kM0PerBlock, (i_k1 + 1) * kK1PerBlock>{}),
+                                        vWarpTile);
+                    block_sync_lds();
+                    vWarpTile = load_tile(v_lds_gemm_window);
                     gemm1.template HotLoopScheduler<8, 4>();
                     __builtin_amdgcn_sched_barrier(0);
                 });
             }
             // tail
             {
+                if constexpr (k1_loops > 1)
+                {
+                    gemm1(o_acc,
+                        get_slice_tile(p,
+                                        sequence<0, (k1_loops - 2) * kK1PerBlock>{},
+                                        sequence<kM0PerBlock, (k1_loops - 1) * kK1PerBlock>{}),
+                                        vWarpTile);
+                    block_sync_lds();
+                }
+                store_tile(v_copy_lds_window, v_prefetch);
                 block_sync_lds();
+                vWarpTile = load_tile(v_lds_gemm_window);
                 gemm1(o_acc,
-                      get_slice_tile(p,
-                                     sequence<0, (k1_loops - 1) * kK1PerBlock>{},
-                                     sequence<kM0PerBlock, kN0PerBlock>{}),
-                      v_lds_window);
+                    get_slice_tile(p,
+                                    sequence<0, (k1_loops - 1) * kK1PerBlock>{},
+                                    sequence<kM0PerBlock, kN0PerBlock>{}),
+                        vWarpTile);
                 block_sync_lds();
             }
+#endif
             // move tile windows
             move_tile_window(k_dram_window, {kN0PerBlock, 0});
             iN0 += kN0PerBlock;
