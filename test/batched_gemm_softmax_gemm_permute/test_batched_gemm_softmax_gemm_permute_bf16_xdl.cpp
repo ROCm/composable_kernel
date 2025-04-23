@@ -110,24 +110,6 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16_Irregul
     this->Run();
 }
 
-// TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16)
-// {
-//     this->lengths_ = std::vector<std::vector<int>>{
-//         {256, 256, 64, 64, 48, 16},
-//         {256, 256, 128, 128, 48, 16},
-//         {512, 512, 64, 64, 48, 16},
-//         {512, 512, 128, 128, 48, 16},
-//         {1024, 1024, 64, 64, 48, 16},
-//         {1024, 1024, 128, 128, 48, 16},
-//         {2048, 2048, 64, 64, 48, 16},
-//         {2048, 2048, 128, 128, 48, 16},
-//         {4096, 4096, 64, 64, 48, 16},
-//         {4096, 4096, 128, 128, 48, 16},
-//     };
-//     this->bench_  = true;
-//     this->verify_ = false;
-//     this->Run();
-// }
 
 TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16)
 {
@@ -136,7 +118,7 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16)
     
     // Configure test sizes based on device tier
     if (deviceTier == ck::test::DeviceCapabilityTier::LOW) {
-        // Minimal test sizes for low-end devices (MI308)
+        // Minimal test sizes for low resource devices 
         this->lengths_ = std::vector<std::vector<int>>{
             {256, 256, 64, 64, 16, 8},
             {256, 256, 128, 128, 16, 8},
@@ -157,7 +139,7 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16)
         std::cout << "Running medium benchmarks for mid-tier device" << std::endl;
     }
     else {
-        // Full test sizes for high-end devices (MI300)
+        // Full test sizes for high resource devices 
         this->lengths_ = std::vector<std::vector<int>>{
             {256, 256, 64, 64, 48, 16},
             {256, 256, 128, 128, 48, 16},

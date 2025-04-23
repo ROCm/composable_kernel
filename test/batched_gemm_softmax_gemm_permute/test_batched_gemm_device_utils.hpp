@@ -37,18 +37,19 @@ inline DeviceResources GetDeviceResources() {
 
 // Device capability tiers
 enum class DeviceCapabilityTier {
-    LOW,      // MI308 and similar
+    LOW,      // Low resources devices (CU less than 80)
     MEDIUM,   // Mid-range devices
-    HIGH      // MI300 and high-end devices
+    HIGH      // High resources devices (CU hiher than 100)
 };
 
-inline DeviceCapabilityTier DetermineDeviceTier() {
+inline DeviceCapabilityTier DetermineDeviceTier() 
+{
     DeviceResources res = GetDeviceResources();
     
     // Adjust these thresholds based on your device specifics
     if (res.computeUnits < 80) { 
         return DeviceCapabilityTier::LOW;
-    } else if (res.computeUnits < 120) {
+    } else if (res.computeUnits < 100) {
         return DeviceCapabilityTier::MEDIUM;
     } else {
         return DeviceCapabilityTier::HIGH;
