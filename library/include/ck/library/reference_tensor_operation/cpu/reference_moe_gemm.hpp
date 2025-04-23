@@ -23,12 +23,14 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          bool MulRoutedWeight  = false,
-          typename ComputeTypeA = CDataType,
-          typename ComputeTypeB = ComputeTypeA>
+          index_t ActivationType_ = 0,
+          bool MulRoutedWeight    = true,
+          typename ComputeTypeA   = CDataType,
+          typename ComputeTypeB   = ComputeTypeA>
 struct ReferenceMoeGemm : public device::BaseOperator
 {
     // Argument
+    static constexpr auto ActivationType = ActivationType_;
     struct Argument : public device::BaseArgument
     {
         Argument(const Tensor<ck::index_t>& sorted_token_ids,
@@ -36,7 +38,9 @@ struct ReferenceMoeGemm : public device::BaseOperator
                  const Tensor<ck::index_t>& max_token_id,
                  const index_t sorted_tile_size,
                  const Tensor<ADataType>& a_t_k,
+                 const Tensor<float>& a_scale_t,
                  const Tensor<BDataType>& b_e_n_k,
+                 const Tensor<float>& b_scale_e_n,
                  Tensor<CDataType>& c_t_k_n,
                  const Tensor<D2DataType>& d2,
                  AElementwiseOperation a_element_op,
@@ -47,7 +51,9 @@ struct ReferenceMoeGemm : public device::BaseOperator
               max_token_id_{max_token_id},
               sorted_tile_size_{sorted_tile_size},
               a_t_k_{a_t_k},
+              a_scale_t_{a_scale_t},
               b_e_n_k_{b_e_n_k},
+              b_scale_e_n_{b_scale_e_n},
               c_t_k_n_{c_t_k_n},
               d2_{d2},
               a_element_op_{a_element_op},
@@ -61,7 +67,9 @@ struct ReferenceMoeGemm : public device::BaseOperator
         const Tensor<ck::index_t>& max_token_id_;
         index_t sorted_tile_size_;
         const Tensor<ADataType>& a_t_k_;
+        const Tensor<float>& a_scale_t_;
         const Tensor<BDataType>& b_e_n_k_;
+        const Tensor<float>& b_scale_e_n_;
         Tensor<CDataType>& c_t_k_n_;
         const Tensor<D2DataType>& d2_;
 
@@ -77,11 +85,17 @@ struct ReferenceMoeGemm : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
-            auto f_mk_kn_mn = [&](auto m, auto n) {
+            static_assert(ActivationType < 2, "Not supported activation type");
+            const int full_n = arg.c_t_k_n_.mDesc.GetLengths()[2];
+            auto f_mk_kn_mn  = [&](auto m, auto n) {
                 const int K = arg.a_t_k_.mDesc.GetLengths()[1];
+                AccDataType v_acc_up{0};
+                ComputeTypeB v_b_up{0};
                 AccDataType v_acc{0};
+
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
+
                 const int t         = arg.sorted_token_ids_(m) & 0xffffff;
                 const int topk_id   = (arg.sorted_token_ids_(m) & 0xff000000) >> 24;
                 const int e         = arg.expert_ids_(m / arg.sorted_tile_size_);
@@ -102,7 +116,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
 #if CK_USE_PK4_LAYOUT_SHUFFLE
                             v_a = i4_to_f32_gfx9(i4);
 #else
-                            v_a = i4 - 8;
+                            v_a    = i4 - 8;
 #endif
                         }
                         else
@@ -112,42 +126,79 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         // same for B matrix
                         if constexpr(is_same_v<BDataType, pk_i4_t>)
                         {
-                            uint8_t i4x2 = arg.b_e_n_k_(e, k, n).data;
-                            uint8_t i4   = 0;
+                            uint8_t i4x2    = arg.b_e_n_k_(e, k, n).data;
+                            uint8_t i4x2_up = arg.b_e_n_k_(e, k, n + full_n).data;
+                            uint8_t i4      = 0;
+                            uint8_t i4_up   = 0;
                             if(k % 2 == 1)
-                                i4 = (i4x2 >> 0) & 0xf;
+                            {
+                                i4    = (i4x2 >> 0) & 0xf;
+                                i4_up = (i4x2_up >> 0) & 0xf;
+                            }
                             else
-                                i4 = (i4x2 >> 4) & 0xf;
+                            {
+                                i4    = (i4x2 >> 4) & 0xf;
+                                i4_up = (i4x2_up >> 4) & 0xf;
+                            }
 #if CK_USE_PK4_LAYOUT_SHUFFLE
-                            v_b = i4_to_f32_gfx9(i4);
+                            v_b    = i4_to_f32_gfx9(i4);
+                            v_b_up = i4_to_f32_gfx9(i4_up);
 #else
-                            v_b = i4 - 8;
+                            v_b    = i4 - 8;
+                            v_b_up = i4_up - 8;
 #endif
                         }
                         else
                         {
                             arg.b_element_op_(v_b, arg.b_e_n_k_(e, k, n));
+                            arg.b_element_op_(v_b_up, arg.b_e_n_k_(e, k, n + full_n));
                         }
 
                         v_acc +=
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+                        v_acc_up += ck::type_convert<AccDataType>(v_a) *
+                                    ck::type_convert<AccDataType>(v_b_up);
                     }
                     CDataType v_c{0};
-
+                    CDataType v_c_up{0};
                     if constexpr(MulRoutedWeight)
                     {
                         v_acc *= v_topk_w;
+                        v_acc_up *= v_topk_w;
                     }
 
                     arg.c_element_op_(v_c, v_acc);
+                    arg.c_element_op_(v_c_up, v_acc_up);
 
-                    arg.c_t_k_n_(t, topk_id, n) = v_c;
+                    if constexpr(ActivationType == 1)
+                    {
+                        v_c = v_c * arg.b_scale_e_n_(e, n) * arg.a_scale_t_(t);
+                        if constexpr(is_same_v<BDataType, pk_i4_t>)
+                        {
+                            v_c_up *= 16;
+                            v_c *= 16;
+                        }
+                        tensor_operation::element_wise::Silu{}(v_c, v_c);
+                        v_c_up = v_c_up * arg.b_scale_e_n_(e, n + full_n) * arg.a_scale_t_(t);
+                        arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
+                    }
+                    else if constexpr(ActivationType == 0)
+                    {
+                        v_c = v_c * arg.b_scale_e_n_(e, n) * arg.a_scale_t_(t);
+                        if constexpr(is_same_v<BDataType, pk_i4_t>)
+                        {
+                            v_c_up *= 16;
+                            v_c *= 16;
+                        }
+                        tensor_operation::element_wise::Gelu{}(v_c, v_c);
+                        v_c_up = v_c_up * arg.b_scale_e_n_(e, n + full_n) * arg.a_scale_t_(t);
+                        arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
+                    }
                 }
             };
 
             const ck::index_t max_token_id = arg.max_token_id_(0);
-            make_ParallelTensorFunctor(
-                f_mk_kn_mn, max_token_id, arg.c_t_k_n_.mDesc.GetLengths()[2])(
+            make_ParallelTensorFunctor(f_mk_kn_mn, max_token_id, full_n)(
                 std::thread::hardware_concurrency());
 
             return 0;
@@ -173,7 +224,9 @@ struct ReferenceMoeGemm : public device::BaseOperator
                              const Tensor<ck::index_t>& max_token_id,
                              const index_t sorted_tile_size,
                              const Tensor<ADataType>& a_t_k,
+                             const Tensor<float>& a_scale_n,
                              const Tensor<BDataType>& b_e_n_k,
+                             const Tensor<float>& b_scale_e_n,
                              Tensor<CDataType>& c_t_k_n,
                              const Tensor<D2DataType>& d2,
                              AElementwiseOperation a_element_op,
@@ -185,7 +238,9 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         max_token_id,
                         sorted_tile_size,
                         a_t_k,
+                        a_scale_n,
                         b_e_n_k,
+                        b_scale_e_n,
                         c_t_k_n,
                         d2,
                         a_element_op,
