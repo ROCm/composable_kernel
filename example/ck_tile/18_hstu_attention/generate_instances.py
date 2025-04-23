@@ -96,7 +96,7 @@ def create_forward_instances(instance_dir: Path, headdims: List) -> None:
                                 mode=mode,
                                 dtype_str=dtype,
                                 has_or_no_causal_str=BOOL_MAP_CAUSAL[has_causal],
-                                has_or_no_local_str=BOOL_MAP_CAUSAL[has_local],
+                                has_or_no_local_str=BOOL_MAP_LOCAL[has_local],
                                 has_or_no_bias_str=BOOL_MAP_BIAS[has_bias],
                                 has_or_no_dropout_str=BOOL_MAP_DROPOUT[has_dropout],
                                 max_k_str=INT_MAP_MAX_K[max_k],
