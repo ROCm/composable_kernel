@@ -291,11 +291,6 @@ def cmake_build(Map conf=[:]){
             setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
             build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
         }
-        else if (setup_args.contains("gfx908;gfx90a;gfx942")){
-            //limit the number of build threads when building for multiple gfx9 targets
-            setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-            build_cmd = conf.get("build_cmd", "${build_envs} make -j32 ${config_targets}")
-        }
         else{
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
             build_cmd = conf.get("build_cmd", "${build_envs} make -j${nt} ${config_targets}")
@@ -604,7 +599,7 @@ def Build_CK(Map conf=[:]){
                             stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
                         }
                         else if ( arch_type == 6 ){
-                            // run standard tests on gfx908
+                            // run basic tests on gfx908
                             echo "Run performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx908"
                             archiveArtifacts "perf_onnx_gemm_gfx908.log"
@@ -1115,11 +1110,11 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install \
-                                         -DGPU_TARGETS="gfx908;gfx90a;gfx942" \
+                                         -DGPU_TARGETS="gfx90a;gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx908;gfx90a;gfx942" \
+                                           -DGPU_TARGETS="gfx90a;gfx942" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
