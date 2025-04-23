@@ -31,7 +31,7 @@ struct BatchedTransposeKernel
     using Pipeline = remove_cvref_t<Pipeline_>;
     using Problem  = remove_cvref_t<typename Pipeline::Problem>;
 
-    using Type = typename Problem::InputType;
+    using Type = typename Problem::DataType;
 
     struct BatchedTransposeKargs
     {

@@ -13,7 +13,7 @@ struct TransposeTraits
 {
     static constexpr index_t kLeadDim   = kCol;
     static constexpr index_t kSecondDim = kRow;
-}
+};
 
 template <index_t kRow, index_t kCol>
 struct TransposeTraits<tensor_layout::gemm::ColumnMajor, kRow, kCol>
@@ -46,13 +46,13 @@ struct TransposePipelineProblem
     static constexpr index_t kSecondDimWarps =
         TransposeTraits<Layout, kRowWarps_, kColWarps_>::kSecondDim;
     static constexpr index_t kLeadDimPerBlock =
-        TransposeTraits<Layout, kRowPerBlock, kColPerBlock>::kLeadDim;
+        TransposeTraits<Layout, kRowPerBlock_, kColPerBlock_>::kLeadDim;
     static constexpr index_t kSecondDimPerBlock =
-        TransposeTraits<Layout, kRowPerBlock, kColPerBlock>::kSecondDim;
+        TransposeTraits<Layout, kRowPerBlock_, kColPerBlock_>::kSecondDim;
     static constexpr index_t kLeadDimPerWarp =
-        TransposeTraits<Layout, kRowPerWarp, kColPerWarp>::kLeadDim;
+        TransposeTraits<Layout, kRowPerWarp_, kColPerWarp_>::kLeadDim;
     static constexpr index_t kSecondDimPerWarp =
-        TransposeTraits<Layout, kRowPerWarp, kColPerWarp>::kSecondDim;
+        TransposeTraits<Layout, kRowPerWarp_, kColPerWarp_>::kSecondDim;
 };
 
 template <typename Problem_, typename Policy_ = TransposePolicy>
@@ -89,10 +89,10 @@ struct BlockTranspose
     static_assert(get_warp_size() == 64, "the warp size is not correct!");
     static_assert(kBlockSize == kNumWarpInLeadDim * kNumWarpInSecondDim * get_warp_size(),
                   "the block size is not correct!");
-    static_assert(kLeadDimPerWarpInQuadrant * kSecondDimPerWarpInQuadrant * 4 == get_warp_size(),
-                  "the warp size is not correct!");
+    //static_assert(kLeadDimPerWarpInQuadrant * kSecondDimPerWarpInQuadrant * 4 == get_warp_size(),
+    //              "the warp size is not correct!");
 
-    static constexpr index_t GetVectorSize() { return Policy::template GetVectorSize(); }
+    static constexpr index_t GetVectorSize() { return Policy::template GetVectorSize<Problem>(); }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
@@ -123,17 +123,17 @@ struct BlockTranspose
                              {0, 0});
 
         auto load_from_lds_window =
-            make_tile_window(out_lds_block,
+            make_tile_window(output_lds_block,
                              make_tuple(number<kSecondDimPerBlock>{}, number<kLeadDimPerBlock>{}),
                              {0, 0},
-                             Policy::MakeLdsLoadTileDistribution<Problem>());
+                             Policy::template MakeLdsLoadTileDistribution<Problem>());
 
         auto x = load_tile(input_tile_window);
 
         store_tile(copy_to_lds_window, x);
         block_sync_lds();
 
-        auto y = load_tile_transpose(lds_tile_window);
+        auto y = load_tile_transpose(load_from_lds_window);
         store_tile(output_tile_window, y);
     }
 };

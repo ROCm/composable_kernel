@@ -51,7 +51,7 @@ struct TransposePolicy
     {
         return integer_least_multiple(
             sizeof(typename Problem::DataType) *
-                MakeLdsStoreBlockDescriptor<Problem>::get_element_space_size(),
+                MakeLdsStoreBlockDescriptor<Problem>().get_element_space_size(),
             16);
     }
 
@@ -90,7 +90,7 @@ struct TransposePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsStoreBlockDescriptor()
     {
-        using Layout                         = remove_cvref_t<typename Problem::Layout>;
+        //using Layout                         = remove_cvref_t<typename Problem::Layout>;
         constexpr index_t kLeadDimPerBlock   = Problem::kLeadDimPerBlock;
         constexpr index_t kSecondDimPerBlock = Problem::kSecondDimPerBlock;
         constexpr index_t kVectorSize        = 16 / sizeof(typename Problem::DataType);
@@ -123,9 +123,9 @@ struct TransposePolicy
     template <typename Problem, typename WarpLevelOuterDistribution_>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
-        using Layout = remove_cvref_t<typename Problem::Layout>;
+        //using Layout = remove_cvref_t<typename Problem::Layout>;
         using QuartTransposeTileDistribution =
-            QuartTransposeTraits<typename Problem::DataType>::TileDistribution;
+            typename QuartTransposeTraits<typename Problem::DataType>::TileDistribution;
         using WarpTransposeTileDistribution =
             decltype(detail::make_embed_tile_distribution_encoding(
                 WarpLevelOuterDistribution_{}, QuartTransposeTileDistribution{}));
