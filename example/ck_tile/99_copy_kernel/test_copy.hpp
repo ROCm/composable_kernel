@@ -160,7 +160,7 @@ struct TileCopy
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             reg_tile x;
-            if (my_id == 1)
+            if (my_id == (iN % 2))
             {
                 // load from DRAM to registers
                 x = load_tile(x_block_window);
