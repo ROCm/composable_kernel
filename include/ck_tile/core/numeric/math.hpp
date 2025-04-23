@@ -487,6 +487,9 @@ struct log2e<float>
 template <typename T = double>
 constexpr T log2e_v = log2e<T>::value;
 
+template <typename T = double>
+constexpr T log2e_rcp_v = 1. / log2e<T>::value;
+
 CK_TILE_DEVICE
 float exp2(float x) { return exp2f(x); };
 

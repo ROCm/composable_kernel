@@ -9,6 +9,7 @@
 #include "ck_tile/ops/fmha/block/block_position_encoding.hpp"
 #include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"
 #include "ck_tile/ops/fmha/block/page_block_navigator.hpp"
+#include "ck_tile/ops/fmha/block/variants.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_bwd_kernel.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_appendkv_kernel.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_appendkv_tile_partitioner.hpp"

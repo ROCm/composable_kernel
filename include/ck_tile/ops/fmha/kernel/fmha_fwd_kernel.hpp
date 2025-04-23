@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/variants.hpp"
 
 #include <string>
 #include <type_traits>
@@ -52,7 +53,8 @@ struct FmhaFwdKernel
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
-    using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
+    using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
+    using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
 
     static constexpr bool kUseAsyncCopy = FmhaPipeline::Policy::AsyncCopy;
@@ -1352,6 +1354,19 @@ struct FmhaFwdKernel
             }
         }();
 
+        AttentionVariant variant;
+        const auto variant_params = [&] {
+            if constexpr(kHasLogitsSoftCap)
+            {
+                return ck_tile::LogitsSoftCapParams{
+                    kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
+            }
+            else
+            {
+                return ck_tile::StandardAttentionParams{kargs.scale_s};
+            }
+        }();
+
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
@@ -1373,7 +1388,8 @@ struct FmhaFwdKernel
                     mask,
                     position_encoding,
                     kargs.scale_s,
-                    kargs,
+                    variant,
+                    variant_params,
                     smem_ptr,
                     dropout);
             }
@@ -1388,7 +1404,8 @@ struct FmhaFwdKernel
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
-                                      kargs,
+                                      variant,
+                                      variant_params,
                                       smem_ptr,
                                       dropout);
             }
