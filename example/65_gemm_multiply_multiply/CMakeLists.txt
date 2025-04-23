@@ -16,3 +16,8 @@ foreach(gpu IN LISTS GPU_TARGETS)
         set(target 1)
     endif()
 endforeach()
+
+set(GEMM_OPTIONS)
+list(APPEND GEMM_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllvm --slp-threshold=-16")
+list(APPEND GEMM_OPTIONS -v --save-temps -Wno-gnu-line-marker)
+target_compile_options(example_gemm_multiply_multiply_xdl_fp8_bpreshuffle PRIVATE ${GEMM_OPTIONS})
