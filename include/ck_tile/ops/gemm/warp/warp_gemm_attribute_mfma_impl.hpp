@@ -843,7 +843,7 @@ struct WarpGemmAttributeMfmaImplF16F16F32M32N32K16
         return c_vec;
 #elif defined(__gfx908__)
         CVecType c_vec{0.f};
-        static_for<0, 2, 1>{}([&](auto k) {
+        static_for<0, 4, 1>{}([&](auto k) {
             c_vec = __builtin_amdgcn_mfma_f32_32x32x4f16(
                 reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
                     .template get_as<ext_vector_t<fp16_t, 2>>()[number<k>{}],
@@ -957,7 +957,7 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K16
         return c_vec;
 #elif defined(__gfx908__)
         CVecType c_vec{0.f};
-        static_for<0, 2, 1>{}([&](auto k) {
+        static_for<0, 4, 1>{}([&](auto k) {
             c_vec = __builtin_amdgcn_mfma_f32_32x32x4bf16(
                 reinterpret_cast<const thread_buffer<ADataType, 4>&>(a_vec)
                     .template get_as<ext_vector_t<bf16_t, 2>>()[number<k>{}],
