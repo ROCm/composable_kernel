@@ -453,7 +453,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     tile_elementwise_inout(
                         [&scale_lo,
                          &logits_cap](auto& x) {
-                            x = logits_cap * tanh_fast<SaccDataType>(x * scale_lo);
+                            x = scale_lo * x * rcp<SaccDataType>(1.0 + abs(x * scale_lo));
                         },
                         s_acc);
                 }
