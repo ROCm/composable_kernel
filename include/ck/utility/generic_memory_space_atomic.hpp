@@ -3,6 +3,7 @@
 
 #pragma once
 #include "data_type.hpp"
+#include "dtype_fp64.hpp"
 
 namespace ck {
 

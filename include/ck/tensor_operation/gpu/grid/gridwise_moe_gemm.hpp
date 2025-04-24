@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,6 +31,7 @@ template <typename GridwiseGemm,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           bool IsInputGemm         = false,
+          bool MulRoutedWeight     = true,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -44,19 +45,22 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, IsInputGemm, TailNum>(
-        karg.p_sorted_token_ids,
-        karg.p_sorted_expert_ids,
-        karg.p_max_token_id,
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_ds_grid,
-        karg.p_c_grid,
-        p_shared,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
+    GridwiseGemm::template Run<HasMainKBlockLoop,
+                               CGlobalMemoryDataOperation,
+                               IsInputGemm,
+                               MulRoutedWeight,
+                               TailNum>(karg.p_sorted_token_ids,
+                                        karg.p_sorted_expert_ids,
+                                        karg.p_max_token_id,
+                                        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+                                        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+                                        karg.p_ds_grid,
+                                        karg.p_c_grid,
+                                        p_shared,
+                                        karg,
+                                        karg.a_element_op,
+                                        karg.b_element_op,
+                                        karg.c_element_op);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -67,6 +71,7 @@ template <typename GridwiseGemm,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           bool IsInputGemm         = false,
+          bool MulRoutedWeight     = true,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -81,21 +86,23 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::
-        template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, IsInputGemm, TailNum>(
-            karg.p_sorted_token_ids,
-            karg.p_sorted_expert_ids,
-            karg.p_max_token_id,
-            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-            karg.p_ds_grid,
-            karg.p_c_grid,
-            p_shared,
-            p_shared1,
-            karg,
-            karg.a_element_op,
-            karg.b_element_op,
-            karg.c_element_op);
+    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop,
+                                    CGlobalMemoryDataOperation,
+                                    IsInputGemm,
+                                    MulRoutedWeight,
+                                    TailNum>(karg.p_sorted_token_ids,
+                                             karg.p_sorted_expert_ids,
+                                             karg.p_max_token_id,
+                                             karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+                                             karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+                                             karg.p_ds_grid,
+                                             karg.p_c_grid,
+                                             p_shared,
+                                             p_shared1,
+                                             karg,
+                                             karg.a_element_op,
+                                             karg.b_element_op,
+                                             karg.c_element_op);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -1134,8 +1141,9 @@ struct GridwiseMoeGemm
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-              bool IsInputGemm   = true,
-              TailNumber TailNum = TailNumber::Odd>
+              bool IsInputGemm     = true,
+              bool MulRoutedWeight = true,
+              TailNumber TailNum   = TailNumber::Odd>
     __device__ static void Run(const index_t* p_sorted_token_ids,
                                const index_t* p_sorted_expert_ids,
                                const index_t* p_max_token_id,
@@ -1492,7 +1500,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -1563,12 +1571,8 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<index_t, EMRepeats>
-                    scatter_offsets; //= p_sorted_token_ids[c_token_pos];
+                StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets;
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
-                // too hack here, 2 specific for topk weights, fixme
-                // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock]
-                // & 0xff000000) >> 24;
 
                 auto dstidx = sfc_cde_block.GetIndex(access_id);
                 const index_t c_token_pos =
@@ -1576,15 +1580,20 @@ struct GridwiseMoeGemm
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset      = fused_token & 0xffffff;
-                    float weight = p_sorted_weights_0[token_offset * problem.StrideDs[0]];
+                    float weight              = token_offset < problem.NumTokens
+                                                    ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
+                                                    : 0.0;
                     if constexpr(IsInputGemm)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    else
+                    if constexpr(MulRoutedWeight)
                     {
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
-                        weight = weight * p_sorted_weights_2[c_token_pos + m0];
+                        if constexpr(sizeof(ADataType) < 2)
+                            weight = p_sorted_weights_2[c_token_pos + m0] * weight;
+                        else
+                            weight = p_sorted_weights_2[c_token_pos + m0];
                     }
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;
@@ -1634,8 +1643,9 @@ struct GridwiseMoeGemm
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-              bool IsInputGemm   = true,
-              TailNumber TailNum = TailNumber::Odd>
+              bool IsInputGemm     = true,
+              bool MulRoutedWeight = true,
+              TailNumber TailNum   = TailNumber::Odd>
     __device__ static void Run_2Lds(const index_t* p_sorted_token_ids,
                                     const index_t* p_sorted_expert_ids,
                                     const index_t* p_max_token_id,
@@ -2000,7 +2010,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -2074,9 +2084,6 @@ struct GridwiseMoeGemm
                 StaticallyIndexedArray<index_t, EMRepeats>
                     scatter_offsets; //= p_sorted_token_ids[c_token_pos];
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
-                // too hack here, 2 specific for topk weights, fixme
-                // const index_t topk_id[EMRepeats];// = (p_sorted_token_ids[block_m_id * MPerBlock]
-                // & 0xff000000) >> 24;
 
                 auto dstidx = sfc_cde_block.GetIndex(access_id);
                 const index_t c_token_pos =
@@ -2084,15 +2091,20 @@ struct GridwiseMoeGemm
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     index_t token_offset      = fused_token & 0xffffff;
-                    float weight = p_sorted_weights_0[token_offset * problem.StrideDs[0]];
+                    float weight              = token_offset < problem.NumTokens
+                                                    ? p_sorted_weights_0[token_offset * problem.StrideDs[0]]
+                                                    : 0.0;
                     if constexpr(IsInputGemm)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    else
+                    if constexpr(MulRoutedWeight)
                     {
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
-                        weight = weight * p_sorted_weights_2[c_token_pos + m0];
+                        if constexpr(sizeof(ADataType) < 2)
+                            weight = p_sorted_weights_2[c_token_pos + m0] * weight;
+                        else
+                            weight = p_sorted_weights_2[c_token_pos + m0];
                     }
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;

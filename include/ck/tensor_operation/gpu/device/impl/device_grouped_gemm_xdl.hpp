@@ -1,6 +1,6 @@
 #pragma once
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -500,6 +501,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         std::vector<Tuple<index_t, index_t>> b_mtx_nraw_kraw_;
 
         index_t grid_size_;
+        void* gemm_kernel_host_args_;
     };
 
     // Invoker
@@ -507,7 +509,10 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        float Run(const Argument& arg,
+                  const StreamConfig& stream_config = StreamConfig{},
+                  hipStream_t cpy_stream            = nullptr,
+                  hipEvent_t cpy_event              = nullptr)
         {
             bool has_main_k_block_loop = true;
 
@@ -556,12 +561,36 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                 }
             }
 
-            hipGetErrorString(
-                hipMemcpyAsync(arg.p_workspace_,
-                               arg.gemm_desc_kernel_arg_.data(),
-                               arg.gemm_desc_kernel_arg_.size() * sizeof(GemmBiasTransKernelArg),
-                               hipMemcpyHostToDevice,
-                               stream_config.stream_id_));
+            // If the user provides copy stream and copy event, we assume that they're also
+            // responsible for providing allocated host memory (eg. pinned) which
+            // would be used to copy kernel arguments to the device.
+            if(cpy_stream && cpy_event)
+            {
+                if(arg.gemm_kernel_host_args_ == nullptr)
+                {
+                    std::ostringstream err;
+                    err << "No memory has been allocated for gemm kernel host args "
+                        << "when providing the copy stream and copy event! In " << __FILE__ << ":"
+                        << __LINE__ << ", in function: " << __func__;
+                    throw std::runtime_error(err.str());
+                }
+                hipGetErrorString(hipMemcpyAsync(arg.p_workspace_,
+                                                 arg.gemm_kernel_host_args_,
+                                                 arg.group_count_ * sizeof(GemmBiasTransKernelArg),
+                                                 hipMemcpyHostToDevice,
+                                                 cpy_stream));
+                hipGetErrorString(hipEventRecord(cpy_event, cpy_stream));
+                hipGetErrorString(hipEventSynchronize(cpy_event));
+            }
+            else // In this case CK owns memory allocated on host.
+            {
+                hipGetErrorString(hipMemcpyAsync(arg.p_workspace_,
+                                                 arg.gemm_desc_kernel_arg_.data(),
+                                                 arg.gemm_desc_kernel_arg_.size() *
+                                                     sizeof(GemmBiasTransKernelArg),
+                                                 hipMemcpyHostToDevice,
+                                                 stream_config.stream_id_));
+            }
 
             float ave_time = 0;
 
@@ -734,6 +763,31 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
     {
         return this->SetWorkSpacePointer(p_arg, p_dev_kernel_args);
+    }
+
+    size_t GetHostKernelArgSize(const BaseArgument* p_arg) const { return GetWorkSpaceSize(p_arg); }
+
+    //----------------------------------------------------------------------------------------------
+    /// @brief      Sets the host kernel arguments pointer and copies that data on the host side.
+    ///             This function can be utilised to use pinned memory for the host args and
+    ///             achieve fully async data copy.
+    ///
+    /// @param      p_arg              The pointer to the Argument we're going to update.
+    /// @param[in]  p_host_kernel_args The pointer to the host memory where the kernel
+    ///                                arguments will be copied
+    ///
+    void SetHostKernelArgsPointer(BaseArgument* p_arg, void* p_host_kernel_args) const
+    {
+        Argument* pArg_ = dynamic_cast<Argument*>(p_arg);
+        if(!pArg_)
+        {
+            throw std::runtime_error("Failed to cast argument pointer!");
+        }
+
+        pArg_->gemm_kernel_host_args_ = p_host_kernel_args;
+        std::copy(pArg_->gemm_desc_kernel_arg_.begin(),
+                  pArg_->gemm_desc_kernel_arg_.end(),
+                  static_cast<GemmBiasTransKernelArg*>(pArg_->gemm_kernel_host_args_));
     }
 };
 

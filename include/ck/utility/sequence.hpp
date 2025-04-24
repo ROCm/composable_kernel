@@ -184,6 +184,21 @@ struct Sequence
     }
 };
 
+namespace impl {
+template <typename T, T... Ints>
+struct __integer_sequence;
+
+template <index_t... Ints>
+struct __integer_sequence<index_t, Ints...>
+{
+    using seq_type = Sequence<Ints...>;
+};
+} // namespace impl
+
+template <index_t N>
+using make_index_sequence =
+    typename __make_integer_seq<impl::__integer_sequence, index_t, N>::seq_type;
+
 // merge sequence
 template <typename Seq, typename... Seqs>
 struct sequence_merge
@@ -254,6 +269,18 @@ struct arithmetic_sequence_gen
         (Increment > 0 && IBegin < IEnd) || (Increment < 0 && IBegin > IEnd);
 
     using type = typename conditional<kHasContent, type0, type1>::type;
+};
+
+template <index_t IEnd>
+struct arithmetic_sequence_gen<0, IEnd, 1>
+{
+    template <typename T, T... Ints>
+    struct WrapSequence
+    {
+        using type = Sequence<Ints...>;
+    };
+    // https://reviews.llvm.org/D13786
+    using type = typename __make_integer_seq<WrapSequence, index_t, IEnd>::type;
 };
 
 // uniform sequence

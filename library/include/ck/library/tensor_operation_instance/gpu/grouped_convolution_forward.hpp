@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -226,6 +226,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f16_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_comp_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_comp_2x_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_comp_part2_instances(
+                    op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_inter_instances(
@@ -245,6 +248,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_2x_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_part2_instances(
+                    op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
@@ -272,20 +278,20 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 
         // layout NGCHW/GKYXC/NGKHW
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NGCHW> &&
-                     is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NGKHW>)
+                     is_same_v<WeiLayout, GKCYX> && is_same_v<OutLayout, NGKHW>)
         {
 #ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
                          is_same_v<BComputeType, float>)
             {
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_f32_instances(
+                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkcyx_ngkhw_f32_instances(
                     op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_comp_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_mem_intra_instances(
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_comp_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_mem_intra_instances(
                     op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_mem_inter_instances(
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_mem_inter_instances(
                     op_ptrs);
             }
 #endif
@@ -294,13 +300,16 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
                          is_same_v<BComputeType, half_t>)
             {
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_f16_instances(
+                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkcyx_ngkhw_f16_instances(
                     op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_comp_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_mem_intra_instances(
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_comp_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_comp_2x_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_comp_part2_instances(
                     op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_mem_inter_instances(
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_mem_inter_instances(
                     op_ptrs);
             }
 #endif
@@ -311,14 +320,49 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<AComputeType, ck::bhalf_t> &&
                          is_same_v<BComputeType, ck::bhalf_t>)
             {
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_bf16_instances(
+                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkcyx_ngkhw_bf16_instances(
                     op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_comp_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_comp_2x_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_comp_part2_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_mem_inter_instances(
+                    op_ptrs);
+            }
+#endif
+        }
+
+        // layout NGCHW/GKYXC/NGKHW
+        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NGCHW> &&
+                     is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NGKHW>)
+        {
+#ifdef CK_ENABLE_FP32
+            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+                         is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
+                         is_same_v<BComputeType, float>)
+            {
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_instances(op_ptrs);
+            }
+#endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+                         is_same_v<BComputeType, half_t>)
+            {
+                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f16_instances(op_ptrs);
+            }
+#endif
+#ifdef CK_ENABLE_BF16
+            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                         is_same_v<WeiDataType, ck::bhalf_t> &&
+                         is_same_v<OutDataType, ck::bhalf_t> &&
+                         is_same_v<AComputeType, ck::bhalf_t> &&
+                         is_same_v<BComputeType, ck::bhalf_t>)
+            {
                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_comp_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_bf16_mem_inter_instances(
-                    op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_INT8
@@ -326,14 +370,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&
                          is_same_v<BComputeType, int8_t>)
             {
-                add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_int8_instances(
-                    op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_comp_instances(op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_mem_intra_instances(
-                    op_ptrs);
-                add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_int8_mem_inter_instances(
-                    op_ptrs);
             }
 #endif
         }
@@ -486,7 +523,69 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
 #endif
         }
+
+        // layout NGCDHW/GKCZYX/NGKDHW
+        if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NGCDHW> &&
+                     is_same_v<WeiLayout, GKCZYX> && is_same_v<OutLayout, NGKDHW>)
+        {
+#ifdef CK_ENABLE_FP32
+            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+                         is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
+                         is_same_v<BComputeType, float>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f32_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_comp_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_inter_instances(
+                    op_ptrs);
+            }
 #endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+                         is_same_v<BComputeType, half_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f16_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_2x_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_part2_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_inter_instances(
+                    op_ptrs);
+            }
+#endif
+#ifdef CK_ENABLE_BF16
+            if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                         is_same_v<WeiDataType, ck::bhalf_t> &&
+                         is_same_v<OutDataType, ck::bhalf_t> &&
+                         is_same_v<AComputeType, ck::bhalf_t> &&
+                         is_same_v<BComputeType, ck::bhalf_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_bf16_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_2x_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_part2_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_intra_instances(
+                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_inter_instances(
+                    op_ptrs);
+            }
+#endif
+        }
+
+#endif // CK_USE_XDL
 
 #ifdef CK_USE_WMMA
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
@@ -602,7 +701,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
 #endif
         }
-#endif
+#endif // CK_USE_WMMA
 
         return op_ptrs;
     }

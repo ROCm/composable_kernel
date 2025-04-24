@@ -620,7 +620,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<BiasDataType> bias_host(
         bias.type == bias_enum::elementwise_bias
-            ? get_lengths(i_perm, 1, 1, shape_seqlen_q, shape_seqlen_k)
+            ? get_lengths(i_perm, 1, 1, shape_seqlen_q, max_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
 
     ck_tile::HostTensor<SaccDataType> alibi_slope_host(
@@ -723,6 +723,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
         float qscale_bias = (q_dtype_max / range_q) * (k_dtype_max / range_k);
         // Assume bias is in [-1.f, 1.f] in original fp32
         ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, seed}(bias_host);
+    }
+    else if(init_method == "cnst") // fill with constant
+    {
+        ck_tile::FillConstant<QDataType>{1.f}(q_host);
+        ck_tile::FillIncConstant<KDataType>{1.f}(k_host);
+        ck_tile::FillConstant<KDataType>{1.f}(knew_host);
+        // ck_tile::FillConstant<VDataType>{1.f}(v_host);
+        // ck_tile::FillConstant<VDataType>{1.f}(vnew_host);
+
+        // ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        // ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        // ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(knew_host);
+        ck_tile::FillIncConstant<VDataType>{1.f}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(vnew_host);
+
     }
     if(bias.type == bias_enum::alibi)
     {
@@ -884,7 +899,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             else
                 return i_perm ? seqlen_knew : nhead_k * seqlen_knew;
         }();
-        const ck_tile::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
+        const ck_tile::index_t stride_bias    = (i_perm ? max_seqlen_k : 1 * max_seqlen_k);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
         const ck_tile::index_t stride_o_acc   = (hdim_v);
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
@@ -909,7 +924,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 return i_perm ? hdim_v * seqlen_knew : seqlen_knew;
         }();
         const ck_tile::index_t nhead_stride_bias =
-            (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
+            (i_perm ? 0 * shape_seqlen_q * max_seqlen_k : 0 * max_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q);
@@ -925,7 +940,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             (0 < page_block_size ? (nhead_k * hdim_v * page_block_size)
                                  : (nhead_k * hdim_v * shape_seqlen_k));
         const ck_tile::index_t batch_stride_vnew    = (nhead_k * hdim_v * seqlen_knew);
-        const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
+        const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
         const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q);
@@ -1375,15 +1390,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::scales(scale_s));
 
+
         if(bias.type == bias_enum::elementwise_bias)
         {
             // elementwise bias
             ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
             // clang-format off
             if(i_perm)
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2] + key_offset); });
+                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
             else
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2] + key_offset); });
+                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
             // clang-format on
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
@@ -1516,6 +1532,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         auto [rtol, atol] = get_elimit<DataTypeConfig>(init_method);
         bool cur_pass     = ck_tile::check_err(
             o_host_result, o_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
+
+        q_host_ref.savetxt("query.bin");
+        k_host_ref.savetxt("key.bin");
+        v_host_ref.savetxt("value.bin");
+        s_host_ref.savetxt("s.bin");
+        p_host_ref.savetxt("p.bin");
+        o_host_result.savetxt("output-fmha.bin");
+        o_host_ref.savetxt("output-ref.bin");
+
         pass &= cur_pass;
         if(!cur_pass)
         {

@@ -51,11 +51,11 @@ struct BlockGemmARegBSmemCRegV2
         constexpr index_t NWarp = config.template at<2>();
 
         constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
-        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
-        constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN); //128 / 16
+        constexpr index_t KIterPerWarp = KPerBlock / WG::kK; // 32 / 32 = 1 
 
-        constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
-        constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
+        constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp; // 128 / 8 = 16
+        constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp; // 32
 
         const index_t iNWarp = get_warp_id() % NWarp;
 
