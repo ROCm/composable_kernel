@@ -4,17 +4,15 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
-#include "ck_tile/core/tensor/tile_distribution.hpp"
-
-#include "tile_gemm_shape.hpp"
-#include "../../../example/ck_tile/99_toy_example/02_gemm/block_gemm_pipeline_agmem_bgmem_creg.hpp"
+#include "ck_tile/ops/reduce.hpp"
 
 #include "block_gemm_pipeline_agmem_bgmem_creg_v2_askiplds.hpp"
 #include "block_gemm_pipeline_problem.hpp"
 #include "block_gemm_areg_bsmem_creg_v1.hpp"
-#include "ck_tile/ops/reduce.hpp"
+#include "tile_gemm_shape.hpp"
 
 namespace ck_tile {
 
@@ -65,23 +63,45 @@ struct FlashAttentionFwdImpl
     {
         constexpr index_t kNPerBlock = kN1PerBlock;
         constexpr index_t kKPerBlock = kK1PerBlock;
-        constexpr index_t kPad       = 1;
-        // 2% faster than use kK1 = 8
-        constexpr index_t kK1 = 4;
+        constexpr index_t kKPack     = 4;
+
+        constexpr auto dataTypeSize = sizeof(VDataType);
+        constexpr auto NLdsLayer =
+            (32 * 4 / kKPerBlock / dataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / dataTypeSize);
 
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / kK1>{}, number<kNPerBlock>{}, number<kK1>{}),
-            make_tuple(number<(kNPerBlock + kPad) * kK1>{}, number<kK1>{}, number<1>{}),
-            number<kK1>{},
+            make_tuple(number<kKPerBlock / kKPack * NLdsLayer>{},
+                       number<kNPerBlock / NLdsLayer>{},
+                       number<kKPack>{}),
+            make_tuple(number<kKPack>{}, number<kKPerBlock * NLdsLayer>{}, number<1>{}),
+            number<kKPack>{},
             number<1>{});
 
-        constexpr auto b_lds_block_desc = transform_tensor_descriptor(
+        constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
             b_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(kNPerBlock),
-                       make_merge_transform(make_tuple(number<kKPerBlock / kK1>{}, number<kK1>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+            make_tuple(make_xor_transform(make_tuple(number<kNPerBlock / NLdsLayer>{},
+                                                     number<kKPerBlock / kKPack * NLdsLayer>{})),
+                       make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
+        constexpr auto b_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+            b_lds_block_desc_permuted,
+            make_tuple(make_unmerge_transform(
+                           make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                       make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
+                       make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+
+        constexpr auto b_lds_block_desc = transform_tensor_descriptor(
+            b_lds_block_desc_xk0_mnldslayer_mn_xk1,
+            make_tuple(
+                make_merge_transform(
+                    make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
+                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
         return b_lds_block_desc;
     }
 
@@ -132,6 +152,10 @@ struct FlashAttentionFwdImpl
         constexpr auto I0 = number<0>{};
         constexpr auto I1 = number<1>{};
 
+        // Block GEMM0 pipeline and Block GEMM1
+        constexpr auto gemm0_pipeline = BlockGemm0Pipeline{};
+        constexpr auto gemm1          = BlockGemm1{};
+
         // allocate LDS
         __shared__ char smem_ptr[GetStaticLdsSize()];
 
@@ -146,7 +170,10 @@ struct FlashAttentionFwdImpl
             v_ptr, make_tuple(N1, N0), make_tuple(StrideV, 1), number<32>{}, number<1>{});
 
         auto q_dram_window = make_tile_window(
-            q_dram, make_tuple(number<kM0PerBlock>{}, number<kK0PerBlock>{}), {iM0, 0});
+            q_dram,
+            make_tuple(number<kM0PerBlock>{}, number<kK0PerBlock>{}),
+            {iM0, 0},
+            BlockGemm0Policy::template MakeADramTileDistribution<BlockGemm0Problem>());
 
         auto k_dram_window = make_tile_window(
             k_dram, make_tuple(number<kN0PerBlock>{}, number<kK0PerBlock>{}), {0, 0});
@@ -156,22 +183,32 @@ struct FlashAttentionFwdImpl
                              make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}),
                              {iN1, 0},
                              MakeVDramTileDistribution());
-
-        // Q in Register
-        auto q_reg_tensor = make_static_distributed_tensor<QDataType>(
-            BlockGemm0Policy::template MakeARegBlockDescriptor<BlockGemm0Problem>());
+        // Q in register
+        auto q_reg_tensor = load_tile(q_dram_window);
 
         // V LDS and LDS window
         // V LDS occupies the same LDS allocation Q/K LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<VDataType*>(smem_ptr), MakeVLdsBlockDescriptor());
 
+#if defined(TOY_FA_FWD_OPT)
+        // V LDS tile window for store
+        auto v_copy_lds_window =
+            make_tile_window(v_lds,
+                             make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}),
+                             {0, 0},
+                             v_dram_window.get_tile_distribution());
+
+        // V LDS tile for block GEMM
+        auto v_lds_gemm_window =
+            make_tile_window(v_lds,
+                             make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}),
+                             {0, 0},
+                             make_static_tile_distribution(gemm1.MakeBBlockDistributionEncode()));
+#else
         auto v_lds_window = make_tile_window(
             v_lds, make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}), {0, 0});
-
-        // Block GEMM0 pipeline and Block GEMM1
-        constexpr auto gemm0_pipeline = BlockGemm0Pipeline{};
-        constexpr auto gemm1          = BlockGemm1{};
+#endif
 
         // reduction function for softmax
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
@@ -209,22 +246,19 @@ struct FlashAttentionFwdImpl
         // loop over Column of S (J loop)
         index_t iN0 = 0;
 
-        // Cold Q_Reg_Cache
-        s_acc = gemm0_pipeline(q_dram_window, k_dram_window, q_reg_tensor, smem_ptr);
         do
         {
-            // Hot Q_Reg_Cache
-            if(iN0 > 0)
-            {
-                s_acc = gemm0_pipeline(k_dram_window, q_reg_tensor, smem_ptr);
-            }
+            s_acc = gemm0_pipeline(k_dram_window, q_reg_tensor, smem_ptr);
+
             // S{j}
             const auto s =
                 tile_elementwise_in(type_convert<SMPLComputeDataType, SaccDataType>, s_acc);
 
+#if defined(TOY_FA_FWD_OPT)
             // prefetch load v tile
-            const auto v_prefetch = load_tile(v_dram_window);
-
+            auto v_prefetch = load_tile(v_dram_window);
+            move_tile_window(v_dram_window, {0, kK1PerBlock});
+#endif
             // m_local = rowmax(S{j})
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
                 s, sequence<1>{}, f_max, std::numeric_limits<SMPLComputeDataType>::lowest());
@@ -274,10 +308,30 @@ struct FlashAttentionFwdImpl
                     o_acc(i_j_idx) *= tmp;
                 });
             });
-
             block_sync_lds();
-            store_tile(v_lds_window, v_prefetch);
-            move_tile_window(v_dram_window, {0, kK1PerBlock});
+#if !defined(TOY_FA_FWD_OPT)
+            // type cast Pcompute{j} into P{j}
+            const auto p =
+                tile_elementwise_in(type_convert<PDataType, SMPLComputeDataType>, p_compute);
+
+            // Oacc{j}
+            constexpr index_t k1_loops = kN0PerBlock / kK1PerBlock;
+
+            static_for<0, k1_loops, 1>{}([&](auto i_k1) {
+                const auto v = load_tile(v_dram_window); // load next v
+                move_tile_window(v_dram_window, {0, kK1PerBlock});
+                store_tile(v_lds_window, v);
+                block_sync_lds();
+                gemm1(o_acc,
+                      get_slice_tile(p,
+                                     sequence<0, i_k1 * kK1PerBlock>{},
+                                     sequence<kM0PerBlock, (i_k1 + 1) * kK1PerBlock>{}),
+                      v_lds_window);
+                block_sync_lds();
+            });
+#else
+            using VLdsTile = typename decltype(gemm1)::BLdsTile;
+            VLdsTile vWarpTile;
 
             // type cast Pcompute{j} into P{j}
             const auto p =
@@ -288,29 +342,58 @@ struct FlashAttentionFwdImpl
 
             if constexpr(k1_loops > 1)
             {
-                static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
-                    const auto v = load_tile(v_dram_window); // load next v
+                store_tile(v_copy_lds_window, v_prefetch);
+                v_prefetch = load_tile(v_dram_window);
+                move_tile_window(v_dram_window, {0, kK1PerBlock});
+                block_sync_lds();
+                vWarpTile = load_tile(v_lds_gemm_window);
+            }
+            if constexpr(k1_loops > 2)
+            {
+                __builtin_amdgcn_sched_barrier(0);
+                static_for<0, k1_loops - 2, 1>{}([&](auto i_k1) {
                     block_sync_lds();
+
+                    // LDS write 1
+                    store_tile(v_copy_lds_window, v_prefetch);
+
+                    // Global read 2
+                    v_prefetch = load_tile(v_dram_window);
+                    move_tile_window(v_dram_window, {0, kK1PerBlock});
+
                     gemm1(o_acc,
                           get_slice_tile(p,
                                          sequence<0, i_k1 * kK1PerBlock>{},
                                          sequence<kM0PerBlock, (i_k1 + 1) * kK1PerBlock>{}),
-                          v_lds_window);
+                          vWarpTile);
                     block_sync_lds();
-                    store_tile(v_lds_window, v);
-                    move_tile_window(v_dram_window, {0, kK1PerBlock});
+                    vWarpTile = load_tile(v_lds_gemm_window);
+                    gemm1.template HotLoopScheduler<8, 4>();
+                    __builtin_amdgcn_sched_barrier(0);
                 });
             }
             // tail
             {
+                if constexpr(k1_loops > 1)
+                {
+                    gemm1(o_acc,
+                          get_slice_tile(p,
+                                         sequence<0, (k1_loops - 2) * kK1PerBlock>{},
+                                         sequence<kM0PerBlock, (k1_loops - 1) * kK1PerBlock>{}),
+                          vWarpTile);
+                    block_sync_lds();
+                }
+                store_tile(v_copy_lds_window, v_prefetch);
                 block_sync_lds();
+                vWarpTile = load_tile(v_lds_gemm_window);
                 gemm1(o_acc,
                       get_slice_tile(p,
                                      sequence<0, (k1_loops - 1) * kK1PerBlock>{},
                                      sequence<kM0PerBlock, kN0PerBlock>{}),
-                      v_lds_window);
+                      vWarpTile);
                 block_sync_lds();
             }
+#endif
             // move tile windows
             move_tile_window(k_dram_window, {kN0PerBlock, 0});
             iN0 += kN0PerBlock;

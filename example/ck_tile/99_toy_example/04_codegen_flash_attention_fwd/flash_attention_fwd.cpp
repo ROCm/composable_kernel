@@ -29,32 +29,28 @@ int main(int argc, char* argv[])
     using OaccDataType        = float;
     using ODataType           = ck_tile::half_t;
 
-    ck_tile::index_t Batch                        = 64;   // Batch Number * Head Number
-    ck_tile::index_t M0                           = 4096; // SequenceLengthQ
-    ck_tile::index_t N0                           = 4096; // SequencelengthK
-    ck_tile::index_t K0                           = 128;  // HeadDim
-    ck_tile::index_t N1                           = 128;  // HeadDim
-    ck_tile::index_t verification                 = 0;
-    ck_tile::index_t init_method                  = 1;
-    [[maybe_unused]] ck_tile::index_t time_kernel = 0;
+    ck_tile::index_t Batch        = 64;   // Batch Number * Head Number
+    ck_tile::index_t M0           = 4096; // SequenceLengthQ
+    ck_tile::index_t N0           = 4096; // SequencelengthK
+    ck_tile::index_t K0           = 128;  // HeadDim
+    ck_tile::index_t N1           = 128;  // HeadDim
+    ck_tile::index_t verification = 0;
+    ck_tile::index_t init_method  = 1;
 
-    if(argc == 4)
+    if(argc == 3)
     {
         init_method  = std::stoi(argv[1]);
-        time_kernel  = std::stoi(argv[2]);
-        verification = std::stoi(argv[3]);
+        verification = std::stoi(argv[2]);
     }
-
-    if(argc == 9)
+    else if(argc == 8)
     {
         init_method  = std::stoi(argv[1]);
-        time_kernel  = std::stoi(argv[2]);
-        verification = std::stoi(argv[3]);
-        Batch        = std::stoi(argv[4]);
-        M0           = std::stoi(argv[5]);
-        N0           = std::stoi(argv[6]);
-        K0           = std::stoi(argv[7]);
-        N1           = std::stoi(argv[8]);
+        verification = std::stoi(argv[2]);
+        Batch        = std::stoi(argv[3]);
+        M0           = std::stoi(argv[4]);
+        N0           = std::stoi(argv[5]);
+        K0           = std::stoi(argv[6]);
+        N1           = std::stoi(argv[7]);
     }
 
     std::array<ck_tile::index_t, 3> q_lengths{Batch, M0, K0};

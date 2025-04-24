@@ -42,23 +42,8 @@ struct BlockGemmPipelineAGmemBGmemCReg
     }
 
 #if defined(ENABLE_INSTRUCTION_SCH)
-    static constexpr index_t APackedSize =
+    static constexpr index_t kPackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
-    static constexpr index_t BPackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
-
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout = remove_cvref_t<typename Problem::CLayout>;
-
-    using I0 = number<0>;
-    using I1 = number<1>;
-    using I2 = number<2>;
-
-    static constexpr index_t BlockSize = Problem::kBlockSize;
-    static constexpr index_t MPerBlock = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
@@ -74,35 +59,35 @@ struct BlockGemmPipelineAGmemBGmemCReg
         constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
 
         constexpr index_t WaveSize = 64;
-        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
-        constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
+        constexpr index_t WaveNumM = BlockGemm::MWarp;
+        constexpr index_t WaveNumN = BlockGemm::NWarp;
 
         constexpr index_t AB_LDS_RW_Width = GetSmemPack();
 
         constexpr index_t A_Buffer_Load_Inst_Num =
-            MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
+            kMPerBlock * kKPerBlock / (kBlockSize * GetVectorSizeA());
         constexpr index_t B_Buffer_Load_Inst_Num =
-            NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
+            kNPerBlock * kKPerBlock / (kBlockSize * GetVectorSizeB());
 
         constexpr index_t A_LDS_Write_Inst_Num =
-            MPerBlock * KPerBlock / (BlockSize * AB_LDS_RW_Width);
+            kMPerBlock * kKPerBlock / (kBlockSize * AB_LDS_RW_Width);
         constexpr index_t B_LDS_Write_Inst_Num =
-            NPerBlock * KPerBlock / (BlockSize * AB_LDS_RW_Width);
+            kNPerBlock * kKPerBlock / (kBlockSize * AB_LDS_RW_Width);
 
         constexpr index_t A_LDS_Read_Inst_Num =
-            WaveNumN * MPerBlock * KPerBlock / (BlockSize * AB_LDS_RW_Width);
+            WaveNumN * kMPerBlock * kKPerBlock / (kBlockSize * AB_LDS_RW_Width);
         constexpr index_t B_LDS_Read_Inst_Num =
-            WaveNumM * NPerBlock * KPerBlock / (BlockSize * AB_LDS_RW_Width);
+            WaveNumM * kNPerBlock * kKPerBlock / (kBlockSize * AB_LDS_RW_Width);
 
-        constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
-                                            (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
+        constexpr index_t C_MFMA_Inst_Num = kMPerBlock * kNPerBlock * kKPerBlock /
+                                            (kBlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
 
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
-        constexpr auto num_ds_read_inst_a = AB_LDS_RW_Width * sizeof(ADataType) / APackedSize == 16
+        constexpr auto num_ds_read_inst_a = AB_LDS_RW_Width * sizeof(ADataType) / kPackedSize == 16
                                                 ? A_LDS_Read_Inst_Num
                                                 : A_LDS_Read_Inst_Num / 2;
-        constexpr auto num_ds_read_inst_b = AB_LDS_RW_Width * sizeof(BDataType) / BPackedSize == 16
+        constexpr auto num_ds_read_inst_b = AB_LDS_RW_Width * sizeof(BDataType) / kPackedSize == 16
                                                 ? B_LDS_Read_Inst_Num
                                                 : B_LDS_Read_Inst_Num / 2;
 
@@ -116,9 +101,9 @@ struct BlockGemmPipelineAGmemBGmemCReg
 
         constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
         constexpr auto ds_read_a_issue_cycle =
-            AB_LDS_RW_Width * sizeof(ADataType) / APackedSize == 16 ? 8 : 4;
+            AB_LDS_RW_Width * sizeof(ADataType) / kPackedSize == 16 ? 8 : 4;
         constexpr auto ds_read_b_issue_cycle =
-            AB_LDS_RW_Width * sizeof(BDataType) / BPackedSize == 16 ? 8 : 4;
+            AB_LDS_RW_Width * sizeof(BDataType) / kPackedSize == 16 ? 8 : 4;
         constexpr auto ds_read_a_mfma_rate =
             (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
         constexpr auto ds_read_b_mfma_rate =
@@ -275,18 +260,18 @@ struct BlockGemmPipelineAGmemBGmemCReg
                              {0, 0},
                              b_copy_dram_window.get_tile_distribution());
 
-#if defined(ENABLE_INSTRUCTION_SCH)
+#if defined(ENABLE_PREFETCH)
         // A LDS tile for block GEMM
         auto a_lds_gemm_window = make_tile_window(
             a_lds_block,
-            make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+            make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
             {0, 0},
             make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode()));
 
         // B LDS tile for block GEMM
         auto b_lds_gemm_window = make_tile_window(
             b_lds_block,
-            make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+            make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
             {0, 0},
             make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode()));
 #else
@@ -313,59 +298,63 @@ struct BlockGemmPipelineAGmemBGmemCReg
 
         ABlockTile a_block_tile;
         BBlockTile b_block_tile;
+        using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
+        using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
+        constexpr ADramTileWindowStep a_dram_tile_window_step = make_array(0, kKPerBlock);
+        constexpr BDramTileWindowStep b_dram_tile_window_step = make_array(0, kKPerBlock);
 
         // -------------------------------------------------------------------------------------
         // Gemm pipeline start
 
-#if defined(ENABLE_INSTRUCTION_SCH)
-        using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
-        using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
-        constexpr ADramTileWindowStep a_dram_tile_window_step = make_array(0, KPerBlock);
-        constexpr BDramTileWindowStep b_dram_tile_window_step = make_array(0, KPerBlock);
-
-        // Prefetch
-        // Global read 0
-        load_tile(a_block_tile, a_copy_dram_window);
-        move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-        load_tile(b_block_tile, b_copy_dram_window);
-        move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
-
         // Initialize C
         tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
-        // LDS write 0
-        store_tile(a_copy_lds_window, a_block_tile);
-        store_tile(b_copy_lds_window, b_block_tile);
-
+#if defined(ENABLE_PREFETCH)
+#pragma message("global prefetch")
+        // Prefetch
         // Global read 0
-        load_tile(a_block_tile, a_copy_dram_window);
-        move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-        load_tile(b_block_tile, b_copy_dram_window);
-        move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+        a_block_tile = load_tile(a_copy_dram_window);
+        b_block_tile = load_tile(b_copy_dram_window);
 
-        block_sync_lds();
+        if(num_loop > 1)
+        {
+            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
-        // Prefetch from LDS to warp register in block gemm
-        block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+            // LDS write 0
+            store_tile(a_copy_lds_window, a_block_tile);
+            store_tile(b_copy_lds_window, b_block_tile);
+
+            // Global read 1
+            a_block_tile = load_tile(a_copy_dram_window);
+            b_block_tile = load_tile(b_copy_dram_window);
+            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+
+            block_sync_lds();
+
+            // Prefetch from LDS to warp register in block gemm
+            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+        }
 
         __builtin_amdgcn_sched_barrier(0);
 
         // Main body
-        if constexpr(HasHotLoop)
+        if(num_loop > 2)
         {
-            index_t i = 0;
+            index_t iCounter = 0;
             do
             {
                 block_sync_lds();
 
-                // LDS write 0
+                // LDS write 1
                 store_tile(a_copy_lds_window, a_block_tile);
                 store_tile(b_copy_lds_window, b_block_tile);
 
-                // Global read 0
-                load_tile(a_block_tile, a_copy_dram_window);
+                // Global read 2
+                a_block_tile = load_tile(a_copy_dram_window);
+                b_block_tile = load_tile(b_copy_dram_window);
                 move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-                load_tile(b_block_tile, b_copy_dram_window);
                 move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
@@ -375,116 +364,37 @@ struct BlockGemmPipelineAGmemBGmemCReg
                 // Prefetch from LDS to warp register in block gemm
                 block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
 
+#if defined(ENABLE_INSTRUCTION_SCH)
                 HotLoopScheduler();
+#endif
 
                 __builtin_amdgcn_sched_barrier(0);
 
-                i += 1;
-            } while(i < (num_loop - 2));
+                iCounter += 1;
+            } while(iCounter < (num_loop - 2));
         }
 
         // Tail
-        block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-        block_sync_lds();
+        if(num_loop > 1)
+        {
+            block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+            block_sync_lds();
+        }
         store_tile(a_copy_lds_window, a_block_tile);
         store_tile(b_copy_lds_window, b_block_tile);
         block_sync_lds();
         block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
         block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-
-#elif defined(ENABLE_PREFETCH)
-        // Prefetch
-        // Global read 0
-        load_tile(a_block_tile, a_copy_dram_window);
-        load_tile(b_block_tile, b_copy_dram_window);
-
-        {
-            // Move to 1
-            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-            move_tile_window(b_copy_dram_window, {0, kKPerBlock});
-
-            // Initialize C
-            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
-
-            // LDS write 0
-            store_tile(a_copy_lds_window, a_block_tile);
-            // Global read 1
-            load_tile(a_block_tile, a_copy_dram_window);
-
-            // LDS write 0
-            store_tile(b_copy_lds_window, b_block_tile);
-            // Global read 1
-            load_tile(b_block_tile, b_copy_dram_window);
-        }
-
-        index_t iCounter = num_loop - 2;
-
-        do
-        {
-            block_sync_lds();
-
-            // GEMM i
-            block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-
-            block_sync_lds();
-
-            // Move to i + 2
-            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-            move_tile_window(b_copy_dram_window, {0, kKPerBlock});
-
-            // LDS write i + 1
-            store_tile(a_copy_lds_window, a_block_tile);
-            // Global read i + 2
-            load_tile(a_block_tile, a_copy_dram_window);
-
-            // LDS write i + 1
-            store_tile(b_copy_lds_window, b_block_tile);
-            // Global read i + 2
-            load_tile(b_block_tile, b_copy_dram_window);
-
-            iCounter--;
-
-        } while(iCounter > 0);
-
-        // Tail
-        {
-            block_sync_lds();
-
-            // GEMM num_loop - 2
-            block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-
-            block_sync_lds();
-
-            // LDS write num_loop - 1
-            store_tile(a_copy_lds_window, a_block_tile);
-
-            store_tile(b_copy_lds_window, b_block_tile);
-
-            block_sync_lds();
-
-            // GEMM num_loop - 1
-            block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-        }
 #else
         // non-prefetch
-        load_tile(a_block_tile, a_copy_dram_window);
-        load_tile(b_block_tile, b_copy_dram_window);
-        store_tile(a_copy_lds_window, a_block_tile);
-        store_tile(b_copy_lds_window, b_block_tile);
-
-        block_sync_lds();
-        block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-        block_sync_lds();
-
-        index_t iCounter = num_loop - 1;
+        index_t iCounter = num_loop;
 
         while(iCounter > 0)
         {
-            move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-            move_tile_window(b_copy_dram_window, {0, kKPerBlock});
-
-            load_tile(a_block_tile, a_copy_dram_window);
-            load_tile(b_block_tile, b_copy_dram_window);
+            a_block_tile = load_tile(a_copy_dram_window);
+            b_block_tile = load_tile(b_copy_dram_window);
+            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
             store_tile(a_copy_lds_window, a_block_tile);
             store_tile(b_copy_lds_window, b_block_tile);
 

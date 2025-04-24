@@ -313,26 +313,18 @@ struct BlockGemmPipelineAGmemBGmemCRegDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
-        static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>);
-
+        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-
         return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, KPerBlock>();
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB()
     {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
-        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
-
+        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-
         return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, KPerBlock>();
     }
 

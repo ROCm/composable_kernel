@@ -7,8 +7,8 @@ endif()
 
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FLASH_ATTENTION_FWD_ENABLE_APIS} 
-  --working_path ${CMAKE_CURRENT_BINARY_DIR} 
+  --api ${FLASH_ATTENTION_FWD_ENABLE_APIS}
+  --working_path ${CMAKE_CURRENT_BINARY_DIR}
   --list_blobs
   RESULT_VARIABLE ret
 )
@@ -21,21 +21,21 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/flash_attention_fwd_blobs.txt FLASH_ATT
 add_custom_command(
   OUTPUT ${FLASH_ATTENTION_FWD_GEN_BLOBS}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FLASH_ATTENTION_FWD_ENABLE_APIS} 
-  --working_path ${CMAKE_CURRENT_BINARY_DIR} 
+  --api ${FLASH_ATTENTION_FWD_ENABLE_APIS}
+  --working_path ${CMAKE_CURRENT_BINARY_DIR}
   --gen_blobs
 )
 
 set(EXAMPLE_REDUCE "codegen_basic_flash_attention_fwd")
 message("adding example ${EXAMPLE_REDUCE}")
 
-add_executable(${EXAMPLE_REDUCE} 
-  EXCLUDE_FROM_ALL 
+add_executable(${EXAMPLE_REDUCE}
+  EXCLUDE_FROM_ALL
   flash_attention_fwd.cpp
 )
 
-target_include_directories(${EXAMPLE_REDUCE} 
-  PRIVATE 
+target_include_directories(${EXAMPLE_REDUCE}
+  PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
 )
 
@@ -45,14 +45,14 @@ message("FLASH_ATTENTION_FWD_GEN_BLOBS = ${FLASH_ATTENTION_FWD_GEN_BLOBS}")
 
 
 set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
-list(APPEND EXAMPLE_REDUCE_COMPILE_OPTIONS 
-  -Wno-undefined-func-template 
-  -Wno-float-equal 
+list(APPEND EXAMPLE_REDUCE_COMPILE_OPTIONS
+  -Wno-undefined-func-template
+  -Wno-float-equal
   --offload-compress
 )
 
-target_compile_options(${EXAMPLE_REDUCE} 
-  PRIVATE 
+target_compile_options(${EXAMPLE_REDUCE}
+  PRIVATE
   ${EXAMPLE_REDUCE_COMPILE_OPTIONS}
 )
 

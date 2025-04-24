@@ -3,43 +3,15 @@
 
 #pragma once
 
-#include "blockgemm_pipeline_agmem_bgmem_creg_policy_impl.hpp"
-#include "../../../example/ck_tile/99_toy_example/02_gemm/block_gemm_pipeline_agmem_bgmem_creg.hpp"
+#include "ck_tile/core.hpp"
+#include "ck_tile/core/tensor/tile_distribution.hpp"
 
 namespace ck_tile {
 
-// NOTE: Assume A is K-Major
-struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPolicy
+template <index_t AKDim_>
+struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
 {
-    template <typename Problem>
-    __host__ __device__ static constexpr auto MakeARegBlockDescriptor()
-    {
-        constexpr auto blockgemm = GetBlockGemm<Problem>();
-        using BlockGemm          = remove_cvref_t<decltype(blockgemm)>;
-
-        return policy_impl::make_a_reg_block_descriptor<Problem, BlockGemm>();
-    }
-
-    template <typename Problem>
-    __host__ __device__ static constexpr auto MakeBLdsBlockDescriptor()
-    {
-        return policy_impl::make_b_lds_block_descriptor_3d_pad<Problem>();
-    }
-
-    template <typename Problem>
-    __host__ __device__ static constexpr auto MakeADramTileDistribution()
-    {
-        constexpr auto blockgemm = GetBlockGemm<Problem>();
-        using BlockGemm          = remove_cvref_t<decltype(blockgemm)>;
-
-        return policy_impl::make_a_dram_tile_distribution_skip_lds<Problem, BlockGemm>();
-    }
-
-    template <typename Problem>
-    __host__ __device__ static constexpr auto MakeBDramTileDistribution()
-    {
-        return policy_impl::make_b_dram_tile_distribution<Problem>();
-    }
+    static constexpr index_t AKDim = AKDim_;
 
     template <typename Problem>
     __host__ __device__ static constexpr auto GetBlockGemm()
@@ -48,13 +20,6 @@ struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPolicy
 
         return BlockGemmARegBSmemCRegV1<Problem, BlockGemmPolicy>{};
     }
-};
-
-template <index_t AKDim_>
-struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
-    : BlockGemmPipelineAGmemBGmemCRegSkipALdsPolicy
-{
-    static constexpr index_t AKDim = AKDim_;
 
     template <typename Problem>
     __host__ __device__ static constexpr auto MakeARegBlockDescriptor()
@@ -62,11 +27,13 @@ struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
         constexpr auto blockgemm = GetBlockGemm<Problem>();
         using BlockGemm          = remove_cvref_t<decltype(blockgemm)>;
 
+        static_assert((Problem::BlockGemmShape::kM == Problem::BlockGemmShape::kN), "wrong!");
+
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = AKDim;
 
         constexpr auto config =
-            BlockGemm::BlockGemmPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+            BlockGemm::BlockGemmPolicy::template GetWarpGemmMWarpNWarp<Problem, kMPerBlock>();
 
         using WG = remove_cvref_t<decltype(config.template get<0>())>;
 
@@ -90,6 +57,87 @@ struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
         constexpr auto a_block_dstr = make_static_tile_distribution(a_block_dstr_encode);
 
         return a_block_dstr;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeADramTileDistribution()
+    {
+        return MakeARegBlockDescriptor<Problem>();
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeBLdsBlockDescriptor()
+    {
+        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t kKPack     = 8;
+
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+
+        constexpr auto DataTypeSize = sizeof(BDataType);
+        constexpr auto NLdsLayer =
+            (32 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / DataTypeSize);
+
+        constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<kKPerBlock / kKPack * NLdsLayer>{},
+                       number<kNPerBlock / NLdsLayer>{},
+                       number<kKPack>{}),
+            make_tuple(number<kKPack>{}, number<kKPerBlock * NLdsLayer>{}, number<1>{}),
+            number<kKPack>{},
+            number<1>{});
+
+        constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
+            b_lds_block_desc_0,
+            make_tuple(make_xor_transform(make_tuple(number<kNPerBlock / NLdsLayer>{},
+                                                     number<kKPerBlock / kKPack * NLdsLayer>{})),
+                       make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+
+        constexpr auto b_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+            b_lds_block_desc_permuted,
+            make_tuple(make_unmerge_transform(
+                           make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                       make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
+                       make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+
+        constexpr auto b_lds_block_desc = transform_tensor_descriptor(
+            b_lds_block_desc_xk0_mnldslayer_mn_xk1,
+            make_tuple(
+                make_merge_transform(
+                    make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
+                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+        return b_lds_block_desc;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeBDramTileDistribution()
+    {
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+
+        constexpr index_t K1 = 16 / sizeof(BDataType);
+        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t N2 = get_warp_size() / K0;
+
+        constexpr index_t N1 = kBlockSize / get_warp_size();
+        constexpr index_t N0 = kNPerBlock / (N2 * N1);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 };
 

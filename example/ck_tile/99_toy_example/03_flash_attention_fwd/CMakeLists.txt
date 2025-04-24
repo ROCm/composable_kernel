@@ -10,6 +10,12 @@ set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 list(APPEND EXAMPLE_REDUCE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
 
+option(ENABLE_TOY_FA_FWD_OPT "Enable toy FA fwd optimization" OFF)
+if(ENABLE_TOY_FA_FWD_OPT)
+    message("Compiling with toy FA fwd optimization")
+    target_compile_definitions(${EXAMPLE_REDUCE} PRIVATE TOY_FA_FWD_OPT)
+endif()
+
 target_compile_options(${EXAMPLE_REDUCE} PRIVATE ${EXAMPLE_REDUCE_COMPILE_OPTIONS})
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
