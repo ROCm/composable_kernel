@@ -615,6 +615,46 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             generate_tuple([&](auto) { return make_multi_index(0, m_block_data_idx_on_grid, 0); },
                            Number<NumATensor>{});
 
+        // N, G, C, H, W translates to M(N, G, Hi, Ho)  K(C, Y, X)
+        //
+        // Get C_slice = KPerBlock / (X*Y)
+        // H_slice = Y
+        // W_slice = (MPerBlock+X-1) to process MPerblock C_slice*X*Y kernels as one block
+        // Without paddings ((KPerBlock / (X*Y)) % C_slice == 0 and Ho % MPerBlock == 0 was needed
+        // N, G, C, H, W
+        // 1, 1, c_slice, Y, MPerBlock + X-1
+        // So after first transfer we have
+        // 1, 1, c_slice, Y, MPerBlock + X-1
+        // So we can vectorload f.e. 8 if MPerBlock+(X-1) is padded to 8 ad Y*C_slice different
+        // locations Then we need to broadcast it to MPerBlock, KPerBlock at second lds transfer I
+        // had no idea whether I should try to vectorize it or if it is even possible so i just did
+        // it with shuffling and broadcasting using code below
+        //
+        // int c = 0;
+        // int y = 0;
+        // int x = 0;
+
+        // for(int m=0; m<M;++m) {
+        //     for(int k=0; k<K;++k) {
+        //         x = k%X;
+        //         y = (k/X)%Y;
+        //         c = k/(X*Y);
+
+        //         dst.data()[m*K + k] = (*this)(0, c, y, m + x);
+        //         if(x == X - 1) {
+        //             x = 0;
+        //             if(y == Y - 1) {
+        //                 y = 0;
+        //                 c++;
+        //             } else {
+        //                 y++;
+        //             }
+        //         } else {
+        //             x++;
+        //         }
+        //     }
+        // }
+
         auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
             ThisThreadBlock,
             AsDataType,
