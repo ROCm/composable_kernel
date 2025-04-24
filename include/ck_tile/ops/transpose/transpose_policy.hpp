@@ -59,8 +59,8 @@ struct TransposePolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeInputDistribution()
     {
         constexpr index_t BlockSize         = Problem::kBlockSize;
-        constexpr index_t LeadDimPerBlock   = Problem::kLeadDimPerBlock;
-        constexpr index_t SecondDimPerBlock = Problem::kSecondDimPerBlock;
+        constexpr index_t LeadDimPerBlock   = Problem::kLeadSizePerBlock;
+        constexpr index_t SecondDimPerBlock = Problem::kSecondSizePerBlock;
         constexpr index_t VecLoadSize       = 16 / sizeof(typename Problem::DataType);
 
         using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
@@ -75,8 +75,8 @@ struct TransposePolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
     {
         constexpr index_t BlockSize         = Problem::kBlockSize;
-        constexpr index_t LeadDimPerBlock   = Problem::kLeadDimPerBlock;
-        constexpr index_t SecondDimPerBlock = Problem::kSecondDimPerBlock;
+        constexpr index_t LeadDimPerBlock   = Problem::kLeadSizePerBlock;
+        constexpr index_t SecondDimPerBlock = Problem::kSecondSizePerBlock;
         constexpr index_t VecLoadSize       = 16 / sizeof(typename Problem::DataType);
 
         using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
@@ -91,8 +91,8 @@ struct TransposePolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsStoreBlockDescriptor()
     {
         //using Layout                         = remove_cvref_t<typename Problem::Layout>;
-        constexpr index_t kLeadDimPerBlock   = Problem::kLeadDimPerBlock;
-        constexpr index_t kSecondDimPerBlock = Problem::kSecondDimPerBlock;
+        constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
+        constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
         constexpr index_t kVectorSize        = 16 / sizeof(typename Problem::DataType);
 
         constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
@@ -130,9 +130,9 @@ struct TransposePolicy
             decltype(detail::make_embed_tile_distribution_encoding(
                 WarpLevelOuterDistribution_{}, QuartTransposeTileDistribution{}));
         constexpr index_t LeadDimIterPerWarp =
-            Problem::kLeadDimPerBlock / (Problem::kLeadDimPerWarp * Problem::kLeadDimWarps);
+            Problem::kLeadSizePerBlock / (Problem::kLeadSizePerWarp * Problem::kLeadSizeWarps);
         constexpr index_t SecondDimIterPerWarp =
-            Problem::kSecondDimPerBlock / (Problem::kSecondDimPerWarp * Problem::kSecondDimWarps);
+            Problem::kSecondSizePerBlock / (Problem::kSecondSizePerWarp * Problem::kSecondSizeWarps);
 
         constexpr auto block_outer_dst_encoding = tile_distribution_encoding<
             sequence<>,

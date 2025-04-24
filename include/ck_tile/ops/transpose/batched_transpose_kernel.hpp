@@ -71,8 +71,8 @@ struct BatchedTransposeKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         __shared__ char smem[Pipeline::GetSmemSize()];
-        static constexpr ck_tile::index_t kMPerBlock = Problem::kSecondDimWarps;
-        static constexpr ck_tile::index_t kNPerBlock = Problem::kLeadDimWarps;
+        static constexpr ck_tile::index_t kMPerBlock = Problem::kSecondSizePerBlock;
+        static constexpr ck_tile::index_t kNPerBlock = Problem::kLeadSizePerBlock;
 
         const auto iDim  = blockIdx.z;
         const auto x_m_n = [&]() {
@@ -88,8 +88,8 @@ struct BatchedTransposeKernel
                                    sequence<false, false>{});
         }();
 
-        const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
-        const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
+        const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.y * kMPerBlock);
+        const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.x * kNPerBlock);
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
