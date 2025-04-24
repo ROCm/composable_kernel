@@ -61,7 +61,7 @@ struct TransposePipelineProblem
                   "block dim should be divided by warp dim!");
     static_assert(kSecondSizePerBlock % kSecondNumWarps == 0,
                   "block dim should be divided by warp dim!");
-
+    // how many rows/cols implemented in one warp
     static constexpr index_t kLeadSizePerWarp   = kLeadSizePerBlock / kLeadNumWarps;
     static constexpr index_t kSecondSizePerWarp = kSecondSizePerBlock / kSecondNumWarps;
 
@@ -70,6 +70,7 @@ struct TransposePipelineProblem
     static_assert(kSecondSizePerWarp % kSecondSizePerXdl == 0,
                   "warp dim should be divided by xdl dim!");
 
+    // warp rows/cols is divided into xdl.
     static constexpr index_t kLeadXdlNumPerWarp   = kLeadSizePerWarp / kLeadSizePerXdl;
     static constexpr index_t kSecondXdlNumPerWarp = kSecondSizePerWarp / kSecondSizePerXdl;
 
@@ -77,11 +78,11 @@ struct TransposePipelineProblem
                   "xdl dim should be divided by quad dim!");
     static_assert(kSecondSizePerXdl % kQuadrantSecondDim == 0,
                   "xdl dim should be divided by quad dim!");
-
+    // xdl rows/cols is divided into quadrants.
     static constexpr index_t kQuadNumPerLeadDim   = kLeadSizePerXdl / kQuadrantLeadDim;
     static constexpr index_t kQuadNumPerSecondDim = kSecondSizePerXdl / kQuadrantSecondDim;
 
-    static constexpr index_t kIterationsPerSecondDim =
+    static constexpr index_t kIterations =
         kQuadNumPerLeadDim * kQuadNumPerSecondDim * 16 / get_warp_size();
 };
 
@@ -136,19 +137,19 @@ struct BlockTranspose
             make_tile_window(output_lds_block,
                              make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
                              {0, 0},
-                             Policy::template MakeOutputDistribution<Problem>());                   
+                             Policy::template MakeOutputDistribution<Problem>());
 
         auto x = load_tile(input_tile_window);
 
         store_tile(copy_to_lds_window, x);
         block_sync_lds();
-        
+
         auto y = load_tile(load_from_lds_window);
         // auto load_from_lds_window =
         //     make_tile_window(output_lds_block,
-        //                      make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
-        //                      {0, 0},
-        //                      Policy::template MakeLdsLoadTileDistribution<Problem>());
+        //                      make_tuple(number<kSecondSizePerBlock>{},
+        //                      number<kLeadSizePerBlock>{}), {0, 0}, Policy::template
+        //                      MakeLdsLoadTileDistribution<Problem>());
 
         // auto y = load_tile_transpose(load_from_lds_window);
         store_tile(output_tile_window, y);
