@@ -205,9 +205,9 @@ int main(int argc, char* argv[])
     ck::index_t N               = 4096;
     ck::index_t K               = 6144;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 16;
-    ck::index_t valid_tile_num  = 13;
-    ck::index_t tokens          = 64;
+    ck::index_t sorted_tile_num = 133;
+    ck::index_t valid_tile_num  = 128;
+    ck::index_t tokens          = 8192;
     ck::index_t topk            = 2;
 
     if(argc == 1)
@@ -263,10 +263,10 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
     max_token_id.mData = {valid_size};
-    int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3};
+    // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = eids[i];
+        expert_ids.mData[i] = i / (valid_tile_num / experts);
     }
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
