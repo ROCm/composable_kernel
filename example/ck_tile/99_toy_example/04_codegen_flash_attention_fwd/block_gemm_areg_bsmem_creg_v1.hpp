@@ -32,7 +32,8 @@ struct BlockGemmARegBSmemCRegV1
     // B block tile distribution for load from lds
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
-        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem, Problem::BlockGemmShape::kM>();
+        constexpr auto config =
+            Policy::template GetWarpGemmMWarpNWarp<Problem, Problem::BlockGemmShape::kM>();
         using WG = remove_cvref_t<decltype(config.template get<0>())>;
 
         constexpr index_t MWarp = config.template get<1>();
@@ -55,7 +56,8 @@ struct BlockGemmARegBSmemCRegV1
         return b_block_dstr_encode;
     }
 
-    static constexpr auto BLdsTileDistr = decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
+    static constexpr auto BLdsTileDistr =
+        decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
     using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
 
     template <index_t VectorSizeB = 8, index_t SmemPack = 8>
@@ -149,15 +151,14 @@ struct BlockGemmARegBSmemCRegV1
 
     // C += A * B
     template <typename CBlockTensor, typename ABlockTensorTmp>
-    __device__ void operator() (CBlockTensor& c_block_tensor,
+    __device__ void operator()(CBlockTensor& c_block_tensor,
                                const ABlockTensorTmp& a_block_tensor_tmp,
                                const BLdsTile& b_block_tensor_tmp) const
     {
-        static_assert(
-            std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
-                std::is_same_v<BDataType, remove_cv_t<typename BLdsTile::DataType>> &&
-                std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
-            "wrong!");
+        static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
+                          std::is_same_v<BDataType, remove_cv_t<typename BLdsTile::DataType>> &&
+                          std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+                      "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
         constexpr index_t NPerBlock = CBlockTensor{}.get_lengths()[number<1>{}];

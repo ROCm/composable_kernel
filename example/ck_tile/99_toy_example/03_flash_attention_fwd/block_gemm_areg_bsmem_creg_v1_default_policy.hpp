@@ -13,15 +13,15 @@ struct BlockGemmARegBSmemCRegV1DefaultPolicy
     template <typename Problem, index_t kM0>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemmMWarpNWarp()
     {
-        if constexpr (kM0 == 64)
+        if constexpr(kM0 == 64)
         {
             return make_tuple(WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{}, 4, 1);
         }
-        else if constexpr (kM0 == 32)
+        else if constexpr(kM0 == 32)
         {
             return make_tuple(WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{}, 2, 1);
         }
-        else if constexpr (kM0 == 128)
+        else if constexpr(kM0 == 128)
         {
             return make_tuple(WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution{}, 4, 1);
         }

@@ -29,13 +29,13 @@ int main(int argc, char* argv[])
     using OaccDataType        = float;
     using ODataType           = ck_tile::half_t;
 
-    ck_tile::index_t Batch                        = 64;   // Batch Number * Head Number
-    ck_tile::index_t M0                           = 4096; // SequenceLengthQ
-    ck_tile::index_t N0                           = 4096; // SequencelengthK
-    ck_tile::index_t K0                           = 128;  // HeadDim
-    ck_tile::index_t N1                           = 128;  // HeadDim
-    ck_tile::index_t verification                 = 0;
-    ck_tile::index_t init_method                  = 1;
+    ck_tile::index_t Batch        = 64;   // Batch Number * Head Number
+    ck_tile::index_t M0           = 4096; // SequenceLengthQ
+    ck_tile::index_t N0           = 4096; // SequencelengthK
+    ck_tile::index_t K0           = 128;  // HeadDim
+    ck_tile::index_t N1           = 128;  // HeadDim
+    ck_tile::index_t verification = 0;
+    ck_tile::index_t init_method  = 1;
 
     if(argc == 3)
     {

@@ -14,7 +14,6 @@
 #include "block_gemm_areg_bsmem_creg_v1.hpp"
 #include "tile_gemm_shape.hpp"
 
-
 namespace ck_tile {
 
 // S[M0, N0] = Q[M0, K0] * K[N0, K0]
@@ -196,14 +195,16 @@ struct FlashAttentionFwdImpl
         // V LDS tile window for store
         auto v_copy_lds_window =
             make_tile_window(v_lds,
-                                make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}),
-                                {0, 0},
-                                v_dram_window.get_tile_distribution());
+                             make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}),
+                             {0, 0},
+                             v_dram_window.get_tile_distribution());
 
         // V LDS tile for block GEMM
-        auto v_lds_gemm_window = make_tile_window(
-            v_lds, make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}), {0, 0},
-            make_static_tile_distribution(gemm1.MakeBBlockDistributionEncode()));
+        auto v_lds_gemm_window =
+            make_tile_window(v_lds,
+                             make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}),
+                             {0, 0},
+                             make_static_tile_distribution(gemm1.MakeBBlockDistributionEncode()));
 #else
         auto v_lds_window = make_tile_window(
             v_lds, make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}), {0, 0});
@@ -321,10 +322,10 @@ struct FlashAttentionFwdImpl
                 store_tile(v_lds_window, v);
                 block_sync_lds();
                 gemm1(o_acc,
-                        get_slice_tile(p,
-                                        sequence<0, i_k1 * kK1PerBlock>{},
-                                        sequence<kM0PerBlock, (i_k1 + 1) * kK1PerBlock>{}),
-                        v_lds_window);
+                      get_slice_tile(p,
+                                     sequence<0, i_k1 * kK1PerBlock>{},
+                                     sequence<kM0PerBlock, (i_k1 + 1) * kK1PerBlock>{}),
+                      v_lds_window);
                 block_sync_lds();
             });
 #else
@@ -361,10 +362,10 @@ struct FlashAttentionFwdImpl
                     move_tile_window(v_dram_window, {0, kK1PerBlock});
 
                     gemm1(o_acc,
-                        get_slice_tile(p,
-                                        sequence<0, i_k1 * kK1PerBlock>{},
-                                        sequence<kM0PerBlock, (i_k1 + 1) * kK1PerBlock>{}),
-                                        vWarpTile);
+                          get_slice_tile(p,
+                                         sequence<0, i_k1 * kK1PerBlock>{},
+                                         sequence<kM0PerBlock, (i_k1 + 1) * kK1PerBlock>{}),
+                          vWarpTile);
                     block_sync_lds();
                     vWarpTile = load_tile(v_lds_gemm_window);
                     gemm1.template HotLoopScheduler<8, 4>();
@@ -373,23 +374,23 @@ struct FlashAttentionFwdImpl
             }
             // tail
             {
-                if constexpr (k1_loops > 1)
+                if constexpr(k1_loops > 1)
                 {
                     gemm1(o_acc,
-                        get_slice_tile(p,
-                                        sequence<0, (k1_loops - 2) * kK1PerBlock>{},
-                                        sequence<kM0PerBlock, (k1_loops - 1) * kK1PerBlock>{}),
-                                        vWarpTile);
+                          get_slice_tile(p,
+                                         sequence<0, (k1_loops - 2) * kK1PerBlock>{},
+                                         sequence<kM0PerBlock, (k1_loops - 1) * kK1PerBlock>{}),
+                          vWarpTile);
                     block_sync_lds();
                 }
                 store_tile(v_copy_lds_window, v_prefetch);
                 block_sync_lds();
                 vWarpTile = load_tile(v_lds_gemm_window);
                 gemm1(o_acc,
-                    get_slice_tile(p,
-                                    sequence<0, (k1_loops - 1) * kK1PerBlock>{},
-                                    sequence<kM0PerBlock, kN0PerBlock>{}),
-                        vWarpTile);
+                      get_slice_tile(p,
+                                     sequence<0, (k1_loops - 1) * kK1PerBlock>{},
+                                     sequence<kM0PerBlock, kN0PerBlock>{}),
+                      vWarpTile);
                 block_sync_lds();
             }
 #endif

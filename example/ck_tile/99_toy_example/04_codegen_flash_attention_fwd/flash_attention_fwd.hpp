@@ -155,7 +155,6 @@ struct FlashAttentionFwd
         const index_t iN1    = __builtin_amdgcn_readfirstlane(id_tile.template get(number<1>{}) %
                                                            num_tile_n1 * kN1PerBlock);
 
-
         const auto kernel_impl = FlashAttentionFwdImpl<QDataType,
                                                        KDataType,
                                                        VDataType,
