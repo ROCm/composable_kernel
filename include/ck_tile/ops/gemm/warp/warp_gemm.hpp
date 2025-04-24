@@ -42,7 +42,7 @@ using WarpGemmMfmaF16F16F32M16N16K32 = WarpGemmImpl<WarpGemmAtrributeMfmaIterate
 using WarpGemmMfmaF16F16F32M32N32K8SwizzleA = WarpGemmImpl<WarpGemmAtrributeMfmaIterateK_SwizzleA<
     WarpGemmAttributeMfmaImplF16F16F32M32N32K8<WGAttrCtlEnum::Default_>,
     1>>;
-//TODO:
+
 using WarpGemmMfmaF16F16F32M32N32K16SwizzleA = WarpGemmImpl<WarpGemmAtrributeMfmaIterateK_SwizzleA<
     WarpGemmAttributeMfmaImplF16F16F32M32N32K8<WGAttrCtlEnum::Default_>,
     2>>;
@@ -111,7 +111,7 @@ using WarpGemmMfmaBf16Bf16F32M32N32K8 = WarpGemmImpl<
 using WarpGemmMfmaBf16Bf16F32M16N16K16 = WarpGemmImpl<
     WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16<WGAttrCtlEnum::Default_>>>;
 
-#if defined( __gfx950__)
+#if defined(__gfx950__)
 using WarpGemmMfmaBf16Bf16F32M32N32K16 = WarpGemmImpl<
     WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K16<WGAttrCtlEnum::Default_>>>;
 
@@ -133,7 +133,7 @@ using WarpGemmMfmaBf16Bf16F32M16N16K32 = WarpGemmImpl<WarpGemmAtrributeMfmaItera
 using WarpGemmMfmaBf16Bf16F32M32N32K8SwizzleA = WarpGemmImpl<WarpGemmAtrributeMfmaIterateK_SwizzleA<
     WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<WGAttrCtlEnum::Default_>,
     1>>;
-//TODO:
+
 using WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleA =
     WarpGemmImpl<WarpGemmAtrributeMfmaIterateK_SwizzleA<
         WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8<WGAttrCtlEnum::Default_>,
