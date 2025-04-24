@@ -158,8 +158,8 @@ using BElementOp = PassThrough;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t MXDLPerWave = 4;
-static constexpr ck::index_t NXDLPerWave = 2;
+static constexpr ck::index_t MXDLPerWave = 8;
+static constexpr ck::index_t NXDLPerWave = 1;
 static constexpr ck::index_t BLOCKSIZE   = 256;
 static constexpr ck::index_t NPerBlock   = 64;
 static constexpr ck::index_t MNPerXDL    = 16;
@@ -190,8 +190,8 @@ using DeviceOpInstance                   = ck::tensor_operation::device::DeviceM
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-                2,    2,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, true, MulRoutedWeight, true, int32_t, A0DataType>;
+                2,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, true, MulRoutedWeight, true, int32_t, A0DataType>;
 
 // clang-format on
 
