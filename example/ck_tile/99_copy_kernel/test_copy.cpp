@@ -8,7 +8,7 @@
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "32", "m dimension")
+    arg_parser.insert("m", "64", "m dimension")
         .insert("n", "128", "n dimension")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
@@ -50,7 +50,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
 
     using BlockWaves = ck_tile::sequence<2, 1>;
-    using BlockTile  = ck_tile::sequence<32, 128>;
+    using BlockTile  = ck_tile::sequence<64, 128>;
     using WaveTile   = ck_tile::sequence<32, 128>;
     using Vector     = ck_tile::sequence<8, 8>;
 
@@ -61,7 +61,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Problem = ck_tile::TileCopyProblem<XDataType, Shape>;
     using Kernel = ck_tile::TileCopy<Problem>;
 
-    constexpr ck_tile::index_t kBlockSize  = Shape::BlockSize;
+    constexpr ck_tile::index_t kBlockSize  = 128;
     constexpr ck_tile::index_t kBlockPerCu = 1;
     std::cout << "block size " << kBlockSize << std::endl;
     std::cout << "warp SIze " << ck_tile::get_warp_size() << std::endl;

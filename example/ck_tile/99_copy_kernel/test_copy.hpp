@@ -31,8 +31,8 @@ struct TileCopyShape
     static constexpr index_t Vector_M = Vector::at(number<0>{});        // 8
     static constexpr index_t Vector_N = Vector::at(number<1>{});           // 8
 
-    static constexpr index_t WarpPerBlock_M = integer_divide_ceil(BlockWaves::at(number<0>{}), WaveGroups); // 2/2 = 1, 
-    static constexpr index_t WarpPerBlock_N = integer_divide_ceil(BlockWaves::at(number<1>{}), WaveGroups); // 1/2 = 1
+    static constexpr index_t WarpPerBlock_M = BlockWaves::at(number<0>{}) / WaveGroups; // 2/2 = 1, 
+    static constexpr index_t WarpPerBlock_N = BlockWaves::at(number<1>{}); // 1/2 = 1
 
     static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;   // 32 /  = 4, 4, 
     static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;   // 128 / 8 = 16, 16
@@ -85,11 +85,11 @@ struct TileCopy
     {
         using S = typename Problem::BlockShape;
         constexpr auto x_block_outer_distr_enc = tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<S::Repeat_M, S::WarpPerBlock_M>,  // 1, 1
+                sequence<S::WarpPerBlock_M>,
+                tuple<sequence<S::Repeat_M>,  // 1, 1
                       sequence<S::Repeat_N, S::WarpPerBlock_N>>, // 1, 1
-                tuple<sequence<1, 2>>,                           // 1 * 1 = 1
-                tuple<sequence<1, 1>>,
+                tuple<sequence<0, 2>>,                           // 1 * 1 = 1
+                tuple<sequence<0, 1>>,
                 sequence<1, 2>,                                  // 1 * 1 = 1
                 sequence<0, 0>>{};
         
@@ -160,18 +160,15 @@ struct TileCopy
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             reg_tile x;
-            if (my_id == (iN % 2))
-            {
-                // load from DRAM to registers
+            if (my_id == 1) {
                 x = load_tile(x_block_window);
-
-                // store from registers to DRAM
                 store_tile(y_block_window, x);
-            }
-            __syncthreads();
-            move_tile_window(x_block_window, {0, S::Block_N});
-            move_tile_window(y_block_window, {0, S::Block_N});            
 
+                move_tile_window(x_block_window, {0, S::Block_N});
+                move_tile_window(y_block_window, {0, S::Block_N});
+            }
+    
+            __syncthreads(); // Sync all warps after window movement
         }
     }
 };
