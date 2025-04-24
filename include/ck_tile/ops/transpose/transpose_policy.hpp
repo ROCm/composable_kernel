@@ -103,8 +103,7 @@ struct TransposePolicy
             make_tuple(number<kSecondDimPerBlock>{},
                        number<kLeadDimPerBlock / kVectorSize>{},
                        number<kVectorSize>{}),
-            make_tuple(
-                number<(kLeadDimPerBlock + 1) * kVectorSize>{}, number<kVectorSize>{}, number<1>{}),
+            make_tuple(number<kLeadDimPerBlock>{}, number<kVectorSize>{}, number<1>{}),
             number<kVectorSize>{},
             number<1>{});
 
@@ -131,8 +130,7 @@ struct TransposePolicy
             make_tuple(number<kSecondDimPerBlock>{},
                        number<kLeadDimPerBlock / kVectorSize>{},
                        number<kVectorSize>{}),
-            make_tuple(
-                number<(kLeadDimPerBlock + 1) * kVectorSize>{}, number<kVectorSize>{}, number<1>{}),
+            make_tuple(number<kLeadDimPerBlock>{}, number<kVectorSize>{}, number<1>{}),
             number<kVectorSize>{},
             number<1>{});
 
@@ -150,7 +148,7 @@ struct TransposePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
-        //using QuartTransposeTileDistribution =
+        // using QuartTransposeTileDistribution =
         //    typename QuartTransposeTraits<typename Problem::DataType>::TileDistribution;
         // one xdl implement kSecond x kLead
         constexpr index_t kLead   = Problem::kLeadSizePerXdl;
