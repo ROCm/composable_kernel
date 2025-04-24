@@ -17,6 +17,7 @@ struct StandardAttentionParams
     float sm_scale;
 };
 
+template <bool UseExp2 = false>
 struct LogitsSoftCapParams
 {
     __device__ LogitsSoftCapParams(float sm_scale_, float logits_soft_cap_)
@@ -29,6 +30,12 @@ struct LogitsSoftCapParams
         else
         {
             logits_soft_cap_rcp = 0;
+        }
+
+        if constexpr(UseExp2)
+        {
+            logits_soft_cap     = log2e_v<float> * logits_soft_cap;
+            logits_soft_cap_rcp = sm_scale * log2e_rcp_v<float> * logits_soft_cap_rcp;
         }
     }
 
@@ -43,6 +50,12 @@ struct LogitsSoftCapParams
         {
             logits_soft_cap_rcp = 0;
         }
+
+        if constexpr(UseExp2)
+        {
+            logits_soft_cap     = log2e_v<float> * logits_soft_cap;
+            logits_soft_cap_rcp = sm_scale * log2e_rcp_v<float> * logits_soft_cap_rcp;
+        }
     }
 
     __device__ __host__ LogitsSoftCapParams(float sm_scale_,
@@ -52,6 +65,11 @@ struct LogitsSoftCapParams
           logits_soft_cap(logits_soft_cap_),
           logits_soft_cap_rcp(logits_soft_cap_rcp_)
     {
+        if constexpr(UseExp2)
+        {
+            logits_soft_cap     = log2e_v<float> * logits_soft_cap;
+            logits_soft_cap_rcp = sm_scale * log2e_rcp_v<float> * logits_soft_cap_rcp;
+        }
     }
 
     float sm_scale;
@@ -85,7 +103,7 @@ struct StandardAttention
     }
 };
 
-template <bool IsUsingExp2 = false>
+template <bool UseExp2 = false>
 struct LogitsSoftCap
 {
     __device__ __host__ LogitsSoftCap() = default;
@@ -93,17 +111,23 @@ struct LogitsSoftCap
     template <typename Params, typename T>
     __device__ __forceinline__ T QueryTransform(const Params& params, T q) const
     {
-        return type_convert<float>(q) * params.sm_scale;
+        if constexpr(UseExp2)
+        {
+            return q;
+        }
+        else
+        {
+            return type_convert<float>(q) * params.sm_scale;
+        }
     }
 
     template <typename Params, typename T>
     __device__ __forceinline__ T LogitsTransform(const Params& params, T logits) const
     {
-        if constexpr(IsUsingExp2)
+        if constexpr(UseExp2)
         {
-            return log2e_v<float> * params.logits_soft_cap *
-                   tanh_fast<float>(type_convert<float>(logits) * log2e_rcp_v<float> *
-                                    params.logits_soft_cap_rcp);
+            return params.logits_soft_cap *
+                   tanh_fast<float>(type_convert<float>(logits) * params.logits_soft_cap_rcp);
         }
         else
         {
@@ -126,9 +150,11 @@ constexpr uint32_t SLIDING_WINDOW  = 2U;
 constexpr uint32_t LOGITS_SOFT_CAP = 4U;
 constexpr uint32_t ALIBI           = 8U;
 
-template <uint32_t VARIANT_CODE, bool IsUsingExp2 = false>
+template <uint32_t VARIANT_CODE, bool UseExp2 = false>
 struct ComposedAttention
 {
+    static constexpr bool use_exp2 = UseExp2;
+
     static constexpr bool use_logits_soft_cap = (VARIANT_CODE & LOGITS_SOFT_CAP) != 0;
 
     __device__ __host__ ComposedAttention() = default;
@@ -136,6 +162,10 @@ struct ComposedAttention
     template <typename Params, typename T>
     __device__ __forceinline__ T QueryTransform(const Params& params, T q) const
     {
+        if constexpr(use_logits_soft_cap && UseExp2)
+        {
+            return q;
+        }
         return type_convert<float>(q) * params.sm_scale;
     }
 
@@ -144,11 +174,10 @@ struct ComposedAttention
     {
         if constexpr(use_logits_soft_cap)
         {
-            if constexpr(IsUsingExp2)
+            if constexpr(UseExp2)
             {
-                return log2e_v<float> * params.logits_soft_cap *
-                       tanh_fast<float>(type_convert<float>(logits) * log2e_rcp_v<float> *
-                                        params.logits_soft_cap_rcp);
+                return params.logits_soft_cap *
+                       tanh_fast<float>(type_convert<float>(logits) * params.logits_soft_cap_rcp);
             }
             else
             {
