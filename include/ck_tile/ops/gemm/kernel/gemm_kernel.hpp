@@ -639,11 +639,8 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
-        EpiloguePipeline{}
-            .template operator()<decltype(c_block_window),
-                                 decltype(c_block_tile),
-                                 EpiloguePipeline::MemoryOperation>(
-                c_block_window, c_block_tile, smem_ptr_0);
+        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+            c_block_window, c_block_tile, smem_ptr_0);
     }
 
     /**
@@ -692,11 +689,8 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
-        EpiloguePipeline{}
-            .template operator()<decltype(c_block_window),
-                                 decltype(c_block_tile),
-                                 EpiloguePipeline::MemoryOperation>(
-                c_block_window, c_block_tile, smem_ptr_0);
+        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+            c_block_window, c_block_tile, smem_ptr_0);
     }
 
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const

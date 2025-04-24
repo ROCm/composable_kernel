@@ -122,9 +122,7 @@ struct CShuffleEpilogue
         return kMWave * kNWave * kMPerXdl * kNPerXdl * sizeof(ODataType);
     }
 
-    template <typename ODramWindow,
-              typename OAccTile,
-              memory_operation_enum out_memory_data_op = memory_operation_enum::set>
+    template <typename ODramWindow, typename OAccTile>
     CK_TILE_DEVICE auto
     operator()(ODramWindow& out_dram_window, const OAccTile& o_acc_tile, void* p_smem)
     {
@@ -181,7 +179,7 @@ struct CShuffleEpilogue
             const auto c_out_tensor =
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
-            if constexpr(out_memory_data_op == memory_operation_enum::set)
+            if constexpr(MemoryOperation == memory_operation_enum::set)
             {
                 store_tile(out_dram_window, c_out_tensor);
             }
