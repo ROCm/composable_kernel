@@ -8,7 +8,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-// Compilation parameters for out[g, n, di, hi, wi, c] * wei[g, k, z, y, x, c] = in[g, n, do, ho,
+
 // wo, k]
 void add_device_grouped_conv3d_bwd_data_xdl_gndhwk_gkzyxc_gndhwc_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
