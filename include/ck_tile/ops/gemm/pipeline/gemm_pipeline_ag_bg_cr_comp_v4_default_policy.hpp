@@ -19,25 +19,49 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
 {
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
-    {
-        using namespace ck_tile;
+    {   
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t KPack      = GetSmemPackA<Problem>();
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPack     = GetSmemPackA<Problem>();
+
+        constexpr auto DataTypeSize = sizeof(ADataType);
+        constexpr auto MLdsLayer =
+            (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / KPack>{}, number<kMPerBlock>{}, number<KPack>{}),
-            make_tuple(number<kMPerBlock * KPack>{}, number<KPack>{}, number<1>{}),
+            make_tuple(number<KPerBlock / KPack * MLdsLayer>{},
+                       number<MPerBlock / MLdsLayer>{},
+                       number<KPack>{}),
+            make_tuple(number<KPack>{}, number<KPerBlock * MLdsLayer>{}, number<1>{}),
             number<KPack>{},
             number<1>{});
 
-        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
             a_lds_block_desc_0,
-            make_tuple(
-                make_pass_through_transform(number<kMPerBlock>{}),
-                make_merge_transform(make_tuple(number<kKPerBlock>{} / KPack, number<KPack>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(make_xor_transform(make_tuple(number<MPerBlock / MLdsLayer>{},
+                                                     number<KPerBlock / KPack * MLdsLayer>{})),
+                       make_pass_through_transform(number<KPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+
+        constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+            a_lds_block_desc_permuted,
+            make_tuple(make_unmerge_transform(
+                           make_tuple(number<MLdsLayer>{}, number<KPerBlock / KPack>{})),
+                       make_pass_through_transform(number<MPerBlock / MLdsLayer>{}),
+                       make_pass_through_transform(number<KPack>{})),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+
+        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+            a_lds_block_desc_xk0_mnldslayer_mn_xk1,
+            make_tuple(make_merge_transform_v3_division_mod(
+                           make_tuple(number<MPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
+            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return a_lds_block_desc;
