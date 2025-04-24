@@ -41,6 +41,7 @@ template <typename SliceLengths,
           bool DstResetCoordinateAfterRun, // control whether to move back dst coordinate after each
                                            // RunWrite(),  will be fused with MoveDstSliceWindow to
                                            // save addr computation
+          typename IndexType,
           index_t GatherDim        = 1,
           index_t NumThreadScratch = 1>
 struct ThreadwiseTensorSliceTransfer_v3r1_gather
@@ -88,7 +89,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
         const DstDesc& dst_desc,
         const Index& dst_slice_origin,
         const DstElementwiseOperation& dst_element_op,
-        const StaticallyIndexedArray<index_t, gather_num>& gather_offsets)
+        const StaticallyIndexedArray<IndexType, gather_num>& gather_offsets)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
           dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
           src_element_op_(src_element_op),
@@ -221,7 +222,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             auto gather_offset =
                 gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
 
-            const index_t ld_offset = src_coord_.GetOffset() + gather_offset;
+            const IndexType ld_offset = src_coord_.GetOffset() + gather_offset;
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, true);
 
@@ -935,7 +936,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     DstCoord dst_coord_;
     const SrcElementwiseOperation src_element_op_;
     const DstElementwiseOperation dst_element_op_;
-    StaticallyIndexedArray<index_t, gather_num> gather_offsets_;
+    StaticallyIndexedArray<IndexType, gather_num> gather_offsets_;
 };
 
 } // namespace ck
