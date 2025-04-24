@@ -1358,7 +1358,7 @@ struct FmhaFwdKernel
         const auto variant_params = [&] {
             if constexpr(kHasLogitsSoftCap)
             {
-                return ck_tile::LogitsSoftCapParams{
+                return ck_tile::LogitsSoftCapParams<variant.use_exp2>{
                     kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
             }
             else
