@@ -133,6 +133,30 @@ struct buffer_view<address_space_enum::generic,
         }
     }
 
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr auto tranpose_get(index_t i,
+                                               index_t linear_offset,
+                                               bool is_valid_element,
+                                               bool_constant<oob_conditional_check> = {}) const
+    {
+        static_assert(false && "Error: transpose load not supported in generic memory space.");
+        ck_tile::ignore = i;
+        ck_tile::ignore = linear_offset;
+        ck_tile::ignore = is_valid_element;
+        if constexpr(InvalidElementUseNumericalZeroValue)
+        {
+            return X{numeric<remove_cvref_t<T>>::zero()};
+        }
+        else
+        {
+            return X{invalid_element_value_};
+        }
+    }
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,
@@ -356,6 +380,31 @@ struct buffer_view<address_space_enum::global,
                     return X{invalid_element_value_};
                 }
             }
+        }
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr auto tranpose_get(index_t i,
+                                               index_t linear_offset,
+                                               bool is_valid_element,
+                                               bool_constant<oob_conditional_check> = {}) const
+    {
+        static_assert(false && "Error: transpose load not supported in global memory space.");
+        ck_tile::ignore = i;
+        ck_tile::ignore = linear_offset;
+        ck_tile::ignore = is_valid_element;
+        if constexpr(InvalidElementUseNumericalZeroValue)
+        {
+            return X{numeric<remove_cvref_t<T>>::zero()};
+        }
+        else
+        {
+            return X{invalid_element_value_};
         }
     }
 
@@ -852,6 +901,45 @@ struct buffer_view<address_space_enum::lds,
         smem_load<sizeof(X)>{}(dst, v_offset * sizeof(T), i_offset * sizeof(T));
     }
 
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr auto transpose_get(index_t i,
+                                                index_t linear_offset,
+                                                bool is_valid_element,
+                                                bool_constant<oob_conditional_check> = {}) const
+    {
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+        if(is_valid_element)
+        {
+            constexpr address_space_enum addr_space = get_address_space();
+            return amd_transpose_load_to_vgpr<remove_cvref_t<T>, t_per_x, addr_space>(
+                p_data_ + i + linear_offset);
+        }
+        else
+        {
+            if constexpr(InvalidElementUseNumericalZeroValue)
+            {
+                return X{numeric<remove_cvref_t<T>>::zero()};
+            }
+            else
+            {
+                return X{invalid_element_value_};
+            }
+        }
+    }
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,

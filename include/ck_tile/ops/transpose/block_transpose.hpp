@@ -28,12 +28,12 @@ struct TransposeTraits<tensor_layout::gemm::ColumnMajor, kRow, kCol>
 template <typename DataType_,
           typename Layout_,
           index_t kBlockSize_,
-          index_t kRowWarps_, // how many warps in row direction
-          index_t kColWarps_, // how many warps in col direction
+          index_t kRowWarps_,    // how many warps in row direction
+          index_t kColWarps_,    // how many warps in col direction
           index_t kRowPerBlock_, // row number per block
           index_t kColPerBlock_, // col number per block
-          index_t kRowPerXdl_, // row number per xdl ops
-          index_t kColPerXdl_> // col number per xdl ops
+          index_t kRowPerXdl_,   // row number per xdl ops
+          index_t kColPerXdl_>   // col number per xdl ops
 struct TransposePipelineProblem
 {
     static_assert(kRowWarps_ * kColWarps_ * get_warp_size() == kBlockSize_,
@@ -57,25 +57,32 @@ struct TransposePipelineProblem
     static constexpr index_t kQuadrantLeadDim   = QuartTransposeTraits<DataType>::kleadDim;
     static constexpr index_t kQuadrantSecondDim = QuartTransposeTraits<DataType>::ksecondDim;
 
-    static_assert(kLeadSizePerBlock % kLeadNumWarps == 0, "block dim should be divided by warp dim!");
-    static_assert(kSecondSizePerBlock % kSecondNumWarps == 0, "block dim should be divided by warp dim!");
-    
-    static constexpr index_t kLeadSizePerWarp = kLeadSizePerBlock / kLeadNumWarps;
+    static_assert(kLeadSizePerBlock % kLeadNumWarps == 0,
+                  "block dim should be divided by warp dim!");
+    static_assert(kSecondSizePerBlock % kSecondNumWarps == 0,
+                  "block dim should be divided by warp dim!");
+
+    static constexpr index_t kLeadSizePerWarp   = kLeadSizePerBlock / kLeadNumWarps;
     static constexpr index_t kSecondSizePerWarp = kSecondSizePerBlock / kSecondNumWarps;
 
-    static_assert(kLeadSizePerWarp % kLeadSizePerXdl == 0, "warp dim should be divided by xdl dim!");
-    static_assert(kSecondSizePerWarp % kSecondSizePerXdl == 0, "warp dim should be divided by xdl dim!");
+    static_assert(kLeadSizePerWarp % kLeadSizePerXdl == 0,
+                  "warp dim should be divided by xdl dim!");
+    static_assert(kSecondSizePerWarp % kSecondSizePerXdl == 0,
+                  "warp dim should be divided by xdl dim!");
 
-    static constexpr index_t kLeadXdlNumPerWarp = kLeadSizePerWarp / kLeadSizePerXdl;
+    static constexpr index_t kLeadXdlNumPerWarp   = kLeadSizePerWarp / kLeadSizePerXdl;
     static constexpr index_t kSecondXdlNumPerWarp = kSecondSizePerWarp / kSecondSizePerXdl;
 
-    static_assert(kLeadSizePerXdl % kQuadrantLeadDim == 0, "xdl dim should be divided by quad dim!");
-    static_assert(kSecondSizePerXdl % kQuadrantSecondDim == 0, "xdl dim should be divided by quad dim!");
+    static_assert(kLeadSizePerXdl % kQuadrantLeadDim == 0,
+                  "xdl dim should be divided by quad dim!");
+    static_assert(kSecondSizePerXdl % kQuadrantSecondDim == 0,
+                  "xdl dim should be divided by quad dim!");
 
-    static constexpr index_t kQuadNumPerLeadDim = kLeadSizePerXdl / kQuadrantLeadDim;
+    static constexpr index_t kQuadNumPerLeadDim   = kLeadSizePerXdl / kQuadrantLeadDim;
     static constexpr index_t kQuadNumPerSecondDim = kSecondSizePerXdl / kQuadrantSecondDim;
-    
-    static constexpr index_t kIterationsPerSecondDim = kQuadNumPerLeadDim * kQuadNumPerSecondDim * 16 / get_warp_size();
+
+    static constexpr index_t kIterationsPerSecondDim =
+        kQuadNumPerLeadDim * kQuadNumPerSecondDim * 16 / get_warp_size();
 };
 
 template <typename Problem_, typename Policy_ = TransposePolicy>
@@ -87,13 +94,13 @@ struct BlockTranspose
     using DataType = remove_cvref_t<typename Problem::DataType>;
     using Layout   = remove_cvref_t<typename Problem::Layout>;
 
-    static constexpr index_t kBlockSize         = Problem::kBlockSize;
+    static constexpr index_t kBlockSize          = Problem::kBlockSize;
     static constexpr index_t kLeadSizePerBlock   = Problem::kLeadSizePerBlock;
     static constexpr index_t kSecondSizePerBlock = Problem::kSecondSizePerBlock;
-    static constexpr index_t kLeadSizePerXdl    = Problem::kLeadSizePerXdl;
-    static constexpr index_t kSecondSizePerXdl  = Problem::kSecondSizePerXdl;
-    static constexpr index_t kLeadNumWarps     = Problem::kLeadNumWarps;
-    static constexpr index_t kSecondNumWarps   = Problem::kSecondNumWarps;
+    static constexpr index_t kLeadSizePerXdl     = Problem::kLeadSizePerXdl;
+    static constexpr index_t kSecondSizePerXdl   = Problem::kSecondSizePerXdl;
+    static constexpr index_t kLeadNumWarps       = Problem::kLeadNumWarps;
+    static constexpr index_t kSecondNumWarps     = Problem::kSecondNumWarps;
 
     static constexpr index_t GetVectorSize() { return Policy::template GetVectorSize<Problem>(); }
 
@@ -112,9 +119,10 @@ struct BlockTranspose
         auto output_tile_window =
             make_tile_window(out_window, Policy::template MakeOutputDistribution<Problem>());
 
-        DataType* p_lds_ptr           = static_cast<DataType*>(p_smem);
-        constexpr auto lds_block_desc = Policy::template MakeLdsStoreBlockDescriptor<Problem>();
-        auto input_lds_block = make_tensor_view<address_space_enum::lds>(p_lds_ptr, lds_block_desc);
+        DataType* p_lds_ptr              = static_cast<DataType*>(p_smem);
+        constexpr auto in_lds_block_desc = Policy::template MakeLdsStoreBlockDescriptor<Problem>();
+        auto input_lds_block =
+            make_tensor_view<address_space_enum::lds>(p_lds_ptr, in_lds_block_desc);
 
         constexpr auto out_lds_block_desc = Policy::template MakeLdsLoadBlockDescriptor<Problem>();
         auto output_lds_block =
@@ -125,16 +133,16 @@ struct BlockTranspose
                              make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
                              {0, 0});
 
+        auto x = load_tile(input_tile_window);
+
+        store_tile(copy_to_lds_window, x);
+        block_sync_lds();
+
         auto load_from_lds_window =
             make_tile_window(output_lds_block,
                              make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
                              {0, 0},
                              Policy::template MakeLdsLoadTileDistribution<Problem>());
-
-        auto x = load_tile(input_tile_window);
-
-        store_tile(copy_to_lds_window, x);
-        block_sync_lds();
 
         auto y = load_tile_transpose(load_from_lds_window);
         store_tile(output_tile_window, y);
