@@ -10,7 +10,7 @@
 namespace ck_tile {
 
 template <typename XDataType, typename YDataType>
-CK_TILE_HOST void reference_vector_add(const HostTensor<XDataType>& xa_m_n,
+CK_TILE_HOST void reference_add_vector(const HostTensor<XDataType>& xa_m_n,
                                        const HostTensor<XDataType>& xb_m_n,
                                        HostTensor<YDataType>& y_m_n)
 {

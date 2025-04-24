@@ -1,6 +1,6 @@
 #include "ck_tile/host.hpp"
-#include "reference_vector_add.hpp"
-#include "vector_add.hpp"
+#include "reference_add_vector.hpp"
+#include "add_vector.hpp"
 #include <cstring>
 
 // This example demonstrates how to use the ck_tile library to perform an elementwise vector
@@ -39,10 +39,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int repeat         = arg_parser.get_int("repeat");
 
     ck_tile::HostTensor<XDataType> x_host_a(
-        {m}); // length input vector A, if given two arguments m, n the HostTensor will be created
+        {m}); // length input vector A, if given two arguments (m, n) the HostTensor will be created
               // with shape (m, n)
     ck_tile::HostTensor<XDataType> x_host_b(
-        {m}); // length input vector B, if given two arguments m, n the HostTensor will be created
+        {m}); // length input vector B, if given two arguments (m, n) the HostTensor will be created
               // with shape (m, n)
 
     ck_tile::HostTensor<YDataType> y_host_ref({m});
@@ -64,11 +64,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf_b.ToDevice(x_host_b.data());
 
     // Dividing the problem into blocktile, warptile, and vector
-    // The blocktile is the size of the tile that will be processed by a single block
-    // The warptile is the size of the tile that will be processed by a single warp
-    // The vector is the size of the tile that will be processed by a single thread
+    // The blocktile is the size of the tile that will be processed by a single thread block (also called work group)
+    // The warptile is the size of the tile that will be processed by a single warp (also called wavefront)
+    // The vector is the size of the tile that will be processed by a single thread (also called work item)
     // The problem is divided into blocks of size BlockTile, each block is further divided into
-    // warps of size WarpTile and each warp is further divided into threads of size Vector
+    // warps of size WarpTile and each warp is composed of 64 or 32 threads of size Vector
+    // each of the thread in a warp will process one vector worth elements of the data
     using BlockTile = ck_tile::sequence<8192>; // Size of the block tile (Entire problem is divided
                                                // into blocks of this size)
     using BlockWarps = ck_tile::sequence<8>; // How many concurrent warps are in a block (Each warp
@@ -91,7 +92,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "block x-size = " << BlockTile::at(ck_tile::number<0>{}) << std::endl;
     std::cout << "grid size " << kGridSize << std::endl;
 
-    using Shape = ck_tile::MultiplyVector<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Shape = ck_tile::AddVectorShape<BlockWarps, BlockTile, WarpTile, Vector>;
     std::cout << "Problem Shape:: M = " << m << std::endl;
     std::cout << "BlockTile: " << BlockTile::at(ck_tile::number<0>{}) << std::endl;
     std::cout << "Number of Blocks in Grid: " << m / BlockTile::at(ck_tile::number<0>{})
@@ -107,14 +108,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // What is a Problem in CKTile?
     // A Problem defines the shape of the data, the precision of the data
-    using Problem = ck_tile::MultiplyVectorProblem<XDataType, ComputeDataType, YDataType, Shape>;
+    using Problem = ck_tile::AddVectorProblem<XDataType, ComputeDataType, YDataType, Shape>;
 
     // What is a Policy in CKTile?
     // A Policy defines how to map the data between threads and data in memory
 
     // The kernel is the function that will be executed on the device
     // It requires a Problem and Policy to be defined
-    using Kernel = ck_tile::MultiplyVectorKernel<Problem>;
+    using Kernel = ck_tile::AddVectorKernel<Problem>;
 
     // The kernel is launched with the following parameters:
     float ave_time = launch_kernel(
@@ -139,7 +140,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(do_validation)
     {
-        ck_tile::reference_vector_add<XDataType, YDataType>(x_host_a, x_host_b, y_host_ref);
+        ck_tile::reference_add_vector<XDataType, YDataType>(x_host_a, x_host_b, y_host_ref);
         y_buf.FromDevice(y_host_dev.mData.data());
         pass = ck_tile::check_err(y_host_dev, y_host_ref);
 

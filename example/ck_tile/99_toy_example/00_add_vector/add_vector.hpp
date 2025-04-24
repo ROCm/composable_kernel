@@ -14,7 +14,7 @@ namespace ck_tile {
 // and the number of times the warp tile is repeated in the block tile
 // and the block size
 template <typename BlockWarps, typename BlockTile, typename WarpTile, typename Vector>
-struct MultiplyVector
+struct AddVectorShape
 {
     static constexpr index_t Block_M = BlockTile::at(number<0>{});
 
@@ -35,7 +35,7 @@ struct MultiplyVector
 };
 
 template <typename XDataType_, typename ComputeDataType_, typename YDataType_, typename BlockShape_>
-struct MultiplyVectorProblem
+struct AddVectorProblem
 {
     using XDataType       = remove_cvref_t<XDataType_>;
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
@@ -65,7 +65,7 @@ struct AddDefaultPolicy
 };
 
 template <typename Problem_, typename Policy_ = AddDefaultPolicy>
-struct MultiplyVectorKernel
+struct AddVectorKernel
 {
     using Problem = ck_tile::remove_cvref_t<Problem_>;
     using Policy  = ck_tile::remove_cvref_t<Policy_>;
@@ -88,9 +88,6 @@ struct MultiplyVectorKernel
             make_tuple(1),
             number<S::Vector_M>{}); // raw pointer, shape of the tensor, stride of the tensor, and
                                     // lastGarunteedVectorLength
-
-        // lastGarunteedVectorLength --> intuitively, this is the number of elements in the last
-        // dimension of the tensor that are guaranteed to be fetched by same thread
 
         const auto x_m_n_b = make_naive_tensor_view<address_space_enum::global>(
             p_x_b, make_tuple(M), make_tuple(1), number<S::Vector_M>{});
