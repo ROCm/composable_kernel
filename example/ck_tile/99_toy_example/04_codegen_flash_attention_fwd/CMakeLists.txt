@@ -5,6 +5,8 @@ if(FLASH_ATTENTION_FWD_ENABLE_APIS STREQUAL "all")
   set(FLASH_ATTENTION_FWD_ENABLE_APIS ${FLASH_ATTENTION_FWD_KNOWN_APIS})
 endif()
 
+option(TOY_FA_FWD_OPT "Enable toy flash attention forward optimization" ON)
+
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api ${FLASH_ATTENTION_FWD_ENABLE_APIS}
@@ -34,6 +36,11 @@ add_executable(${EXAMPLE_REDUCE}
   flash_attention_fwd.cpp
 )
 
+target_compile_definitions(${EXAMPLE_REDUCE}
+  PRIVATE
+  $<$<BOOL:${TOY_FA_FWD_OPT}>:TOY_FA_FWD_OPT=1>
+)
+
 target_include_directories(${EXAMPLE_REDUCE}
   PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
@@ -43,13 +50,18 @@ target_sources(${EXAMPLE_REDUCE} PRIVATE ${FLASH_ATTENTION_FWD_GEN_BLOBS})
 
 message("FLASH_ATTENTION_FWD_GEN_BLOBS = ${FLASH_ATTENTION_FWD_GEN_BLOBS}")
 
-
 set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
 list(APPEND EXAMPLE_REDUCE_COMPILE_OPTIONS
   -Wno-undefined-func-template
   -Wno-float-equal
   --offload-compress
 )
+
+# option(ENABLE_TOY_FA_FWD_OPT "Enable toy FA fwd optimization" ON)
+# if(ENABLE_TOY_FA_FWD_OPT)
+#     message("Compiling with toy FA fwd optimization")
+#     target_compile_definitions(${EXAMPLE_REDUCE} PRIVATE TOY_FA_FWD_OPT)
+# endif()
 
 target_compile_options(${EXAMPLE_REDUCE}
   PRIVATE
