@@ -610,6 +610,77 @@ struct tile_window_with_static_distribution
     }
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load_transpose(number<i_access_unsupport_>          = {},
+                                       bool_constant<oob_conditional_check> = {}) const
+    {
+        constexpr auto tile_dstr = TileDstr{};
+        auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
+        load_transpose(
+            dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
+        return dst_tensor;
+    }
+
+    template <typename DistributedTensor,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true>
+    CK_TILE_DEVICE auto load_transpose(DistributedTensor& dst_tensor,
+                                       number<i_access_unsupport_>          = {},
+                                       bool_constant<oob_conditional_check> = {}) const
+    {
+        using Traits   = load_store_traits;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
+
+        constexpr auto tile_dstr = TileDstr{};
+
+        // loop over thread tensor space [y0, y1, ...]
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            /// TODO: use structure binding (to be captured later) if compiled in C++20
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                // data index [y0, y1, ...]
+                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+
+                // read from bottom tensor
+                const vector_t vec_value =
+                    get_bottom_tensor_view().template get_transpose_vectorized_elements<vector_t>(
+                        bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
+                // write into distributed tensor
+                static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
+                    constexpr auto idx_ys = generate_tuple(
+                        [&](auto jj) {
+                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
+                                                            : idx_ys_start[jj];
+                        },
+                        number<NDimY>{});
+
+                    constexpr index_t d =
+                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+
+                    dst_tensor.get_thread_buffer().template at<d>() =
+                        vec_value.template get_as<DataType>()[j];
+                });
+                // move thread coordinate
+                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                {
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                        idx_diff_ys);
+
+                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+                }
+            });
+        });
+    }
+
+    template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void store(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
                               number<i_access_unsupport_>          = {},
                               bool_constant<oob_conditional_check> = {}) const
