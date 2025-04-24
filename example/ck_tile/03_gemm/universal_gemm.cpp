@@ -46,7 +46,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,
-                                                                 GemmConfig::TransposeC>;
+                                                                 GemmConfig::TransposeC,
+                                                                 GemmConfig::UseStructuredSparsity>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
