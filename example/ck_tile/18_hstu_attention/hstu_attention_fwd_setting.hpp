@@ -48,7 +48,7 @@ struct HstuAttentionFwdBlockTile<256>
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
 
-using HstuAttentionFwdWarpTile1 = ck_tile::sequence<32, 32, 16>;
+using HstuAttentionFwdWarpTile1 = ck_tile::sequence<16, 16, 16>;
 
 template <ck_tile::index_t MaxK>
 struct HstuAttentionFwdShape;
