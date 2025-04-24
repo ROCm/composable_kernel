@@ -123,7 +123,7 @@ struct TransposePolicy
     {
         constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
-        // constexpr index_t kIterationsPerSecondDim = Problem::kIterationsPerSecondDim;
+
         constexpr index_t kVectorSize = 8 / sizeof(typename Problem::DataType);
 
         constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
@@ -148,11 +148,9 @@ struct TransposePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
-        // using QuartTransposeTileDistribution =
-        //    typename QuartTransposeTraits<typename Problem::DataType>::TileDistribution;
         // one xdl implement kSecond x kLead
         constexpr index_t kLead   = Problem::kLeadSizePerXdl;
-        constexpr index_t kSecond = Problem::kSecondSizePerXdl / Problem::kIterationsPerSecondDim;
+        constexpr index_t kSecond = Problem::kSecondSizePerXdl / Problem::kIterations;
         constexpr index_t kLeadDimstr =
             kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDim;
         constexpr index_t kSecondDimstr =

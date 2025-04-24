@@ -137,7 +137,7 @@ struct BlockTranspose
             make_tile_window(output_lds_block,
                              make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
                              {0, 0},
-                             Policy::template MakeOutputDistribution<Problem>());
+                             Policy::template MakeLdsLoadTileDistribution<Problem>());
 
         auto x = load_tile(input_tile_window);
 
