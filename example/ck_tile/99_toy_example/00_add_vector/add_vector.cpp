@@ -64,12 +64,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf_b.ToDevice(x_host_b.data());
 
     // Dividing the problem into blocktile, warptile, and vector
-    // The blocktile is the size of the tile that will be processed by a single thread block (also called work group)
-    // The warptile is the size of the tile that will be processed by a single warp (also called wavefront)
-    // The vector is the size of the tile that will be processed by a single thread (also called work item)
-    // The problem is divided into blocks of size BlockTile, each block is further divided into
-    // warps of size WarpTile and each warp is composed of 64 or 32 threads of size Vector
-    // each of the thread in a warp will process one vector worth elements of the data
+    // The blocktile is the size of the tile that will be processed by a single thread block (also
+    // called work group) The warptile is the size of the tile that will be processed by a single
+    // warp (also called wavefront) The vector is the size of the tile that will be processed by a
+    // single thread (also called work item) The problem is divided into blocks of size BlockTile,
+    // each block is further divided into warps of size WarpTile and each warp is composed of 64 or
+    // 32 threads of size Vector each of the thread in a warp will process one vector worth elements
+    // of the data
     using BlockTile = ck_tile::sequence<8192>; // Size of the block tile (Entire problem is divided
                                                // into blocks of this size)
     using BlockWarps = ck_tile::sequence<8>; // How many concurrent warps are in a block (Each warp
