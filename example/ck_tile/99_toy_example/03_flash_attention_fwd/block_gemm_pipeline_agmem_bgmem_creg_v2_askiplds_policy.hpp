@@ -21,7 +21,6 @@ struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
         return BlockGemmARegBSmemCRegV1<Problem, BlockGemmPolicy>{};
     }
 
-
     template <typename Problem>
     __host__ __device__ static constexpr auto MakeARegBlockDescriptor()
     {
@@ -60,13 +59,11 @@ struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
         return a_block_dstr;
     }
 
-
     template <typename Problem>
     __host__ __device__ static constexpr auto MakeADramTileDistribution()
     {
         return MakeARegBlockDescriptor<Problem>();
     }
-
 
     template <typename Problem>
     __host__ __device__ static constexpr auto MakeBLdsBlockDescriptor()
@@ -99,23 +96,23 @@ struct BlockGemmPipelineAGmemBGmemCRegSkipALdsPersistentQRegCachePolicy
 
         constexpr auto b_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
             b_lds_block_desc_permuted,
-            make_tuple(
-                make_unmerge_transform(make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
-                make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
-                make_pass_through_transform(number<kKPack>{})),
+            make_tuple(make_unmerge_transform(
+                           make_tuple(number<NLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                       make_pass_through_transform(number<kNPerBlock / NLdsLayer>{}),
+                       make_pass_through_transform(number<kKPack>{})),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
             make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
 
         constexpr auto b_lds_block_desc = transform_tensor_descriptor(
             b_lds_block_desc_xk0_mnldslayer_mn_xk1,
             make_tuple(
-                make_merge_transform(make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
+                make_merge_transform(
+                    make_tuple(number<kNPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
                 make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
         return b_lds_block_desc;
     }
-
 
     template <typename Problem>
     __host__ __device__ static constexpr auto MakeBDramTileDistribution()

@@ -261,14 +261,15 @@ struct BlockGemmPipelineAGmemBGmemCReg
 
         // B LDS tile for block GEMM
         auto b_lds_gemm_window = make_tile_window(
-            b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0},
+            b_lds_block,
+            make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
+            {0, 0},
             make_static_tile_distribution(block_gemm.MakeBBlockDistributionEncode()));
 
         // Acc register tile
         auto c_block_tile = decltype(block_gemm(
             get_slice_tile(a_copy_reg_tensor, sequence<0, 0>{}, sequence<kMPerBlock, kKPerBlock>{}),
             b_lds_gemm_window)){};
-
 
         tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
@@ -279,10 +280,10 @@ struct BlockGemmPipelineAGmemBGmemCReg
             store_tile(b_copy_lds_window, b_block_tile);
             block_sync_lds();
             block_gemm(c_block_tile,
-                        get_slice_tile(a_copy_reg_tensor,
-                                        sequence<0, i_k0 * kKPerBlock>{},
-                                        sequence<kMPerBlock, (i_k0 + 1) * kKPerBlock>{}),
-                        b_copy_lds_window);
+                       get_slice_tile(a_copy_reg_tensor,
+                                      sequence<0, i_k0 * kKPerBlock>{},
+                                      sequence<kMPerBlock, (i_k0 + 1) * kKPerBlock>{}),
+                       b_copy_lds_window);
             block_sync_lds();
         });
 #else
@@ -322,10 +323,10 @@ struct BlockGemmPipelineAGmemBGmemCReg
                 move_tile_window(b_copy_dram_window, {0, kKPerBlock});
 
                 block_gemm(c_block_tile,
-                        get_slice_tile(a_copy_reg_tensor,
-                                        sequence<0, i_k0 * kKPerBlock>{},
-                                        sequence<kMPerBlock, (i_k0 + 1) * kKPerBlock>{}),
-                                        bWarpTile);
+                           get_slice_tile(a_copy_reg_tensor,
+                                          sequence<0, i_k0 * kKPerBlock>{},
+                                          sequence<kMPerBlock, (i_k0 + 1) * kKPerBlock>{}),
+                           bWarpTile);
 
                 block_sync_lds();
 
@@ -344,7 +345,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
                            get_slice_tile(a_copy_reg_tensor,
                                           sequence<0, (k_loops - 2) * kKPerBlock>{},
                                           sequence<kMPerBlock, (k_loops - 1) * kKPerBlock>{}),
-                                          bWarpTile);
+                           bWarpTile);
 
                 block_sync_lds();
             }
@@ -358,7 +359,7 @@ struct BlockGemmPipelineAGmemBGmemCReg
                        get_slice_tile(a_copy_reg_tensor,
                                       sequence<0, (k_loops - 1) * kKPerBlock>{},
                                       sequence<kMPerBlock, k_loops * kKPerBlock>{}),
-                                      bWarpTile);
+                       bWarpTile);
         }
 #endif
         return c_block_tile;

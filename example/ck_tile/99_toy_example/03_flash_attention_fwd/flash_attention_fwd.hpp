@@ -12,7 +12,6 @@
 #include "block_gemm_areg_bsmem_creg_v1.hpp"
 #include "flash_attention_fwd_impl.hpp"
 
-
 namespace ck_tile {
 
 CK_TILE_HOST_DEVICE static constexpr auto MakeBlock2TileMap(index_t M0, index_t N0)
