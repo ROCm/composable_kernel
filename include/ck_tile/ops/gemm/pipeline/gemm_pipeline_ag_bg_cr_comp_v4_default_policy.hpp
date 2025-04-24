@@ -16,10 +16,10 @@ namespace ck_tile {
 // member functions instead.
 struct GemmPipelineAgBgCrCompV4DefaultPolicy
     : public UniversalGemmBasePolicy<GemmPipelineAgBgCrCompV4DefaultPolicy>
-{  
+{
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
-    {   
+    {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
