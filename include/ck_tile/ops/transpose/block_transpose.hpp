@@ -124,20 +124,26 @@ struct BlockTranspose
         auto input_lds_block =
             make_tensor_view<address_space_enum::lds>(p_lds_ptr, in_lds_block_desc);
 
-        //constexpr auto out_lds_block_desc = Policy::template MakeLdsLoadBlockDescriptor<Problem>();
-        //auto output_lds_block =
-        //    make_tensor_view<address_space_enum::lds>(p_lds_ptr, out_lds_block_desc);
+        constexpr auto out_lds_block_desc = Policy::template MakeLdsLoadBlockDescriptor<Problem>();
+        auto output_lds_block =
+            make_tensor_view<address_space_enum::lds>(p_lds_ptr, out_lds_block_desc);
 
         auto copy_to_lds_window =
             make_tile_window(input_lds_block,
                              make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
                              {0, 0});
+        auto load_from_lds_window =
+            make_tile_window(output_lds_block,
+                             make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
+                             {0, 0},
+                             Policy::template MakeOutputDistribution<Problem>());                   
 
         auto x = load_tile(input_tile_window);
 
         store_tile(copy_to_lds_window, x);
         block_sync_lds();
-
+        
+        auto y = load_tile(load_from_lds_window);
         // auto load_from_lds_window =
         //     make_tile_window(output_lds_block,
         //                      make_tuple(number<kSecondSizePerBlock>{}, number<kLeadSizePerBlock>{}),
@@ -145,7 +151,7 @@ struct BlockTranspose
         //                      Policy::template MakeLdsLoadTileDistribution<Problem>());
 
         // auto y = load_tile_transpose(load_from_lds_window);
-        store_tile(output_tile_window, x);
+        store_tile(output_tile_window, y);
     }
 };
 
