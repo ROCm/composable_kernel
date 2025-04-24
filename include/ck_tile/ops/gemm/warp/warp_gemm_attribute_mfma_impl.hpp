@@ -1342,7 +1342,6 @@ template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<bf8_t, bf8_t, Ctrl_>;
 
-
 template <typename AType_, typename BType_, WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base
 {
@@ -1379,11 +1378,12 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        //__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(a, b, c, cbsz, blgp, opsel, scale_a, opsel, scale_b)
+        //__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(a, b, c, cbsz, blgp, opsel, scale_a,
+        // opsel, scale_b)
 #if defined(__gfx950__)
         if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
             c_vec = __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                a_vec, b_vec, c_vec, 0, 0, 0, 0, 0, 0); 
+                a_vec, b_vec, c_vec, 0, 0, 0, 0, 0, 0);
         else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
             c_vec = __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
                 a_vec, b_vec, c_vec, 0, 1, 0, 0, 0, 0);
@@ -1394,9 +1394,9 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base
             c_vec = __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
                 a_vec, b_vec, c_vec, 1, 1, 0, 0, 0, 0);
 #else
-            ck_tile::ignore = c_vec;
-            ck_tile::ignore = a_vec;
-            ck_tile::ignore = b_vec;
+        ck_tile::ignore = c_vec;
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
 #endif
     }
 
@@ -1405,7 +1405,7 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base
     {
 #if defined(__gfx950__)
         if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
-            return bit_cast<CVecType>( __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
                 a_vec, b_vec, CVecType{0.f}, 0, 0, 0, 0, 0, 0));
         else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
             return bit_cast<CVecType>(__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
@@ -1424,22 +1424,21 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base
     }
 };
 
-template<WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_fp8 =
-WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base<fp8_t, fp8_t, Ctrl_>;
+    WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base<fp8_t, fp8_t, Ctrl_>;
 
-template<WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_bf8 =
-WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base<fp8_t, bf8_t, Ctrl_>;
+    WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base<fp8_t, bf8_t, Ctrl_>;
 
-template<WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_16x16x128_bf8_fp8 =
-WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base<bf8_t, fp8_t, Ctrl_>;
+    WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base<bf8_t, fp8_t, Ctrl_>;
 
-template<WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_16x16x128_bf8_bf8 =
-WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base<bf8_t, bf8_t, Ctrl_>;
-
+    WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base<bf8_t, bf8_t, Ctrl_>;
 
 // int8
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
