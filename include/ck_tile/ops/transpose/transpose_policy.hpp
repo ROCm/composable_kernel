@@ -150,18 +150,17 @@ struct TransposePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
-        using QuartTransposeTileDistribution =
-            typename QuartTransposeTraits<typename Problem::DataType>::TileDistribution;
+        //using QuartTransposeTileDistribution =
+        //    typename QuartTransposeTraits<typename Problem::DataType>::TileDistribution;
         // one xdl implement kSecond x kLead
         constexpr index_t kLead   = Problem::kLeadSizePerXdl;
         constexpr index_t kSecond = Problem::kSecondSizePerXdl / Problem::kIterationsPerSecondDim;
         constexpr index_t kLeadDimstr =
-            kLead / QuartTransposeTraits<typename Problem::DataType>::kLeadDim;
+            kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDim;
         constexpr index_t kSecondDimstr =
             kSecond / QuartTransposeTraits<typename Problem::DataType>::ksecondDim;
-        constexpr auto xdllevel_dstr_encoding =
-            QuartTransposeTraits<typename Problem::DataType>::TileDistribution<kSecondDimstr,
-                                                                               kLeadDimstr>{};
+        using xdllevel_dstr_encoding = typename QuartTransposeTraits<
+            typename Problem::DataType>::template TileDistribution<kSecondDimstr, kLeadDimstr>;
         constexpr index_t kLeadIterPerWarp   = Problem::kLeadXdlNumPerWarp;
         constexpr index_t kSecondIterPerWarp = Problem::kSecondXdlNumPerWarp;
         constexpr index_t kLeadNumWarps      = Problem::kLeadNumWarps;
@@ -170,12 +169,12 @@ struct TransposePolicy
             tile_distribution_encoding<sequence<>,
                                        tuple<sequence<kSecondIterPerWarp, kSecondNumWarps>,
                                              sequence<kLeadIterPerWarp, kLeadNumWarps>>,
-                                       tuple<1, 2>,
-                                       tuple<1, 1>,
+                                       tuple<sequence<1>, sequence<2>>,
+                                       tuple<sequence<1>, sequence<1>>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
         return detail::make_embed_tile_distribution_encoding(block_outer_dst_encoding,
-                                                             WarpTransposeTileDistribution{});
+                                                             xdllevel_dstr_encoding{});
     }
 };
 
