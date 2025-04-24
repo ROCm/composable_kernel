@@ -292,10 +292,9 @@ struct BlockGemmPipelineAGmemBGmemCReg
 
         // Global read 0
         auto b_block_tile = load_tile(b_copy_dram_window);
+        move_tile_window(b_copy_dram_window, {0, kKPerBlock});
         if constexpr(k_loops > 1)
         {
-            move_tile_window(b_copy_dram_window, {0, kKPerBlock});
-
             // LDS write 0
             store_tile(b_copy_lds_window, b_block_tile);
 
