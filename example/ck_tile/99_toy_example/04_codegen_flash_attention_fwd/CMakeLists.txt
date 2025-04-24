@@ -28,44 +28,38 @@ add_custom_command(
   --gen_blobs
 )
 
-set(EXAMPLE_REDUCE "codegen_basic_flash_attention_fwd")
-message("adding example ${EXAMPLE_REDUCE}")
+set(EXAMPLE_FA "codegen_basic_flash_attention_fwd")
+message("adding example ${EXAMPLE_FA}")
 
-add_executable(${EXAMPLE_REDUCE}
+add_executable(${EXAMPLE_FA}
   EXCLUDE_FROM_ALL
   flash_attention_fwd.cpp
 )
 
-target_compile_definitions(${EXAMPLE_REDUCE}
+target_compile_definitions(${EXAMPLE_FA}
   PRIVATE
   $<$<BOOL:${TOY_FA_FWD_OPT}>:TOY_FA_FWD_OPT=1>
 )
 
-target_include_directories(${EXAMPLE_REDUCE}
+target_include_directories(${EXAMPLE_FA}
   PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
 )
 
-target_sources(${EXAMPLE_REDUCE} PRIVATE ${FLASH_ATTENTION_FWD_GEN_BLOBS})
+target_sources(${EXAMPLE_FA} PRIVATE ${FLASH_ATTENTION_FWD_GEN_BLOBS})
 
 message("FLASH_ATTENTION_FWD_GEN_BLOBS = ${FLASH_ATTENTION_FWD_GEN_BLOBS}")
 
-set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
-list(APPEND EXAMPLE_REDUCE_COMPILE_OPTIONS
+set(EXAMPLE_FA_COMPILE_OPTIONS)
+list(APPEND EXAMPLE_FA_COMPILE_OPTIONS
   -Wno-undefined-func-template
   -Wno-float-equal
   --offload-compress
 )
 
-# option(ENABLE_TOY_FA_FWD_OPT "Enable toy FA fwd optimization" ON)
-# if(ENABLE_TOY_FA_FWD_OPT)
-#     message("Compiling with toy FA fwd optimization")
-#     target_compile_definitions(${EXAMPLE_REDUCE} PRIVATE TOY_FA_FWD_OPT)
-# endif()
-
-target_compile_options(${EXAMPLE_REDUCE}
+target_compile_options(${EXAMPLE_FA}
   PRIVATE
-  ${EXAMPLE_REDUCE_COMPILE_OPTIONS}
+  ${EXAMPLE_FA_COMPILE_OPTIONS}
 )
 
 set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
