@@ -440,10 +440,10 @@ class FmhaFwdSplitKVCombinePipeline:
         n = f'{self.tag}'
         if pn != '' : n += f'_{pn}'
         else: n += '_npad'
-        
+
         if self.F_lse == 't' : n += '_lse'
         else: n += '_nlse'
-        
+
         if self.F_squant == 't' : n += '_squant'
         else: n += '_nsquant'
         return n
@@ -819,9 +819,10 @@ def write_fwd_splitkv_api(api_pool : FmhaFwdSplitKVApiPool, autogen_dir: Path) -
     file_path = autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME
     file_path.write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> None:
+def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
+    assert optdim_list == [-1]
 
     kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)
     for kernel in kernels:
@@ -831,9 +832,10 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> Non
         write_single_kernel(kernel, output_dir)
     write_fwd_splitkv_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, filter_list : str, receipt, mask_impl) -> None:
+def list_blobs(file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
+    assert optdim_list == [-1]
 
     with file_path.open('a') as f:
         kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)
