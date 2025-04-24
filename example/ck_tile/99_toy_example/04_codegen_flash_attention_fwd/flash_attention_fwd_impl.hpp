@@ -209,7 +209,6 @@ struct FlashAttentionFwdImpl
         auto v_lds_window = make_tile_window(
             v_lds, make_tuple(number<kN1PerBlock>{}, number<kK1PerBlock>{}), {0, 0});
 #endif
-
         // reduction function for softmax
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
