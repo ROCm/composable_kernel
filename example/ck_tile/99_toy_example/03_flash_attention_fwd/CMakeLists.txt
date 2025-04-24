@@ -13,8 +13,7 @@ list(APPEND EXAMPLE_REDUCE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-flo
 option(ENABLE_TOY_FA_FWD_OPT "Enable toy FA fwd optimization" OFF)
 if(ENABLE_TOY_FA_FWD_OPT)
     message("Compiling with toy FA fwd optimization")
-    # target_compile_definitions(${EXAMPLE_REDUCE} PRIVATE TOY_FA_FWD_OPT)
-    add_definitions(-DTOY_FA_FWD_OPT)
+    target_compile_definitions(${EXAMPLE_REDUCE} PRIVATE TOY_FA_FWD_OPT)
 endif()
 
 target_compile_options(${EXAMPLE_REDUCE} PRIVATE ${EXAMPLE_REDUCE_COMPILE_OPTIONS})
