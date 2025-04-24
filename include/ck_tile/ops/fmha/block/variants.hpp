@@ -32,6 +32,8 @@ struct LogitsSoftCapParams
             logits_soft_cap_rcp = 0;
         }
 
+        // move computation here to prevent compiler from generating inefficient instruction
+        // sequence
         if constexpr(UseExp2)
         {
             logits_soft_cap     = log2e_v<float> * logits_soft_cap;
@@ -51,6 +53,8 @@ struct LogitsSoftCapParams
             logits_soft_cap_rcp = 0;
         }
 
+        // move computation here to prevent compiler from generating inefficient instruction
+        // sequence
         if constexpr(UseExp2)
         {
             logits_soft_cap     = log2e_v<float> * logits_soft_cap;
@@ -65,6 +69,8 @@ struct LogitsSoftCapParams
           logits_soft_cap(logits_soft_cap_),
           logits_soft_cap_rcp(logits_soft_cap_rcp_)
     {
+        // move computation here to prevent compiler from generating inefficient instruction
+        // sequence
         if constexpr(UseExp2)
         {
             logits_soft_cap     = log2e_v<float> * logits_soft_cap;
