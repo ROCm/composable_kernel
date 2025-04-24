@@ -343,13 +343,15 @@ def write_single_kernel(kernel: FmhaFwdAppendKVKernel, autogen_dir: Path) -> Non
 def write_fwd_appendkv_api(api_pool : FmhaFwdAppendKVApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_APPENDKV_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
+    assert optdim_list == [-1]
     api_pool, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
     write_fwd_appendkv_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
+    assert optdim_list == [-1]
     with file_path.open('a') as f:
         _, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl)
         for kernel in kernels:
