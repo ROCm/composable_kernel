@@ -171,7 +171,7 @@ struct FlashAttentionFwdImpl
 
         auto q_dram_window = make_tile_window(
             q_dram,
-            make_tuple(number<kM0PerBlock>{}, number<kHeadDim>{}),
+            make_tuple(number<kM0PerBlock>{}, number<kK0PerBlock>{}),
             {iM0, 0},
             BlockGemm0Policy::template MakeADramTileDistribution<BlockGemm0Problem>());
 
@@ -257,6 +257,7 @@ struct FlashAttentionFwdImpl
 #if defined(TOY_FA_FWD_OPT)
             // prefetch load v tile
             auto v_prefetch = load_tile(v_dram_window);
+            move_tile_window(v_dram_window, {0, kK1PerBlock});
 #endif
             // m_local = rowmax(S{j})
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
@@ -341,7 +342,6 @@ struct FlashAttentionFwdImpl
 
             if constexpr(k1_loops > 1)
             {
-                move_tile_window(v_dram_window, {0, kK1PerBlock});
                 store_tile(v_copy_lds_window, v_prefetch);
                 v_prefetch = load_tile(v_dram_window);
                 move_tile_window(v_dram_window, {0, kK1PerBlock});
