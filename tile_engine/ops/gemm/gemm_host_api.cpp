@@ -9,13 +9,20 @@
 void gemm_kernel_launch(ck_tile::DeviceMem& c_m_n_dev_buf,
                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                        int verify, bool structured_sparsity,
+                        int verify,
+                        bool structured_sparsity,
                         KernelTraits& trait,
                         ck_tile::GemmHostArgs& args,
                         const ck_tile::stream_config& s)
 {
-    return GemmDispatcher::dispatch(
-        c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, structured_sparsity, trait, args, s);
+    return GemmDispatcher::dispatch(c_m_n_dev_buf,
+                                    c_m_n_host_result,
+                                    c_m_n_dev_result,
+                                    verify,
+                                    structured_sparsity,
+                                    trait,
+                                    args,
+                                    s);
 }
 
 template <typename ADataType,
@@ -39,10 +46,10 @@ void run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    int n_warmup                 = arg_parser.get_int("warmup");
-    int n_repeat                 = arg_parser.get_int("repeat");
-    int verify                   = arg_parser.get_int("v");
-    ck_tile::index_t init_method = arg_parser.get_int("init");
+    int n_warmup                              = arg_parser.get_int("warmup");
+    int n_repeat                              = arg_parser.get_int("repeat");
+    int verify                                = arg_parser.get_int("v");
+    ck_tile::index_t init_method              = arg_parser.get_int("init");
     static constexpr bool structured_sparsity = false;
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
