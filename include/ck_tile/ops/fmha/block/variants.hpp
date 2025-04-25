@@ -29,7 +29,7 @@ struct LogitsSoftCapParams
         }
         else
         {
-            logits_soft_cap_rcp = 0;
+            logits_soft_cap_rcp = 0.f;
         }
 
         // move computation here to prevent compiler from generating inefficient instruction
@@ -50,7 +50,7 @@ struct LogitsSoftCapParams
         }
         else
         {
-            logits_soft_cap_rcp = 0;
+            logits_soft_cap_rcp = 0.f;
         }
 
         // move computation here to prevent compiler from generating inefficient instruction
