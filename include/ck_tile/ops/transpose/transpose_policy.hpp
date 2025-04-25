@@ -79,17 +79,18 @@ struct TransposePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
     {
-        constexpr index_t BlockSize         = Problem::kBlockSize;
-        constexpr index_t LeadDimPerBlock   = Problem::kSecondSizePerBlock;
-        constexpr index_t SecondDimPerBlock = Problem::kLeadSizePerBlock;
-        constexpr index_t VecLoadSize       = 16 / sizeof(typename Problem::DataType);
-
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      LeadDimPerBlock,
-                                                                      SecondDimPerBlock,
-                                                                      VecLoadSize,
-                                                                      TileAccessPattern>;
-        return TileEncodingPattern::Make2DStaticTileDistribution();
+        //constexpr index_t BlockSize         = Problem::kBlockSize;
+        //constexpr index_t LeadDimPerBlock   = Problem::kSecondSizePerBlock;
+        //constexpr index_t SecondDimPerBlock = Problem::kLeadSizePerBlock;
+        constexpr index_t VecLoadSize       = 8 / sizeof(typename Problem::DataType);
+        //TODO, fix the tile distribution
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<16>, sequence<4, VecLoadSize>>,
+                                       tuple<sequence<2, 1>>,
+                                       tuple<sequence<0, 0>>,
+                                       sequence<2>,
+                                       sequence<1>>{});
     }
 
     template <typename Problem>
