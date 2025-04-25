@@ -157,6 +157,7 @@ struct TransposePolicy
             kSecond / QuartTransposeTraits<typename Problem::DataType>::ksecondDim;
         using xdllevel_dstr_encoding = typename QuartTransposeTraits<
             typename Problem::DataType>::template TileDistribution<kSecondDimstr, kLeadDimstr>;
+        
         constexpr index_t kLeadIterPerWarp   = Problem::kLeadXdlNumPerWarp;
         constexpr index_t kSecondIterPerWarp = Problem::kSecondXdlNumPerWarp;
         constexpr index_t kLeadNumWarps      = Problem::kLeadNumWarps;
@@ -165,12 +166,14 @@ struct TransposePolicy
             tile_distribution_encoding<sequence<>,
                                        tuple<sequence<kSecondIterPerWarp, kSecondNumWarps>,
                                              sequence<kLeadIterPerWarp, kLeadNumWarps>>,
-                                       tuple<sequence<1>, sequence<2>>,
-                                       tuple<sequence<1>, sequence<1>>,
+                                       tuple<sequence<1, 2>>,
+                                       tuple<sequence<1, 1>>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
-        return detail::make_embed_tile_distribution_encoding(block_outer_dst_encoding,
+        constexpr auto blk_distr_encode =  detail::make_embed_tile_distribution_encoding(block_outer_dst_encoding,
                                                              xdllevel_dstr_encoding{});
+        constexpr auto block_dstr = make_static_tile_distribution(blk_distr_encode);
+        return block_dstr; 
     }
 };
 
