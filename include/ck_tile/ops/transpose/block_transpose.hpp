@@ -115,13 +115,13 @@ struct BlockTranspose
 
     template <typename InputTileWindow, typename OutputTileWindow>
     CK_TILE_DEVICE void operator()(const InputTileWindow& input_window,
-                                   OutputTileWindow& out_window,
+                                   OutputTileWindow& output_window,
                                    void* __restrict__ p_smem)
     {
         auto input_tile_window =
             make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
-        auto output_tile_window =
-            make_tile_window(out_window, Policy::template MakeLdsLoadTileDistribution<Problem>());
+        //auto output_tile_window =
+        //    make_tile_window(output_window, Policy::template MakeLdsLoadTileDistribution<Problem>());
 
         DataType* p_lds_ptr              = static_cast<DataType*>(p_smem);
         constexpr auto in_lds_block_desc = Policy::template MakeLdsStoreBlockDescriptor<Problem>();
@@ -157,7 +157,9 @@ struct BlockTranspose
         //                      MakeLdsLoadTileDistribution<Problem>());
 
         auto y = load_tile_transpose(load_from_lds_window);
-        store_tile(output_tile_window, y);
+
+        //Debug<remove_cvref_t<decltype(y)>> cccc;
+        store_tile(output_window, y);
     }
 };
 
