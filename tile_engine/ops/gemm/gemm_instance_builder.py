@@ -359,7 +359,6 @@ struct GemmKernel {{
         static constexpr bool permuteB = false;
         static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
         static constexpr bool TransposeC = false;
-        //static constexpr bool UseStructuredSparsity = structured_sparsity;
 
         static constexpr int kBlockPerCu                         = 1;
         static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
