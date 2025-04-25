@@ -279,6 +279,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx942" OR SUPPORTED_GPU_TARGETS MATCHES "gfx9
 endif()
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx950") 
     add_subdirectory(mx_mfma_op)
+    add_subdirectory(gemm_mx)
 endif()
 add_subdirectory(position_embedding)
 add_subdirectory(scatter_gather)
