@@ -148,8 +148,24 @@ struct BlockTranspose
         block_sync_lds();
 
         auto y = load_tile_transpose(load_from_lds_window);
+        
+        constexpr auto lds_load_distr = Policy::template MakeLdsLoadTileDistribution<Problem>();
+        // constexpr auto glb_store_distr = Policy::template MakeOutputDistribution<Problem>();
 
-        // auto out_tensor = make_static_distributed_tensor<DataType>(Policy::template MakeOutputDistribution<Problem>());
+        constexpr auto y_in_desc = lds_load_distr.get_ys_to_d_descriptor();
+        //constexpr auto y_out_desc = glb_store_distr{}.get_ys_to_d_descriptor();
+
+        constexpr index_t NDimY = lds_load_distr.get_num_of_dimension_y();
+        
+        constexpr auto y_in_lengths = to_sequence(y_in_desc.get_lengths());
+        constexpr index_t vecLoadSize = y_in_lengths[NDimY-1];
+        //constexpr auto lds_distr_y_indx_zeros = uniform_sequence_gen_t<decltype(Policy::template MakeLdsLoadTileDistribution<Problem>())::NDimY, 0>{};
+        auto out_tensor = make_static_distributed_tensor<DataType>(Policy::template MakeOutputDistribution<Problem>());
+        using InVec  = array<DataType, vecLoadSize>;
+        using OutVec = array<DataType, vecLoadSize>;
+        
+        out_tensor.get_thread_buffer().template set_as<OutVec>(number<0>{}, y.get_thread_buffer().template get_as<InVec>(number<0>{}));
+
 
         store_tile(output_tile_window, out_tensor);
     }
