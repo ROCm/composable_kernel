@@ -347,7 +347,8 @@ namespace {group_name} {{
         return f"""
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
-          int WarpTileM, int WarpTileN, int WarpTileK>
+          int WarpTileM, int WarpTileN, int WarpTileK,
+          bool structured_sparsity>
 struct GemmKernel {{
     static constexpr bool kPadM = {BOOL_MAP(kPadM)};
     static constexpr bool kPadN = {BOOL_MAP(kPadN)};
@@ -356,8 +357,9 @@ struct GemmKernel {{
     static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s) {{
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;
-        static constexpr bool DoubleSmemBuffer = false;
+        static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
         static constexpr bool TransposeC = false;
+        //static constexpr bool UseStructuredSparsity = structured_sparsity;
 
         static constexpr int kBlockPerCu                         = 1;
         static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
@@ -381,7 +383,7 @@ struct GemmKernel {{
 
         using GemmUniversalTraits =
             ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                             ALayout, BLayout, CLayout, TransposeC>;    
+                                             ALayout, BLayout, CLayout, TransposeC, structured_sparsity>;    
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -494,7 +496,7 @@ struct GemmDispatcher {
         return kernel_map;
     }
 
-    static void init() {
+    static void init(bool structured_sparsity) {
         auto& kernel_map = get_kernel_map();    
         if(!kernel_map.empty()) return;
         \n"""
@@ -513,7 +515,7 @@ struct GemmDispatcher {
 
         
         for group in self.all_kernels:
-            content += f"""            kernel_map["{group}"] = [](ck_tile::DeviceMem& c_m_n_dev_buf,
+            content += f"""            kernel_map["{group}"] = [=](ck_tile::DeviceMem& c_m_n_dev_buf,
                                                                   ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                                                                   ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                                                                   int verify, ck_tile::GemmHostArgs& args,
@@ -526,7 +528,11 @@ struct GemmDispatcher {
                    ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
                     continue
                 content += f"""
-                run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, s);"""
+                if(structured_sparsity) {{
+                    run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {1}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, s);
+                }} else {{
+                    run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {0}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, s);
+                }}"""
             content += f"""
             }};\n"""
 
@@ -559,13 +565,13 @@ struct GemmDispatcher {
     static auto dispatch(ck_tile::DeviceMem& c_m_n_dev_buf,
                          ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                          ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                         int verify, const KernelTraits &trait, ck_tile::GemmHostArgs& gemm_args,
+                         int verify, bool structured_sparsity, const KernelTraits &trait, ck_tile::GemmHostArgs& gemm_args,
                          const ck_tile::stream_config& s) {
-        init();
+        init(structured_sparsity);
         const std::string key = assemble_key(trait);
         auto& kernel_map = get_kernel_map(); 
         if(auto it = kernel_map.find(key); it != kernel_map.end()) {
-            return it->second(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify,gemm_args, s); 
+            return it->second(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, gemm_args, s); 
         }
         throw std::runtime_error("No suitable kernel found: " + key);
     }
