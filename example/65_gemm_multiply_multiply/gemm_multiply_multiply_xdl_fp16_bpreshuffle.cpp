@@ -49,58 +49,10 @@ using D1Layout = Col;
 using DsLayout = ck::Tuple<D0Layout, D1Layout>;
 using ELayout  = Row;
 
-struct MultiplyMultiply
-{
-    template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ constexpr void
-    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
-
-    template <>
-    __host__ __device__ constexpr void operator()<F16, float, float, float>(F16& e,
-                                                                            const float& c,
-                                                                            const float& d0,
-                                                                            const float& d1) const
-    {
-        const float x0_f = c * d0 * d1;
-
-        e = ck::type_convert<F16>(x0_f);
-    }
-
-    template <>
-    __host__ __device__ constexpr void operator()<BF16, float, float, float>(BF16& e,
-                                                                             const float& c,
-                                                                             const float& d0,
-                                                                             const float& d1) const
-    {
-        const float x0_f = c * d0 * d1;
-
-        e = ck::type_convert<BF16>(x0_f);
-    }
-
-    template <>
-    __host__ __device__ constexpr void operator()<ck::half_t, int, float, float>(
-        ck::half_t& e, const int& c, const float& d0, const float& d1) const
-    {
-        const float x0_f =
-            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
-
-        e = ck::type_convert<ck::half_t>(x0_f);
-    }
-
-    template <>
-    __host__ __device__ constexpr void operator()<ck::bhalf_t, int, float, float>(
-        ck::bhalf_t& e, const int& c, const float& d0, const float& d1) const
-    {
-        const float x0_f =
-            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
-
-        e = ck::type_convert<ck::bhalf_t>(x0_f);
-    }
-};
 template <typename DataType>
 void preShuffleBuffer(const DataType* src, DataType* dst, int N, int K, int NXdl)
 {
-    int KPack = 16;
+    int KPack = 16 / sizeof(DataType);
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
@@ -132,7 +84,7 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = MultiplyMultiply;
+using CDEElementOp = ck::tensor_operation::element_wise::MultiplyMultiply;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -262,10 +214,10 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{0, 2});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-2, 2});
+        a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-2, 2});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-2, 2});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-2, 2});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{-2, 2});
         break;
     case 2:
         a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
@@ -386,10 +338,7 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(
-                   e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
-                   ? 0
-                   : 1;
+        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result) ? 0 : 1;
     }
 
     return 0;

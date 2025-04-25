@@ -28,7 +28,7 @@ template <typename InOutDataType>
 void preShuffleBuffer(
     const InOutDataType* src, InOutDataType* dst, int N, int K, int NXdl, int Knew)
 {
-    int KPack = 16;
+    int KPack = 16 / sizeof(InOutDataType);
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
@@ -154,10 +154,10 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-5, 5});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-1, 1});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2, 2});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-2, 2});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{-2, 2});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -228,8 +228,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
-                                                                                PassThrough,
-                                                                                ComputeDataType>;
+                                                                                PassThrough>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -364,11 +363,10 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
                             << std::endl;
                     }
                 }
-                if(!pass)
+                if(pass)
                 {
-                    continue;
+                    pass_count++;
                 }
-                pass_count++;
                 std::string op_name = op_ptr->GetTypeString();
 
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),
@@ -410,6 +408,7 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
             }
         }
     }
+    std::cout << "\nPass instance: " << pass_count << " in: " << op_ptrs.size() << std::endl;
 
     if constexpr(is_same<EDataType, float>::value)
     {
@@ -446,7 +445,6 @@ bool profile_gemm_multiply_multiply_weight_preshuffle_impl(int do_verification,
         std::cout << " BLayout =  ColumnMajor";
     }
 
-    std::cout << "\nPass instance: " << pass_count << " in: " << op_ptrs.size() << std::endl;
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
               << " StrideB = " << StrideB << " StrideE = " << StrideE << " KBatch = " << best_kbatch
               << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
