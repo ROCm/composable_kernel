@@ -676,6 +676,12 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
                     pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
 
+                    pipelines.append(Pipeline('qr', 'row', 't', 'f', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'col', 't', 'f', 'f', 'f', bias, 't', squant, pagedkv, mask))
+
+                    pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'col', 't', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+
                     pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
                     pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
                 else:
