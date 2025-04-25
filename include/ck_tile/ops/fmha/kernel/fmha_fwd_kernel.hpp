@@ -1356,9 +1356,9 @@ struct FmhaFwdKernel
 
         AttentionVariant variant;
         const auto variant_params = [&] {
-            if constexpr(kHasLogitsSoftCap)
+            if constexpr(AttentionVariant::use_logits_soft_cap)
             {
-                return ck_tile::LogitsSoftCapParams<variant.use_exp2>{
+                return ck_tile::LogitsSoftCapParams<AttentionVariant::use_exp2>{
                     kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
             }
             else
