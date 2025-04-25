@@ -10,7 +10,7 @@ if [ $# -ge 2 ] ; then
     shift 2
     REST_ARGS=$@
 else
-    GPU_TARGETS="gfx908;gfx90a;gfx940"
+    GPU_TARGETS="gfx908;gfx90a;gfx942"
     REST_ARGS=
 fi
 

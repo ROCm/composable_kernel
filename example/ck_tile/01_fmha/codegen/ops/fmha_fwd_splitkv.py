@@ -439,8 +439,13 @@ class FmhaFwdSplitKVCombinePipeline:
         pn = pad_name()
         n = f'{self.tag}'
         if pn != '' : n += f'_{pn}'
+        else: n += '_npad'
+
         if self.F_lse == 't' : n += '_lse'
+        else: n += '_nlse'
+
         if self.F_squant == 't' : n += '_squant'
+        else: n += '_nsquant'
         return n
 
 class FmhaFwdSplitKVApiPool:
@@ -476,7 +481,7 @@ class FmhaFwdSplitKVApiPool:
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
                                    F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
                 if_j = 'if' if j == 0 else 'else if'
-                per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
+                per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_hdim_v=hdim, F_inner_dispatch=inners)
             if_i = 'if' if i == 0 else 'else if'
             per_dtypes = per_dtypes + FMHA_FWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
         if not per_dtypes:
@@ -733,6 +738,13 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+                # aiter::mha_fwd_splikv C++ api integration
+                elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= pipeline.F_vlayout == 'row'
+                    cond &= pipeline.F_squant == 'f'
+                    if not cond:
+                        continue
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
@@ -791,6 +803,11 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt) -> Lis
                     cond &= mode == "group"
                     if not cond:
                         continue
+                # aiter::mha_fwd_splikv C++ api integration
+                elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
+                    if not cond:
+                        continue
                 gen.append(k)
 
     return gen
@@ -802,9 +819,10 @@ def write_fwd_splitkv_api(api_pool : FmhaFwdSplitKVApiPool, autogen_dir: Path) -
     file_path = autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME
     file_path.write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> None:
+def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
+    assert optdim_list == [-1]
 
     kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)
     for kernel in kernels:
@@ -814,9 +832,10 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> Non
         write_single_kernel(kernel, output_dir)
     write_fwd_splitkv_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, filter_list : str, receipt, mask_impl) -> None:
+def list_blobs(file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
+    assert optdim_list == [-1]
 
     with file_path.open('a') as f:
         kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)

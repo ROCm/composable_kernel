@@ -55,22 +55,19 @@ inline std::string get_device_name()
 inline bool is_xdl_supported()
 {
     return ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-           ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
            ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950";
 }
 
 inline bool is_lds_direct_load_supported()
 {
     // Check if direct loads from global memory to LDS are supported.
-    return ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx940" ||
-           ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942" ||
+    return ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx942" ||
            ck::get_device_name() == "gfx950";
 }
 
 inline bool is_bf16_atomic_supported()
 {
-    return ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-           ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950";
+    return ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950";
 }
 
 inline bool is_gfx101_supported()
@@ -89,7 +86,9 @@ inline bool is_gfx103_supported()
 inline bool is_gfx11_supported()
 {
     return ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
-           ck::get_device_name() == "gfx1102" || ck::get_device_name() == "gfx1103";
+           ck::get_device_name() == "gfx1102" || ck::get_device_name() == "gfx1103" ||
+           ck::get_device_name() == "gfx1150" || ck::get_device_name() == "gfx1151" ||
+           ck::get_device_name() == "gfx1152";
 }
 
 inline bool is_gfx12_supported()
