@@ -147,7 +147,7 @@ struct BlockTranspose
         store_tile(copy_to_lds_window, x);
         block_sync_lds();
 
-        auto y = load_tile(load_from_lds_window);
+        //auto y = load_tile(load_from_lds_window);
 
         //Debug<remove_cvref_t<decltype(y)>> cccc;
         // auto load_from_lds_window =
@@ -156,7 +156,7 @@ struct BlockTranspose
         //                      number<kLeadSizePerBlock>{}), {0, 0}, Policy::template
         //                      MakeLdsLoadTileDistribution<Problem>());
 
-        //auto y = load_tile_transpose(load_from_lds_window);
+        auto y = load_tile_transpose(load_from_lds_window);
         store_tile(output_tile_window, y);
     }
 };
