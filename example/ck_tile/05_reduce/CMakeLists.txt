@@ -4,6 +4,8 @@ set(EXAMPLE_REDUCE "tile_example_reduce")
 message("adding example ${EXAMPLE_REDUCE}")
 
 add_executable(${EXAMPLE_REDUCE} reduce.cpp)
+rocm_install(TARGETS ${EXAMPLE_REDUCE} COMPONENT examples)
+
 target_include_directories(${EXAMPLE_REDUCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
 

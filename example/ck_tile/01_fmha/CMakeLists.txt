@@ -59,6 +59,7 @@ set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
 # to be included in "make all/install/check"
 message("adding example ${EXAMPLE_FMHA_FWD}")
 add_executable(${EXAMPLE_FMHA_FWD} fmha_fwd.cpp)
+rocm_install(TARGETS ${EXAMPLE_FMHA_FWD} COMPONENT examples)
 target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXAMPLE_FMHA_FWD} PRIVATE ${FMHA_FWD_GEN_BLOBS})
 
@@ -67,6 +68,7 @@ set(EXAMPLE_FMHA_BWD "tile_example_fmha_bwd")
 # to be included in "make all/install/check"
 message("adding example ${EXAMPLE_FMHA_BWD}")
 add_executable(${EXAMPLE_FMHA_BWD} fmha_bwd.cpp)
+rocm_install(TARGETS ${EXAMPLE_FMHA_BWD} COMPONENT examples)
 target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXAMPLE_FMHA_BWD} PRIVATE ${FMHA_BWD_GEN_BLOBS})
 

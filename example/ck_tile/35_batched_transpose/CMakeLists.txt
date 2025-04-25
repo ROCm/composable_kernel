@@ -1,5 +1,6 @@
 set(TARGET_NAME tile_example_batched_transpose)
 add_executable(${TARGET_NAME} batched_transpose_example.cpp batched_transpose_api.cpp)
+rocm_install(TARGETS ${TARGET_NAME} COMPONENT examples)
 target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/)
 
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
