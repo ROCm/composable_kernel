@@ -120,8 +120,8 @@ struct BlockTranspose
     {
         auto input_tile_window =
             make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
-        //auto output_tile_window =
-        //    make_tile_window(output_window, Policy::template MakeLdsLoadTileDistribution<Problem>());
+        auto output_tile_window =
+            make_tile_window(output_window, Policy::template MakeOutputDistribution<Problem>());
 
         DataType* p_lds_ptr              = static_cast<DataType*>(p_smem);
         constexpr auto in_lds_block_desc = Policy::template MakeLdsStoreBlockDescriptor<Problem>();
@@ -147,19 +147,11 @@ struct BlockTranspose
         store_tile(copy_to_lds_window, x);
         block_sync_lds();
 
-        //auto y = load_tile(load_from_lds_window);
-
-        //Debug<remove_cvref_t<decltype(y)>> cccc;
-        // auto load_from_lds_window =
-        //     make_tile_window(output_lds_block,
-        //                      make_tuple(number<kSecondSizePerBlock>{},
-        //                      number<kLeadSizePerBlock>{}), {0, 0}, Policy::template
-        //                      MakeLdsLoadTileDistribution<Problem>());
-
         auto y = load_tile_transpose(load_from_lds_window);
 
-        //Debug<remove_cvref_t<decltype(y)>> cccc;
-        store_tile(output_window, y);
+        // auto out_tensor = make_static_distributed_tensor<DataType>(Policy::template MakeOutputDistribution<Problem>());
+
+        store_tile(output_tile_window, out_tensor);
     }
 };
 
