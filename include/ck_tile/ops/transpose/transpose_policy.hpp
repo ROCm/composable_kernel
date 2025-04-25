@@ -105,10 +105,10 @@ struct TransposePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
     {
-        constexpr index_t BlockSize = Problem::kBlockSize;
+        // constexpr index_t BlockSize = Problem::kBlockSize;
         // the dimension is reversed after transpose
-        constexpr index_t LeadDimPerBlock    = Problem::kSecondSizePerBlock;
-        constexpr index_t SecondDimPerBlock  = Problem::kLeadSizePerBlock;
+        // constexpr index_t LeadDimPerBlock    = Problem::kSecondSizePerBlock;
+        // constexpr index_t SecondDimPerBlock  = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondIterPerWarp = Problem::kLeadXdlNumPerWarp;
         constexpr index_t kLeadIterPerWarp   = Problem::kSecondXdlNumPerWarp;
         constexpr index_t kSecondNumWarps    = Problem::kLeadNumWarps;
