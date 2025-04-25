@@ -32,13 +32,13 @@ template <typename T>
 __host__ __device__ inline bool is_inf(e8m0_bexp_t const scale, T const data);
 
 template <typename T>
-__host__ __device__ inline int get_exponent_value(T x)
+__host__ __device__ inline constexpr int32_t get_exponent_value(T x)
 {
     x >>= NumericUtils<T>::mant;
 
     x &= ((1 << NumericUtils<T>::exp) - 1);
 
-    return static_cast<int>(x);
+    return static_cast<int32_t>(x);
 }
 
 template <typename T>
@@ -99,7 +99,7 @@ template <typename T>
 __host__ __device__ T sat_convert_to_type_sr(float value, uint32_t seed);
 
 template <typename T>
-inline T convert_to_type(float value)
+__host__ __device__ inline T convert_to_type(float value)
 {
     using bitwise_type = typename NumericUtils<T>::bitwise_type;
 
@@ -258,7 +258,7 @@ inline T convert_to_type(float value)
 }
 
 template <typename T>
-inline T convert_to_type_sr(float value, uint32_t seed)
+__host__ __device__ inline T convert_to_type_sr(float value, uint32_t seed)
 {
     if(std::abs(value) > NumericLimits<T>::Max())
     {

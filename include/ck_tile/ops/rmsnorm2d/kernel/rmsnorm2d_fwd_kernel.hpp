@@ -21,6 +21,7 @@ struct Rmsnorm2dFwdHostArgs
     void* p_y_residual; // [m, n], shortcut output, prec same as input, nullptr if not used
     void* p_y_scale;    // [m, 1], output a dynamic quant per row, nullptr if not used
     void* p_invRms;     // [m, 1], output inv-rms, prec same as input, nullptr if not used
+    void* p_y_unquant;  // [m, n], output result before quant, nullptr if not used
 
     float epsilon;
 
@@ -47,13 +48,15 @@ struct Rmsnorm2dFwd
     using InvRmsDataType      = remove_cvref_t<typename Problem::InvRmsDataType>;
     using SmoothScaleDataType = remove_cvref_t<typename Problem::SmoothScaleDataType>;
     using YScaleDataType      = remove_cvref_t<typename Problem::YScaleDataType>;
+    using UnquantYDataType    = remove_cvref_t<typename Problem::UnquantYDataType>;
 
     // for simplicity, shortcut input/output type is same as X
     using XResidualDataType = XDataType;
     using YResidualDataType = XDataType;
 
-    static constexpr bool kHasGamma   = !std::is_same_v<GammaDataType, null_type>;
-    static constexpr bool kSaveInvRms = Problem::Traits::kSaveInvRms;
+    static constexpr bool kHasGamma    = !std::is_same_v<GammaDataType, null_type>;
+    static constexpr bool kSaveInvRms  = Problem::Traits::kSaveInvRms;
+    static constexpr bool kSaveUnquant = Problem::Traits::kSaveUnquant;
 
     static constexpr index_t Block_M  = Problem::BlockShape::Block_M;
     static constexpr index_t Block_N  = Problem::BlockShape::Block_N;
@@ -81,6 +84,7 @@ struct Rmsnorm2dFwd
         void* p_y_residual;
         void* p_y_scale;
         void* p_invRms;
+        void* p_y_unquant;
 
         float epsilon;
 
@@ -103,6 +107,7 @@ struct Rmsnorm2dFwd
                      hargs.p_y_residual,
                      hargs.p_y_scale,
                      hargs.p_invRms,
+                     hargs.p_y_unquant,
                      hargs.epsilon,
                      hargs.m,
                      hargs.n,
@@ -323,6 +328,30 @@ struct Rmsnorm2dFwd
             }
         }();
 
+        auto unquant_y_window = [&]() {
+            if constexpr((kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT ||
+                          kFusedQuant == Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT) &&
+                         kSaveUnquant)
+            {
+                auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
+                    static_cast<UnquantYDataType*>(kargs.p_y_unquant),
+                    make_tuple(kargs.m, kargs.n),
+                    make_tuple(kargs.y_stride, 1),
+                    number<Vector_N>{},
+                    number<1>{});
+
+                auto tmp2_ = pad_tensor_view(tmp_,
+                                             make_tuple(number<Block_M>{}, number<Block_N>{}),
+                                             sequence<kPadM, kPadN>{});
+                return make_tile_window(
+                    tmp2_, make_tuple(number<Block_M>{}, number<Block_N>{}), {iM, 0});
+            }
+            else
+            {
+                return make_null_tile_window(make_tuple(number<Block_M>{}, number<Block_N>{}));
+            }
+        }();
+
         __shared__ char smem[GetSmemSize()];
 
         Pipeline{}(x_window,
@@ -333,6 +362,7 @@ struct Rmsnorm2dFwd
                    inv_rms_window,
                    sm_scale_window,
                    y_scale_window,
+                   unquant_y_window,
                    static_cast<const ComputeDataType>(kargs.epsilon),
                    kargs.n,
                    smem,

@@ -55,6 +55,8 @@ _static/
 _templates/
 _toc.yml
 _doxygen/
+docs/doxygen/html
+docs/doxygen/xml
 
 # JetBrains IDE
 .idea/

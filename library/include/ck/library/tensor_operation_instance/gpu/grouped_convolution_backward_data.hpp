@@ -158,6 +158,41 @@ struct DeviceOperationInstanceFactory<
                 }
 #endif
             }
+            if constexpr(is_same_v<InLayout, NGCHW> && is_same_v<WeiLayout, GKCYX> &&
+                         is_same_v<OutLayout, NGKHW>)
+            {
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
+                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                             is_same_v<ComputeTypeB, F16>)
+                {
+                    add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_f16_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_f16_vec_transpose_instances(
+                        op_ptrs);
+                }
+#endif
+#ifdef CK_ENABLE_FP32
+                if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
+                             is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
+                             is_same_v<ComputeTypeB, F32>)
+                {
+                    add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_f32_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_f32_vec_transpose_instances(
+                        op_ptrs);
+                }
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
+                             is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                             is_same_v<ComputeTypeB, BF16>)
+                {
+                    add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_bf16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_bf16_vec_transpose_instances(
+                        op_ptrs);
+                }
+#endif
+            }
         }
         if constexpr(NumDimSpatial == 3)
         {
@@ -259,6 +294,43 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<ComputeTypeB, BF16>)
                 {
                     add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkzyxc_ngcdhw_bf16_instances(
+                        op_ptrs);
+                }
+#endif
+            }
+            if constexpr(is_same_v<InLayout, NGCDHW> && is_same_v<WeiLayout, GKCZYX> &&
+                         is_same_v<OutLayout, NGKDHW>)
+            {
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
+                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
+                             is_same_v<ComputeTypeB, F16>)
+                {
+                    add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_f16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_f16_vec_transpose_instances(
+                        op_ptrs);
+                }
+#endif
+#ifdef CK_ENABLE_FP32
+                if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
+                             is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
+                             is_same_v<ComputeTypeB, F32>)
+                {
+                    add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_f32_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_f32_vec_transpose_instances(
+                        op_ptrs);
+                }
+#endif
+#ifdef CK_ENABLE_BF16
+                if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
+                             is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
+                             is_same_v<ComputeTypeB, BF16>)
+                {
+                    add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_bf16_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_bf16_vec_transpose_instances(
                         op_ptrs);
                 }
 #endif

@@ -33,7 +33,7 @@ using ck::type_convert;
 struct ExecutionConfig final
 {
     int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 2;     // (0=no init, 1=integer value, 2=decimal value)
+    int init_method     = 2;     // (0=constant values, 1=integer values, 2=decimal values)
     bool time_kernel    = false; // (0=no, 1=yes)
     int verbosity       = 0;     // (0=no info, 1=verbose info)
 };
@@ -91,11 +91,11 @@ bool parse_cmd_args(int argc,
     else
     {
         std::cerr << "arg1: verification (0=no, 1=CPU)" << std::endl
-                  << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
+                  << "arg2: initialization (0=constant values, 1=integer values, 2=decimal values)"
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl
                   << "arg4: verbosity (0=no info, 1=verbose info)" << std::endl
-                  << "arg5 to 10: M(256x), N(128x), K(32x), StrideA, StrideB, StrideC" << std::endl
+                  << "arg5 to 10: M(128x), N(128x), K(256x), StrideA, StrideB, StrideC" << std::endl
                   << "arg11: KBatch" << std::endl;
         return false;
     }
@@ -103,7 +103,8 @@ bool parse_cmd_args(int argc,
     return true;
 }
 
-template <typename ADataType,
+template <typename DeviceOpInstance,
+          typename ADataType,
           typename BDataType,
           typename XDataType,
           typename CDataType,
@@ -115,65 +116,9 @@ template <typename ADataType,
           typename CElementOp,
           typename AccDataType,
           typename CShuffleDataType,
-          ck::index_t MXVectorSize>
+          ck::index_t ScaleBlockSize>
 bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& config)
 {
-    static constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
-    static constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
-    static constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v1;
-
-    static constexpr ck::index_t ScaleBlockSize = MXVectorSize;
-
-    static constexpr ck::index_t KPerBlock = 64;
-    using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
-        ALayout,          // ALayout
-        BLayout,          // BLayout
-        CLayout,          // CLayout
-        ADataType,        // ADataType
-        XDataType,        // AScaleDataType
-        BDataType,        // BDataType
-        XDataType,        // BScaleDataType
-        CDataType,        // CDataType
-        AccDataType,      // GemmAccDataType
-        CShuffleDataType, // CShuffleDataType
-        AElementOp,       // AElementwiseOperation
-        BElementOp,       // BElementwiseOperation
-        CElementOp,       // CElementwiseOperation
-        GemmSpec,         // GemmSpec
-        MXVectorSize,     // ScaleBlockSize: Scaling block size
-        256,              // BlockSize: Thread block size
-        128,              // MPerBlock
-        128,              // NPerBlock
-        KPerBlock,        // KPerBlock
-        16,               // AK1
-        16,               // BK1
-        32,               // MPerXDL
-        32,               // NPerXDL
-        2,                // MXdlPerWave
-        2,                // NXdlPerWave
-        S<4, 64, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
-        S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
-        2,                // ABlockTransferSrcVectorDim
-        16,               // ABlockTransferSrcScalarPerVector
-        16,               // ABlockTransferDstScalarPerVector_AK1
-        false,            // ABlockLdsExtraM
-        S<4, 64, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
-        S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
-        2,                // BBlockTransferSrcVectorDim
-        16,               // BBlockTransferSrcScalarPerVector
-        16,               // BBlockTransferDstScalarPerVector_BK1
-        false,            // BBlockLdsExtraN
-        1,                // CShuffleMXdlPerWavePerShuffle
-        1,                // CShuffleNXdlPerWavePerShuffle
-        S<1, 32, 1, 8>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8,                // CShuffleBlockTransferScalarPerVector_NPerBlock
-        BlkGemmPSched,    // BlkGemmPipeSched
-        BlkGemmPVer,      // BlkGemmPipelineVer
-        ADataType,        // ComputeTypeA
-        BDataType         // ComputeTypeB
-        >;
 
     auto M       = problem_size.M;
     auto N       = problem_size.N;
@@ -223,7 +168,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     };
 
     // Hardcode scale layouts as per pipeline assumptions
-    // TODO: Change default scale layouts to Col for A and Row for B
     // TODO: Allow user to specify scale layouts
     using AScaleLayout = Row;
     using BScaleLayout = Col;
@@ -231,8 +175,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     auto Scale_Stride_AM = f_get_default_stride(M, K / ScaleBlockSize, -1, AScaleLayout{});
     auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
 
-    Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, AScaleLayout{}));
-    Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BScaleLayout{}));
+    Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
+    Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
 
     Tensor<XDataType> a_m_k_scale(f_host_tensor_descriptor(
         M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{})); // scales for A
@@ -271,19 +215,31 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         break;
 
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.0f, 4.0f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
 
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-4.0f, 5.0f}(b_k_n);
-        ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+
+        if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
+        {
+            a_m_k_scale.GenerateTensorValue(
+                GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+            b_k_n_scale.GenerateTensorValue(
+                GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        }
+        else
+        {
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+        }
+
         break;
 
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
-        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{-1.0f, 1.0f});
+        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
 
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
-        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{-1.0f, 1.0f});
+        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
         break;
 
     default:
@@ -417,8 +373,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     if(config.time_kernel)
     {
-        std::size_t flop = std::size_t(2) * M * N * K +
-                           std::size_t(2) * M * N * K / ScaleBlockSize; // GEMM + A scale + B scale
+        // Output size(M*N) * [dot product(2K) + product of scales(K/ScaleBlockSize) + scaling of
+        // partial sums(K/ScaleBlockSize)]
+        // FLOPS = 2 * M * N * K + 2 * M * N * K / ScaleBlockSize
+        std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / ScaleBlockSize;
         std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
                                 sizeof(CDataType) * M * N +
                                 sizeof(XDataType) * (M * K + K * N) / ScaleBlockSize;
@@ -434,7 +392,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     return res_verified;
 }
 
-template <typename ADataType,
+template <typename DeviceOpInstance,
+          typename ADataType,
           typename BDataType,
           typename XDataType,
           typename CDataType,
@@ -453,7 +412,8 @@ bool run_mx_gemm_example(int argc, char* argv[])
     ExecutionConfig config;
 
     return parse_cmd_args(argc, argv, problem_size, config) &&
-           run_mx_gemm<ADataType,
+           run_mx_gemm<DeviceOpInstance,
+                       ADataType,
                        BDataType,
                        XDataType,
                        CDataType,

@@ -15,7 +15,8 @@
 #define __gfx103__
 #endif
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
-    defined(__gfx1103__) || defined(__gfx11_generic__)
+    defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
+    defined(__gfx1152__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
@@ -27,12 +28,6 @@
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 #endif
-
-#include "ck_tile/core/utility/env.hpp"
-
-// environment variable to enable logging:
-// export CK_TILE_LOGGING=ON or CK_TILE_LOGGING=1 or CK_TILE_LOGGING=ENABLED
-CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_LOGGING)
 
 #ifdef __HIPCC__
 #define CK_TILE_HOST inline __host__
@@ -259,4 +254,8 @@ CK_TILE_DECLARE_ENV_VAR_BOOL(CK_TILE_LOGGING)
 #else
 #define CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN 0
 #endif
+#endif
+
+#ifndef CK_TILE_WA_ISSUE_2028
+#define CK_TILE_WA_ISSUE_2028 1
 #endif
