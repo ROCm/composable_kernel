@@ -296,6 +296,13 @@ struct FmhaFwdKernel
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
 
+    struct BlockIndices
+    {
+        ck_tile::index_t batch_idx;
+        ck_tile::index_t qo_head_idx;
+        ck_tile::index_t kv_head_idx;
+    };
+
     template <bool Cond = !kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargsImpl(const void* q_ptr,
@@ -1367,6 +1374,8 @@ struct FmhaFwdKernel
             }
         }();
 
+        BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
+
         auto o_acc_tile = [&]() {
             if constexpr(kDoFp8StaticQuant)
             {
@@ -1390,6 +1399,7 @@ struct FmhaFwdKernel
                     kargs.scale_s,
                     variant,
                     variant_params,
+                    block_indices,
                     smem_ptr,
                     dropout);
             }
@@ -1406,6 +1416,7 @@ struct FmhaFwdKernel
                                       kargs.scale_s,
                                       variant,
                                       variant_params,
+                                      block_indices,
                                       smem_ptr,
                                       dropout);
             }

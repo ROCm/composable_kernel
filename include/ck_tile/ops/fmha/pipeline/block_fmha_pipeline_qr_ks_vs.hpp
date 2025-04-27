@@ -136,7 +136,8 @@ struct BlockFmhaPipelineQRKSVS
               typename PComputeElementFunction,
               typename OAccElementFunction,
               typename PositionEncoding,
-              typename AttentionVariantParams>
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -157,6 +158,7 @@ struct BlockFmhaPipelineQRKSVS
                float scale_s,
                const AttentionVariant& variant,
                const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -393,16 +395,22 @@ struct BlockFmhaPipelineQRKSVS
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
                 tile_elementwise_inout(
-                    [&variant, &variant_params](auto& x) {
+                    [&variant, &variant_params, &block_indices](auto& x) {
                         x = variant.LogitsTransform(variant_params,
-                                                    variant.QueryTransform(variant_params, x));
+                                                    variant.QueryTransform(variant_params, x),
+                                                    block_indices.batch_idx,
+                                                    block_indices.qo_head_idx,
+                                                    block_indices.kv_head_idx);
                     },
                     s_acc);
 #else
                 tile_elementwise_inout(
-                    [&variant, &variant_params](auto& x) {
+                    [&variant, &variant_params, &block_indices](auto& x) {
                         x = variant.LogitsTransform(variant_params,
-                                                    variant.QueryTransform(variant_params, x));
+                                                    variant.QueryTransform(variant_params, x),
+                                                    block_indices.batch_idx,
+                                                    block_indices.qo_head_idx,
+                                                    block_indices.kv_head_idx);
                     },
                     s_acc);
 #endif
@@ -421,7 +429,12 @@ struct BlockFmhaPipelineQRKSVS
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return !variant.LogitsMask(variant_params, row, col);
+                            return !variant.LogitsMask(variant_params,
+                                                       block_indices.batch_idx,
+                                                       row,
+                                                       col,
+                                                       block_indices.qo_head_idx,
+                                                       block_indices.kv_head_idx);
                         });
                 }
             }
@@ -634,7 +647,8 @@ struct BlockFmhaPipelineQRKSVS
               typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename PositionEncoding,
-              typename AttentionVariantParams>
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
@@ -647,6 +661,7 @@ struct BlockFmhaPipelineQRKSVS
                float scale_s,
                const AttentionVariant& variant,
                const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -669,6 +684,7 @@ struct BlockFmhaPipelineQRKSVS
                           scale_s,
                           variant,
                           variant_params,
+                          block_indices,
                           smem_ptr,
                           dropout);
     }

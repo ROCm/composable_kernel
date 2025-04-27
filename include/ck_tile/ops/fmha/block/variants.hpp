@@ -137,7 +137,11 @@ struct LogitsSoftCap
     }
 
     template <typename Params, typename T>
-    __device__ __forceinline__ T LogitsTransform(const Params& params, T logits) const
+    __device__ __forceinline__ T LogitsTransform(const Params& params,
+                                                 T logits,
+                                                 [[maybe_unused]] uint32_t batch_idx,
+                                                 [[maybe_unused]] uint32_t qo_head_idx,
+                                                 [[maybe_unused]] uint32_t kv_head_idx) const
     {
         if constexpr(UseExp2)
         {
@@ -152,8 +156,12 @@ struct LogitsSoftCap
     }
 
     template <typename Params>
-    __device__ __forceinline__ bool
-    LogitsMask(const Params& params, uint32_t qo_idx, uint32_t kv_idx) const
+    __device__ __forceinline__ bool LogitsMask(const Params& params,
+                                               [[maybe_unused]] uint32_t batch_idx,
+                                               uint32_t qo_idx,
+                                               uint32_t kv_idx,
+                                               [[maybe_unused]] uint32_t qo_head_idx,
+                                               [[maybe_unused]] uint32_t kv_head_idx) const
     {
         return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
     }
@@ -184,7 +192,11 @@ struct ComposedAttention
     }
 
     template <typename Params, typename T>
-    __device__ __forceinline__ T LogitsTransform(const Params& params, T logits) const
+    __device__ __forceinline__ T LogitsTransform(const Params& params,
+                                                 T logits,
+                                                 [[maybe_unused]] uint32_t batch_idx,
+                                                 [[maybe_unused]] uint32_t qo_head_idx,
+                                                 [[maybe_unused]] uint32_t kv_head_idx) const
     {
         if constexpr(use_logits_soft_cap)
         {
@@ -203,8 +215,12 @@ struct ComposedAttention
     }
 
     template <typename Params>
-    __device__ __forceinline__ bool
-    LogitsMask(const Params& params, uint32_t qo_idx, uint32_t kv_idx) const
+    __device__ __forceinline__ bool LogitsMask(const Params& params,
+                                               [[maybe_unused]] uint32_t batch_idx,
+                                               uint32_t qo_idx,
+                                               uint32_t kv_idx,
+                                               [[maybe_unused]] uint32_t qo_head_idx,
+                                               [[maybe_unused]] uint32_t kv_head_idx) const
     {
         return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
     }
