@@ -115,6 +115,18 @@ struct HstuBlockMaskWithLocal
             return static_cast<int>(result);
         }
     };
+
+    // if the whole tile inside the masking area, no need for pixel-by-pixel checking
+    template <index_t TileWidth>
+    CK_TILE_DEVICE constexpr bool
+    IsFullTileInsideMask(index_t i_tile_top, index_t i_tile_left, number<TileWidth>) const
+    {
+        // when local masking used, we assume all tiles need pixel-by-pixel checking
+        std::ignore = i_tile_top;
+        std::ignore = i_tile_left;
+
+        return false;
+    }
 };
 
 template <bool kUseCausal>
@@ -185,6 +197,27 @@ struct HstuBlockMaskNoLocal
 
         return 1;
     };
+
+    // if the whole tile inside the masking area, no need for pixel-by-pixel checking
+    template <index_t TileWidth>
+    CK_TILE_DEVICE constexpr bool
+    IsFullTileInsideMask(index_t i_tile_top, index_t i_tile_left, number<TileWidth>) const
+    {
+        if constexpr(kUseCausal)
+        {
+            index_t i_tile_right = i_tile_left + TileWidth;
+
+            if(i_tile_right > i_tile_top)
+                return false;
+
+            return true;
+        }
+        else
+        {
+            // need further check kPadSeqLenK in the masking context
+            return true;
+        };
+    }
 };
 
 template <bool kUseCausal, bool kUseLocal>
