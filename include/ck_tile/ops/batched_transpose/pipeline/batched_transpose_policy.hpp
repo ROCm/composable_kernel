@@ -18,11 +18,12 @@ struct BatchedTransposePolicy
         constexpr index_t MPerBlock   = Problem::kMPerBlock;
         constexpr index_t NPerBlock   = Problem::kNPerBlock;
         constexpr index_t VecLoadSize = Problem::VectorSizeInput;
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          MPerBlock,
-                                                                          NPerBlock,
-                                                                          VecLoadSize,
-                                                                          tile_distribution_pattern::thread_raked>;
+        using TileEncodingPattern =
+            TileDistributionEncodingPattern2D<BlockSize,
+                                              MPerBlock,
+                                              NPerBlock,
+                                              VecLoadSize,
+                                              tile_distribution_pattern::thread_raked>;
         return TileEncodingPattern::Make2DStaticTileDistribution();
     }
 
@@ -32,13 +33,14 @@ struct BatchedTransposePolicy
         constexpr index_t BlockSize   = Problem::kBlockSize;
         constexpr index_t MPerBlock   = Problem::kMPerBlock;
         constexpr index_t NPerBlock   = Problem::kNPerBlock;
-        constexpr index_t VecLoadSize = Problem::VectorSizeInput;
+        constexpr index_t VecLoadSize = Problem::VectorSizeOutput;
 
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      NPerBlock,
-                                                                      MPerBlock,
-                                                                      VecLoadSize,
-                                                                      tile_distribution_pattern::thread_raked>;
+        using TileEncodingPattern =
+            TileDistributionEncodingPattern2D<BlockSize,
+                                              NPerBlock,
+                                              MPerBlock,
+                                              VecLoadSize,
+                                              tile_distribution_pattern::thread_raked>;
         return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
     }
 };

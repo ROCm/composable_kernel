@@ -478,35 +478,12 @@ template <typename TensorView,
 CK_TILE_HOST_DEVICE constexpr auto
 pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, DoPads)
 {
-    if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0 &&
-       threadIdx.y == 0 && threadIdx.z == 0)
-    {
-        printf("Inside tensor view\n");
-    }
-
-    if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0 &&
-       threadIdx.y == 0 && threadIdx.z == 0)
-    {
-
-        auto my_buffer_view = tensor_view.get_buffer_view();
-
-        printf("----------------tensor_view----------------\n");
-
-        int len = static_cast<int>(my_buffer_view.buffer_size_);
-        for(int i = 0; i < len; i++)
-        {
-            printf("tensor_view: buffer_view[%d] = %f\n", i, static_cast<float>(my_buffer_view[i]));
-        }
-
-        printf("--------------------------------\n");
-    }
 
     constexpr index_t num_dim = DoPads::size();
 
     static_assert(num_dim == TileLengths::size() && num_dim == TensorView::get_num_of_dimension(),
                   "wrong! inconsistent # of dimensions");
 
-    printf("num_dim = %d\n", num_dim);
     // transforms
     const auto transforms = generate_tuple(
         [&](auto idim) {
@@ -519,13 +496,6 @@ pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, 
             const auto pad_length = new_length - old_length;
 
             constexpr bool DoPad = DoPads::at(idim);
-
-            // printf("idim = %d\n", idim.value);
-            // printf("old_length = %d\n", old_length);
-            // printf("tile_length = %f\n", static_cast<int>(tile_length));
-            // printf("new_length = %d\n", new_length);
-            // printf("pad_length = %d\n", pad_length);
-            // printf("DoPad = %d\n", DoPad);
 
             const auto transform =
                 conditional_expr<DoPad>(make_right_pad_transform(old_length, pad_length),

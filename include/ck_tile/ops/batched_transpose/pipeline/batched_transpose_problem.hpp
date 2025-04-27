@@ -11,9 +11,11 @@
 namespace ck_tile {
 
 template <typename InputType_,
-          typename BlockTile,  // Sequence<...
-          typename WarpTile,   // Sequence<...
-          typename ThreadTile> // Sequence<...
+          typename BlockTile, // Sequence<...
+          typename WarpTile,  // Sequence<...
+          typename ThreadTile,
+          bool kPadM_ = false,
+          bool kPadN_ = false> // Sequence<...
 struct BatchedTransposeProblem
 {
     using InputType = remove_cvref_t<InputType_>;
@@ -36,10 +38,10 @@ struct BatchedTransposeProblem
     static constexpr index_t kBlockSize =
         kMThreadPerWarp * kNThreadPerWarp * kMWarpPerBlock * kNWarpPerBlock; // 64
 
-    static constexpr bool kPadM = true;
-    static constexpr bool kPadN = true;
+    static constexpr bool kPadM = kPadM_;
+    static constexpr bool kPadN = kPadN_;
 
-    static constexpr index_t VectorSizeInput  = kPadM ? VectorLoadSize / sizeof(InputType) : 1; // 8
-    static constexpr index_t VectorSizeOutput = kPadN ? VectorLoadSize / sizeof(InputType) : 1; // 8
+    static constexpr index_t VectorSizeInput  = kPadM ? 1 : VectorLoadSize / sizeof(InputType); // 8
+    static constexpr index_t VectorSizeOutput = kPadN ? 1 : VectorLoadSize / sizeof(InputType); // 8
 };
 } // namespace ck_tile
