@@ -221,9 +221,9 @@ struct TransposePolicy
             tile_distribution_encoding<sequence<>,
                                        tuple<sequence<kSecondIterPerWarp, kSecondNumWarps>,
                                              sequence<kLeadIterPerWarp, kLeadNumWarps>>,
-                                       tuple<sequence<1, 2>>,
+                                       tuple<sequence<2, 1>>,
                                        tuple<sequence<1, 1>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
         constexpr auto blk_distr_encode = detail::make_embed_tile_distribution_encoding(
             block_outer_dst_encoding, xdllevel_dstr_encoding{});
