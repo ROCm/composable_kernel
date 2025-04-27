@@ -132,6 +132,7 @@ static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
 static constexpr ck::index_t AK1           = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1           = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec          = 2;
+// TODO: Epilogue performance issue. AtomicAdd lose 15~20% performance compare with Set.
 static constexpr ck::index_t D0Vec         = 1;
 static constexpr ck::index_t D1Vec         = 1;
 static constexpr ck::index_t D2Vec         = 1;
