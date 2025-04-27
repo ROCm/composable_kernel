@@ -119,6 +119,17 @@ struct CShuffleEpilogue
         return kMWave * kNWave * kMPerXdl * kNPerXdl * sizeof(ODataType);
     }
 
+    CK_TILE_HOST_DEVICE static constexpr auto GetCDisrtribution()
+    {
+        using TileEncodingPattern =
+            TileDistributionEncodingPattern2D<kBlockSize,
+                                              kMPerIteration,
+                                              kNPerIteration,
+                                              GetVectorSizeC(),
+                                              tile_distribution_pattern::thread_raked>;
+        return TileEncodingPattern::Make2DStaticTileDistribution();
+    }
+
     template <typename ODramWindow,
               typename OAccTile,
               bool IsInputGemm                         = true,
@@ -127,7 +138,9 @@ struct CShuffleEpilogue
                                    const OAccTile& o_acc_tile,
                                    void* p_smem,
                                    const index_t* p_sorted_tokens_id,
-                                   index_t token_pos)
+                                   index_t token_pos,
+                                   index_t TopK,
+                                   index_t stride_C)
     {
 
         const index_t iMWarp = get_warp_id() / kNWave;
@@ -174,21 +187,25 @@ struct CShuffleEpilogue
 
             // auto idx_m =  number<idx_y_start.at(number<0>{})>{} + 0;
             // printf("idx_y_start:%d \n", idx_m);
-            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (kMPerXdl * kMWave)>{};
+            constexpr auto MPerAcess = kMPerXdl * kMWave;
+            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerAcess)>{};
+            using CDstrEncode = typename decltype(dram_tile_distribution)::DstrEncode;
+            constexpr ck_tile::index_t MRepeat = CDstrEncode::hs_lengthss_[number<0>{}][number<0>{}];
 
-            statically_indexed_array<index_t, 2> offsets;
-            static_for<0, 2 /*CMrepeats*/, 1>{}([&](auto m0) {
+            statically_indexed_array<index_t, MRepeat> offsets;
+
+            static_for<0, MRepeat, 1>{}([&](auto m0) {
                 auto token_id    = token_pos + m0 + c_coord[0] + mIter * kMPerXdl * kMWave;
+                // auto token_id    = token_pos + c_coord[0] + mIter * MPerAcess + MPerAcess / MRepeat * m0.value;
                 auto fused_token = p_sorted_tokens_id[token_id];
 
-                index_t token_offset = fused_token & 0xffffff;
-
+                index_t scatter_token_id = fused_token & 0xffffff;
                 if constexpr(IsInputGemm)
                 {
-                    token_offset = token_offset * 3 /*TopK*/ + (fused_token >> 24);
+                    scatter_token_id = scatter_token_id * TopK + (fused_token >> 24);
                 }
 
-                offsets[m0] = token_offset * 4096; // Problem::kN_;
+                offsets[m0] = scatter_token_id * stride_C; // Problem::kN_;
             });
             // printf("c_coord[number<0>{}]: %d \n", coord[number<0>{}]);
             // printf("mIter: %d", mIter+0);
@@ -212,7 +229,13 @@ struct CShuffleEpilogue
 
             if constexpr(out_memory_data_op == memory_operation_enum::set)
             {
-                store_tile(out_dram_window, c_out_tensor, offsets);
+                auto tile_window = make_tile_scatter_gather(out_dram_window.get_bottom_tensor_view(),
+                                    out_dram_window.get_window_lengths(),
+                                    out_dram_window.get_window_origin(),
+                                    dram_tile_distribution,
+                                    offsets);
+                tile_window.store(c_out_tensor);
+                // store_tile(out_dram_window, c_out_tensor, offsets);
             }
             else
             {

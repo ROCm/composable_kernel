@@ -209,6 +209,26 @@ struct tensor_view
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             bool_constant<pre_nop>{});
     }
+    template <typename X,
+              bool pre_nop = false,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
+                                      const TensorCoord& coord,
+                                      index_t coord_extra_offset,
+                                      index_t linear_offset,
+                                      bool_constant<pre_nop> = {}) const
+    {
+        return buf_.template async_get_raw<X>(
+            smem,
+            (coord.get_offset() + coord_extra_offset) / PackedSize,
+            linear_offset / PackedSize,
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            bool_constant<pre_nop>{});
+    }
 
     template <typename X,
               bool pre_nop = false,
@@ -411,21 +431,18 @@ struct null_tensor_view
 };
 
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
-          amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
           typename DataType,
           typename... Ts>
 CK_TILE_HOST_DEVICE constexpr auto make_tensor_view(DataType* p,
                                                     const tensor_descriptor<Ts...>& desc)
 {
-    auto buffer_view =
-        make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
+    auto buffer_view = make_buffer_view<BufferAddressSpace>(p, desc.get_element_space_size());
 
     return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }
 
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           memory_operation_enum DstInMemOp      = memory_operation_enum::set,
-          amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
           typename DataType,
           typename... Lengths,
           typename... Strides,
@@ -444,14 +461,12 @@ make_naive_tensor_view(DataType* p,
                                              number<GuaranteedLastDimensionVectorLength>{},
                                              number<GuaranteedLastDimensionVectorStride>{});
 
-    auto buffer_view =
-        make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
+    auto buffer_view = make_buffer_view<BufferAddressSpace>(p, desc.get_element_space_size());
 
     return tensor_view<decltype(buffer_view), decltype(desc), DstInMemOp>{buffer_view, desc};
 }
 
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
-          amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
           typename DataType,
           typename... Lengths,
           index_t GuaranteedLastDimensionVectorLength = -1>
@@ -463,8 +478,7 @@ make_naive_tensor_view_packed(DataType* p,
     auto desc =
         make_naive_tensor_descriptor_packed(lengths, number<GuaranteedLastDimensionVectorLength>{});
 
-    auto buffer_view =
-        make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
+    auto buffer_view = make_buffer_view<BufferAddressSpace>(p, desc.get_element_space_size());
 
     return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }

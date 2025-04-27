@@ -15,6 +15,40 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
+template <typename T>
+auto shuffle_b(const ck_tile::HostTensor<T>& t, std::string mfma_dtype, int mfma_type = 0)
+{
+    assert(t.get_lengths().size() == 2);
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
+
+    if((mfma_dtype == "bf16" || mfma_dtype == "fp16") && mfma_type == 0)
+    {
+        ck_tile::HostTensor<T> t_view({n_ / 32, 32, k_ / 16, 2, 8});
+        std::copy(t.begin(), t.end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    }
+    else if((mfma_dtype == "bf16" || mfma_dtype == "fp16") && mfma_type == 1)
+    {
+        ck_tile::HostTensor<T> t_view({n_ / 16, 16, k_ / 32, 4, 8});
+        std::copy(t.begin(), t.end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    }
+    else if((mfma_dtype == "int8" || mfma_dtype == "fp8") && mfma_type == 0)
+    {
+        ck_tile::HostTensor<T> t_view({n_ / 32, 32, k_ / 32, 2, 16});
+        std::copy(t.begin(), t.end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    }
+    else if((mfma_dtype == "int8" || mfma_dtype == "fp8") && mfma_type == 1)
+    {
+        ck_tile::HostTensor<T> t_view({n_ / 16, 16, k_ / 64, 4, 16});
+        std::copy(t.begin(), t.end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    }
+    return t;
+}
+
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
@@ -37,7 +71,7 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 }
 
 template <typename ALayout, typename BLayout, typename CLayout>
-float invoke_gemm(int n_warmup, int n_repeat, const moe_gemm_kargs& args)
+float invoke_moe_gemm(int n_warmup, int n_repeat, const moe_gemm_kargs& args)
 {
     float ave_time = moe_gemm<ALayout, BLayout, CLayout>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
@@ -98,51 +132,69 @@ int run_moe_gemm_example_with_layouts(int argc,
 
     // TODO: replace the magic declaration
     const ck_tile::index_t MPerBlock = 128;
+    // const ck_tile::index_t max_num_tokens_padded = topk * num_tokens + experts * MPerBlock - topk;
+    // const ck_tile::index_t max_num_m_blocks = (max_num_tokens_padded + MPerBlock - 1) / MPerBlock;
+
     ck_tile::index_t sorted_tile_num = 8;
     ck_tile::index_t valid_tile_num  = sorted_tile_num;
+    // ck_tile::index_t sorted_tile_num = 16;
+    // ck_tile::index_t valid_tile_num  = 13;
+    ck_tile::index_t sorted_size     = sorted_tile_num * MPerBlock;
+    // ck_tile::index_t valid_size      = valid_tile_num * MPerBlock;
 
     const ck_tile::index_t M = sorted_tile_num * MPerBlock;
+    // const ck_tile::index_t M = max_num_tokens_padded;
 
     std::unique_ptr<ck_tile::DeviceMem> a_m_k_dev_buf;
-    std::unique_ptr<ck_tile::DeviceMem> b_k_n_dev_buf;
+    std::unique_ptr<ck_tile::DeviceMem> b_origin_dev_buf;
+    std::unique_ptr<ck_tile::DeviceMem> b_shuffle_dev_buf;
     std::unique_ptr<ck_tile::DeviceMem> c_m_n_dev_buf;
 
-    stride_A = ck_tile::get_default_stride(M, N, stride_A, is_row_major(a_layout));
+    stride_A = ck_tile::get_default_stride(num_tokens, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
-    stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
+    stride_C = ck_tile::get_default_stride(num_tokens * topk, N, stride_C, is_row_major(CLayout{}));
 
     auto a_m_k_tensor = ck_tile::HostTensor<ADataType>(
-        ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
+        ck_tile::host_tensor_descriptor(num_tokens, K, stride_A, is_row_major(a_layout)));
 
     // TODO: add the experts' weights in b
     auto b_k_n_tensor = ck_tile::HostTensor<BDataType>(
         is_row_major(b_layout)
-            ? ck_tile::host_tensor_descriptor(experts * K, N, stride_B, is_row_major(b_layout))
+            ? ck_tile::host_tensor_descriptor(experts * N, K, stride_B, is_row_major(b_layout))
             : ck_tile::host_tensor_descriptor(K, experts * N, stride_B, is_row_major(b_layout)));
-    auto c_m_n_tensor = ck_tile::HostTensor<CDataType>(
-        ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-    std::cout << "gemm"
-              << " a_m_k: " << a_m_k_tensor.mDesc << " b_k_n: " << b_k_n_tensor.mDesc
-              << " c_m_n: " << c_m_n_tensor.mDesc << std::endl;
+    std::string mfma    = arg_parser.get_str("prec");
+
+    auto c_m_n_tensor = ck_tile::HostTensor<CDataType>(
+        ck_tile::host_tensor_descriptor(num_tokens * topk, N, stride_C, is_row_major(CLayout{})));
 
     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensor);
     ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensor);
 
+    auto b_shuffle_host = shuffle_b(b_k_n_tensor, mfma, 0);
+
+    std::cout << "gemm"
+              << " a_m_k: " << a_m_k_tensor.mDesc << " b_k_n: " << b_k_n_tensor.mDesc
+              << " b_shuffle: " << b_shuffle_host.mDesc << " c_m_n: " << c_m_n_tensor.mDesc << std::endl;
+
     a_m_k_dev_buf =
         std::make_unique<ck_tile::DeviceMem>(a_m_k_tensor.get_element_space_size_in_bytes());
-    b_k_n_dev_buf =
+    b_origin_dev_buf =
         std::make_unique<ck_tile::DeviceMem>(b_k_n_tensor.get_element_space_size_in_bytes());
+    b_shuffle_dev_buf =
+        std::make_unique<ck_tile::DeviceMem>(b_shuffle_host.get_element_space_size_in_bytes());
     c_m_n_dev_buf =
         std::make_unique<ck_tile::DeviceMem>(c_m_n_tensor.get_element_space_size_in_bytes());
 
     a_m_k_dev_buf->ToDevice(a_m_k_tensor.data());
-    b_k_n_dev_buf->ToDevice(b_k_n_tensor.data());
+    b_origin_dev_buf->ToDevice(b_k_n_tensor.data());
+    b_shuffle_dev_buf->ToDevice(b_shuffle_host.data());
     c_m_n_dev_buf->SetZero();
     c_m_n_tensor.SetZero();
 
     const void* p_a = a_m_k_dev_buf->GetDeviceBuffer();
-    const void* p_b = b_k_n_dev_buf->GetDeviceBuffer();
+    const void* p_b_origin = b_origin_dev_buf->GetDeviceBuffer();
+    const void* p_b_shuffle = b_shuffle_dev_buf->GetDeviceBuffer();
     void* p_c       = c_m_n_dev_buf->GetDeviceBuffer();
 
     // TODO: malloc and init sorted tokens and max tokens buffer
@@ -150,7 +202,7 @@ int run_moe_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<ck_tile::index_t> expert_ids(
         ck_tile::HostTensorDescriptor({sorted_tile_num}, {1}));
     ck_tile::HostTensor<ck_tile::index_t> sorted_token_ids(
-        ck_tile::HostTensorDescriptor({sorted_tile_num * MPerBlock}, {1}));
+        ck_tile::HostTensorDescriptor({sorted_size}, {1}));
     ck_tile::HostTensor<ck_tile::index_t> max_token_id(
         ck_tile::HostTensorDescriptor({1 + sorted_tile_num}));
 
@@ -163,11 +215,14 @@ int run_moe_gemm_example_with_layouts(int argc,
 
     max_token_id.mData = {valid_tile_num * MPerBlock, 0, 1, 2, 3, 4, 6, 7, 8, 8};
     int eids[]         = {0, 1, 2, 3, 4, 4, 5, 6, 3, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+    // max_token_id.mData = {valid_size, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 0, 0, 0};
+    // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = eids[i];
     }
-    int token_per_tile = (num_tokens * topk + valid_tile_num - 1) / valid_tile_num;
+    // int token_per_tile = (num_tokens * topk + valid_tile_num - 1) / valid_tile_num;
+    int token_per_tile = num_tokens * topk / valid_tile_num;
     int tokenid        = 0;
     // sorted_token_ids.mData[0] = 0;
     for(int i = 0; i < sorted_tile_num * MPerBlock; i++)
@@ -199,10 +254,11 @@ int run_moe_gemm_example_with_layouts(int argc,
                              p_expert_ids_dev,
                              p_max_token_id_dev,
                              p_a,
-                             p_b,
+                             p_b_shuffle,
                              p_c,
                              num_tokens,
                              topk,
+                             1, //k_batch
                              M,
                              N,
                              K,
@@ -210,7 +266,7 @@ int run_moe_gemm_example_with_layouts(int argc,
                              stride_B,
                              stride_C};
 
-    invoke_gemm<ALayout, BLayout, CLayout>(3, repeat, gemm_desc);
+    invoke_moe_gemm<ALayout, BLayout, CLayout>(3, repeat, gemm_desc);
 
     c_m_n_dev_buf->FromDevice(c_m_n_tensor.data());
 
@@ -218,7 +274,7 @@ int run_moe_gemm_example_with_layouts(int argc,
     if(arg_parser.get_int("validate"))
     {
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+            ck_tile::host_tensor_descriptor(num_tokens * topk, N, stride_C, is_row_major(CLayout{})));
 
         c_m_n_host_ref.SetZero();
 
@@ -238,7 +294,7 @@ int run_moe_gemm_example_with_layouts(int argc,
             p_expert_ids_dev,
             p_max_token_id_dev,
             static_cast<const ADataType*>(p_a),
-            static_cast<const BDataType*>(p_b),
+            static_cast<const BDataType*>(p_b_origin),
             static_cast<CDataType*>(c_m_n_ref_buf->GetDeviceBuffer()),
             num_tokens,
             topk,
@@ -254,22 +310,22 @@ int run_moe_gemm_example_with_layouts(int argc,
             K, 1 /*kbatch*/, max_accumulated_value);
         c_m_n_ref_buf->FromDevice(c_m_n_host_ref.data());
 
-        for(int im = 0; im < M; im++)
-        {
-            for(int in = 0; in < N; in++)
-            {
-                // if (static_cast<float>(static_cast<CDataType*>(p_c)[im * N + in]) != 0)
-                printf("c[%d][%d]: %f ",
-                       im,
-                       in,
-                       static_cast<float>(static_cast<CDataType*>(p_c)[im * N + in]));
-                printf("ref[%d][%d]: %f \n",
-                       im,
-                       in,
-                       static_cast<float>(
-                           static_cast<CDataType*>(c_m_n_host_ref.data())[im * N + in]));
-            }
-        }
+        // for(int im = 0; im < M; im++)
+        // {
+        //     for(int in = 0; in < N; in++)
+        //     {
+        //         // if (static_cast<float>(static_cast<CDataType*>(p_c)[im * N + in]) != 0)
+        //         printf("c[%d][%d]: %f ",
+        //                im,
+        //                in,
+        //                static_cast<float>(static_cast<CDataType*>(p_c)[im * N + in]));
+        //         printf("ref[%d][%d]: %f \n",
+        //                im,
+        //                in,
+        //                static_cast<float>(
+        //                    static_cast<CDataType*>(c_m_n_host_ref.data())[im * N + in]));
+        //     }
+        // }
 
         pass = ck_tile::check_err(c_m_n_tensor,
                                   c_m_n_host_ref,

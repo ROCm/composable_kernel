@@ -98,6 +98,7 @@ __global__ void naive_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
     int row = idx / N; // Compute row index
     int col = idx % N; // Compute column index
 
+    (void)Num_tokens;
     // assert(p_sorted_expert_ids_ != nullptr);
     // assert(TopK == 1);
     // assert(Num_tokens == 128);

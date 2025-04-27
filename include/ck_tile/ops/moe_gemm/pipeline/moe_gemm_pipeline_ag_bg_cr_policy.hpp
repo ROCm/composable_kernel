@@ -6,10 +6,11 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
 
 namespace ck_tile {
 template <typename Problem>
-struct MoeGemmPipelineAgBgCrPolicy : public GemmPipelineAgBgCrCompV4DefaultPolicy
+struct MoeGemmPipelineAgBgCrPolicy : public UniversalFlatmmPipelineAgBgCrPolicy
 {
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_C()

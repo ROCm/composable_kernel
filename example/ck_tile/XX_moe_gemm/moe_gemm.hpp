@@ -7,7 +7,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/gemm/kernel/moe_gemm_kernel.hpp"
+#include "ck_tile/ops/moe_gemm.hpp"
 
 template <typename DataType>
 struct GemmTypeConfig;
@@ -37,6 +37,9 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("experts", "8", "Num of experts - 8 by default")
         .insert("NumTokens", "128", "M dimensions - 128 by default.")
         .insert("TopK", "3", "Top K - 2 by default.")
+        // .insert("TopK", "2", "Top K - 2 by default.")
+        // .insert("N", "8192", "N dimensions - 4096 by default.")
+        // .insert("K", "6144", "K dimensions - 4096 by default.")
         .insert("N", "4096", "N dimensions - 4096 by default.")
         .insert("K", "4096", "K dimensions - 4096 by default.")
         .insert("stride_A", "", "Tensor A strides - it is empty by default.")
@@ -46,6 +49,7 @@ auto create_args(int argc, char* argv[])
         .insert("b_layout", "C", "B tensor data layout - Col by default.")
         .insert("c_layout", "R", "C tensor data layout - Row by default.")
         .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
+        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("repeat", "10", "number of iterations to benchmark the kernel.");
 
     bool result = arg_parser.parse(argc, argv);
