@@ -1358,12 +1358,12 @@ struct FmhaFwdKernel
         const auto variant_params = [&] {
             if constexpr(AttentionVariant::use_logits_soft_cap)
             {
-                return ck_tile::LogitsSoftCapParams<AttentionVariant::use_exp2>{
-                    kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
+                return ck_tile::LogitsSoftCapParams<FmhaMask, AttentionVariant::use_exp2>{
+                    mask, kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
             }
             else
             {
-                return ck_tile::StandardAttentionParams{kargs.scale_s};
+                return ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
             }
         }();
 

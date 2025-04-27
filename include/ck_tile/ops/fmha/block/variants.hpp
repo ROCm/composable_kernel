@@ -10,18 +10,24 @@
 
 namespace ck_tile {
 
+template <typename ImplMask>
 struct StandardAttentionParams
 {
-    __device__ __host__ StandardAttentionParams(float sm_scale_) : sm_scale(sm_scale_) {}
+    __device__ __host__ StandardAttentionParams(const ImplMask& impl_mask_, float sm_scale_)
+        : impl_mask(impl_mask_), sm_scale(sm_scale_)
+    {
+    }
 
+    const ImplMask& impl_mask;
     float sm_scale;
 };
 
-template <bool UseExp2 = false>
+template <typename ImplMask, bool UseExp2 = false>
 struct LogitsSoftCapParams
 {
-    __device__ LogitsSoftCapParams(float sm_scale_, float logits_soft_cap_)
-        : sm_scale(sm_scale_), logits_soft_cap(logits_soft_cap_)
+    __device__
+    LogitsSoftCapParams(const ImplMask& impl_mask_, float sm_scale_, float logits_soft_cap_)
+        : impl_mask(impl_mask_), sm_scale(sm_scale_), logits_soft_cap(logits_soft_cap_)
     {
         if(0.f < logits_soft_cap)
         {
@@ -41,8 +47,9 @@ struct LogitsSoftCapParams
         }
     }
 
-    __host__ LogitsSoftCapParams(float sm_scale_, float logits_soft_cap_)
-        : sm_scale(sm_scale_), logits_soft_cap(logits_soft_cap_)
+    __host__
+    LogitsSoftCapParams(const ImplMask& impl_mask_, float sm_scale_, float logits_soft_cap_)
+        : impl_mask(impl_mask_), sm_scale(sm_scale_), logits_soft_cap(logits_soft_cap_)
     {
         if(0.f < logits_soft_cap)
         {
@@ -62,10 +69,12 @@ struct LogitsSoftCapParams
         }
     }
 
-    __device__ __host__ LogitsSoftCapParams(float sm_scale_,
+    __device__ __host__ LogitsSoftCapParams(const ImplMask& impl_mask_,
+                                            float sm_scale_,
                                             float logits_soft_cap_,
                                             float logits_soft_cap_rcp_)
-        : sm_scale(sm_scale_),
+        : impl_mask(impl_mask_),
+          sm_scale(sm_scale_),
           logits_soft_cap(logits_soft_cap_),
           logits_soft_cap_rcp(logits_soft_cap_rcp_)
     {
@@ -78,6 +87,7 @@ struct LogitsSoftCapParams
         }
     }
 
+    const ImplMask& impl_mask;
     float sm_scale;
     float logits_soft_cap;
     float logits_soft_cap_rcp;
@@ -101,11 +111,10 @@ struct StandardAttention
     }
 
     template <typename Params>
-    __device__ __forceinline__ bool LogitsMask([[maybe_unused]] const Params& params,
-                                               [[maybe_unused]] uint32_t qo_idx,
-                                               [[maybe_unused]] uint32_t kv_idx) const
+    __device__ __forceinline__ bool
+    LogitsMask(const Params& params, uint32_t qo_idx, uint32_t kv_idx) const
     {
-        return true;
+        return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
     }
 };
 
@@ -143,11 +152,10 @@ struct LogitsSoftCap
     }
 
     template <typename Params>
-    __device__ __forceinline__ bool LogitsMask([[maybe_unused]] const Params& params,
-                                               [[maybe_unused]] uint32_t qo_idx,
-                                               [[maybe_unused]] uint32_t kv_idx) const
+    __device__ __forceinline__ bool
+    LogitsMask(const Params& params, uint32_t qo_idx, uint32_t kv_idx) const
     {
-        return true;
+        return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
     }
 };
 
@@ -195,11 +203,10 @@ struct ComposedAttention
     }
 
     template <typename Params>
-    __device__ __forceinline__ bool LogitsMask([[maybe_unused]] const Params& params,
-                                               [[maybe_unused]] uint32_t qo_idx,
-                                               [[maybe_unused]] uint32_t kv_idx) const
+    __device__ __forceinline__ bool
+    LogitsMask(const Params& params, uint32_t qo_idx, uint32_t kv_idx) const
     {
-        return true;
+        return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
     }
 };
 
