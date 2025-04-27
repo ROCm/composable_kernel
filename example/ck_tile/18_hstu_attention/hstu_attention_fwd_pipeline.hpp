@@ -358,20 +358,48 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                 if constexpr(HstuMask::IsMasking)
                 {
-                    constexpr auto s_spans = SaccBlockTileType::get_distributed_spans();
-                    sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
-                        sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
-                            const auto tile_idx = get_x_indices_from_distributed_indices(
-                                sacc_tiles[i_k1].get_tile_distribution(), make_tuple(idx0, idx1));
+                    if constexpr(HstuMask::kUseLocal)
+                    {
+                        constexpr auto s_spans = SaccBlockTileType::get_distributed_spans();
+                        sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
+                            sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
+                                const auto tile_idx = get_x_indices_from_distributed_indices(
+                                    sacc_tiles[i_k1].get_tile_distribution(),
+                                    make_tuple(idx0, idx1));
 
-                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                            const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
-                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                                const auto row =
+                                    q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                const auto col         = seqlen_k_curr + tile_idx.at(number<1>{});
+                                constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                            sacc_tiles[i_k1](i_j_idx) *=
-                                static_cast<GemmAccDataType>(mask.IsTokenPairInsideMask(row, col));
+                                sacc_tiles[i_k1](i_j_idx) *= static_cast<GemmAccDataType>(
+                                    mask.IsTokenPairInsideMask(row, col));
+                            });
                         });
-                    });
+                    }
+                    else // kUseCausal=true, kUseLocal=false
+                    {
+                        if(!mask.IsFullTileInsideMask(
+                               q_origin.at(number<0>{}), seqlen_k_curr, number<kK1>{}))
+                        {
+                            constexpr auto s_spans = SaccBlockTileType::get_distributed_spans();
+                            sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
+                                sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
+                                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                                        sacc_tiles[i_k1].get_tile_distribution(),
+                                        make_tuple(idx0, idx1));
+
+                                    const auto row =
+                                        q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                    const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
+                                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                                    sacc_tiles[i_k1](i_j_idx) *= static_cast<GemmAccDataType>(
+                                        mask.IsTokenPairInsideMask(row, col));
+                                });
+                            });
+                        }
+                    };
                 }
                 else if constexpr(kPadSeqLenK)
                 {
