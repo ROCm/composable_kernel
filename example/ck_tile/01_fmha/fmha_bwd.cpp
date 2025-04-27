@@ -600,7 +600,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
               << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
-              << " GB/s" << std::flush;
+              << " GB/s\n" << std::flush;
 
     if(!do_validation)
     {
@@ -753,24 +753,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             // if left window size is negative, means causal
             // else means generic (for current batch)
-            if(mask.left < 0)
+            if(mask.left < 0) {
+                auto r = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
+                    mask.left, mask.right, real_seqlen_q, real_seqlen_k, mask.type == mask_enum::mask_top_left);
+                auto mask_tmp = FmhaMasks::CausalMask{r.at(ck_tile::number<0>{}), r.at(ck_tile::number<1>{}), real_seqlen_q, real_seqlen_k};
+                std::cout << "\nhost_mask_y: " << r.at(ck_tile::number<0>{}) << ", host_mask_x: " << r.at(ck_tile::number<1>{}) << std::endl;
                 ck_tile::reference_batched_masking<AccDataType>(
                     s_host_ref,
-                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
-                        mask.left,
-                        mask.right,
-                        real_seqlen_q,
-                        real_seqlen_k,
-                        mask.type == mask_enum::mask_top_left));
-            else
+                    mask_tmp);
+            }
+            else {
+                auto r = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
+                    mask.left, mask.right, real_seqlen_q, real_seqlen_k, mask.type == mask_enum::mask_top_left);
+                auto mask_tmp = FmhaMasks::GenericMask{r.at(ck_tile::number<0>{}), r.at(ck_tile::number<1>{}), real_seqlen_q, real_seqlen_k};
+                std::cout << "\nhost_mask_y: " << r.at(ck_tile::number<0>{}) << ", host_mask_x: " << r.at(ck_tile::number<1>{}) << std::endl;
                 ck_tile::reference_batched_masking<AccDataType>(
                     s_host_ref,
-                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                        mask.left,
-                        mask.right,
-                        real_seqlen_q,
-                        real_seqlen_k,
-                        mask.type == mask_enum::mask_top_left));
+                    mask_tmp);
+            }
         }
         ck_tile::reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(
             s_host_ref, p_hp_host_ref, ck_tile::identity{}, lse_host_ref);
@@ -819,7 +819,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
     }
     // for (int i = 0; i < 384; i++) {
-    //     std::cout << (*std::next(std::begin(lse_host), i)) << ", " << std::endl;
+    //     std::cout << "lse_host: " << i << ": " << (*std::next(std::begin(lse_host), i)) << ", " << std::endl;
     // }
     o_buf.ToDevice(o_host.data());
     lse_buf.ToDevice(lse_host.data());

@@ -1032,11 +1032,11 @@ float fmha_bwd_v3_swa_genl_(const ck_tile::stream_config& s, fmha_bwd_args a)
     args.Seqs_dv  = a.stride_dv * 2;
 
     // TODO: convert l/r to x/y HERE
-    auto generic_mask = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(a.window_size_left, a.window_size_right, a.seqlen_q, a.seqlen_k, a.mask_type == static_cast<ck_tile::index_t>(mask_enum::mask_top_left));
+    auto generic_mask = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(a.window_size_left, a.window_size_right, a.seqlen_q, a.seqlen_k, (a.mask_type == static_cast<ck_tile::index_t>(mask_enum::mask_top_left) || a.mask_type == static_cast<ck_tile::index_t>(mask_enum::window_generic)));
     args.mask_y = generic_mask.at(ck_tile::number<0>{{}});
     args.mask_x = generic_mask.at(ck_tile::number<1>{{}});
 
-    std::cout << "\nmask_y: " << args.mask_y << ", mask_x: " << args.mask_x << std::endl;
+    std::cout << "mask_y: " << args.mask_y << ", mask_x: " << args.mask_x << std::endl;
 
     auto traits = fmha_bwd_v3_traits{{a.batch,
                                       a.nhead_q,
@@ -2268,8 +2268,6 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= bias in ['no']
                     cond &= dropout in ['no']
                     cond &= dpad == dvpad
-                    cond &= spad == skpad
-                    cond &= spad == 'f'
                     cond &= deterministic == "f"
                     if not cond:
                         continue
