@@ -91,10 +91,10 @@ struct HstuBlockMaskWithLocal
 
     // masking codes in device don't have to compare row/col with max_uih_len, since
     // buffer_load_xxx instruction is able to return zero for out-of-boundary access
-    CK_TILE_DEVICE constexpr bool IsTokenPairInsideMask(int row, int col)
+    CK_TILE_DEVICE constexpr int IsTokenPairInsideMask(int row, int col)
     {
         if(row < contextual_seqlen)
-            return true;
+            return 1;
 
         if constexpr(kUseCausal)
         {
@@ -103,7 +103,7 @@ struct HstuBlockMaskWithLocal
             if(min_full_attn_seqlen > 0)
                 result = result || (row >= max_uih_len - min_full_attn_seqlen);
 
-            return result;
+            return static_cast<int>(result);
         }
         else
         {
@@ -112,7 +112,7 @@ struct HstuBlockMaskWithLocal
             if(min_full_attn_seqlen > 0)
                 result = result || (row >= max_uih_len - min_full_attn_seqlen);
 
-            return result;
+            return static_cast<int>(result);
         }
     };
 };
@@ -171,19 +171,19 @@ struct HstuBlockMaskNoLocal
 
     // masking codes in device don't have to compare row/col with max_uih_len, since
     // buffer_load_xxx instruction is able to return zero for out-of-boundary access
-    CK_TILE_DEVICE constexpr bool IsTokenPairInsideMask(int row, int col)
+    CK_TILE_DEVICE constexpr int IsTokenPairInsideMask(int row, int col)
     {
         if(row < contextual_seqlen)
-            return true;
+            return 1;
 
         if constexpr(IsMasking)
         {
             bool result = (row >= col);
 
-            return result;
+            return static_cast<int>(result);
         }
 
-        return true;
+        return 1;
     };
 };
 
