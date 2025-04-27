@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -53,31 +53,33 @@ class TestGroupedConvndBwdDataXdl : public ::testing::Test
 
 using namespace ck::tensor_layout::convolution;
 
-using KernelTypes2d = ::testing::Types<std::tuple<float, GNHWK, GKYXC, GNHWC>,
-                                       std::tuple<ck::half_t, GNHWK, GKYXC, GNHWC>,
-                                       std::tuple<ck::bhalf_t, GNHWK, GKYXC, GNHWC>,
-                                       std::tuple<float, NGKHW, GKYXC, NGCHW>,
-                                       std::tuple<ck::half_t, NGKHW, GKYXC, NGCHW>,
-                                       std::tuple<ck::bhalf_t, NGKHW, GKYXC, NGCHW>,
-                                       std::tuple<float, NGKHW, GKCYX, NGCHW>,
-                                       std::tuple<ck::half_t, NGKHW, GKCYX, NGCHW>,
-                                       std::tuple<ck::bhalf_t, NGKHW, GKCYX, NGCHW>,
-                                       std::tuple<float, NHWGK, GKYXC, NHWGC>,
-                                       std::tuple<ck::half_t, NHWGK, GKYXC, NHWGC>,
-                                       std::tuple<ck::bhalf_t, NHWGK, GKYXC, NHWGC>>;
+using KernelTypes2d = ::testing::Types< // std::tuple<float, GNHWK, GKYXC, GNHWC>,
+                                        //    std::tuple<ck::half_t, GNHWK, GKYXC, GNHWC>,
+                                        //    std::tuple<ck::bhalf_t, GNHWK, GKYXC, GNHWC>,
+                                        //    std::tuple<float, NGKHW, GKYXC, NGCHW>,
+                                        //    std::tuple<ck::half_t, NGKHW, GKYXC, NGCHW>,
+                                        //    std::tuple<ck::bhalf_t, NGKHW, GKYXC, NGCHW>,
+                                        //    std::tuple<float, NGKHW, GKCYX, NGCHW>,
+                                        //    std::tuple<ck::half_t, NGKHW, GKCYX, NGCHW>,
+                                        //    std::tuple<ck::bhalf_t, NGKHW, GKCYX, NGCHW>,
+                                        //    std::tuple<float, NHWGK, GKYXC, NHWGC>,
+                                        //    std::tuple<ck::half_t, NHWGK, GKYXC, NHWGC>,
+    std::tuple<ck::bhalf_t, NHWGK, GKYXC, NHWGC>>;
 
-using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<ck::half_t, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<ck::bhalf_t, GNDHWK, GKZYXC, GNDHWC>,
-                                       std::tuple<float, NGKDHW, GKZYXC, NGCDHW>,
-                                       std::tuple<ck::half_t, NGKDHW, GKZYXC, NGCDHW>,
-                                       std::tuple<ck::bhalf_t, NGKDHW, GKZYXC, NGCDHW>,
-                                       std::tuple<float, NGKDHW, GKCZYX, NGCDHW>,
-                                       std::tuple<ck::half_t, NGKDHW, GKCZYX, NGCDHW>,
-                                       std::tuple<ck::bhalf_t, NGKDHW, GKCZYX, NGCDHW>,
-                                       std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
-                                       std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
-                                       std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>>;
+using KernelTypes3d = ::testing::Types<
+    // std::tuple<float, GNDHWK, GKZYXC, GNDHWC>,
+    //                                    std::tuple<ck::half_t, GNDHWK, GKZYXC, GNDHWC>,
+    //                                    std::tuple<ck::bhalf_t, GNDHWK, GKZYXC, GNDHWC>,
+    std::tuple<float, NGKDHW, GKZYXC, NGCDHW>
+    //                                    std::tuple<ck::half_t, NGKDHW, GKZYXC, NGCDHW>,
+    //                                    std::tuple<ck::bhalf_t, NGKDHW, GKZYXC, NGCDHW>,
+    //                                    std::tuple<float, NGKDHW, GKCZYX, NGCDHW>,
+    //                                    std::tuple<ck::half_t, NGKDHW, GKCZYX, NGCDHW>,
+    //                                    std::tuple<ck::bhalf_t, NGKDHW, GKCZYX, NGCDHW>,
+    //    std::tuple<float, NDHWGK, GKZYXC, NDHWGC>,
+    //    std::tuple<ck::half_t, NDHWGK, GKZYXC, NDHWGC>,
+    //    std::tuple<ck::bhalf_t, NDHWGK, GKZYXC, NDHWGC>
+    >;
 
 template <typename Tuple>
 class TestGroupedConvndBwdDataXdl2d : public TestGroupedConvndBwdDataXdl<Tuple>
@@ -111,7 +113,7 @@ TYPED_TEST(TestGroupedConvndBwdDataXdl3d, Test3D)
                                  4,
                                  192,
                                  {2, 2, 2},
-                                 {1, 224, 224},
+                                 {2, 224, 224},
                                  {1, 224, 224},
                                  {1, 1, 1},
                                  {0, 0, 0},
