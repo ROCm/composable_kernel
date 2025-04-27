@@ -19,11 +19,12 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         using namespace ck_tile;
-
+        
+#if 0
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t kKPack     = GetSmemPackA<Problem>();
-#if 1
+
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
             make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
@@ -39,6 +40,9 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 #endif
 /*xor*/
 #if 0
+        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t kKPack     = GetSmemPackA<Problem>();
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
         constexpr auto DataTypeSize = sizeof(ADataType);
@@ -79,7 +83,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
             make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 #endif
-#if 0 /*reduce transform layers,compare with old ck*/
+#if 1 /*reduce transform layers,compare with old ck*/
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t KPack     = GetSmemPackA<Problem>();

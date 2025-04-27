@@ -92,15 +92,16 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         constexpr index_t B_Buffer_Load_Inst_Num = NIterPerWarp * KIterPerWarp;
         // constexpr index_t A_LDS_Read_Inst_Remain = A_LDS_Read_Inst_Num - A_Buffer_Load_Inst_Num;
 
-        static_for<0, A_LDS_Read_Inst_Num, 1>{}([&](auto i) {
-            ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-        });
         static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
             ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        });
+        static_for<0, A_LDS_Read_Inst_Num-A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x008, 3, 0); // MFMA
         });
         static_for<0, B_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
             ignore = i;
@@ -110,7 +111,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
         });
     }
 
@@ -134,14 +135,20 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
-        // constexpr index_t MWarp = config.template at<1>();
+        constexpr index_t MWarp = config.template at<1>();
         constexpr index_t NWarp = config.template at<2>();
 
-        constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
+        constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WG::kM);
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
+        constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
 
         constexpr index_t KFlatPerBlockPerIter = flatKPerWarp;
         constexpr index_t NFlatPerBlockPerIter = flatNPerWarp;
+
+        constexpr index_t MPerBlockPerIter = kMPerBlock / MIterPerWarp;
+        constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
+
+        const index_t iMWarp = get_warp_id() / NWarp;
 
         // A tile in LDS
         ADataType* p_a_lds = static_cast<ADataType*>(p_smem);
@@ -165,6 +172,25 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         // A LDS tile for block GEMM
         auto a_lds_gemm_window = make_tile_window(
             a_lds_block, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
+
+        auto a_warp_window_tmp = make_tile_window(
+            a_lds_gemm_window.get_bottom_tensor_view(),
+            make_tuple(number<WG::kM>{}, number<WG::kK>{}),
+            a_lds_gemm_window.get_window_origin() + multi_index<2>{iMWarp * WG::kM, 0},
+            make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
+
+        statically_indexed_array<
+            statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>,
+            MIterPerWarp>
+            a_warp_windows;
+        static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                a_warp_windows(mIter)(kIter) = a_warp_window_tmp;
+
+                move_tile_window(a_warp_windows(mIter)(kIter),
+                                    {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
+            });
+        });
 
         // Block GEMM
         auto block_flatmm = BlockFlatmm();
@@ -245,7 +271,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             a_block_tile = load_tile(a_copy_dram_window);
 
             // GEMM i
-            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor);
+            block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor);
 
             block_sync_lds();
 
@@ -278,7 +304,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             a_block_tile = load_tile(a_copy_dram_window);
 
             // GEMM i
-            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor_2);
+            block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor_2);
 
             block_sync_lds();
 
@@ -315,7 +341,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             a_block_tile = load_tile(a_copy_dram_window);
 
             // GEMM i
-            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor);
+            block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor);
 
             block_sync_lds();
 
@@ -340,10 +366,11 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             // move to next flat K
             // move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
+            HotLoopScheduler();
             block_sync_lds();
 
             // GEMM num_loop - 1
-            block_flatmm(c_block_tile, a_lds_gemm_window, b_warp_tensor_2);
+            block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor_2);
         }
 
         return c_block_tile;

@@ -68,48 +68,51 @@ struct BlockFlatmmASmemBSmemCRegV1
     // C += A * B
     template <typename CBlockTensor, typename ABlockWindow, typename BFlatBlockTensor>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                   const ABlockWindow& a_block_window,
+                                   ABlockWindow& a_warp_windows,
                                    BFlatBlockTensor& b_warp_tensor) const
     {
-        constexpr index_t MPerBlock = ABlockWindow{}.get_window_lengths()[number<0>{}];
-        constexpr index_t KPerBlock = ABlockWindow{}.get_window_lengths()[number<1>{}];
+        // constexpr index_t MPerBlock = ABlockWindow{}.get_window_lengths()[number<0>{}];
+        // constexpr index_t KPerBlock = ABlockWindow{}.get_window_lengths()[number<1>{}];
 
-        static_assert(MPerBlock == BlockGemmShape::kM && KPerBlock == BlockGemmShape::kK, "wrong!");
+        // static_assert(MPerBlock == BlockGemmShape::kM && KPerBlock == BlockGemmShape::kK, "wrong!");
+
+        constexpr index_t MPerBlock = BlockGemmShape::kM;
+        constexpr index_t KPerBlock = BlockGemmShape::kK;
 
         constexpr auto config = BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
+        // constexpr index_t NWarp = config.template at<2>();
 
         constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
         constexpr index_t NIterPerWarp =
             BlockTile::at(idxN) / (WarpTile::at(idxN) * BlockWarps::at(idxN));
         constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
 
-        constexpr index_t MPerBlockPerIter = MPerBlock / MIterPerWarp;
-        constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
+        // constexpr index_t MPerBlockPerIter = MPerBlock / MIterPerWarp;
+        // constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
-        const index_t iMWarp = get_warp_id() / NWarp;
+        // const index_t iMWarp = get_warp_id() / NWarp;
 
         // construct A-warp-window
-        auto a_warp_window_tmp = make_tile_window(
-            a_block_window.get_bottom_tensor_view(),
-            make_tuple(number<WG::kM>{}, number<WG::kK>{}),
-            a_block_window.get_window_origin() + multi_index<2>{iMWarp * WG::kM, 0},
-            make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
-        statically_indexed_array<
-            statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>,
-            MIterPerWarp>
-            a_warp_windows;
-        static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                a_warp_windows(mIter)(kIter) = a_warp_window_tmp;
+        // auto a_warp_window_tmp = make_tile_window(
+        //     a_block_window.get_bottom_tensor_view(),
+        //     make_tuple(number<WG::kM>{}, number<WG::kK>{}),
+        //     a_block_window.get_window_origin() + multi_index<2>{iMWarp * WG::kM, 0},
+        //     make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
+        // statically_indexed_array<
+        //     statically_indexed_array<decltype(a_warp_window_tmp), KIterPerWarp>,
+        //     MIterPerWarp>
+        //     a_warp_windows;
+        // static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+        //     static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+        //         a_warp_windows(mIter)(kIter) = a_warp_window_tmp;
 
-                move_tile_window(a_warp_windows(mIter)(kIter),
-                                 {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
-            });
-        });
+        //         move_tile_window(a_warp_windows(mIter)(kIter),
+        //                          {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
+        //     });
+        // });
 
         using CWarpDstr   = typename WG::CWarpDstr;
         using CWarpTensor = typename WG::CWarpTensor;
