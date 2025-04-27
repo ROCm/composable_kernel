@@ -48,8 +48,8 @@ struct BatchedTransposeKernel
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
     {
-        size_t grid_size_x = (h.width + h.dim_block_w - 1) / h.dim_block_w;
-        size_t grid_size_y = (h.height + h.dim_block_h - 1) / h.dim_block_h;
+        size_t grid_size_x = h.dim_block_w;
+        size_t grid_size_y = h.dim_block_h;
         size_t grid_size_z = h.batch;
         return dim3(grid_size_x, grid_size_y, grid_size_z);
     }
@@ -107,14 +107,14 @@ struct BatchedTransposeKernel
         auto x_block_window =
             make_tile_window(x_m_n,
                              make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iM * kMPerBlock),
-                              static_cast<ck_tile::index_t>(iN * kNPerBlock)});
+                             {static_cast<ck_tile::index_t>(iM),
+                              static_cast<ck_tile::index_t>(iN)});
 
         auto y_block_window =
             make_tile_window(y_n_m,
                              make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iN * kNPerBlock),
-                              static_cast<ck_tile::index_t>(iM * kMPerBlock)});
+                             {static_cast<ck_tile::index_t>(iN),
+                              static_cast<ck_tile::index_t>(iM)});
 
         Pipeline{}(x_block_window, y_block_window, smem);
     }

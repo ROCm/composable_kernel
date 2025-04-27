@@ -42,16 +42,6 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     return ave_time;
 }
 
-template <typename T,
-          ck_tile::index_t block_x,
-          ck_tile::index_t block_y,
-          ck_tile::index_t warp_x,
-          ck_tile::index_t warp_y>
-static float transpose_fn(batched_transpose_kargs& a, ck_tile::stream_config& s)
-{
-    return batched_transpose_dispatch<T, block_x, block_y, warp_x, warp_y>(a, s);
-}
-
 float batched_transpose(batched_transpose_trait t,
                         batched_transpose_kargs a,
                         ck_tile::stream_config s)
