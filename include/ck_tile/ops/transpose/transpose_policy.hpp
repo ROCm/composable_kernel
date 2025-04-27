@@ -105,17 +105,12 @@ struct TransposePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
     {
-        // constexpr index_t BlockSize = Problem::kBlockSize;
-        // the dimension is reversed after transpose
-        // constexpr index_t LeadDimPerBlock    = Problem::kSecondSizePerBlock;
-        // constexpr index_t SecondDimPerBlock  = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondIterPerWarp = Problem::kLeadXdlNumPerWarp;
         constexpr index_t kLeadIterPerWarp   = Problem::kSecondXdlNumPerWarp;
         constexpr index_t kSecondNumWarps    = Problem::kLeadNumWarps;
         constexpr index_t kLeadNumWarps      = Problem::kSecondNumWarps;
         // transpose is based on 64 Bytes
-        constexpr index_t kLead =
-            Problem::kSecondSizePerXdl; // Problem::kLeadSizePerXdl;
+        constexpr index_t kLead   = Problem::kSecondSizePerXdl; // Problem::kLeadSizePerXdl;
         constexpr index_t kSecond = Problem::kLeadSizePerXdl;
         constexpr index_t kLeadDimstr =
             kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDimT;
@@ -128,7 +123,7 @@ struct TransposePolicy
             tile_distribution_encoding<sequence<>,
                                        tuple<sequence<kSecondIterPerWarp, kSecondNumWarps>,
                                              sequence<kLeadIterPerWarp, kLeadNumWarps>>,
-                                       tuple<sequence<2, 1>>,
+                                       tuple<sequence<1, 2>>,
                                        tuple<sequence<1, 1>>,
                                        sequence<2, 1>,
                                        sequence<0, 0>>{};
@@ -137,14 +132,6 @@ struct TransposePolicy
         constexpr auto block_dstr = make_static_tile_distribution(blk_distr_encode);
 
         return block_dstr;
-        // TODO, fix the tile distribution
-        // return make_static_tile_distribution(
-        //     tile_distribution_encoding<sequence<>,
-        //                                tuple<sequence<16>, sequence<4, VecLoadSize>>,
-        //                                tuple<sequence<2, 1>>,
-        //                                tuple<sequence<0, 0>>,
-        //                                sequence<2>,
-        //                                sequence<1>>{});
     }
 
     template <typename Problem>
