@@ -181,7 +181,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm
                // mn_perxdl
                MNPerXDL,   MNPerXDL,
                // mn_xdlperwave 
-               MXDLPerWave,    NXDLPerWave,
+               MXDLPerWave,  NXDLPerWave,
                // a,b: loadtranfer cluster, cluster order, srcorder,VECDIM, srcpervec, dstpervec, lds_extra
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
@@ -273,7 +273,7 @@ int main(int argc, char* argv[])
     {
         expert_ids.mData[i] = i / (valid_tile_num / experts);
     }
- 
+
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
     // sorted_token_ids.mData[0] = 0;

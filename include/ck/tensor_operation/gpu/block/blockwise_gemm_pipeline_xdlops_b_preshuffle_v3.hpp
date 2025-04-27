@@ -185,516 +185,94 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
 
-    struct HotLoopScheduler
+    __device__ static constexpr auto HotLoopScheduler()
     {
-        // MRepeat=16
-        // ds_read 256x128/64/16=32
-        // buffer_load_b 256x128/256/16 = 16
-        // 8
-        // ds_write_a = 8
-        // buffer_load_a 256x128/256/16 = 16
-        // mfma 256x256x128/4/16/16/128 = 64
-        // ds_write: 8 mfma, 4 repeat
-        // 6, 6,
-        // 15, 
-        
-        // 
+        // A/B split schedule
+        // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
+        constexpr auto num_ds_read_inst_a =
+            HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16
+                ? HotLoopInstList::A_LDS_Read_Inst_Num
+                : HotLoopInstList::A_LDS_Read_Inst_Num / 2;
 
-        // Per repeat: 4 mfma
-        // ds_read 16x128/64/16=2
-        // 4 mfma assioate with 2 dsread
-        // calculate the stage that issue each instructions.
-        
-        // GMEM, SMEM and MFMA instructions
-        static constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
-        static constexpr auto num_ds_write_inst_a    = HotLoopInstList::A_LDS_Write_Inst_Num;
-        static constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        static constexpr auto num_buffer_load_inst_b =
-            MWaves * HotLoopInstList::B_Buffer_Load_Inst_Num;
+        constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
 
-        static constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
+        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
 
-        // We reuse the register between adjacent MRepeat stages.
-        // staged_num_ds_read_inst_a staged_num_mfma should be associated in a group
-        // So that the register resource released and could be reused in next iMRepeat stage
-        static constexpr auto staged_num_ds_read_inst_a = num_ds_read_inst_a / MRepeat;
-        static constexpr auto staged_num_mfma           = num_mfma / MRepeat;
-        
-        static constexpr auto buffer_load_b_stage =0;
-        static constexpr auto ds_write_a_stage =4;
-        static constexpr auto buffer_load_a_stage =8;
-        static constexpr auto buffer_load_a_stage_end =12;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto mfma_cycle    = HotLoopInstList::C_MFMA_Inst_Cycle;
 
-        // template <typename Stage>
-        __device__ constexpr auto operator()()
-        {
-#if 0
-            if constexpr(stage.value >= buffer_load_b_stage && stage.value < ds_write_a_stage)
+        constexpr auto ds_read_a_issue_cycle =
+            HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
+        constexpr auto ds_read_a_mfma_rate =
+            math::integer_divide_ceil(mfma_cycle - 4, 2 * ds_read_a_issue_cycle);
+
+        // constexpr auto num_dsread_a_mfma =
+        //     (num_ds_read_inst_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
+
+        constexpr auto num_stages = MRepeat;
+
+        // Group num_mfma_perstage num_ds_read_a_perstage
+        // since we want to reuse a local register buffer
+        constexpr auto num_mfma_perstage      = num_mfma_inst / num_stages;
+        constexpr auto num_ds_read_a_perstage = num_ds_read_inst_a / num_stages;
+
+        constexpr auto num_ds_read_a_mfma_perstage =
+            math::integer_divide_ceil(num_ds_read_a_perstage, ds_read_a_mfma_rate);
+
+        constexpr auto num_mfma_per_issue_more = math::integer_divide_ceil(
+            num_mfma_inst, num_buffer_load_inst_a + num_buffer_load_inst_b);
+        constexpr auto num_mfma_per_issue_less = math::integer_divide_floor(
+            num_mfma_inst, num_buffer_load_inst_a + num_buffer_load_inst_b);
+        // Insert more mfmas between bufferloads
+        constexpr auto num_stage1_bufferloads =
+            num_mfma_inst -
+            (num_buffer_load_inst_a + num_buffer_load_inst_b) * num_mfma_per_issue_less;
+        constexpr auto num_stage1_mfma = num_mfma_per_issue_more * num_stage1_bufferloads;
+        // Insert less mfmas between bufferloads
+        // constexpr auto num_stage2_mfma = num_mfma_inst - num_stage1_mfma;
+
+        constexpr auto buffer_load_issue_point     = 0;
+        constexpr auto ds_write_issue_point_stage1 = num_mfma_per_issue_more >= 3 ? 1 : 0;
+        constexpr auto ds_write_issue_point_stage2 = num_mfma_per_issue_less >= 3 ? 1 : 0;
+
+        static_for<0, num_mfma_inst, 1>{}([&](auto i) {
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+
+            // Group num_mfma_perstage num_ds_read_a_perstage
+            // Hide A lds rd issue latency at begining of each stage
+            if constexpr((i % num_mfma_perstage) >=
+                         (num_mfma_perstage - num_ds_read_a_mfma_perstage))
             {
-                static_for<0, 4, 1>{}([&](auto i) {
-                    ignore = i;
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                });
-#if 0 
-                constexpr auto staged_num_buffer_load_b_per_ds_read_a =
-                    num_buffer_load_inst_b / staged_num_ds_read_inst_a;
-                constexpr auto staged_num_mfma_per_buffer_load_b =
-                    staged_num_mfma / num_buffer_load_inst_b;
-                // B global
-                static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                    ignore = i_inst;
-
-                    static_for<0, staged_num_buffer_load_b_per_ds_read_a - 1, 1>{}(
-                        [&](auto ibuf_inst) {
-                            ignore = ibuf_inst;
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x008, staged_num_mfma_per_buffer_load_b, 0);  // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                        });
-
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x008, staged_num_mfma_per_buffer_load_b - 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);    // VMEM read
-                });
-#endif
-                // __builtin_amdgcn_sched_barrier(0);
+                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
             }
-            else if constexpr(stage.value >= ds_write_a_stage && stage.value< buffer_load_a_stage)
+
+            // Schedule VMEM access instruction distributed evenly in the loop
+            // Hide B/A global rd issue latency
+            if constexpr(((i < num_stage1_mfma) &&
+                          (i % num_mfma_per_issue_more == buffer_load_issue_point)) ||
+                         ((i >= num_stage1_mfma) &&
+                          ((i - num_stage1_mfma) % num_mfma_per_issue_less ==
+                           buffer_load_issue_point)))
             {
-                static_for<0, 4, 1>{}([&](auto i) {
-                    ignore = i;
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-                });
-#if 0
-                constexpr auto staged_num_mfma_per_ds_write_a =
-                    math::integer_divide_ceil(staged_num_mfma, num_ds_write_inst_a);
-
-                constexpr auto stage_more_mfma =
-                    staged_num_mfma - (staged_num_mfma_per_ds_write_a - 1) * num_ds_write_inst_a;
-
-                // A local write
-                static_for<0, num_ds_write_inst_a, 1>{}([&](auto i_inst) {
-                    if constexpr(i_inst.value < stage_more_mfma)
-                    {
-                        if(i_inst.value < staged_num_ds_read_inst_a)
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x008, staged_num_mfma_per_ds_write_a - 1, 0); // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                        }
-                        else
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x008, staged_num_mfma_per_ds_write_a, 0);     // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        }
-                    }
-                    else
-                    {
-                        if(i_inst.value < staged_num_ds_read_inst_a)
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x008, staged_num_mfma_per_ds_write_a - 2, 0); // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                        }
-                        else
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x008, staged_num_mfma_per_ds_write_a - 1, 0); // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        }
-                    }
-                });
-#endif
-                // __builtin_amdgcn_sched_barrier(0);
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
-            else if constexpr(stage.value >= buffer_load_a_stage && stage.value <buffer_load_a_stage_end)
+
+            // Hide B lds wr issue latency
+            if constexpr((((i < num_stage1_mfma) &&
+                           (i % num_mfma_per_issue_more == ds_write_issue_point_stage1)) ||
+                          ((i >= num_stage1_mfma) &&
+                           ((i - num_stage1_mfma) % num_mfma_per_issue_less ==
+                            ds_write_issue_point_stage2))) &&
+                         (((i < num_stage1_mfma) &&
+                           ((i / num_mfma_per_issue_more) < num_ds_write_inst_a)) ||
+                          ((i >= num_stage1_mfma) &&
+                           ((i - num_stage1_mfma) / num_mfma_per_issue_less +
+                            num_stage1_bufferloads) < num_ds_write_inst_a)))
             {
-                static_for<0, 4, 1>{}([&](auto i) {
-                    ignore = i;
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                });
-#if 0 
-                constexpr auto staged_num_mfma_per_buffer_load_a =
-                    math::integer_divide_ceil(staged_num_mfma, num_buffer_load_inst_a);
-
-                constexpr auto stage_more_mfma =
-                    staged_num_mfma -
-                    (staged_num_mfma_per_buffer_load_a - 1) * num_buffer_load_inst_a;
-
-                // A global
-                static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i_inst) {
-                    if constexpr(i_inst.value < stage_more_mfma)
-                    {
-                        if(i_inst.value < staged_num_ds_read_inst_a)
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x008, staged_num_mfma_per_buffer_load_a - 1, 0); // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);    // VMEM read
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);    // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0);    // DS read
-                        }
-                        else
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x008, staged_num_mfma_per_buffer_load_a, 0);  // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                        }
-                    }
-                    else
-                    {
-                        if(i_inst.value < staged_num_ds_read_inst_a)
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x008, staged_num_mfma_per_buffer_load_a - 2, 0); // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);    // VMEM read
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);    // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0);    // DS read
-                        }
-                        else
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x008, staged_num_mfma_per_buffer_load_a - 1, 0); // MFMA
-                            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);    // VMEM read
-                        }
-                    }
-                });
-
-                __builtin_amdgcn_sched_barrier(0);
-#endif
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
             }
-            else
-            {
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-#if 0
-                // A local Read
-                static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                    ignore = i_inst;
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x008, staged_num_mfma_per_ds_read_a, 0);      // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                });
-
-                __builtin_amdgcn_sched_barrier(0);
-#endif
-            }
-#endif
-#if 0
-            static_for<0, 4, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            });
-
-            static_for<0, 4, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            });
-
-            static_for<0, 4, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            });
-
-            static_for<0, 4, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            });
-#endif
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-
-            static_for<0, 4, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            });
-        }
-    };
-
-    template <typename Stage>
-    __device__ static constexpr auto EpilogueScheduler_1(Stage stage)
-    {
-        constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
-        constexpr auto num_ds_write_inst_a    = HotLoopInstList::A_LDS_Write_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = MWaves * HotLoopInstList::B_Buffer_Load_Inst_Num;
-
-        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
-
-        constexpr auto staged_num_ds_read_inst_a = num_ds_read_inst_a / MRepeat;
-        constexpr auto staged_num_mfma           = num_mfma / MRepeat;
-
-        constexpr auto staged_num_mfma_per_ds_read_a = staged_num_mfma / staged_num_ds_read_inst_a;
-
-        if constexpr(stage.value == 0)
-        {
-            constexpr auto staged_num_buffer_load_b_per_ds_read_a =
-                num_buffer_load_inst_b / staged_num_ds_read_inst_a;
-            constexpr auto staged_num_mfma_per_buffer_load_b =
-                staged_num_mfma / num_buffer_load_inst_b;
-            // B global
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                ignore = i_inst;
-
-                static_for<0, staged_num_buffer_load_b_per_ds_read_a, 1>{}([&](auto ibuf_inst) {
-                    ignore = ibuf_inst;
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x008, staged_num_mfma_per_buffer_load_b, 0);  // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                });
-
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(
-                    0x008, staged_num_mfma_per_buffer_load_b - 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);    // VMEM read
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else if constexpr(stage.value == 1)
-        {
-#if 0
-            constexpr auto staged_num_ds_write_a_per_ds_read_a =
-                num_ds_write_inst_a / staged_num_ds_read_inst_a;
-            constexpr auto staged_num_mfma_per_ds_write_a = staged_num_mfma / num_ds_write_inst_a;
-            // A local write
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                ignore = i_inst;
-
-                static_for<0, staged_num_ds_write_a_per_ds_read_a, 1>{}([&](auto idswrite_inst) {
-                    ignore = idswrite_inst;
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x008, staged_num_mfma_per_ds_write_a - 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                });
-
-                __builtin_amdgcn_sched_group_barrier(
-                    0x008, staged_num_ds_write_a_per_ds_read_a, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0);  // DS read
-            });
-#elif 1
-            constexpr auto staged_num_mfma_per_ds_write_a =
-                math::integer_divide_ceil(staged_num_mfma, num_ds_write_inst_a);
-
-            constexpr auto stage_more_mfma =
-                staged_num_mfma - (staged_num_mfma_per_ds_write_a - 1) * num_ds_write_inst_a;
-
-            // A local write
-            static_for<0, num_ds_write_inst_a, 1>{}([&](auto i_inst) {
-                if constexpr(i_inst.value < stage_more_mfma)
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x008, staged_num_mfma_per_ds_write_a - 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x008, staged_num_mfma_per_ds_write_a, 0);     // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    }
-                }
-                else
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x008, staged_num_mfma_per_ds_write_a - 2, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x008, staged_num_mfma_per_ds_write_a - 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    }
-                }
-            });
-#endif
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else
-        {
-            // A local Read
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                ignore = i_inst;
-                __builtin_amdgcn_sched_group_barrier(
-                    0x008, staged_num_mfma_per_ds_read_a, 0);      // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-    }
-
-    __device__ static constexpr auto EpilogueScheduler_2()
-    {
-        constexpr auto num_ds_read_inst_a = HotLoopInstList::A_LDS_Read_Inst_Num;
-
-        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
-
-        constexpr auto staged_num_ds_read_inst_a = num_ds_read_inst_a / MRepeat;
-        constexpr auto staged_num_mfma           = num_mfma / MRepeat;
-
-        constexpr auto staged_num_mfma_per_ds_read_a = staged_num_mfma / staged_num_ds_read_inst_a;
-
-        // A local Read
-        static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-            ignore = i_inst;
-            __builtin_amdgcn_sched_group_barrier(0x008, staged_num_mfma_per_ds_read_a, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
         });
-
-        __builtin_amdgcn_sched_barrier(0);
     }
 
     template <bool HasMainLoop,
@@ -777,16 +355,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         // main body
         if constexpr(HasMainLoop)
         {
-            HotLoopScheduler scheduler;
             index_t i = 0;
             do
             {
                 auto LoopFunc = [&](auto mfma_reg_buf, auto local_read_buf) {
                     b_blockwise_copy.Run(b_grid_desc,
-                        b_grid_buf,
-                        b_block_desc_n0_n1_k0_k1,
-                        b_block_origin_idx,
-                        b_thread_bufs(local_read_buf));
+                                         b_grid_buf,
+                                         b_block_desc_n0_n1_k0_k1,
+                                         b_block_origin_idx,
+                                         b_thread_bufs(local_read_buf));
                     b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                     a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(local_read_buf));
@@ -794,26 +371,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-#if 0
-                        if constexpr(m0.value == scheduler.buffer_load_b_stage)
-                        {
-                            b_blockwise_copy.Run(b_grid_desc,
-                                                 b_grid_buf,
-                                                 b_block_desc_n0_n1_k0_k1,
-                                                 b_block_origin_idx,
-                                                 b_thread_bufs(local_read_buf));
-                            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-                        }
-                        else if constexpr(m0.value == scheduler.ds_write_a_stage)
-                        {
-                            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(local_read_buf));
-                        }
-                        else if constexpr(m0.value == scheduler.buffer_load_a_stage)
-                        {
-                            a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-                            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-                        }
-#endif
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
                             static_for<0, NRepeat, 1>{}([&](auto n0) {
                                 vector_type<ComputeDataType, KPack> a_thread_vec;
@@ -822,8 +379,13 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 static_for<0, KPack, 1>{}([&](auto ik) {
                                     a_thread_vec.template AsType<ComputeDataType>()(ik) =
                                         a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                            make_tuple((m0 + HotloopLocalBufSwitch * mfma_reg_buf) % 2,
-                                                       I0, I0, k0, I0, ik))>{}];
+                                            make_tuple((m0 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                                           2,
+                                                       I0,
+                                                       I0,
+                                                       k0,
+                                                       I0,
+                                                       ik))>{}];
                                     b_thread_vec.template AsType<ComputeDataType>()(ik) =
                                         b_thread_bufs[mfma_reg_buf]
                                                      [Number<b_thread_desc_.CalculateOffset(
@@ -852,13 +414,22 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 static_for<0, KGroup, 1>{}([&](auto kg0) {
                                     a_thread_copy_.Run(
                                         a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{}, I0, I0,
-                                                   Number<k0 * 2 + kg0>{}, I0, I0),
+                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                                   I0,
+                                                   I0,
+                                                   Number<k0 * 2 + kg0>{},
+                                                   I0,
+                                                   I0),
                                         a_block_buf.At(local_read_buf),
                                         a_thread_desc_,
                                         make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) % 2>{},
-                                            I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                                   2>{},
+                                            I0,
+                                            I0,
+                                            k0,
+                                            I0,
+                                            Number<kg0 * A_K1>{}),
                                         a_thread_buf);
                                 });
                             });
@@ -915,9 +486,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 });
                             });
                         }
-
                     });
-                    scheduler();
+                    HotLoopScheduler();
                 };
 
                 LoopFunc(I0, I1);
@@ -937,20 +507,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-#if 0
-                if constexpr(m0.value == 0)
-                {
-                    b_blockwise_copy.Run(b_grid_desc,
-                                         b_grid_buf,
-                                         b_block_desc_n0_n1_k0_k1,
-                                         b_block_origin_idx,
-                                         b_thread_bufs(I1));
-                }
-                else if constexpr(m0.value == (MRepeat - 2))
-                {
-                    a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
-                }
-#endif
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;
@@ -1041,6 +597,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                 }
             });
 
+            HotLoopScheduler();
+
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -1087,9 +645,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 a_thread_buf);
                         });
                     });
-
                 }
             });
+
+            HotLoopScheduler();
             // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
             // latency
         }
