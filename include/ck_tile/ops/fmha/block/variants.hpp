@@ -103,16 +103,26 @@ struct StandardAttention
         return type_convert<float>(q) * params.sm_scale;
     }
 
+    /// NOTICE: For better performance, we simpliy transform thread buffer without calculating
+    /// qo_idx/kv_idx.
     template <typename Params, typename T>
     __device__ __forceinline__ T LogitsTransform([[maybe_unused]] const Params& params,
-                                                 T logits) const
+                                                 T logits,
+                                                 [[maybe_unused]] uint32_t batch_idx,
+                                                 /*uint32_t qo_idx, uint32_t kv_idx,*/
+                                                 [[maybe_unused]] uint32_t qo_head_idx,
+                                                 [[maybe_unused]] uint32_t kv_head_idx) const
     {
         return logits;
     }
 
     template <typename Params>
-    __device__ __forceinline__ bool
-    LogitsMask(const Params& params, uint32_t qo_idx, uint32_t kv_idx) const
+    __device__ __forceinline__ bool LogitsMask(const Params& params,
+                                               [[maybe_unused]] uint32_t batch_idx,
+                                               uint32_t qo_idx,
+                                               uint32_t kv_idx,
+                                               [[maybe_unused]] uint32_t qo_head_idx,
+                                               [[maybe_unused]] uint32_t kv_head_idx) const
     {
         return !params.impl_mask.IsOutOfBound(qo_idx, kv_idx);
     }
@@ -136,10 +146,13 @@ struct LogitsSoftCap
         }
     }
 
+    /// NOTICE: For better performance, we simpliy transform thread buffer without calculating
+    /// qo_idx/kv_idx.
     template <typename Params, typename T>
     __device__ __forceinline__ T LogitsTransform(const Params& params,
                                                  T logits,
                                                  [[maybe_unused]] uint32_t batch_idx,
+                                                 /*uint32_t qo_idx, uint32_t kv_idx,*/
                                                  [[maybe_unused]] uint32_t qo_head_idx,
                                                  [[maybe_unused]] uint32_t kv_head_idx) const
     {
@@ -191,10 +204,13 @@ struct ComposedAttention
         return type_convert<float>(q) * params.sm_scale;
     }
 
+    /// NOTICE: For better performance, we simpliy transform thread buffer without calculating
+    /// qo_idx/kv_idx.
     template <typename Params, typename T>
     __device__ __forceinline__ T LogitsTransform(const Params& params,
                                                  T logits,
                                                  [[maybe_unused]] uint32_t batch_idx,
+                                                 /*uint32_t qo_idx, uint32_t kv_idx,*/
                                                  [[maybe_unused]] uint32_t qo_head_idx,
                                                  [[maybe_unused]] uint32_t kv_head_idx) const
     {
