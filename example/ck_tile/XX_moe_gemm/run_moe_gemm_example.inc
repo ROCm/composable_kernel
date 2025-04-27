@@ -132,14 +132,15 @@ int run_moe_gemm_example_with_layouts(int argc,
 
     // TODO: replace the magic declaration
     const ck_tile::index_t MPerBlock = 128;
-    // const ck_tile::index_t max_num_tokens_padded = topk * num_tokens + experts * MPerBlock - topk;
-    // const ck_tile::index_t max_num_m_blocks = (max_num_tokens_padded + MPerBlock - 1) / MPerBlock;
+    // const ck_tile::index_t max_num_tokens_padded = topk * num_tokens + experts * MPerBlock -
+    // topk; const ck_tile::index_t max_num_m_blocks = (max_num_tokens_padded + MPerBlock - 1) /
+    // MPerBlock;
 
     ck_tile::index_t sorted_tile_num = 8;
     ck_tile::index_t valid_tile_num  = sorted_tile_num;
     // ck_tile::index_t sorted_tile_num = 16;
     // ck_tile::index_t valid_tile_num  = 13;
-    ck_tile::index_t sorted_size     = sorted_tile_num * MPerBlock;
+    ck_tile::index_t sorted_size = sorted_tile_num * MPerBlock;
     // ck_tile::index_t valid_size      = valid_tile_num * MPerBlock;
 
     const ck_tile::index_t M = sorted_tile_num * MPerBlock;
@@ -163,7 +164,7 @@ int run_moe_gemm_example_with_layouts(int argc,
             ? ck_tile::host_tensor_descriptor(experts * N, K, stride_B, is_row_major(b_layout))
             : ck_tile::host_tensor_descriptor(K, experts * N, stride_B, is_row_major(b_layout)));
 
-    std::string mfma    = arg_parser.get_str("prec");
+    std::string mfma = arg_parser.get_str("prec");
 
     auto c_m_n_tensor = ck_tile::HostTensor<CDataType>(
         ck_tile::host_tensor_descriptor(num_tokens * topk, N, stride_C, is_row_major(CLayout{})));
@@ -175,7 +176,8 @@ int run_moe_gemm_example_with_layouts(int argc,
 
     std::cout << "gemm"
               << " a_m_k: " << a_m_k_tensor.mDesc << " b_k_n: " << b_k_n_tensor.mDesc
-              << " b_shuffle: " << b_shuffle_host.mDesc << " c_m_n: " << c_m_n_tensor.mDesc << std::endl;
+              << " b_shuffle: " << b_shuffle_host.mDesc << " c_m_n: " << c_m_n_tensor.mDesc
+              << std::endl;
 
     a_m_k_dev_buf =
         std::make_unique<ck_tile::DeviceMem>(a_m_k_tensor.get_element_space_size_in_bytes());
@@ -192,10 +194,10 @@ int run_moe_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf->SetZero();
     c_m_n_tensor.SetZero();
 
-    const void* p_a = a_m_k_dev_buf->GetDeviceBuffer();
-    const void* p_b_origin = b_origin_dev_buf->GetDeviceBuffer();
+    const void* p_a         = a_m_k_dev_buf->GetDeviceBuffer();
+    const void* p_b_origin  = b_origin_dev_buf->GetDeviceBuffer();
     const void* p_b_shuffle = b_shuffle_dev_buf->GetDeviceBuffer();
-    void* p_c       = c_m_n_dev_buf->GetDeviceBuffer();
+    void* p_c               = c_m_n_dev_buf->GetDeviceBuffer();
 
     // TODO: malloc and init sorted tokens and max tokens buffer
 
@@ -235,7 +237,7 @@ int run_moe_gemm_example_with_layouts(int argc,
         }
         else
         {
-            sorted_token_ids.mData[i] = num_tokens - 1;
+            sorted_token_ids.mData[i] = num_tokens;
         }
     }
 
@@ -258,7 +260,7 @@ int run_moe_gemm_example_with_layouts(int argc,
                              p_c,
                              num_tokens,
                              topk,
-                             1, //k_batch
+                             1, // k_batch
                              M,
                              N,
                              K,
@@ -273,8 +275,8 @@ int run_moe_gemm_example_with_layouts(int argc,
     bool pass{true};
     if(arg_parser.get_int("validate"))
     {
-        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-            ck_tile::host_tensor_descriptor(num_tokens * topk, N, stride_C, is_row_major(CLayout{})));
+        ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
+            num_tokens * topk, N, stride_C, is_row_major(CLayout{})));
 
         c_m_n_host_ref.SetZero();
 
