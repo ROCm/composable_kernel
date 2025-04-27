@@ -42,18 +42,15 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     return ave_time;
 }
 
-// Param Comb: type_size, block_x & y, warp_x & y, thread_x & y
-#define FOREACH_TRANSPOSE_PARAM(F) F(fp16, ck_tile::fp16_t, 16, 16, 16, 16)
-
-// Macro that defines one static function per line
-#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY)                                    \
-    static float transpose_fn_##SHORT_NAME##_##BX##_##BY##_##WX##_##WY(batched_transpose_kargs& a, \
-                                                                       ck_tile::stream_config& s)  \
-    {                                                                                              \
-        return batched_transpose_dispatch<REAL_TYPE, BX, BY, WX, WY>(a, s);                        \
-    }
-
-FOREACH_TRANSPOSE_PARAM(GEN_TRANSPOSE_FN)
+template <typename T,
+          ck_tile::index_t block_x,
+          ck_tile::index_t block_y,
+          ck_tile::index_t warp_x,
+          ck_tile::index_t warp_y>
+static float transpose_fn(batched_transpose_kargs& a, ck_tile::stream_config& s)
+{
+    return batched_transpose_dispatch<T, block_x, block_y, warp_x, warp_y>(a, s);
+}
 
 float batched_transpose(batched_transpose_trait t,
                         batched_transpose_kargs a,
@@ -61,7 +58,7 @@ float batched_transpose(batched_transpose_trait t,
 {
     if(t.type == "fp16")
     {
-        return transpose_fn_fp16_16_16_16_16(a, s);
+        return batched_transpose_dispatch<ck_tile::fp16_t, 32, 32, 16, 16>(a, s);
     }
     return -1;
 }
