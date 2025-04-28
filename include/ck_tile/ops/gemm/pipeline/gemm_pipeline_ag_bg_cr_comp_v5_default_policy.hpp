@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+// TODO
+
+/*
 #pragma once
 
 #include "ck_tile/core.hpp"
@@ -20,7 +23,25 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
 
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPack = GetSmemPackA<Problem>();
+        // TODO
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
+    {
+        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPack = GetSmemPackB<Problem>();
+        // TODO
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
+    {
+        // TODO
     }
 }
 
 } // namespace ck_tile
+*/
