@@ -6,6 +6,8 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
 
+#include "block_gemm_areg_bsmem_creg_v2_hack.hpp"
+
 namespace ck_tile {
 
 struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
@@ -396,7 +398,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
                                                  decltype(warp_gemm)>;
 
         if constexpr(1 < Problem::kNumGemm0Warps)
-            return BlockGemmARegBSmemCRegV2<GemmProblem, BlockGemmPolicy>{};
+            return BlockGemmARegBSmemCRegV2Hack<GemmProblem, BlockGemmPolicy>{};
         else
             return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
     }
