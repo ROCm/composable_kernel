@@ -257,10 +257,10 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                                 Number<A_K1>{}),
                                      make_tuple(Number<A_K1>{},
                                                 Number<KPack / A_KRow>{},
-                                                Number<KPack * A_K1>{},
-                                                Number<A_K1>{},
-                                                Number<A_K1>{},
-                                                Number<1>{}));
+                                                Number<KPack / A_KRow * MRepeat>{},
+                                                I0,
+                                                I0,
+                                                I1));
 
     static constexpr auto b_thread_desc_ =
         make_naive_tensor_descriptor(make_tuple(Number<KPack / B_K1 / B_KRow>{},
@@ -271,10 +271,10 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                                 Number<B_K1>{}),
                                      make_tuple(Number<B_K1>{},
                                                 Number<KPack / B_KRow>{},
-                                                Number<KPack * B_K1>{},
-                                                Number<B_K1>{},
-                                                Number<B_K1>{},
-                                                Number<1>{}));
+                                                Number<KPack / B_KRow * NRepeat>{},
+                                                I0,
+                                                I0,
+                                                I1));
 
     // C[M, N, NumRegWmma]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
