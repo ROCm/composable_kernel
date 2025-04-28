@@ -29,10 +29,16 @@ struct MoeGemmPipelineAgBgCrImpl
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
+    using GateActivation = remove_cvref_t<typename Problem::Traits::GateActivation>;
+
     using BlockFlatmm = remove_cvref_t<decltype(PipelinePolicy::template GetBlockFlatmm<Problem>())>;
     using I0        = number<0>;
     using I1        = number<1>;
     using I2        = number<2>;
+
+    static constexpr bool IsInputGemm = Problem::Traits::IsInputGemm;
+    static constexpr bool IsGateOnly = Problem::Traits::IsGateOnly;
+    static constexpr bool IsFusedQuant = Problem::Traits::IsFusedQuant;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
@@ -112,32 +118,6 @@ struct MoeGemmPipelineAgBgCrImpl
             PipelinePolicy::template MakeALdsBlockDescriptor<Problem>();
 
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
-
-  //       auto a_dist = PipelinePolicy::template MakeADramTileDistribution<Problem>();
-		// auto a_coord = a_dist.calculate_index();
-		// using ADstrEncode = typename decltype(a_dist)::DstrEncode;
-		// constexpr ck_tile::index_t MRepeat = ADstrEncode::hs_lengthss_[I0][I0];
-		// statically_indexed_array<ck_tile::index_t, NRepeat> a_offsets;
-		// static_for<0, MRepeat, 1>{}([&](auto n0) {
-  //           int32_t seqlen_k_idx_per_repeat = cur_seqlen_k_idx + k_coord[0] + Traits::kBlockN / NRepeat * n0.value;
-  //           int32_t page_idx = seqlen_k_idx_per_repeat / page_block_size;
-  //           int32_t seq_idx = seqlen_k_idx_per_repeat % page_block_size;
-		// 	k_offsets[n0] = (block_indices[page_idx] * page_block_size + seq_idx) * stride_s_k;
-		// });
-		//
-  //       // A DRAM tile window for load
-  //       auto a_dram_tile = ck_tile::make_tile_scatter_gather(
-  //           a_dram_block_window_tmp.get_bottom_tensor_view(),
-  //           a_dram_block_window_tmp.get_window_lengths(),
-  //           a_dram_block_window_tmp.get_window_origin(),
-  //           a_dist,
-  //           k_offsets); // K DRAM tile window for
-
-        // auto a_copy_dram_window =
-        //     make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-        //                      make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-        //                      a_dram_block_window_tmp.get_window_origin(),
-        //                      PipelinePolicy::template MakeADramTileDistribution<Problem>());
 
         // A LDS tile window for store
         auto a_copy_lds_window = make_tile_window(
@@ -223,6 +203,15 @@ struct MoeGemmPipelineAgBgCrImpl
             block_flatmm(c_block_tile, a_lds_gemm_window, b_flat_dram_window);
         }
 
+        sweep_tile(c_block_tile,
+            [&](auto idx0, auto idx1) {
+                fp32x2_t v_{c_block_tile(idx0), c_block_tile(idx1)};
+                GateActivation{}(v_, v_);
+                c_block_tile(idx0) = v_.x;
+                c_block_tile(idx1) = v_.y;
+            },
+            sequence<1, 2>{});
+
         return c_block_tile;
     }
 
@@ -236,6 +225,163 @@ struct MoeGemmPipelineAgBgCrImpl
             a_dram_block_window_tmp,
             [](const ADataType& a) { return a; },
             b_flat_dram_block_window_tmp,
+            num_loop,
+            p_smem);
+    }
+
+    template <typename ADramBlockWindow, typename BFlatBlockWindowTmp, typename AElementFunction>
+    CK_TILE_HOST_DEVICE auto operator()(ADramBlockWindow& a_dram_block_window,
+                                        const AElementFunction& a_element_func,
+                                        const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                        index_t N,
+                                        index_t num_loop,
+                                        void* p_smem) const
+    {
+        static_assert(
+            std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindow::DataType>>,
+            "wrong!");
+
+        static_assert(kMPerBlock == ADramBlockWindow{}.get_window_lengths()[number<0>{}],
+                      "wrong!");
+        static_assert(kKPerBlock == ADramBlockWindow{}.get_window_lengths()[number<1>{}],
+                      "wrong!");
+
+        // A tile in LDS
+        ADataType* p_a_lds = static_cast<ADataType*>(p_smem);
+
+        constexpr auto a_lds_block_desc =
+            PipelinePolicy::template MakeALdsBlockDescriptor<Problem>();
+
+        auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
+
+        // A LDS tile window for store
+        auto a_copy_lds_window = make_tile_window(
+            a_lds_block, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
+
+        // A LDS tile for block GEMM
+        auto a_lds_gemm_window = make_tile_window(
+            a_lds_block, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
+
+        // Block GEMM
+        auto block_flatmm = BlockFlatmm();
+
+        // B flat DRAM window for load
+        auto b_flat_distribution =
+            PipelinePolicy::template MakeBFlatDramTileDistribution<Problem>();
+
+        auto b_gate_flat_dram_window =
+            make_tile_window(
+                b_flat_dram_block_window_tmp.get_bottom_tensor_view(), // from kernel gemm_pad_views
+                make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
+                b_flat_dram_block_window_tmp.get_window_origin(),
+                b_flat_distribution);
+
+        b_flat_dram_block_window_tmp.move({N, 0})
+        auto b_up_flat_dram_window =
+            make_tile_window(
+                b_flat_dram_block_window_tmp.get_bottom_tensor_view(), // from kernel gemm_pad_views
+                make_tuple(number<flatNPerWarp>{}, number<flatKPerWarp>{}),
+                b_flat_dram_block_window_tmp.get_window_origin(),
+                b_flat_distribution);
+
+        using c_block_tile_type = decltype(block_flatmm(a_lds_gemm_window, b_gate_flat_dram_window));
+        auto c_block_tiles[2] = {c_block_tile_type{}, c_block_tile_type{}};
+
+        // prefetch
+        // global read 0
+        auto a_block_tile = a_dram_block_window.load();
+
+        {
+            // move to 1
+            move_tile_window(a_dram_block_window, {0, kKPerBlock});
+
+            // initialize C
+            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tiles[0]);
+            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tiles[1]);
+
+            // LDS write 0
+            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
+            {
+                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                    PipelinePolicy::template MakeShuffledARegBlockDistribution<Problem>());
+                shuffle_tile(a_shuffle_tmp, a_block_tile);
+                const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
+                store_tile(a_copy_lds_window, a_block_tile_tmp);
+            }
+            else
+            {
+                store_tile(a_copy_lds_window, tile_elementwise_in(a_element_func, a_block_tile));
+            }
+        }
+
+        index_t iCounter = num_loop - 1;
+        while(iCounter > 0)
+        {
+            // global read i + 1
+            a_dram_block_window.load(a_block_tile);
+
+            block_sync_lds();
+
+            // GEMM i
+            block_flatmm(c_block_tiles[0], a_lds_gemm_window, b_gate_flat_dram_window);
+
+            //TODO: simply add b_gate flatmm
+            block_flatmm(c_block_tiles[1], a_lds_gemm_window, b_up_flat_dram_window);
+
+            block_sync_lds();
+
+            // move to i + 2
+            move_tile_window(a_dram_block_window, {0, kKPerBlock});
+
+            // LDS write i + 1
+            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
+            store_tile(a_copy_lds_window, a_block_tile_tmp);
+
+            // move to next flat K
+            move_tile_window(b_gate_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
+            move_tile_window(b_up_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
+
+            iCounter--;
+        }
+
+        // tail
+        {
+            block_sync_lds();
+
+            // GEMM num_loop - 1
+            block_flatmm(c_block_tiles[0], a_lds_gemm_window, b_gate_flat_dram_window);
+            block_flatmm(c_block_tiles[1], a_lds_gemm_window, b_up_flat_dram_window);
+        }
+
+        sweep_tile(c_block_tiles[0],
+            [&](auto idx0, auto idx1) {
+                fp32x2_t v_{c_block_tiles[0].at(number<0>{})(idx0), c_block_tiles[0].at(number<0>{})(idx1)};
+                typename Problem::GateActivation{}(v_, v_);
+                c_block_tiles[0].at(number<0>{})(idx0) = v_.x;
+                c_block_tiles[0].at(number<0>{})(idx1) = v_.y;
+            },
+            sequence<1, 2>{});
+
+        auto c_block_tile =
+            tile_elementwise_in([&](const auto& a_, const auto& b_) { return a_ * b_; },
+                                c_block_tiles[0],
+                                c_block_tiles[1]);
+
+        return c_block_tiles[0];
+    }
+
+    template <typename ADramBlockWindow, typename BFlatBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(ADramBlockWindow& a_dram_block_window_tmp,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   index_t N,
+                                   index_t num_loop,
+                                   void* p_smem) const
+    {
+        return operator()(
+            a_dram_block_window_tmp,
+            [](const ADataType& a) { return a; },
+            b_flat_dram_block_window_tmp,
+            N,
             num_loop,
             p_smem);
     }

@@ -11,66 +11,6 @@
 
 namespace ck_tile {
 
-// template <typename ADataType,
-//           typename BDataType,
-//           typename AccDataType,
-//           typename CDataType,
-//           typename AElementOp   = ck_tile::identity,
-//           typename BElementOp   = ck_tile::identity,
-//           typename ACCElementOp = ck_tile::identity>
-// CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
-//                                  const HostTensor<BDataType>& b_k_n,
-//                                  HostTensor<CDataType>& c_m_n,
-//                                  const AElementOp& a_element_op     = {},
-//                                  const BElementOp& b_element_op     = {},
-//                                  const ACCElementOp& acc_element_op = {})
-// {
-//     const std::size_t M = a_m_k.get_length(0);
-//     const std::size_t N = b_k_n.get_length(1);
-//     const std::size_t K = a_m_k.get_length(1);
-
-//     auto f_mn = [&](auto m, auto n) {
-//         AccDataType v_acc = 0;
-
-//         for(std::size_t k = 0; k < K; ++k)
-//         {
-//             AccDataType v_a;
-//             AccDataType v_b;
-//             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
-//             {
-//                 const pk_int4_t pk_val  = a_element_op(a_m_k(m, k));
-//                 const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
-//                 if(k % 2 == 1)
-//                     v_a = fp32_val.hi;
-//                 else
-//                     v_a = fp32_val.lo;
-//             }
-//             else
-//             {
-//                 v_a = ck_tile::type_convert<AccDataType>(a_element_op(a_m_k(m, k)));
-//             }
-//             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-//             {
-//                 const pk_int4_t pk_val  = b_element_op(b_k_n(k, n));
-//                 const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
-//                 if(k % 2 == 1)
-//                     v_b = fp32_val.hi;
-//                 else
-//                     v_b = fp32_val.lo;
-//             }
-//             else
-//             {
-//                 v_b = ck_tile::type_convert<AccDataType>(b_element_op(b_k_n(k, n)));
-//             }
-//             v_acc += v_a * v_b;
-//         }
-
-//         c_m_n(m, n) = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
-//     };
-
-//     make_ParallelTensorFunctor(f_mn, M, N)(std::thread::hardware_concurrency());
-// }
-
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -78,7 +18,9 @@ template <typename ADataType,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC,
-          bool IsInputGemm = true>
+          bool IsInputGemm = true,
+          bool IsGateOnly = true,
+          index_t GateActivation = 0>
 __global__ void naive_gemm_kernel(const ck_tile::index_t* p_sorted_token_ids_,
                                   const ck_tile::index_t* p_sorted_expert_ids_,
                                   const ck_tile::index_t* p_max_token_id_,
@@ -192,7 +134,9 @@ template <typename ADataType,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC,
-          bool IsInputGemm = true>
+          bool IsInputGemm = true,
+          bool IsGateOnly = true,
+          index_t GateActivation = 0>
 void reference_moe_gemm_gpu(const index_t* p_sorted_token_ids_,
                             const index_t* p_sorted_expert_ids_,
                             const index_t* p_max_token_id_,

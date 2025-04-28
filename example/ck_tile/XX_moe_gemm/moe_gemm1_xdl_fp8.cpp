@@ -38,7 +38,7 @@ struct MoeGemmKernelParam
     static const ck_tile::index_t K_Warp_Tile = 16;
 };
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename Traits>
 float moe_gemm(const moe_gemm_kargs& gemm_desc, const ck_tile::stream_config& s)
 {
     using CodegenMoeGemmShape = ck_tile::TileFlatmmShape<
@@ -54,19 +54,33 @@ float moe_gemm(const moe_gemm_kargs& gemm_desc, const ck_tile::stream_config& s)
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenMoeGemmShape>;
 
-    using CodegenMoeGemmTraits = ck_tile::TileGemmTraits<MoeGemmKernelParam::kPadM,
+    constexpr auto get_activation_ = []() {
+        if constexpr(Traits::activation == 0)
+        {
+            return ck_tile::element_wise::FastGeluAsm{};
+        }
+        else
+            return ck_tile::element_wise::Silu{};
+    };
+
+    using CodegenMoeGemmTraits = ck_tile::TileMoeGemmTraits<MoeGemmKernelParam::kPadM,
                                                       MoeGemmKernelParam::kPadN,
                                                       MoeGemmKernelParam::kPadK,
-                                                      ALayout,
-                                                      BLayout,
-                                                      CLayout>;
+                                                      true,
+                                                      Traits::IsGateOnly,
+                                                      Traits::IsFusedQuant,
+                                                      typename Traits::ALayout,
+                                                      typename Traits::BLayout,
+                                                      typename Traits::CLayout,
+                                                      decltype(get_activation_())>;
 
     using CodegenPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType,
                                      BDataType,
                                      AccDataType,
                                      CodegenMoeGemmShape,
-                                     CodegenMoeGemmTraits>;
+                                     CodegenMoeGemmTraits,
+                                     AccDataType>;
 
     using CodegenMoeGemmPolicy = ck_tile::UniversalFlatmmPipelineAgBgCrPolicy;
     using CodegenMoeGemmPipeline =
@@ -77,7 +91,7 @@ float moe_gemm(const moe_gemm_kargs& gemm_desc, const ck_tile::stream_config& s)
         BDataType,
         AccDataType,
         CDataType,
-        CLayout,
+        typename Traits::CLayout,
         CodegenPipelineProblem::kBlockSize,
         TilePartitioner::MPerBlock,
         TilePartitioner::NPerBlock,

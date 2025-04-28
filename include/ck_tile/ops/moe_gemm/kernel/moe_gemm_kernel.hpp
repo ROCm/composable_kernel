@@ -53,8 +53,7 @@ struct MoeGemmHostArgs : public ck_tile::FlatmmHostArgs
 
 template <typename TilePartitioner_,
           typename FlatmmPipeline_,
-          typename EpiloguePipeline_,
-          bool IsInputGemm_ = true>
+          typename EpiloguePipeline_>
 struct MoeGemmKernel
 {
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
@@ -66,7 +65,7 @@ struct MoeGemmKernel
     using BlockGemmShape =
         remove_cvref_t<typename FlatmmPipeline::BlockGemmShape>; // TileFlatmmShape
 
-    static constexpr bool IsInputGemm = IsInputGemm_;
+    static constexpr bool IsInputGemm = FlatmmPipeline::IsInputGemm;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename FlatmmPipeline::BDataType>;
@@ -635,7 +634,8 @@ struct MoeGemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(number<2>{});
 
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+        EpiloguePipeline{}.template operator()<decltype(c_block_window),
+                                               decltype(c_block_tile)>(
             c_block_window,
             c_block_tile,
             smem_ptr_0,

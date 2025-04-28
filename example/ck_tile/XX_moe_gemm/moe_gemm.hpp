@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cwchar>
 #include <string>
 
 #include "ck_tile/core.hpp"
@@ -31,6 +32,23 @@ using CDataType   = Types::CDataType;
 
 using moe_gemm_kargs = ck_tile::MoeGemmHostArgs;
 
+template <typename ALayout_,
+          typename BLayout_,
+          typename CLayout_,
+          ck_tile::index_t activation_ = 0,
+          bool gate_only_ = false,
+          bool fused_quant_ = false>
+struct MoeGemmHostTraits
+{
+    using ALayout = ALayout_;
+    using BLayout = BLayout_;
+    using CLayout = CLayout_;
+    static constexpr ck_tile::index_t activation = activation_;
+    static constexpr bool IsGateOnly = gate_only_;
+    static constexpr bool IsFusedQuant = fused_quant_;
+};
+
+
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -48,6 +66,10 @@ auto create_args(int argc, char* argv[])
         .insert("a_layout", "R", "A tensor data layout - Row by default.")
         .insert("b_layout", "C", "B tensor data layout - Col by default.")
         .insert("c_layout", "R", "C tensor data layout - Row by default.")
+        .insert("act", "0", "activation after first gemm. 0:gelu, 1:silu")
+        .insert("fquant", "0", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
+        .insert(
+            "gate_only", "1", "w0(gate/up) style, 0:gate+up will double interm size, 1:only gate")
         .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("repeat", "10", "number of iterations to benchmark the kernel.");

@@ -70,10 +70,10 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename Traits>
 float invoke_moe_gemm(int n_warmup, int n_repeat, const moe_gemm_kargs& args)
 {
-    float ave_time = moe_gemm<ALayout, BLayout, CLayout>(
+    float ave_time = moe_gemm<Traits>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::string op_name{"Moe Gemm"};
@@ -94,12 +94,9 @@ float invoke_moe_gemm(int n_warmup, int n_repeat, const moe_gemm_kargs& args)
     return ave_time;
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename Traits>
 int run_moe_gemm_example_with_layouts(int argc,
-                                      char* argv[],
-                                      const ALayout a_layout                  = ALayout{},
-                                      const BLayout b_layout                  = BLayout{},
-                                      [[maybe_unused]] const CLayout c_layout = CLayout{})
+                                      char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
 
@@ -129,6 +126,11 @@ int run_moe_gemm_example_with_layouts(int argc,
     const ck_tile::index_t topk       = arg_parser.get_int("TopK");
     const ck_tile::index_t repeat     = arg_parser.get_int("repeat");
     const ck_tile::index_t experts    = arg_parser.get_int("experts");
+    const std::string mfma            = arg_parser.get_str("prec");
+
+    auto a_layout = typename Traits::ALayout{};
+    auto b_layout = typename Traits::BLayout{};
+    auto c_layout = typename Traits::CLayout{};
 
     // TODO: replace the magic declaration
     const ck_tile::index_t MPerBlock = 128;
@@ -153,7 +155,7 @@ int run_moe_gemm_example_with_layouts(int argc,
 
     stride_A = ck_tile::get_default_stride(num_tokens, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
-    stride_C = ck_tile::get_default_stride(num_tokens * topk, N, stride_C, is_row_major(CLayout{}));
+    stride_C = ck_tile::get_default_stride(num_tokens * topk, N, stride_C, is_row_major(c_layout));
 
     auto a_m_k_tensor = ck_tile::HostTensor<ADataType>(
         ck_tile::host_tensor_descriptor(num_tokens, K, stride_A, is_row_major(a_layout)));
@@ -164,10 +166,9 @@ int run_moe_gemm_example_with_layouts(int argc,
             ? ck_tile::host_tensor_descriptor(experts * N, K, stride_B, is_row_major(b_layout))
             : ck_tile::host_tensor_descriptor(K, experts * N, stride_B, is_row_major(b_layout)));
 
-    std::string mfma = arg_parser.get_str("prec");
 
     auto c_m_n_tensor = ck_tile::HostTensor<CDataType>(
-        ck_tile::host_tensor_descriptor(num_tokens * topk, N, stride_C, is_row_major(CLayout{})));
+        ck_tile::host_tensor_descriptor(num_tokens * topk, N, stride_C, is_row_major(c_layout)));
 
     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensor);
     ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensor);
@@ -268,7 +269,7 @@ int run_moe_gemm_example_with_layouts(int argc,
                              stride_B,
                              stride_C};
 
-    invoke_moe_gemm<ALayout, BLayout, CLayout>(3, repeat, gemm_desc);
+    invoke_moe_gemm<Traits>(3, repeat, gemm_desc);
 
     c_m_n_dev_buf->FromDevice(c_m_n_tensor.data());
 
@@ -276,7 +277,7 @@ int run_moe_gemm_example_with_layouts(int argc,
     if(arg_parser.get_int("validate"))
     {
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
-            num_tokens * topk, N, stride_C, is_row_major(CLayout{})));
+            num_tokens * topk, N, stride_C, is_row_major(c_layout)));
 
         c_m_n_host_ref.SetZero();
 
@@ -289,9 +290,9 @@ int run_moe_gemm_example_with_layouts(int argc,
                                         BDataType,
                                         AccDataType,
                                         CDataType,
-                                        ALayout,
-                                        BLayout,
-                                        CLayout>(
+                                        typename Traits::ALayout,
+                                        typename Traits::BLayout,
+                                        typename Traits::CLayout>(
             p_sorted_token_ids_dev,
             p_expert_ids_dev,
             p_max_token_id_dev,
@@ -353,15 +354,20 @@ int run_moe_gemm_example(int argc, char* argv[])
         return -1;
     }
 
-    const std::string a_layout = arg_parser.get_str("a_layout");
-    const std::string b_layout = arg_parser.get_str("b_layout");
+    const std::string a_layout         = arg_parser.get_str("a_layout");
+    const std::string b_layout         = arg_parser.get_str("b_layout");
+    // const ck_tile::index_t act         = arg_parser.get_int("act");
+    // const ck_tile::index_t gate_only   = arg_parser.get_int("gate_only");
+    // const ck_tile::index_t fused_quant = arg_parser.get_int("fquant");
 
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_moe_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+        using Traits = MoeGemmHostTraits<Row, Col, Row, 0, false, false>;
+
+        return run_moe_gemm_example_with_layouts<Traits>(argc, argv);
     }
     // else if(a_layout == "R" && b_layout == "R")
     // {
