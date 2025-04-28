@@ -98,24 +98,51 @@ struct TileDistributionEncodingPattern2D<BlockSize,
 
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
     {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
-                                       tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<1, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<2, 1>>{});
+        if constexpr(NumWaveGroups != 1)
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<Y0>,                                
+                                        tuple<sequence<Y1, Y2>, sequence<X0, X1>>,   
+                                        tuple<sequence<0>, sequence<1, 2>>,          
+                                        tuple<sequence<0>, sequence<0, 0>>,          
+                                        sequence<1, 2>,                              
+                                        sequence<1, 1>>{});                              
+
+        }
+        else
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,                                
+                                        tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,   
+                                        tuple<sequence<1>, sequence<1, 2>>,          
+                                        tuple<sequence<0>, sequence<1, 0>>,          
+                                        sequence<1, 2>,                              
+                                        sequence<2, 1>>{});                              
+        }
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffled2DStaticTileDistribution()
     {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,
+        if constexpr(NumWaveGroups != 1)
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<Y0>, 
+                                        tuple<sequence<X0, X1>, sequence<Y1, Y2>>,
+                                        tuple<sequence<0>, sequence<2, 1>>, 
+                                        tuple<sequence<0>, sequence<0, 0>>,
+                                        sequence<1, 2>,
+                                        sequence<1, 1>>{});            
+        }
+        else
+        {
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
                                        tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
                                        tuple<sequence<2>, sequence<2, 1>>,
                                        tuple<sequence<0>, sequence<1, 0>>,
                                        sequence<1, 2>,
                                        sequence<1, 2>>{});
+        }
     }
 };
 
