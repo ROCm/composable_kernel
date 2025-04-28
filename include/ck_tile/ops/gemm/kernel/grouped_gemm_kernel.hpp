@@ -9,6 +9,8 @@
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
 #include "ck_tile/host.hpp"
 
+#include <hip/hip_runtime.h>
+
 namespace ck_tile {
 
 struct GemmTransKernelArg
@@ -40,6 +42,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
     using Base                    = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    using Kernel                  = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
 
     static constexpr index_t KernelBlockSize  = GemmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = GemmPipeline::UsePersistentKernel;
@@ -70,6 +73,21 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     }
 
     __host__ static constexpr auto BlockSize() -> dim3 { return dim3(KernelBlockSize); }
+
+    CK_TILE_HOST static auto MaxOccupancyGridSize() -> dim3
+    {
+        // Query max occupancy of the kernel with hipOccupancyMaxActiveBlocksPerMultiprocessor
+        // Query the number of multiprocessors with hipGetDeviceProperties
+        const auto kernel = kentry<KernelBlockSize, 1, Kernel, void*, index_t>;
+        int occupancy;
+        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
+        hipDeviceProp_t dev_prop;
+        hipDevice_t dev;
+        hip_check_error(hipGetDevice(&dev));
+        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
+        const int grid_size = dev_prop.multiProcessorCount * occupancy;
+        return dim3(grid_size, 1, 1);
+    }
 
     __host__ static constexpr auto GridSize(const std::vector<GemmHostArgs>& gemm_descs)
     {
@@ -212,12 +230,15 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     template <bool U = UsePersistentKernel,
               typename = std::enable_if_t<U>,
               typename = void> // extra template parameter to avoid redefinition
-    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                  index_t group_count) const {
+    CK_TILE_DEVICE void operator()(void* gemm_descs, index_t group_count) const {
         static_assert(!U, "Persistent kernel is not supported in this version. "
                          "Please use non-persistent kernel.");
         ignore = group_count;
-        ignore = gemm_descs_const;
+        const index_t block_id   = ck_tile::get_block_1d_id();
+        const auto gemm_desc_ptr = reinterpret_cast<GemmTransKernelArg*>(gemm_descs);
+        const auto grid_size     = GridUpdateBlocks(gemm_desc_ptr, group_count);
+        ignore = grid_size;
+        ignore = block_id;
     }
 };
 
