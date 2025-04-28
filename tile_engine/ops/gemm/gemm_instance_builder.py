@@ -69,7 +69,7 @@ HOT_LOOP_FALSE = """
             else if(tail_num == ck_tile::TailNumber::Even)
             {
                 Run(ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
             else
             {
