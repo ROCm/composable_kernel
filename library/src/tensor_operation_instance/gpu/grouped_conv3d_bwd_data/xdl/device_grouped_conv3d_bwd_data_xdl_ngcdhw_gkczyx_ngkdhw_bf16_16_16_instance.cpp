@@ -10,28 +10,28 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_conv2d_bwd_data_xdl_ngkhw_gkcyx_ngchw_f16_vec_transpose_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
-                                                                  NGKHW,
-                                                                  GKCYX,
+void add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkczyx_ngcdhw_bf16_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NGKDHW,
+                                                                  GKCZYX,
                                                                   Empty_Tuple,
-                                                                  NGCHW,
-                                                                  F16,
-                                                                  F16,
+                                                                  NGCDHW,
+                                                                  BF16,
+                                                                  BF16,
                                                                   Empty_Tuple,
-                                                                  F16,
+                                                                  BF16,
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances)
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_transpose_xdl_f16_instances<2,
-                                                                 NGKHW,
-                                                                 GKCYX,
-                                                                 Empty_Tuple,
-                                                                 NGCHW,
-                                                                 ConvBwdDataDefault>{});
+        device_grouped_conv_bwd_data_xdl_bf16_16_16_instances<3,
+                                                              NGKDHW,
+                                                              GKCZYX,
+                                                              Empty_Tuple,
+                                                              NGCDHW,
+                                                              ConvBwdDataDefault>{});
 }
 
 } // namespace instance
