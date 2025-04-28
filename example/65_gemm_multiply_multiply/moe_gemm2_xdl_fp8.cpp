@@ -133,11 +133,11 @@ static constexpr ck::index_t AK1           = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1           = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec          = 2;
 // TODO: Epilogue performance issue. AtomicAdd lose 15~20% performance compare with Set.
-static constexpr ck::index_t D0Vec         = 1;
-static constexpr ck::index_t D1Vec         = 1;
-static constexpr ck::index_t D2Vec         = 1;
-static constexpr bool MulRoutedWeight      = false;
-using DeviceOpInstance                     = ck::tensor_operation::device::DeviceMoeGemm
+static constexpr ck::index_t D0Vec    = 1;
+static constexpr ck::index_t D1Vec    = 1;
+static constexpr ck::index_t D2Vec    = 1;
+static constexpr bool MulRoutedWeight = false;
+using DeviceOpInstance                = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
 ///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     DsData|     EData|     AccData|         CShuffle|           A|           B|          CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
 ///######|         |         |         |        |       Type|       Type|       Type|      Type|        Type|         DataType| Elementwise| Elementwise|  Elementwise| Spacialization|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|

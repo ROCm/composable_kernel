@@ -140,10 +140,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
     using Base::GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4;
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
-
-    using Base::AMmaKStride;
-    using Base::BMmaKStride;
-
     using Base::MWaves;
 
     static constexpr index_t PrefetchStages        = 2;
