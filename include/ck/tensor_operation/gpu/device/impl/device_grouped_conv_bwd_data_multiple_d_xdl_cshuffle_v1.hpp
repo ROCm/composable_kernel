@@ -2015,6 +2015,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             return false;
         }
 
+        if(!is_bf16_atomic_supported() && std::is_same_v<EDataType, ck::bhalf_t> &&
+           arg.k_batch_ > 1)
+        {
+            return false;
+        }
+
         if constexpr(!IsSplitKSupported)
         {
             if(arg.k_batch_ != 1)
