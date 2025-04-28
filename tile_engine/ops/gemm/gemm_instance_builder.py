@@ -27,7 +27,9 @@ LAYOUT_MAP = {'r' : 'ck_tile::tensor_layout::gemm::RowMajor',
 
 DEFAULT_EPILOGUE = """
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-                                ck_tile::DefaultGemm2DEpilogueProblem<AccDataType, 
+                                ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
+                                                                      BDataType,
+                                                                      AccDataType, 
                                                                       CDataType, 
                                                                       CLayout, 
                                                                       kPadM,
