@@ -100,7 +100,7 @@ struct BlockGemmARegBRegCRegV1
 
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<MWarp>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
+            tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp, NWarp>>,
             tuple<sequence<1, 2>>,
             tuple<sequence<1, 1>>,
             sequence<1, 2>,
