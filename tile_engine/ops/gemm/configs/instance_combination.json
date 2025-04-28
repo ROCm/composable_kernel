@@ -10,7 +10,7 @@
       "values": ["r"] 
     },
     "datatype": {
-      "values": ["fp16"]
+      "values": ["fp16"] 
     },
     "tile_m": {
       "values": [256]
