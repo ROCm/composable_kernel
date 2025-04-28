@@ -52,14 +52,21 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return concat('_', "gemm_grouped", gemm_prec_str<ADataType, BDataType>,
                       concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock),
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
-                      concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
+                      concat('x', P_::kPadM, P_::kPadN, P_::kPadK),
+                      (UsePersistentKernel ? "Persistent" : "NonPersistent"));
         // clang-format on
     }
 
-    __host__ static auto GetWorkSpaceSize(const std::vector<GemmHostArgs>& gemm_descs)
+    CK_TILE_HOST static auto GetWorkSpaceSize(const std::vector<GemmHostArgs>& gemm_descs)
         -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
+    }
+
+    CK_TILE_HOST static auto GetWorkSpaceSize(index_t group_count)
+        -> std::size_t
+    {
+        return group_count * sizeof(GemmTransKernelArg);
     }
 
     __host__ static constexpr auto BlockSize() -> dim3 { return dim3(KernelBlockSize); }
@@ -120,6 +127,20 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         }
 
         return gemm_kernel_args_;
+    }
+
+    CK_TILE_DEVICE static auto GridUpdateBlocks(GemmTransKernelArg* gemm_desc_ptr, const index_t group_count) -> index_t
+    {
+        index_t grid_size = 0;
+        for(index_t i = 0; i < group_count; ++i)
+        {
+            const auto& it_desc          = gemm_desc_ptr[i].group_karg;
+            const auto local_grid_size   = TilePartitioner::GridSize(it_desc.M, it_desc.N) * it_desc.k_batch;
+            gemm_desc_ptr[i].block_start = grid_size;
+            gemm_desc_ptr[i].block_end   = grid_size + local_grid_size;
+            grid_size                   += local_grid_size;
+        }
+        return grid_size;
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemSize() -> index_t
