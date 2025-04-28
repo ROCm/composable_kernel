@@ -46,11 +46,11 @@ void run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    int n_warmup                              = arg_parser.get_int("warmup");
-    int n_repeat                              = arg_parser.get_int("repeat");
-    int verify                                = arg_parser.get_int("v");
-    ck_tile::index_t init_method              = arg_parser.get_int("init");
-    static constexpr bool structured_sparsity = false;
+    int n_warmup                 = arg_parser.get_int("warmup");
+    int n_repeat                 = arg_parser.get_int("repeat");
+    int verify                   = arg_parser.get_int("v");
+    ck_tile::index_t init_method = arg_parser.get_int("init");
+    bool structured_sparsity     = arg_parser.get_bool("structured_sparsity");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));

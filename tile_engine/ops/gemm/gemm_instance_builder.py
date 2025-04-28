@@ -518,7 +518,7 @@ struct GemmDispatcher {
                                                                   ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                                                                   ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                                                                   int verify, ck_tile::GemmHostArgs& args,
-                                                                  const ck_tile::stream_config& s) {{
+                                                                  const ck_tile::stream_config& stream) {{
                         """
             for tile in tile_params:
                 # Check if we have valid tile/warp combinations 
@@ -528,9 +528,9 @@ struct GemmDispatcher {
                     continue
                 content += f"""
                 if(structured_sparsity) {{
-                    run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {1}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, s);
+                    run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {1}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);
                 }} else {{
-                    run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {0}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, s);
+                    run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {0}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);
                 }}"""
             content += f"""
             }};\n"""
