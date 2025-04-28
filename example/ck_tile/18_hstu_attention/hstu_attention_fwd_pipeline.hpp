@@ -312,8 +312,6 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                 __builtin_amdgcn_sched_barrier(0);
 
-                clear_tile(sacc_tiles[i_k1]);
-
                 block_sync_lds();
                 // execute current unroll of gemm_0
                 gemm_0(sacc_tiles[i_k1], q_tile, k_lds_windows[number<i_k1 % NumKVLdsBuffers>{}]);
