@@ -1,2 +1,2 @@
-add_executable(tile_example_grouped_gemm EXCLUDE_FROM_ALL grouped_gemm.cpp)
-
+add_executable(tile_example_grouped_gemm grouped_gemm.cpp)
+rocm_install(TARGETS tile_example_grouped_gemm COMPONENT examples)
