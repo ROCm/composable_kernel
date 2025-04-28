@@ -62,13 +62,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     assert(stride >= n);
 
-    using ADataType       = DataType;
-    using BDataType       = DataType;
-    using GammaDataType   = DataType;
-    using XDataType       = DataType;
-    using YScaleDataType  = float;
-    using QYDataType      = ck_tile::int8_t;
-    using ComputeDataType = float;
+    using ADataType        = DataType;
+    using BDataType        = DataType;
+    using GammaDataType    = DataType;
+    using XDataType        = DataType;
+    using UnquantYDataType = ck_tile::null_type;
+    using YScaleDataType   = float;
+    using QYDataType       = ck_tile::int8_t;
+    using ComputeDataType  = float;
 
     // host verify
     ck_tile::HostTensor<ADataType> a_host({m, n}, {stride, 1});
@@ -81,6 +82,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YScaleDataType> yscale_host_dev({m}, {1});
     ck_tile::HostTensor<QYDataType> qy_host_ref({m, n}, {stride, 1});
     ck_tile::HostTensor<QYDataType> qy_host_dev({m, n}, {stride, 1});
+    ck_tile::HostTensor<UnquantYDataType> unquant_y_host_ref({m, n}, {stride, 1});
 
     ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
     ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_host);
@@ -193,8 +195,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                              GammaDataType,
                                              ComputeDataType,
                                              YDataType,
-                                             InvRmsDataType>(
-                x_host_ref, gamma_host, y_host, invRms_host_ref, epsilon);
+                                             InvRmsDataType,
+                                             UnquantYDataType>(
+                x_host_ref, gamma_host, y_host, invRms_host_ref, unquant_y_host_ref, epsilon);
         }
 
         // yscale
