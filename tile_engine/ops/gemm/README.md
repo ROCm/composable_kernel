@@ -45,9 +45,8 @@ rm -rf tile_engine/ && make tile_engine_gemm -j  # rebuild
       -pad_m    Pad in m direction - true/false (default:false)
       -pad_n    Pad in n direction - true/false (default:false)
       -pad_k    Pad in k direction - true/false (default:false)
-
-Note: pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be one of the options specified above. 
 ```
+Note: In `./configs/instance_combination.json` pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be from one of the values specified above. 
 
 ## Example
 
