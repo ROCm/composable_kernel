@@ -130,8 +130,8 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
         static_for<0, num_vec_out, 1>{}([&](auto i) {
             constexpr auto idx_y_out_tmp = generate_array(
                 [&](auto ii) {
-                    return ii == y_dim_vec_in ? index_t(idx_y_start[ii]) + i
-                                              : index_t(idx_y_start[ii]);
+                    return ii == y_dim_vec_in ? static_cast<index_t>(idx_y_start[ii]) + i
+                                              : static_cast<index_t>(idx_y_start[ii]);
                 },
                 number<NDimY>{});
 
