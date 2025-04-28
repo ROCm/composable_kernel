@@ -91,10 +91,12 @@ using fmha_pipeline_problem = ck_tile::BlockFmhaFwdSplitKVPipelineProblem<
 using fmha_pipeline = {F_pipeline}<
     fmha_pipeline_problem>;
 
+/// FIXME: use {F_spad}/{F_dvpad} as kPadM/kPadN parameters after solving
+///        store_tile_raw() data corruption issue
 using fmha_epilogue =
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
-                                           {F_spad}, {F_dvpad}>>;
+                                           false, false>>;
 
 using fmha_kernel =
     ck_tile::FmhaFwdSplitKVKernel<fmha_pipeline, fmha_epilogue>;
@@ -440,10 +442,10 @@ class FmhaFwdSplitKVCombinePipeline:
         n = f'{self.tag}'
         if pn != '' : n += f'_{pn}'
         else: n += '_npad'
-        
+
         if self.F_lse == 't' : n += '_lse'
         else: n += '_nlse'
-        
+
         if self.F_squant == 't' : n += '_squant'
         else: n += '_nsquant'
         return n
@@ -676,6 +678,12 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
                     pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
 
+                    pipelines.append(Pipeline('qr', 'row', 't', 'f', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'col', 't', 'f', 'f', 'f', bias, 't', squant, pagedkv, mask))
+
+                    pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+                    pipelines.append(Pipeline('qr', 'col', 't', 't', 'f', 'f', bias, 't', squant, pagedkv, mask))
+
                     pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
                     pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', bias, 't', squant, pagedkv, mask))
                 else:
@@ -819,9 +827,10 @@ def write_fwd_splitkv_api(api_pool : FmhaFwdSplitKVApiPool, autogen_dir: Path) -
     file_path = autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME
     file_path.write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> None:
+def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
+    assert optdim_list == [-1]
 
     kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)
     for kernel in kernels:
@@ -831,9 +840,10 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> Non
         write_single_kernel(kernel, output_dir)
     write_fwd_splitkv_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, filter_list : str, receipt, mask_impl) -> None:
+def list_blobs(file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
+    assert optdim_list == [-1]
 
     with file_path.open('a') as f:
         kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)

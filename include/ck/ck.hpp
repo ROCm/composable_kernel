@@ -125,7 +125,7 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx9__) // for GPU code
+#elif defined(__gfx9__) || defined(__gfx12__) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
@@ -243,6 +243,9 @@
 
 // workaround: compiler issue on gfx950
 #define CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION 1
+
+// workaround: compiler issue on gfx950
+#define CK_TEMP_DISABLE_FP4_TESTS 1
 
 // workaround: compiler issue on gfx950
 #define CK_WORKAROUND_FP16_TO_FP8_CONVERSION 1

@@ -2,7 +2,8 @@ function (add_moe_smoothquant_example TARGET_NAME MAIN_SRC)
     message("adding ${TARGET_NAME}")
     # not using add_example_executable() to add target, since we don't want this to have
     # to be included in "make all/install/check"
-    add_executable(${TARGET_NAME} EXCLUDE_FROM_ALL ${MAIN_SRC})
+    add_executable(${TARGET_NAME} ${MAIN_SRC})
+    rocm_install(TARGETS ${TARGET_NAME} COMPONENT examples)
     target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
     foreach(source IN LISTS ARGN)
