@@ -12,34 +12,13 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     : BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
                                           /* AsyncCopy = */ false,
                                           /* NumPrefetchK = */ -1,
-                                          /* NumPrefetchV = */ 2>
+                                          /* NumPrefetchV = */ 1>
 {
-    static constexpr index_t NumPrefetchV = 2;
-
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto GetNumKLdsBuffers()
+    CK_TILE_DEVICE static constexpr auto GetNumKVLdsBuffers()
     {
-        return 2;
+        return 3;
     }
-
-    template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto GetNumPrefetchV()
-    {
-        using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
-
-        constexpr index_t kN0 = BlockFmhaShape::kN0;
-        constexpr index_t kK1 = BlockFmhaShape::kK1;
-
-        constexpr index_t k1_loops = kN0 / kK1;
-
-        return min(NumPrefetchV, k1_loops);
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetNumVLdsBuffers()
-    {
-        return 2;
-    };
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
@@ -120,7 +99,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
-        constexpr index_t NumKLdsBuffers = GetNumKLdsBuffers<Problem>();
+        constexpr index_t NumKLdsBuffers = GetNumKVLdsBuffers<Problem>();
         constexpr index_t kNPerBlock     = Problem::BlockFmhaShape::kK1;
         constexpr index_t kKPerBlock     = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
@@ -234,7 +213,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     {
         using QKVDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
-        constexpr index_t NumVLdsBuffers = GetNumVLdsBuffers<Problem>();
+        constexpr index_t NumVLdsBuffers = GetNumKVLdsBuffers<Problem>();
 
         constexpr index_t Banks        = 32; // TODO: need change based on arch
         constexpr index_t PixelsPerRow = Banks * 4 / sizeof(QKVDataType);
@@ -423,32 +402,20 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t IsFirstVLdsBufferOverlapLastKLdsBuffer()
-    {
-        using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
-
-        constexpr index_t k0_loops          = BlockFmhaShape::kQKHeaddim / BlockFmhaShape::kK0;
-        constexpr index_t num_k_lds_buffers = GetNumKLdsBuffers<Problem>();
-
-        return (k0_loops - 1) % num_k_lds_buffers == 0;
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t IsFirstKLdsBufferOverlapLastVLdsBuffer()
     {
         using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
 
-        constexpr index_t k1_loops          = BlockFmhaShape::kN0 / BlockFmhaShape::kK1;
-        constexpr index_t num_v_lds_buffers = GetNumVLdsBuffers<Problem>();
+        constexpr index_t k1_loops           = BlockFmhaShape::kN0 / BlockFmhaShape::kK1;
+        constexpr index_t num_kv_lds_buffers = GetNumKVLdsBuffers<Problem>();
 
-        return (k1_loops - 1) % num_v_lds_buffers == 0;
+        return (k1_loops - 1 + 1) % num_kv_lds_buffers == 0;
     };
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeKV()
     {
-        constexpr index_t num_kv_lds_buffers =
-            max(GetNumKLdsBuffers<Problem>(), GetNumVLdsBuffers<Problem>());
+        constexpr index_t num_kv_lds_buffers = GetNumKVLdsBuffers<Problem>();
 
         return num_kv_lds_buffers * GetSingleSmemElementSpaceSize<Problem>() *
                sizeof(typename Problem::QKVDataType);
