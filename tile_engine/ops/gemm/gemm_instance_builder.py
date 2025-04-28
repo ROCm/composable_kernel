@@ -541,9 +541,9 @@ struct GemmDispatcher {
     static void run_kernel(ck_tile::DeviceMem& c_m_n_dev_buf,
                            ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                            ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                           int verify, ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+                           int verify, ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream)
     {
-        float avg_time = Kernel::launch(args, s);
+        float avg_time = Kernel::launch(args, stream);
         std::string description = Kernel::get_name();
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         
@@ -565,12 +565,12 @@ struct GemmDispatcher {
                          ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                          ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                          int verify, bool structured_sparsity, const KernelTraits &trait, ck_tile::GemmHostArgs& gemm_args,
-                         const ck_tile::stream_config& s) {
+                         const ck_tile::stream_config& stream) {
         init(structured_sparsity);
         const std::string key = assemble_key(trait);
         auto& kernel_map = get_kernel_map(); 
         if(auto it = kernel_map.find(key); it != kernel_map.end()) {
-            return it->second(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, gemm_args, s); 
+            return it->second(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, gemm_args, stream); 
         }
         throw std::runtime_error("No suitable kernel found: " + key);
     }

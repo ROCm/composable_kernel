@@ -13,7 +13,7 @@ void gemm_kernel_launch(ck_tile::DeviceMem& c_m_n_dev_buf,
                         bool structured_sparsity,
                         KernelTraits& trait,
                         ck_tile::GemmHostArgs& args,
-                        const ck_tile::stream_config& s)
+                        const ck_tile::stream_config& stream)
 {
     return GemmDispatcher::dispatch(c_m_n_dev_buf,
                                     c_m_n_host_result,
@@ -22,7 +22,7 @@ void gemm_kernel_launch(ck_tile::DeviceMem& c_m_n_dev_buf,
                                     structured_sparsity,
                                     trait,
                                     args,
-                                    s);
+                                    stream);
 }
 
 template <typename ADataType,
