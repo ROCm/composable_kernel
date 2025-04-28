@@ -41,7 +41,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
     using Base                    = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
 
-    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+    static constexpr index_t KernelBlockSize  = GemmPipeline::BlockSize;
+    static constexpr bool UsePersistentKernel = GemmPipeline::UsePersistentKernel;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -147,15 +148,12 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
             a_ptr, b_ptr, c_ptr, smem_ptr, kargs.group_karg, splitk_batch_offset, i_m, i_n);
     }
 
-    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                   index_t group_count) const
+    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg* gemm_desc_ptr, 
+                                      index_t block_id,
+                                      index_t group_count) const
     {
-        const index_t block_id   = ck_tile::get_block_1d_id();
-        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
-            cast_pointer_to_generic_address_space(gemm_descs_const));
-
-        index_t left     = 0;
-        index_t right    = group_count;
+        index_t left = 0;
+        index_t right = group_count;
         index_t group_id = index_t((left + right) >> 1);
 
         while((!(block_id >= gemm_desc_ptr[group_id].block_start &&
@@ -172,8 +170,33 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
             }
             group_id = index_t((left + right) >> 1);
         }
+        
+        return group_id;
+    }
 
+    // For non-persistent kernels
+    template <bool U = UsePersistentKernel, 
+              typename = std::enable_if_t<!U>>
+    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                  index_t group_count) const {
+        const index_t block_id = ck_tile::get_block_1d_id();
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
+            cast_pointer_to_generic_address_space(gemm_descs_const));
+        
+        index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
         Run(gemm_desc_ptr[group_id]);
+    }
+
+    // For persistent kernels
+    template <bool U = UsePersistentKernel,
+              typename = std::enable_if_t<U>,
+              typename = void> // extra template parameter to avoid redefinition
+    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                  index_t group_count) const {
+        static_assert(!U, "Persistent kernel is not supported in this version. "
+                         "Please use non-persistent kernel.");
+        ignore = group_count;
+        ignore = gemm_descs_const;
     }
 };
 
