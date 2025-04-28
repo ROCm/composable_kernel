@@ -19,7 +19,6 @@ struct BatchedTransposeHostArgs
     index_t batch;
     index_t height;
     index_t width;
-    // index_t dim_blocks;
     index_t dim_stride;
     index_t dim_block_h;
     index_t dim_block_w;
