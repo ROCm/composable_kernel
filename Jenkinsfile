@@ -530,7 +530,7 @@ def Build_CK(Map conf=[:]){
                     if ( !params.BUILD_LEGACY_OS && arch_type == 1 ){
                             echo "Run inductor codegen tests"
                             sh """
-                                  pip install --break-system-packages --verbose .
+                                  pip install --target ${env.WORKSPACE} --break-system-packages --verbose .
                                   pytest python/test/test_gen_instances.py
                             """
                     }
