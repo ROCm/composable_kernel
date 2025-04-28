@@ -19,7 +19,7 @@
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_bwd_weight_v3.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_conv_v3.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
