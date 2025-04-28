@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -95,35 +95,26 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdDataXdl3d, KernelTypes3d);
 TYPED_TEST(TestGroupedConvndBwdDataXdl2d, Test2D)
 {
     this->conv_params.clear();
-
+    // SplitN case
     this->conv_params.push_back(
-        {2, 2, 2, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->conv_params.push_back(
-        {2, 2, 2, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->conv_params.push_back(
-        {2, 2, 2, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
-    this->conv_params.push_back(
-        {2, 2, 2, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
-    this->conv_params.push_back({2, 1, 1, 1, 32, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->conv_params.push_back({2, 1, 1, 64, 3, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->conv_params.push_back({2, 1, 1, 1, 1, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+        {2, 1, 128, 4, 192, {2, 2}, {224, 224}, {224, 224}, {1, 1}, {0, 0}, {0, 0}});
     this->template Run<2>();
 }
 
 TYPED_TEST(TestGroupedConvndBwdDataXdl3d, Test3D)
 {
     this->conv_params.clear();
-    this->conv_params.push_back(
-        {3, 2, 2, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    this->conv_params.push_back(
-        {3, 2, 2, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 2, 2, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
-    this->conv_params.push_back(
-        {3, 1, 1, 1, 32, {3, 3, 3}, {4, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 1, 1, 64, 3, {3, 3, 3}, {4, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    this->conv_params.push_back(
-        {3, 1, 1, 1, 1, {3, 3, 3}, {4, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    // SplitN case
+    this->conv_params.push_back({3,
+                                 1,
+                                 128,
+                                 4,
+                                 192,
+                                 {2, 2, 2},
+                                 {2, 224, 224},
+                                 {1, 224, 224},
+                                 {1, 1, 1},
+                                 {0, 0, 0},
+                                 {0, 0, 0}});
     this->template Run<3>();
 }
