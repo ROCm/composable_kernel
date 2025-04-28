@@ -1,12 +1,13 @@
 # GEMM Matrix Multiplication
 
-CK Tile Engine GEMM is used to generate and run GEMM kernels with different combinations of BlockTile sizes, WarpTile sizes, WarpTile mapping for a valid pipeline, scheduler and epilogue. 
+CK Tile Engine GEMM is used to generate and run GEMM kernels with different combinations of BlockTile sizes, WarpTile sizes, WarpTile mapping for all valid pipelines, schedulers and epilogues. 
 
 # Kernel Configurations
 
-`instance_combination.json` specifies the desired kernel parameters, such as matrix layouts, datatypes, padding settings, pipeline, scheduler, epilogue, and numerical values for tile and warp sizes.
+Kernel parameters are specified in the `instance_combination.json` file, including matrix layouts, data types, padding settings, pipelines, schedulers, epilogues, and numerical values for tile and warp sizes.
 
-Given valid set of values, `tile_engine_gemm` will iterate over all possible combinations of block tile & warp tile sizes specified in the `./configs/instance_combination.json` and run the kernels.
+Given a valid set of values, tile_engine_gemm will automatically iterate over all possible combinations of BlockTile and WarpTile sizes, as well as the specified pipelines, schedulers, and epilogues from `./configs/instance_combination.json`, and build the corresponding kernels.
+
 
 ## Build Instructions
 ``` bash
@@ -50,9 +51,39 @@ Note: pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be one of the op
 
 ## Example
 
-Below example will run gemm kernel with default dimensions of matrices, for compv3 pipeline, intrawave scheduler and default epilogue with all possible tile sizes mentioned in `instance_combination.json` file.
+The following JSON file specifies parameters used to generate and build GEMM kernels across all possible combinations of pipelines, schedulers, epilogues, and different tile and warp sizes.
 
+```json
+{     
+    /// other parameters ///
+    
+    "tile_m": {
+      "values": [256]
+    },
+    "tile_n": {
+      "values": [256]
+    },
+    "tile_k": {
+      "values": [64, 32]
+    },
+
+    /// other parameters ///
+
+    "pipeline": {
+      "values": ["compv3", "compv4", "mem"]
+    },
+    "scheduler": {
+      "values": ["intrawave", "interwave"]
+    },
+    "epilogue": {
+      "values": ["default", "cshuffle"]
+    }
+}
+```
+
+At runtime, a specific subset of the generated kernels can be selected using command-line arguments.
 ``` bash
 ./bin/tile_engine_gemm -pipeline=compv3 -scheduler=intrawave -epilogue=default 
 ```
+The above command runs kernels configured with the compv3 pipeline, intrawave scheduler, and default epilogue, while sweeping over different BlockTile sizes, WarpTile sizes, and WarpTile mappings.
 
