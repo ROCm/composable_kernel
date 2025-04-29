@@ -8,6 +8,13 @@
 #include <ck_tile/core/numeric/math.hpp>
 #include <ck_tile/core/numeric/type_convert.hpp>
 
+#define CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH 0
+#define CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN 1
+
+#ifndef CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT
+#define CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH
+#endif
+
 namespace ck_tile {
 
 template <typename ImplMask>
@@ -158,13 +165,23 @@ struct LogitsSoftCap
     {
         if constexpr(UseExp2)
         {
+#if CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH
             return params.logits_soft_cap *
                    tanh_fast<float>(type_convert<float>(logits) * params.logits_soft_cap_rcp);
+#elif CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN
+            return params.sm_scale * type_convert<float>(logits) *
+                   rcp<float>(1.f + abs(type_convert<float>(logits) * params.logits_soft_cap_rcp));
+#endif
         }
         else
         {
+#if CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH
             return params.logits_soft_cap *
                    tanhf(type_convert<float>(logits) * params.logits_soft_cap_rcp);
+#elif CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN
+            return type_convert<float>(logits) *
+                   rcp<float>(1.f + abs(type_convert<float>(logits) * params.logits_soft_cap_rcp));
+#endif
         }
     }
 
@@ -218,13 +235,25 @@ struct ComposedAttention
         {
             if constexpr(UseExp2)
             {
+#if CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH
                 return params.logits_soft_cap *
                        tanh_fast<float>(type_convert<float>(logits) * params.logits_soft_cap_rcp);
+#elif CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN
+                return params.sm_scale * type_convert<float>(logits) *
+                       rcp<float>(1.f +
+                                  abs(type_convert<float>(logits) * params.logits_soft_cap_rcp));
+#endif
             }
             else
             {
+#if CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH
                 return params.logits_soft_cap *
                        tanhf(type_convert<float>(logits) * params.logits_soft_cap_rcp);
+#elif CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN
+                return type_convert<float>(logits) *
+                       rcp<float>(1.f +
+                                  abs(type_convert<float>(logits) * params.logits_soft_cap_rcp));
+#endif
             }
         }
         return logits;
