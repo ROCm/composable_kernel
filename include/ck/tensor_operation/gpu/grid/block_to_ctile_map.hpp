@@ -1433,10 +1433,12 @@ struct BlockToCTileMap_GemmStreamK_v2
     MDiv k_iters_per_tile;
     MDiv equiv_tiles_big;    // for reduction
     MDiv equiv_tiles_little; // for reduction
+    StreamKReductionStrategy reduction_strategy; // Runtime selection of reduction strategy
 
     // prefer construct on host
     __host__ __device__ BlockToCTileMap_GemmStreamK_v2(
-        uint32_t m, uint32_t n, uint32_t k, uint32_t grid_size = 1, uint32_t streamk_sel = 1)
+        uint32_t m, uint32_t n, uint32_t k, uint32_t grid_size = 1, uint32_t streamk_sel = 1,
+        StreamKReductionStrategy reduction_strategy_ = StreamKReductionStrategy::Atomic)
     {
         // total output tiles
         uint32_t num_tiles =

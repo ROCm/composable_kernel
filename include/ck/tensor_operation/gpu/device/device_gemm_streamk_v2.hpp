@@ -34,7 +34,8 @@ struct DeviceGemm_Streamk_V2 : public BaseOperator
                         ck::index_t Grid_size,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
-                        CElementwiseOperation c_element_op) = 0;
+                        CElementwiseOperation c_element_op,
+                        StreamKReductionStrategy reduction_strategy = StreamKReductionStrategy::Atomic) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
