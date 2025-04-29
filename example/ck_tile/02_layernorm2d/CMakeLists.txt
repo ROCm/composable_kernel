@@ -26,7 +26,8 @@ add_custom_command(
 set(EXAMPLE_LAYERNORM2D_FWD "tile_example_layernorm2d_fwd")
 
 message("adding example ${EXAMPLE_LAYERNORM2D_FWD}")
-add_executable(${EXAMPLE_LAYERNORM2D_FWD} EXCLUDE_FROM_ALL layernorm2d_fwd.cpp)
+add_executable(${EXAMPLE_LAYERNORM2D_FWD} layernorm2d_fwd.cpp)
+rocm_install(TARGETS ${EXAMPLE_LAYERNORM2D_FWD} COMPONENT examples)
 target_include_directories(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXAMPLE_LAYERNORM2D_FWD} PRIVATE ${LAYERNORM2D_FWD_GEN_BLOBS})
 
