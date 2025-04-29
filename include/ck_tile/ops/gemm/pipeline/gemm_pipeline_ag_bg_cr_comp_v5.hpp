@@ -494,22 +494,22 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             BLdsTile b_block_tile0;
 
             auto a_lds_ld_window0 =
-            make_tile_window_linear(a_lds_block0,
-                                    make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                    {0, 0},
-                                    ALdsTileDistr);
+                make_tile_window_linear(a_lds_block0,
+                                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                        {0, 0},
+                                        ALdsTileDistr);
             auto b_lds_ld_window0 =
-            make_tile_window_linear(b_lds_block0,
-                                    make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                    {0, 0},
-                                    BLdsTileDistr);
+                make_tile_window_linear(b_lds_block0,
+                                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                        {0, 0},
+                                        BLdsTileDistr);
 
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
 
             if(HasHotLoop)
             {
-                // TODO
+                // TODO main loop
             }
 
             // TODO: IF Tail Odd
