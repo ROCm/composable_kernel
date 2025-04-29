@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
