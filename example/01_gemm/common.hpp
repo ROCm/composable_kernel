@@ -177,22 +177,20 @@ bool parse_cmd_args<ProblemSizeStreamK_universal>(int argc,
         if(argc >= 11)
         {
             problem_size.Streamk_sel = std::stoi(argv[10]);
-            
 
             if(argc >= 12)
             {
                 problem_size.Grid_size = std::stoi(argv[11]);
-                
+
                 // Parse reduction strategy if provided
                 if(argc >= 13)
                 {
-                    int reduction_strategy = std::stoi(argv[12]);
-                    problem_size.reduction_strategy = reduction_strategy == 0 ? 
-                        ck::StreamKReductionStrategy::Atomic : 
-                        ck::StreamKReductionStrategy::Reduction;
+                    int reduction_strategy          = std::stoi(argv[12]);
+                    problem_size.reduction_strategy = reduction_strategy == 0
+                                                          ? ck::StreamKReductionStrategy::Atomic
+                                                          : ck::StreamKReductionStrategy::Reduction;
                 }
             }
-
         }
     }
     else
@@ -202,7 +200,8 @@ bool parse_cmd_args<ProblemSizeStreamK_universal>(int argc,
             << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)" << std::endl
             << "arg3: time kernel (0=no, 1=yes)" << std::endl
             << "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC" << std::endl
-            << "arg10: stream-k select (-1: default config, 0: all DP, 1: 1-tile SK, 2: 2-tile SK)" << std::endl
+            << "arg10: stream-k select (-1: default config, 0: all DP, 1: 1-tile SK, 2: 2-tile SK)"
+            << std::endl
             << "arg11: Grid_size(-1 for max occupancy)" << std::endl
             << "arg12: Reduction strategy (0: Atomic, 1: Reduction)" << std::endl;
         return false;

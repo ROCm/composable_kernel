@@ -506,8 +506,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                          index_t StrideB_,
                          index_t StrideC_,
                          index_t Streamk_sel_,
-                         index_t Grid_size_, 
-                         StreamKReductionStrategy reduction_strategy_ = StreamKReductionStrategy::Atomic)
+                         index_t Grid_size_,
+                         StreamKReductionStrategy reduction_strategy_)
             : M{M_},
               N{N_},
               K{K_},
@@ -532,24 +532,26 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         __host__ void Print() const
         {
             std::cout << "problem {"
-            << "M:" << M << ", "
-            << "N:" << N << ", "
-            << "K:" << K << ", "
-            << "SA:" << StrideA << ", "
-            << "SB:" << StrideB << ", "
-            << "SC:" << StrideC << ", "
-            << "MP:" << MPadded << ", "
-            << "NP:" << NPadded << ", "
-            << "KRead:" << KRead << ", "
-            << "KP:" << KPadded << ", "
-            << "AK0:" << AK0 << ", "
-            << "BK0:" << BK0 << ", "
-            << "MBlock: " << MBlock << ", "
-            << "NBlock: " << NBlock << ", "
-            << "Stream-K Selection:" << Streamk_sel << ", "
-            << "Grid size:" << Grid_size << ", "
-            << "Reduction Strategy:" << (reduction_strategy == StreamKReductionStrategy::Atomic ? "Atomic" : "Reduction")
-            << "}" << std::endl;
+                      << "M:" << M << ", "
+                      << "N:" << N << ", "
+                      << "K:" << K << ", "
+                      << "SA:" << StrideA << ", "
+                      << "SB:" << StrideB << ", "
+                      << "SC:" << StrideC << ", "
+                      << "MP:" << MPadded << ", "
+                      << "NP:" << NPadded << ", "
+                      << "KRead:" << KRead << ", "
+                      << "KP:" << KPadded << ", "
+                      << "AK0:" << AK0 << ", "
+                      << "BK0:" << BK0 << ", "
+                      << "MBlock: " << MBlock << ", "
+                      << "NBlock: " << NBlock << ", "
+                      << "Stream-K Selection:" << Streamk_sel << ", "
+                      << "Grid size:" << Grid_size << ", "
+                      << "Reduction Strategy:"
+                      << (reduction_strategy == StreamKReductionStrategy::Atomic ? "Atomic"
+                                                                                 : "Reduction")
+                      << "}" << std::endl;
         }
 
         index_t M;
@@ -585,13 +587,25 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                           index_t StrideC_,
                           index_t Streamk_sel_,
                           index_t Grid_size_,
-                          StreamKReductionStrategy reduction_strategy_ = StreamKReductionStrategy::Atomic)
-            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, Streamk_sel_, Grid_size_},
+                          StreamKReductionStrategy reduction_strategy_)
+            : Problem{M_,
+                      N_,
+                      K_,
+                      StrideA_,
+                      StrideB_,
+                      StrideC_,
+                      Streamk_sel_,
+                      Grid_size_,
+                      reduction_strategy_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_c_grid{p_c_grid_},
-              block_2_ctile_map_streamk(
-                  M_, N_, AK0Number * CalculateKPadded(K_, 1), Grid_size_, Streamk_sel_ , reduction_strategy_)
+              block_2_ctile_map_streamk(M_,
+                                        N_,
+                                        AK0Number * CalculateKPadded(K_, 1),
+                                        Grid_size_,
+                                        Streamk_sel_,
+                                        reduction_strategy_)
 
         {
         }
@@ -602,7 +616,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         BlockToCTileMap_GemmStreamK_v2<MPerBlock,
                                        NPerBlock,
                                        KPerBlock,
-                                    //    StreamKReductionStrategy::Atomic,
+                                       //    StreamKReductionStrategy::Atomic,
                                        8,
                                        4>
             block_2_ctile_map_streamk;
@@ -1236,12 +1250,13 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         }();
         return c_partial_acc_block_m_n;
     }
-    using Block2CTileMap_streamk = BlockToCTileMap_GemmStreamK_v2<MPerBlock,
-                                                                  NPerBlock,
-                                                                  KPerBlock,
-                                                                //   StreamKReductionStrategy::Atomic,
-                                                                  8,
-                                                                  4>;
+    using Block2CTileMap_streamk =
+        BlockToCTileMap_GemmStreamK_v2<MPerBlock,
+                                       NPerBlock,
+                                       KPerBlock,
+                                       //   StreamKReductionStrategy::Atomic,
+                                       8,
+                                       4>;
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -1289,7 +1304,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             reinterpret_cast<char*>(p_workspace) +
             block_2_ctile_map_streamk.get_workspace_size_for_acc(sizeof(AccDataType)));
 
-       
         for(auto block_idx = get_block_1d_id();
             block_idx < block_2_ctile_map_streamk.get_grid_dims();
             block_idx += gridDim.x)
@@ -1307,7 +1321,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
             // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
             //              StreamKReductionStrategy::Reduction)
-            if(problem.reduction_strategy == StreamKReductionStrategy::Reduction )
+            if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
             {
                 is_reduction_block = static_cast<uint32_t>(block_idx) >=
                                      block_2_ctile_map_streamk.reduction_start_block_idx;
@@ -1897,7 +1911,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         {
                             // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                             //              StreamKReductionStrategy::Atomic)
-                            if(problem.reduction_strategy == StreamKReductionStrategy::Atomic )
+                            if(problem.reduction_strategy == StreamKReductionStrategy::Atomic)
                             {
                                 // each block copy its data from LDS to global
                                 c_shuffle_block_copy_lds_to_global
@@ -1911,7 +1925,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                             }
                             // else if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                             //                   StreamKReductionStrategy::Reduction)
-                            else if(problem.reduction_strategy == StreamKReductionStrategy::Reduction )
+                            else if(problem.reduction_strategy ==
+                                    StreamKReductionStrategy::Reduction)
                             {
                                 // constexpr offset
                                 c_block_copy_lds_to_partial_acc.SetSrcSliceOrigin(
@@ -1945,7 +1960,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
                     // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                     //              StreamKReductionStrategy::Reduction)
-                    if(problem.reduction_strategy == StreamKReductionStrategy::Reduction )
+                    if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
                     {
                         if(is_sk_block)
                         {
@@ -1962,7 +1977,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     break;
                 // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                 //              StreamKReductionStrategy::Reduction)
-                if(problem.reduction_strategy == StreamKReductionStrategy::Reduction )
+                if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
                 {
                     block_acc_offset -= MPerBlock * NPerBlock;
                 }
@@ -2038,7 +2053,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
             // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
             //              StreamKReductionStrategy::Reduction)
-            if(problem.reduction_strategy == StreamKReductionStrategy::Reduction )
+            if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
             {
                 is_reduction_block = static_cast<uint32_t>(block_idx) >=
                                      block_2_ctile_map_streamk.reduction_start_block_idx;

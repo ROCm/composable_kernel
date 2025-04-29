@@ -151,7 +151,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
 
             // if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
             //              StreamKReductionStrategy::Atomic)
-            if (arg.reduction_strategy == StreamKReductionStrategy::Atomic)
+            if(arg.reduction_strategy == StreamKReductionStrategy::Atomic)
             {
 
                 hip_check_error(hipMemsetAsync(
@@ -206,14 +206,14 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                         ave_time = launch_and_time_kernel(
                             stream_config, kernel, grid_dim, dim3(BlockSize), 0, arg);
                     }
-                    else if(arg.reduction_strategy  == StreamKReductionStrategy::Reduction)
+                    else if(arg.reduction_strategy == StreamKReductionStrategy::Reduction)
                     {
                         char* workspace_semaphore =
                             reinterpret_cast<char*>(arg.p_workspace_) +
                             arg.block_2_ctile_map_streamk.get_workspace_size_for_acc(
                                 sizeof(GemmAccDataType));
                         auto preprocess = [&]() {
-                            hipError_t status =  hipMemsetAsync(
+                            hipError_t status = hipMemsetAsync(
                                 workspace_semaphore,
                                 0,
                                 // sizeof(uint32_t),
@@ -496,21 +496,22 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(const ADataType* p_a,
-                             const BDataType* p_b,
-                             CDataType* p_c,
-                             index_t M,
-                             index_t N,
-                             index_t K,
-                             index_t StrideA,
-                             index_t StrideB,
-                             index_t StrideC,
-                             index_t streamk_sel,
-                             index_t Grid_size,
-                             AElementwiseOperation,
-                             BElementwiseOperation,
-                             CElementwiseOperation,
-                             StreamKReductionStrategy reduction_strategy = StreamKReductionStrategy::Atomic)
+    static auto
+    MakeArgument(const ADataType* p_a,
+                 const BDataType* p_b,
+                 CDataType* p_c,
+                 index_t M,
+                 index_t N,
+                 index_t K,
+                 index_t StrideA,
+                 index_t StrideB,
+                 index_t StrideC,
+                 index_t streamk_sel,
+                 index_t Grid_size,
+                 AElementwiseOperation,
+                 BElementwiseOperation,
+                 CElementwiseOperation,
+                 StreamKReductionStrategy reduction_strategy = StreamKReductionStrategy::Atomic)
     {
 
         constexpr index_t minimum_occupancy =
@@ -711,27 +712,39 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
             }
         }
 
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, streamk_sel, Grid_size, reduction_strategy};
+        return Argument{p_a,
+                        p_b,
+                        p_c,
+                        M,
+                        N,
+                        K,
+                        StrideA,
+                        StrideB,
+                        StrideC,
+                        streamk_sel,
+                        Grid_size,
+                        reduction_strategy};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_b,
-                                                      void* p_c,
-                                                      index_t M,
-                                                      index_t N,
-                                                      index_t K,
-                                                      index_t StrideA,
-                                                      index_t StrideB,
-                                                      index_t StrideC,
-                                                      index_t streamk_sel,
-                                                      index_t Grid_size,
-                                                      AElementwiseOperation,
-                                                      BElementwiseOperation,
-                                                      CElementwiseOperation,
-                                                      StreamKReductionStrategy reduction_strategy = StreamKReductionStrategy::Atomic) override
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(
+        const void* p_a,
+        const void* p_b,
+        void* p_c,
+        index_t M,
+        index_t N,
+        index_t K,
+        index_t StrideA,
+        index_t StrideB,
+        index_t StrideC,
+        index_t streamk_sel,
+        index_t Grid_size,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        StreamKReductionStrategy reduction_strategy = StreamKReductionStrategy::Atomic) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),

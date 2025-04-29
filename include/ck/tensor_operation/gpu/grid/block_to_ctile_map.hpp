@@ -1409,18 +1409,18 @@ struct BlockToCTileMap_GemmStreamK
 template <uint32_t MPerBlock_,
           uint32_t NPerBlock_,
           uint32_t KPerBlock_,
-        //   StreamKReductionStrategy ReductionStrategy_ = StreamKReductionStrategy::Atomic,
-          uint32_t TileSwizzleSubM_                   = 8,
-          index_t GroupNum                            = 8,
-          index_t M01_                                = 4>
+          //   StreamKReductionStrategy ReductionStrategy_ = StreamKReductionStrategy::Atomic,
+          uint32_t TileSwizzleSubM_ = 8,
+          index_t GroupNum          = 8,
+          index_t M01_              = 4>
 struct BlockToCTileMap_GemmStreamK_v2
 {
-    static constexpr uint32_t min_k_iters_per_sk_block          = 2;
-    static constexpr uint32_t MPerBlock                         = MPerBlock_;
-    static constexpr uint32_t NPerBlock                         = NPerBlock_;
-    static constexpr uint32_t KPerBlock                         = KPerBlock_;
+    static constexpr uint32_t min_k_iters_per_sk_block = 2;
+    static constexpr uint32_t MPerBlock                = MPerBlock_;
+    static constexpr uint32_t NPerBlock                = NPerBlock_;
+    static constexpr uint32_t KPerBlock                = KPerBlock_;
     // static constexpr StreamKReductionStrategy ReductionStrategy = ReductionStrategy_;
-    static constexpr uint32_t tile_swizzle_sub_m                = TileSwizzleSubM_;
+    static constexpr uint32_t tile_swizzle_sub_m = TileSwizzleSubM_;
 
     //--------------------------------------
     // pass to device
@@ -1431,15 +1431,19 @@ struct BlockToCTileMap_GemmStreamK_v2
     uint32_t k_iters_per_big_block;
     MDiv2 n_tiles;
     MDiv k_iters_per_tile;
-    MDiv equiv_tiles_big;    // for reduction
-    MDiv equiv_tiles_little; // for reduction
+    MDiv equiv_tiles_big;                        // for reduction
+    MDiv equiv_tiles_little;                     // for reduction
     StreamKReductionStrategy reduction_strategy; // Runtime selection of reduction strategy
 
     // prefer construct on host
     __host__ __device__ BlockToCTileMap_GemmStreamK_v2(
-        uint32_t m, uint32_t n, uint32_t k, uint32_t grid_size = 1, uint32_t streamk_sel = 1,
+        uint32_t m,
+        uint32_t n,
+        uint32_t k,
+        uint32_t grid_size                           = 1,
+        uint32_t streamk_sel                         = 1,
         StreamKReductionStrategy reduction_strategy_ = StreamKReductionStrategy::Atomic)
-        : reduction_strategy(reduction_strategy_) 
+        : reduction_strategy(reduction_strategy_)
     {
         // total output tiles
         uint32_t num_tiles =
@@ -1516,7 +1520,7 @@ struct BlockToCTileMap_GemmStreamK_v2
         reduction_start_block_idx = dp_start_block_idx + dp_num_blocks;
 
         // if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
-        if (reduction_strategy == ck::StreamKReductionStrategy::Reduction)
+        if(reduction_strategy == ck::StreamKReductionStrategy::Reduction)
         {
             uint32_t upper_big    = math::lcm(k_iters_per_big_block, k_iters_per_tile.get());
             uint32_t upper_little = math::lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
@@ -1549,7 +1553,7 @@ struct BlockToCTileMap_GemmStreamK_v2
     __host__ __device__ index_t get_grid_dims() const
     {
         // if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
-        if (reduction_strategy == StreamKReductionStrategy::Reduction)
+        if(reduction_strategy == StreamKReductionStrategy::Reduction)
         {
             // return dim3(reduction_start_block_idx + get_sk_tiles(), 1, 1);
             return reduction_start_block_idx + get_sk_tiles();

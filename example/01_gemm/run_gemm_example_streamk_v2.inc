@@ -25,7 +25,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto reduction_strategy = problem_size.reduction_strategy;
 
     // Print info about the reduction strategy being used
-    if (reduction_strategy == ck::StreamKReductionStrategy::Atomic)
+    if(reduction_strategy == ck::StreamKReductionStrategy::Atomic)
     {
         std::cout << "Using Atomic reduction strategy" << std::endl;
     }
@@ -256,10 +256,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s, " << gemm.GetTypeString() 
-                  << (reduction_strategy == ck::StreamKReductionStrategy::Atomic ? " (Atomic)" : " (Reduction)")
+                  << " GB/s, " << gemm.GetTypeString()
+                  << (reduction_strategy == ck::StreamKReductionStrategy::Atomic ? " (Atomic)"
+                                                                                 : " (Reduction)")
                   << std::endl;
-                 
     }
     return pass;
 }
