@@ -230,7 +230,7 @@ struct GemmSpatiallyLocalTilePartitioner
      * @param N     GEMM's N dimension.
      * @return index_t A total number of workgroups.
      */
-    CK_TILE_HOST static auto
+    CK_TILE_HOST_DEVICE static auto
     GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> index_t
     {
         const index_t GridDimX = integer_divide_ceil(M, MPerBlock);
