@@ -530,12 +530,11 @@ def Build_CK(Map conf=[:]){
                     if ( !params.BUILD_LEGACY_OS && arch_type == 1 ){
                             echo "Run inductor codegen tests"
                             sh """
-                                  pip install --user uv
-                                  uv venv --python=3.10 --directory ${env.WORKSPACE}
-                                  source ${env.WORKSPACE}/.venv/bin/activate
-                                  uv pip install pytest build setuptools setuptools_scm
-                                  uv pip install .
-                                  pytest python/test/test_gen_instances.py
+                                  python3 -m venv ${env.WORKSPACE}
+                                  source ${env.WORKSPACE}/bin/activate
+                                  python3 -m pip install pytest build setuptools setuptools_scm
+                                  python3 -m pip install .
+                                  python3 -m pytest python/test/test_gen_instances.py
                             """
                     }
                     dir("build"){
