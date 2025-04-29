@@ -126,6 +126,8 @@ def run_ck_grouped_conv_bwd_data(args):
     args.ck_profier_op = "grouped_conv_bwd_data"
     parse_data_type(args)
     parse_layouts(args)
+    # Test all split K value from the list {1, 2, 4, 8, 32, 64, 128}
+    args.split_k_value = -1
 
     cmd = [str(args.ck_profiler_cmd), str(args.ck_profier_op)]
     cmd += [str(args.data_type), str(args.layout)]
@@ -136,6 +138,7 @@ def run_ck_grouped_conv_bwd_data(args):
     cmd += [str(args.in_channels)]
     add_conv_params_to_cmd(args, cmd)
 
+    cmd += [str(args.split_k_value)]
     run_ck_profiler_cmd(cmd)
 
 
