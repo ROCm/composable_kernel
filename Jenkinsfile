@@ -531,7 +531,7 @@ def Build_CK(Map conf=[:]){
                             echo "Run inductor codegen tests"
                             sh """
                                   python3 -m venv ${env.WORKSPACE}
-                                  source ${env.WORKSPACE}/bin/activate
+                                  . ${env.WORKSPACE}/bin/activate
                                   python3 -m pip install pytest build setuptools setuptools_scm
                                   python3 -m pip install .
                                   python3 -m pytest python/test/test_gen_instances.py
