@@ -1,4 +1,6 @@
-add_executable(tile_example_flatmm_basic EXCLUDE_FROM_ALL flatmm_basic.cpp)
+add_executable(tile_example_flatmm_basic flatmm_basic.cpp)
+rocm_install(TARGETS tile_example_flatmm_basic COMPONENT examples)
+
 
 set(EXAMPLE_FLATMM_COMPILE_OPTIONS)
 # list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal)
