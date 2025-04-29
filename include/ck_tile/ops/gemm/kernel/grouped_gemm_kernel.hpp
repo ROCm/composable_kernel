@@ -231,14 +231,16 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
               typename = std::enable_if_t<U>,
               typename = void> // extra template parameter to avoid redefinition
     CK_TILE_DEVICE void operator()(void* gemm_descs, index_t group_count) const {
-        static_assert(!U, "Persistent kernel is not supported in this version. "
-                         "Please use non-persistent kernel.");
-        ignore = group_count;
-        const index_t block_id   = ck_tile::get_block_1d_id();
+        const index_t grid_size  = ck_tile::get_grid_size();
         const auto gemm_desc_ptr = reinterpret_cast<GemmTransKernelArg*>(gemm_descs);
-        const auto grid_size     = GridUpdateBlocks(gemm_desc_ptr, group_count);
-        ignore = grid_size;
-        ignore = block_id;
+        const auto num_blocks    = GridUpdateBlocks(gemm_desc_ptr, group_count);
+        index_t block_id         = ck_tile::get_block_1d_id();  // initial block_id
+        do
+        {
+            index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
+            Run(gemm_desc_ptr[group_id]);
+            block_id = block_id + grid_size;  // advance to next block
+        } while (block_id < num_blocks);
     }
 };
 
