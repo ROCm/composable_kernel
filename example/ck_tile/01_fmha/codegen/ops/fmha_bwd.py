@@ -866,9 +866,11 @@ def write_single_bwd_convert_dq_kernel(kernel: FmhaBwdConvertQGradKernel, autoge
 def write_bwd_api(api_pool : FmhaBwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_BWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> None:
+def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (3 - len(filter_list)))
+    # TODO
+    assert optdim_list == [-1]
 
     kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)
     for kernel in kernels:
@@ -881,9 +883,11 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> Non
         write_single_bwd_dq_dk_dv_kernel(kernel, output_dir)
     write_bwd_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, filter_list : str, receipt, mask_impl) -> None:
+def list_blobs(file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (3 - len(filter_list)))
+    # TODO
+    assert optdim_list == [-1]
 
     with file_path.open('a') as f:
         kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)
