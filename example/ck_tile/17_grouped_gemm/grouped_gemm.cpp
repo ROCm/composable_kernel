@@ -177,30 +177,16 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                           << "}" << std::endl;
             }
 
-            if constexpr(!PersistentKernel)
-            {
-                ave_time = ck_tile::launch_kernel(
-                    s,
-                    ck_tile::make_kernel<blocks.x, kBlockPerCu>(
-                        Kernel{},
-                        grids,
-                        blocks,
-                        0,
-                        ck_tile::cast_pointer_to_constant_address_space(p_workspace_),
-                        gemm_descs.size()));
-            }
-            else
-            {
-                ave_time = ck_tile::launch_kernel(
-                    s,
-                    ck_tile::make_kernel<blocks.x, kBlockPerCu>(
-                        Kernel{},
-                        grids,
-                        blocks,
-                        0,
-                        p_workspace_,  // no casting to constant
-                        gemm_descs.size()));
-            }
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                    Kernel{},
+                    grids,
+                    blocks,
+                    0,
+                    ck_tile::cast_pointer_to_constant_address_space(p_workspace_),
+                    gemm_descs.size()));
+            
             return ave_time;
         };
 

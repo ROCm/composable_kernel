@@ -83,7 +83,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
      */
     CK_TILE_HOST static auto MaxOccupancyGridSize() -> dim3
     {
-        const auto kernel = kentry<KernelBlockSize, 1, Kernel, void*, index_t>;
+        using ConstantPointer = const void CK_CONSTANT_ADDRESS_SPACE*;
+        const auto kernel = kentry<KernelBlockSize, 1, Kernel, ConstantPointer, index_t>;
         int occupancy;
         hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
         hipDeviceProp_t dev_prop;
@@ -179,23 +180,29 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs, const tuple<index_t, index_t>& block_idx_2d) const
     {
+        Run(kargs.group_karg, block_idx_2d);
+    }
+
+    CK_TILE_DEVICE void Run(const GemmKernelArgs& kargs, const tuple<index_t, index_t>& block_idx_2d) const
+    {
         const auto [iM, iN] = block_idx_2d;
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
-        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs.group_karg, blockIdx.z);
+        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, blockIdx.z);
 
-        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.group_karg.a_ptr);
-        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.group_karg.b_ptr);
-        CDataType* c_ptr       = static_cast<CDataType*>(kargs.group_karg.c_ptr);
+        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr);
+        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr);
+        CDataType* c_ptr       = static_cast<CDataType*>(kargs.c_ptr);
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
         this->RunGemm(
-            a_ptr, b_ptr, c_ptr, smem_ptr, kargs.group_karg, splitk_batch_offset, i_m, i_n);
+            a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
     }
+    
 
     CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg* gemm_desc_ptr, 
                                       index_t block_id,
@@ -243,20 +250,25 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     template <bool U = UsePersistentKernel,
               typename = std::enable_if_t<U>,
               typename = void> // extra template parameter to avoid redefinition
-    CK_TILE_DEVICE void operator()(void* gemm_descs, index_t group_count) const {
+    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const, const index_t group_count) const {
         const index_t grid_size  = ck_tile::get_grid_size();
-        const auto gemm_desc_ptr = reinterpret_cast<GemmTransKernelArg*>(gemm_descs);
-        const auto num_blocks    = GridUpdateBlocks(gemm_desc_ptr, group_count);
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
+            cast_pointer_to_generic_address_space(gemm_descs_const));
         index_t block_id         = ck_tile::get_block_1d_id();  // initial block_id
-        do
+        index_t cum_grid_size    = 0;
+        for (index_t group_id = 0; group_id < group_count; ++group_id)
         {
-            const index_t group_id  = FindGroupId(gemm_desc_ptr, block_id, group_count);
-            const auto& kargs       = gemm_desc_ptr[group_id];
-            const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
-                kargs.block_start, kargs.group_karg.M, kargs.group_karg.N, block_id);
-            Run(kargs, block_idx_2d);
-            block_id = block_id + grid_size;  // advance to next block
-        } while (block_id < num_blocks);
+            const auto& kargs       = gemm_desc_ptr[group_id].group_karg;
+            const auto block_start  = cum_grid_size;
+            cum_grid_size          += TilePartitioner::GridSize(kargs.M, kargs.N) * kargs.k_batch;
+            while (block_id < cum_grid_size)
+            {
+                const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
+                    block_start, kargs.M, kargs.N, block_id);
+                Run(kargs, block_idx_2d);
+                block_id = block_id + grid_size;  // advance to next block
+            }
+        }
     }
 };
 
