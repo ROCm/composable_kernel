@@ -25,7 +25,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          bool MulRoutedWeight  = false,
+          bool MulRoutedWeight  = true,
           typename ComputeTypeA = CDataType,
           typename ComputeTypeB = ComputeTypeA>
 struct ReferenceMoeGemm2 : public device::BaseOperator
