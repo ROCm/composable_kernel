@@ -21,10 +21,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto Grid_size   = problem_size.Grid_size;
     auto Streamk_sel = problem_size.Streamk_sel;
 
-    // Extract reduction strategy from problem_size struct
     auto reduction_strategy = problem_size.reduction_strategy;
-
-    // Print info about the reduction strategy being used
     if(reduction_strategy == ck::StreamKReductionStrategy::Atomic)
     {
         std::cout << "Using Atomic reduction strategy" << std::endl;
