@@ -1084,12 +1084,12 @@ struct FmhaFwdKernel
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
-            const auto k_dram_transposed = transform_tensor_view(
-                k_dram_naive,
-                make_tuple(make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16)),
-                           make_merge_transform(ck_tile::make_tuple(kargs.hdim_q / 8, 8))),
-                ck_tile::make_tuple(ck_tile::sequence<0, 2>{}, ck_tile::sequence<1, 3>{}),
-                ck_tile::make_tuple(ck_tile::sequence<0>{}, ck_tile::sequence<1>{}));
+	        const auto k_dram_transposed = transform_tensor_view(
+	            k_dram_naive,
+	            make_tuple(make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16)),
+	                       make_merge_transform(ck_tile::make_tuple(kargs.hdim_q / 8, 8))),
+	            ck_tile::make_tuple(ck_tile::sequence<0, 2>{}, ck_tile::sequence<1, 3>{}),
+	            ck_tile::make_tuple(ck_tile::sequence<0>{}, ck_tile::sequence<1>{}));
 
 
             constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : false;
@@ -1110,12 +1110,12 @@ struct FmhaFwdKernel
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                const auto v_dram_transposed =
-                    transform_tensor_view(v_dram_naive,
-                                          make_tuple(make_pass_through_transform(kargs.hdim_v),
-                                                     make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16))),
-                                          make_tuple(sequence<1>{}, sequence<0, 2>{}),
-                                          make_tuple(sequence<0>{}, sequence<1>{}));
+				const auto v_dram_transposed =
+					transform_tensor_view(v_dram_naive,
+										  make_tuple(make_pass_through_transform(kargs.hdim_v),
+								                     make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16))),
+										  make_tuple(sequence<1>{}, sequence<0, 2>{}),
+										  make_tuple(sequence<0>{}, sequence<1>{}));
 
                 constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : false;
                 return pad_tensor_view(
@@ -1134,12 +1134,12 @@ struct FmhaFwdKernel
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                const auto v_dram_transposed =
-                    transform_tensor_view(v_dram_naive,
-                                          make_tuple(make_pass_through_transform(kargs.hdim_v),
-                                                     make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16))),
-                                          make_tuple(sequence<1>{}, sequence<0, 2>{}),
-                                          make_tuple(sequence<0>{}, sequence<1>{}));
+				const auto v_dram_transposed =
+					transform_tensor_view(v_dram_naive,
+										  make_tuple(make_pass_through_transform(kargs.hdim_v),
+								                     make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16))),
+										  make_tuple(sequence<1>{}, sequence<0, 2>{}),
+										  make_tuple(sequence<0>{}, sequence<1>{}));
 
                 constexpr bool kPadHeadDimV_ = kUseAsyncCopy ? kPadHeadDimV : false;
                 return pad_tensor_view(
