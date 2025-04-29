@@ -74,10 +74,15 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     __host__ static constexpr auto BlockSize() -> dim3 { return dim3(KernelBlockSize); }
 
+    /**
+     * @brief Get the maximum occupancy grid size for the persistent kernel on the current device.
+     * @return The maximum occupancy grid size.
+     * @note This function queries the maximum occupancy of the kernel using
+     *       `hipOccupancyMaxActiveBlocksPerMultiprocessor` and the number of
+     *       multiprocessors using `hipGetDeviceProperties`.
+     */
     CK_TILE_HOST static auto MaxOccupancyGridSize() -> dim3
     {
-        // Query max occupancy of the kernel with hipOccupancyMaxActiveBlocksPerMultiprocessor
-        // Query the number of multiprocessors with hipGetDeviceProperties
         const auto kernel = kentry<KernelBlockSize, 1, Kernel, void*, index_t>;
         int occupancy;
         hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
@@ -147,13 +152,19 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return gemm_kernel_args_;
     }
 
+    /**
+     * @brief Update the grid size and block start/end for each group on the device.
+     * @param [in] gemm_desc_ptr Pointer to the array of GemmTransKernelArg.
+     * @param [in] group_count   Number of groups.
+     * @return The total grid size needed to compute the grouped GEMM.
+     */
     CK_TILE_DEVICE static auto GridUpdateBlocks(GemmTransKernelArg* gemm_desc_ptr, const index_t group_count) -> index_t
     {
         index_t grid_size = 0;
         for(index_t i = 0; i < group_count; ++i)
         {
-            const auto& it_desc          = gemm_desc_ptr[i].group_karg;
-            const auto local_grid_size   = TilePartitioner::GridSize(it_desc.M, it_desc.N) * it_desc.k_batch;
+            const auto& group            = gemm_desc_ptr[i].group_karg;
+            const auto local_grid_size   = TilePartitioner::GridSize(group.M, group.N) * group.k_batch;
             gemm_desc_ptr[i].block_start = grid_size;
             gemm_desc_ptr[i].block_end   = grid_size + local_grid_size;
             grid_size                   += local_grid_size;
@@ -166,10 +177,9 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs) const
+    CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs, const tuple<index_t, index_t>& block_idx_2d) const
     {
-        const auto [iM, iN] = OffsetTile1DPartitioner::GetOffsetedTileIndex(
-            kargs.block_start, kargs.group_karg.M, kargs.group_karg.N);
+        const auto [iM, iN] = block_idx_2d;
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
@@ -222,8 +232,11 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
         
-        index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
-        Run(gemm_desc_ptr[group_id]);
+        const index_t group_id  = FindGroupId(gemm_desc_ptr, block_id, group_count);
+        const auto& kargs       = gemm_desc_ptr[group_id];
+        const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
+            kargs.block_start, kargs.group_karg.M, kargs.group_karg.N);
+        Run(kargs, block_idx_2d);
     }
 
     // For persistent kernels
@@ -237,8 +250,11 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         index_t block_id         = ck_tile::get_block_1d_id();  // initial block_id
         do
         {
-            index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
-            Run(gemm_desc_ptr[group_id]);
+            const index_t group_id  = FindGroupId(gemm_desc_ptr, block_id, group_count);
+            const auto& kargs       = gemm_desc_ptr[group_id];
+            const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
+                kargs.block_start, kargs.group_karg.M, kargs.group_karg.N, block_id);
+            Run(kargs, block_idx_2d);
             block_id = block_id + grid_size;  // advance to next block
         } while (block_id < num_blocks);
     }
