@@ -149,8 +149,9 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
 
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
-            if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
-                         StreamKReductionStrategy::Atomic)
+            // if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
+            //              StreamKReductionStrategy::Atomic)
+            if (arg.reduction_strategy == StreamKReductionStrategy::Atomic)
             {
 
                 hip_check_error(hipMemsetAsync(
@@ -198,26 +199,29 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 else
                 {
 
-                    if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
-                                 StreamKReductionStrategy::Atomic)
+                    // if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
+                    //              StreamKReductionStrategy::Atomic)
+                    if(arg.reduction_strategy == StreamKReductionStrategy::Atomic)
                     {
                         ave_time = launch_and_time_kernel(
                             stream_config, kernel, grid_dim, dim3(BlockSize), 0, arg);
                     }
-                    else if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
-                                      StreamKReductionStrategy::Reduction)
+                    else if(arg.reduction_strategy  == StreamKReductionStrategy::Reduction)
                     {
                         char* workspace_semaphore =
                             reinterpret_cast<char*>(arg.p_workspace_) +
                             arg.block_2_ctile_map_streamk.get_workspace_size_for_acc(
                                 sizeof(GemmAccDataType));
                         auto preprocess = [&]() {
-                            hipMemsetAsync(
+                            hipError_t status =  hipMemsetAsync(
                                 workspace_semaphore,
                                 0,
                                 // sizeof(uint32_t),
                                 arg.block_2_ctile_map_streamk.get_workspace_size_for_semaphore(),
                                 stream_config.stream_id_);
+
+                            // Check the status
+                            hip_check_error(status);
                         };
 
                         ave_time = launch_and_time_kernel_with_preprocess(
@@ -437,8 +441,9 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
     size_t GetWorkSpaceSize(const BaseArgument* pArg) const override
     {
         const Argument* p_arg = dynamic_cast<const Argument*>(pArg);
-        if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
-                     StreamKReductionStrategy::Reduction)
+        // if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
+        //              StreamKReductionStrategy::Reduction)
+        if(p_arg->reduction_strategy == StreamKReductionStrategy::Reduction)
         {
             return p_arg->block_2_ctile_map_streamk.get_workspace_size(sizeof(GemmAccDataType));
         }
@@ -504,7 +509,8 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                              index_t Grid_size,
                              AElementwiseOperation,
                              BElementwiseOperation,
-                             CElementwiseOperation)
+                             CElementwiseOperation,
+                             StreamKReductionStrategy reduction_strategy = StreamKReductionStrategy::Atomic)
     {
 
         constexpr index_t minimum_occupancy =
@@ -705,7 +711,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
             }
         }
 
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, streamk_sel, Grid_size};
+        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, streamk_sel, Grid_size, reduction_strategy};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -724,7 +730,8 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                                                       index_t Grid_size,
                                                       AElementwiseOperation,
                                                       BElementwiseOperation,
-                                                      CElementwiseOperation) override
+                                                      CElementwiseOperation,
+                                                      StreamKReductionStrategy reduction_strategy = StreamKReductionStrategy::Atomic) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -736,7 +743,8 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                                           StrideB,
                                           StrideC,
                                           streamk_sel,
-                                          Grid_size);
+                                          Grid_size,
+                                          reduction_strategy);
     }
 
     // polymorphic
