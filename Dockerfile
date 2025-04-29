@@ -9,7 +9,6 @@ ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
 
 # Add rocm repository
 RUN set -xe && \
-    useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins && \
     apt-get update && apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl && \
     curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm-keyring.gpg
 

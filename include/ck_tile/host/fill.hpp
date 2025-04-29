@@ -280,7 +280,7 @@ struct FillMonotonicSeq
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::generate(first, last, [=, n = init_value_]() mutable {
+        std::generate(first, last, [=, *this, n = init_value_]() mutable {
             auto tmp = n;
             if constexpr(std::is_same_v<decltype(tmp), pk_int4_t>)
             {
@@ -315,7 +315,7 @@ struct FillStepRange
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::generate(first, last, [=, n = start_value_]() mutable {
+        std::generate(first, last, [=, *this, n = start_value_]() mutable {
             auto tmp = n;
             n += step_;
             if constexpr(IsAscending)
@@ -388,7 +388,7 @@ struct AdjustToStructuredSparsity
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::transform(first, last, first, [=, index = start](T val) mutable {
+        std::transform(first, last, first, [=, *this, index = start](T val) mutable {
             auto tmp = val * masks[index % (sizeof(masks) / sizeof(int32_t))];
             index += 1;
 
