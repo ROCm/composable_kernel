@@ -6,6 +6,7 @@ if(FLASH_ATTENTION_FWD_ENABLE_APIS STREQUAL "all")
 endif()
 
 option(TOY_FA_FWD_OPT "Enable toy flash attention forward optimization" ON)
+option(TOY_FA_FWD_QK_SWIZZLE "Enable toy flash attention forward QK swizzle" OFF)
 
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py

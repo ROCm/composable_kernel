@@ -63,7 +63,11 @@ struct FlashAttentionFwdImpl
     {
         constexpr index_t kNPerBlock = kN1PerBlock;
         constexpr index_t kKPerBlock = kK1PerBlock;
+#if !defined(TOY_FA_FWD_QK_SWIZZLE)
         constexpr index_t kKPack     = 4;
+#else
+        constexpr index_t kKPack     = 8;
+#endif
 
         constexpr auto dataTypeSize = sizeof(VDataType);
         constexpr auto NLdsLayer =
