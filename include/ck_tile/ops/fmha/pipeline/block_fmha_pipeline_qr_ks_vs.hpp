@@ -392,27 +392,24 @@ struct BlockFmhaPipelineQRKSVS
             }
             else
             {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                s_acc                       = tile_elementwise_in(s_acc_element_func, s_acc);
+                auto apply_logits_transform = [&variant, &variant_params, &block_indices](auto& x) {
+                    x = variant.LogitsTransform(variant_params,
+                                                variant.QueryTransform(variant_params, x),
+                                                block_indices.batch_idx,
+                                                block_indices.qo_head_idx,
+                                                block_indices.kv_head_idx);
+                };
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout(
-                    [&variant, &variant_params, &block_indices](auto& x) {
-                        x = variant.LogitsTransform(variant_params,
-                                                    variant.QueryTransform(variant_params, x),
-                                                    block_indices.batch_idx,
-                                                    block_indices.qo_head_idx,
-                                                    block_indices.kv_head_idx);
-                    },
-                    s_acc);
+                for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
+                {
+                    apply_logits_transform(s_acc.thread_buf_[i]);
+                }
 #else
-                tile_elementwise_inout(
-                    [&variant, &variant_params, &block_indices](auto& x) {
-                        x = variant.LogitsTransform(variant_params,
-                                                    variant.QueryTransform(variant_params, x),
-                                                    block_indices.batch_idx,
-                                                    block_indices.qo_head_idx,
-                                                    block_indices.kv_head_idx);
-                    },
-                    s_acc);
+                for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
+                {
+                    apply_logits_transform(s_acc.thread_buf_[i]);
+                }
 #endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
