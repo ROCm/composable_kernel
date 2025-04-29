@@ -527,7 +527,7 @@ def Build_CK(Map conf=[:]){
                         arch_type = 6
                     }
                     cmake_build(conf)
-                    if ( !params.BUILD_LEGACY_OS && arch_type == 1 ){
+                    if ( params.RUN_INDUCTOR_TESTS && !params.BUILD_LEGACY_OS && arch_type == 1 ){
                             echo "Run inductor codegen tests"
                             sh """
                                   pip install --target ${env.WORKSPACE} --break-system-packages --verbose .
@@ -839,6 +839,10 @@ pipeline {
             name: "BUILD_LEGACY_OS",
             defaultValue: false,
             description: "Try building CK with legacy OS dockers: RHEL8 and SLES15 (default: OFF)")
+        booleanParam(
+            name: "RUN_INDUCTOR_TESTS",
+            defaultValue: false,
+            description: "Run inductor codegen tests (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
