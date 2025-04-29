@@ -818,6 +818,11 @@ struct numeric<fp8_t>
         return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x7e)); // 0b01111110 = 448
     }
 
+    CK_TILE_HOST_DEVICE static constexpr float float32_max()
+    {
+        return 448.0f; // 0b01111110 = 448
+    }
+
     // difference between 1.0 and next representable f8 value (1.125)
     // returns fp8_t(0.125)
     CK_TILE_HOST_DEVICE static constexpr fp8_t epsilon()
@@ -939,6 +944,11 @@ struct numeric<fp8_t>
     CK_TILE_HOST_DEVICE static constexpr fp8_t max()
     {
         return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x7f));
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr float float32_max()
+    {
+        return 240.0f; // 0b01111111 = 240
     }
 
     // difference between 1.0 and next value representable by float
