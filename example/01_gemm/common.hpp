@@ -61,8 +61,6 @@ struct ProblemSizeStreamK_universal final
 
     ck::index_t Grid_size   = -1; // defaults to max occupancy
     ck::index_t Streamk_sel = 1;  // defaults to 1-tile SK
-
-    // Add reduction strategy parameter
     ck::StreamKReductionStrategy reduction_strategy = ck::StreamKReductionStrategy::Atomic;
 };
 
