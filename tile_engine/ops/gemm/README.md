@@ -50,7 +50,7 @@ Note: In `./configs/instance_combination.json` pipeline, scheduler, epilogue, pa
 
 ## Example
 
-The following JSON file specifies parameters used to generate and build GEMM kernels across all possible combinations of pipelines, schedulers, epilogues, and different tile and warp sizes.
+The following JSON file specifies parameters used to generate and build GEMM kernels across all possible combinations of pipelines, schedulers, epilogues with different tile and warp sizes.
 
 ```json
 {     
