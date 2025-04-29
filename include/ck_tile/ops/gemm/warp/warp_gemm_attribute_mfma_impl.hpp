@@ -1440,7 +1440,6 @@ template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_16x16x128_bf8_bf8 =
     WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base<bf8_t, bf8_t, Ctrl_>;
 
-
 template <typename AType_, typename BType_, WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 struct WarpGemmAttributeMfmaImpl_f32_32x32x64_f8_bf8_base
 {
@@ -1473,9 +1472,9 @@ struct WarpGemmAttributeMfmaImpl_f32_32x32x64_f8_bf8_base
     // c_vec += a_vec * b_vec
     template <bool post_nop_ = false>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
-                                    const AVecType& a_vec,
-                                    const BVecType& b_vec,
-                                    bool_constant<post_nop_> = {}) const
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
     {
         //__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(a, b, c, cbsz, blgp, opsel, scale_a,
         // opsel, scale_b)
@@ -1538,7 +1537,6 @@ using WarpGemmAttributeMfmaImpl_f32_32x32x64_bf8_fp8 =
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x64_bf8_bf8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x64_f8_bf8_base<bf8_t, bf8_t, Ctrl_>;
-    
 
 // int8
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
