@@ -317,17 +317,27 @@ struct DeviceMoeGemmBlockScale
 #if 1
             else
             {
-                // Tail number always 1
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-                {
-                    const auto kernel = kernel_moe_gemm<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy,
-                                                        IsInputGemm,
-                                                        TailNumber::Odd>;
-                    RunKernel(kernel);
-                }
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        printf("here to do odd.\n");
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            false,
+                                                            MemoryDataOp,
+                                                            minimum_occupancy,
+                                                            IsInputGemm,
+                                                            TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            false,
+                                                            MemoryDataOp,
+                                                            minimum_occupancy,
+                                                            IsInputGemm,
+                                                            TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
             }
 #endif
 
