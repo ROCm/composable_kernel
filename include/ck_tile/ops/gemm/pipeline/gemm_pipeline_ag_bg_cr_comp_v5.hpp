@@ -314,6 +314,209 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                                        void* p_smem) const
         {
             // TODO
+            static_assert(
+                std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
+                    std::is_same_v<BDataType,
+                                   remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
+                "A/B Dram block window should have the same data type as appropriate "
+                "([A|B]DataType) defined in Problem definition!");
+
+            constexpr bool is_a_col_major =
+                std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+            constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+
+            static_assert(is_a_col_major
+                              ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                              : (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                          "A block window has incorrect lengths for defined ALayout!");
+            static_assert(is_b_row_major
+                              ? (KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                              : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                          "B block window has incorrect lengths for defined BLayout!");
+
+            // ------------------------------------------------------------------------------------
+            // Definitions of all needed tiles
+
+            // A/B tiles in LDS
+            auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
+
+            // Tile distribution for load from lds
+            constexpr auto a_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
+            constexpr auto b_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
+
+            // A DRAM tile window for load
+            // A LDS tile window for store
+            // A LDS tile for block GEMM
+            auto&& [a_copy_dram_window, a_copy_lds_window, a_lds_gemm_window] =
+                Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
+
+            // B DRAM tile window for load
+            // B LDS tile window for store
+            // B LDS tile for block GEMM
+            auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
+                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
+
+            // Block GEMM
+            auto block_gemm   = BlockGemm();
+            auto c_block_tile = block_gemm.MakeCBlockTile();
+
+            using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
+            using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
+
+            using ABlockTile =
+                decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
+            using BBlockTile =
+                decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
+
+            ABlockTile a_block_tile;
+            BBlockTile b_block_tile;
+
+            using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
+            using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
+
+            constexpr ADramTileWindowStep a_dram_tile_window_step =
+                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+            constexpr BDramTileWindowStep b_dram_tile_window_step =
+                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+
+            // -----------------------------------------------------------------------------------------
+            // Gemm pipeline start
+
+            // A DRAM tile window for load
+            auto a_copy_dram_window =
+                make_tile_window_linear(a_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                        a_dram_block_window_tmp.get_window_origin(),
+                                        Policy::template MakeADramTileDistribution<Problem>());
+
+            // B DRAM tile window for load
+            auto b_copy_dram_window =
+                make_tile_window_linear(b_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                        b_dram_block_window_tmp.get_window_origin(),
+                                        Policy::template MakeBDramTileDistribution<Problem>());
+
+            // A register tile for global load
+            constexpr auto ABlockTileDistr = a_copy_dram_window.get_tile_distribution();
+            constexpr auto BBlockTileDistr = b_copy_dram_window.get_tile_distribution();
+            using ABlockTile = decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr));
+            using BBlockTile = decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr));
+            ABlockTile a_global_load_tile;
+            BBlockTile b_global_load_tile;
+
+            using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
+            using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
+
+            constexpr ADramTileWindowStep a_dram_tile_window_step =
+                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+            constexpr BDramTileWindowStep b_dram_tile_window_step =
+                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+
+            // global prefetch 0
+            // global read 0
+            Base::GlobalPrefetch(a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
+            ////////////// LDS desc, window & register /////////////////
+            auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem_0);
+            auto&& [a_lds_block1, b_lds_block1] = Base::GetABLdsTensorViews(p_smem_1);
+
+            auto a_copy_lds_window0 = make_tile_window(
+                a_lds_block0, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
+
+            auto a_copy_lds_window1 = make_tile_window(
+                a_lds_block1, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
+
+            auto b_copy_lds_window0 = make_tile_window(
+                b_lds_block0, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
+
+            auto b_copy_lds_window1 = make_tile_window(
+                b_lds_block1, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
+
+            // Block GEMM
+            auto block_gemm   = BlockGemm();
+            auto c_block_tile = block_gemm.MakeCBlockTile();
+
+            // initialize C
+            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+
+            // LDS write 0
+            if constexpr(is_a_col_major)
+            {
+                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                transpose_tile2d(a_shuffle_tmp, a_global_load_tile);
+                Base::LocalPrefill(a_copy_lds_window0, a_shuffle_tmp, a_element_func);
+            }
+            else
+            {
+                Base::LocalPrefill(a_copy_lds_window0, a_global_load_tile, a_element_func);
+            }
+            if constexpr(is_b_row_major)
+            {
+                auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                transpose_tile2d(b_shuffle_tmp, b_global_load_tile);
+                Base::LocalPrefill(b_copy_lds_window0, b_shuffle_tmp, b_element_func);
+            }
+            else
+            {
+                Base::LocalPrefill(b_copy_lds_window0, b_global_load_tile, b_element_func);
+            }
+
+            // global read 1
+            Base::GlobalPrefetch(a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
+
+            block_sync_lds();
+
+            // global read 2
+            Base::GlobalPrefetch(a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
+
+            block_sync_lds();
+
+            // Local prefetch 0
+            constexpr auto ALdsTileDistr = decltype(make_static_tile_distribution(
+                BlockGemm::MakeABlockDistributionEncode())){};
+            constexpr auto BLdsTileDistr = decltype(make_static_tile_distribution(
+                BlockGemm::MakeBBlockDistributionEncode())){};
+
+            using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
+            using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
+
+            ALdsTile a_block_tile0;
+            BLdsTile b_block_tile0;
+
+            auto a_lds_ld_window0 =
+            make_tile_window_linear(a_lds_block0,
+                                    make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                    {0, 0},
+                                    ALdsTileDistr);
+            auto b_lds_ld_window0 =
+            make_tile_window_linear(b_lds_block0,
+                                    make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                    {0, 0},
+                                    BLdsTileDistr);
+
+            Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
+            Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
+
+            if(HasHotLoop)
+            {
+                // TODO
+            }
+
+            // TODO: IF Tail Odd
+
+            // TODO: IF Tail Even
+
+            return c_block_tile;
         }
 
         template <typename ADramBlockWindowTmp,
