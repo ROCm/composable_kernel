@@ -15,7 +15,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/data_type.hpp"
 
-#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp" // Include for StreamKReductionStrategy
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp" 
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
