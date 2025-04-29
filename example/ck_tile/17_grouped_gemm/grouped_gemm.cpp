@@ -21,7 +21,7 @@ std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs
     return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ALayout, typename BLayout, typename CLayout, bool PersistentKernel=true>
 float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
                    void* p_workspace_)
@@ -100,7 +100,9 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,
-                                                                 TransposeC>;
+                                                                 TransposeC,
+                                                                 false,
+                                                                 PersistentKernel>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -150,8 +152,16 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
 
-            const dim3 grids      = Kernel::GridSize(gemm_descs);
             constexpr dim3 blocks = Kernel::BlockSize();
+            dim3 grids;
+            if constexpr (PersistentKernel)
+            {
+                grids = Kernel::MaxOccupancyGridSize();
+            }
+            else
+            {
+                grids = Kernel::GridSize(gemm_descs);
+            }
 
             ck_tile::hip_check_error(hipMemcpyWithStream(p_workspace_,
                                                          kargs.data(),
@@ -167,15 +177,30 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                           << "}" << std::endl;
             }
 
-            ave_time = ck_tile::launch_kernel(
-                s,
-                ck_tile::make_kernel<blocks.x, kBlockPerCu>(
-                    Kernel{},
-                    grids,
-                    blocks,
-                    0,
-                    ck_tile::cast_pointer_to_constant_address_space(p_workspace_),
-                    gemm_descs.size()));
+            if constexpr(!PersistentKernel)
+            {
+                ave_time = ck_tile::launch_kernel(
+                    s,
+                    ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                        Kernel{},
+                        grids,
+                        blocks,
+                        0,
+                        ck_tile::cast_pointer_to_constant_address_space(p_workspace_),
+                        gemm_descs.size()));
+            }
+            else
+            {
+                ave_time = ck_tile::launch_kernel(
+                    s,
+                    ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                        Kernel{},
+                        grids,
+                        blocks,
+                        0,
+                        p_workspace_,  // no casting to constant
+                        gemm_descs.size()));
+            }
             return ave_time;
         };
 
