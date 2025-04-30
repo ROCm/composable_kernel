@@ -45,6 +45,7 @@ FMHA_FWD_SPLITKV_PIPELINE_MAP = {
 
 FMHA_FWD_SPLITKV_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
+using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
 using fmha_mask_{F_idx} = {F_mask};
 
 namespace {{
@@ -86,6 +87,7 @@ using fmha_pipeline_problem = ck_tile::BlockFmhaFwdSplitKVPipelineProblem<
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
     fmha_shape,
     {F_mode},
+    fmha_variant_{F_idx},
     fmha_mask_{F_idx},
     fmha_trait>;
 
