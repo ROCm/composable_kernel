@@ -91,16 +91,17 @@ struct ReferenceMXGemm : public device::BaseOperator
                 {
                     if constexpr(is_same_v<ADataType, f4x2_pk_t>)
                     {
+                        // TODO: add support for ColMajor layout as well
                         if(k % 2 == 1)
                             a_m_k_scaled(m, k) =
                                 type_convert<ComputeTypeA>(
-                                    arg.a_m_k_(m, k).template unpack<>(Number<1>{})) *
+                                    f4_t(arg.a_m_k_(m, k).template unpack<>(Number<1>{}))) *
                                 type_convert<ComputeTypeA>(
                                     arg.a_m_kblock_scales_(m, k / SCALE_BLOCK));
                         else
                             a_m_k_scaled(m, k) =
                                 type_convert<ComputeTypeA>(
-                                    arg.a_m_k_(m, k).template unpack<>(Number<0>{})) *
+                                    f4_t(arg.a_m_k_(m, k).template unpack<>(Number<0>{}))) *
                                 type_convert<ComputeTypeA>(
                                     arg.a_m_kblock_scales_(m, k / SCALE_BLOCK));
                     }
@@ -122,13 +123,13 @@ struct ReferenceMXGemm : public device::BaseOperator
                         if(k % 2 == 1)
                             b_k_n_scaled(k, n) =
                                 type_convert<ComputeTypeB>(
-                                    arg.b_k_n_(k, n).template unpack<>(Number<1>{})) *
+                                    f4_t(arg.b_k_n_(k, n).template unpack<>(Number<1>{}))) *
                                 type_convert<ComputeTypeB>(
                                     arg.b_kblock_n_scales_(k / SCALE_BLOCK, n));
                         else
                             b_k_n_scaled(k, n) =
                                 type_convert<ComputeTypeB>(
-                                    arg.b_k_n_(k, n).template unpack<>(Number<0>{})) *
+                                    f4_t(arg.b_k_n_(k, n).template unpack<>(Number<0>{}))) *
                                 type_convert<ComputeTypeB>(
                                     arg.b_kblock_n_scales_(k / SCALE_BLOCK, n));
                     }

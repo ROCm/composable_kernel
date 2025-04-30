@@ -81,6 +81,7 @@ struct ReferenceGemm : public device::BaseOperator
                     }
                     else if constexpr(is_same_v<ADataType, f4x2_pk_t>)
                     {
+                        // TODO: add support for ColMajor layout as well
                         if(k % 2 == 1)
                             v_a = type_convert<ComputeTypeA>(
                                 f4_t(arg.a_m_k_(m, k).template unpack<>(Number<1>{})));
@@ -106,6 +107,7 @@ struct ReferenceGemm : public device::BaseOperator
                     }
                     else if constexpr(is_same_v<BDataType, f4x2_pk_t>)
                     {
+                        // TODO: add support for RowMajor layout as well
                         if(k % 2 == 1)
                             v_b = type_convert<ComputeTypeB>(
                                 f4_t(arg.b_k_n_(k, n).template unpack<>(Number<1>{})));
@@ -120,6 +122,11 @@ struct ReferenceGemm : public device::BaseOperator
 
                     v_acc +=
                         ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+
+                    // if ((m == 2) && (n == 0))
+                    // {
+                    //     printf("K:%i A:%f, B:%f, C:%f \n", k, v_a, v_b, v_acc);
+                    // }
                 }
 
                 CDataType v_c{0};
