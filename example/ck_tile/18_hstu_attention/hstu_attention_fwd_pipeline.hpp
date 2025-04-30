@@ -156,7 +156,6 @@ struct HstuAttentionFwdPipelineQRKSVS
                       "wrong!");
 
         constexpr index_t k1_loops = kN0 / kK1;
-        static_assert(2 <= k1_loops);
 
         constexpr auto NumKVLdsBuffers = Policy::template GetNumKVLdsBuffers<Problem>();
 
