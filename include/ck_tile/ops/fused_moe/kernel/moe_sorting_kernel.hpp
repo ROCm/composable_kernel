@@ -1076,6 +1076,12 @@ CK_TILE_HOST_DEVICE index_t moe_sorting_mp_cumsum_elem(index_t num_experts)
     return (row_size + chunk - 1) / chunk * chunk;
 };
 
+CK_TILE_HOST_DEVICE index_t moe_sorting_mp_sem_elem()
+{
+    constexpr index_t chunk = 32;
+    return chunk;
+};
+
 template <typename T, typename F, index_t wave_size_ = warpSize>
 CK_TILE_DEVICE constexpr T moe_sorting_wave_reduce(T local, F reduce_f, number<wave_size_> = {})
 {
@@ -1248,7 +1254,7 @@ CK_TILE_HOST bool moe_sorting_is_oneshot(int tokens_, int num_experts_)
 CK_TILE_HOST index_t moe_sorting_mp_get_workspace_size(int tokens_, int num_experts_)
 {
     index_t elem = impl::moe_sorting_mp_mesh_elem(tokens_, num_experts_) +
-                   impl::moe_sorting_mp_cumsum_elem(num_experts_);
+                   impl::moe_sorting_mp_cumsum_elem(num_experts_) + impl::moe_sorting_mp_sem_elem();
     return elem * sizeof(index_t);
 }
 
@@ -1379,7 +1385,8 @@ struct MoeSortingMultiPhaseKernel_P0
         index_t total_elem = kargs.tokens * kargs.topk_mdiv.divisor / Problem::SubTokenTile;
 
 #pragma unroll Problem::SubTokenTile
-        for(index_t i = blockIdx.x * BLOCK_SIZE + threadIdx.x; i < total_elem; i += blockDim.x)
+        for(index_t i = blockIdx.x * BLOCK_SIZE + threadIdx.x; i < total_elem;
+            i += gridDim.x * BLOCK_SIZE)
         {
             auto x = p_topk_ids[i];
             static_for<0, Problem::SubTokenTile, 1>{}([&](auto j) {
@@ -1498,6 +1505,199 @@ struct MoeSortingMultiPhaseKernel_P1
                 c += s[i];
             }
             p_expert_cumsum[eid] = c;
+        }
+    }
+};
+
+template <typename Problem_>
+struct MoeSortingMultiPhaseKernel_P01
+{
+    using Problem = remove_cvref_t<Problem_>;
+
+    using IndexType  = typename Problem::IndexType;
+    using WeightType = typename Problem::WeightType;
+
+    static constexpr index_t BLOCK_SIZE = 256;
+    static constexpr index_t OCCUPANCY  = 2; // hard coded
+
+    typedef MoeSortingHostArgs MoeSortingKargs;
+
+    using Hargs = MoeSortingHostArgs;
+
+    struct Kargs
+    {
+        const void* p_topk_ids;          // [tokens, topk]
+        const void* p_local_expert_mask; // [expert]
+        void* p_expert_mesh;             // [expert, tokens]
+        void* p_expert_cumsum;           // [expert + 1]
+        void* p_expert_sem;              // [1]
+        index_t tokens;
+        index_t num_experts;
+        index_t mesh_stride; // mesh_stride for p_expert_mesh
+        index_t wg_count;    // used for semaphore
+        mdiv topk_mdiv;
+    };
+
+    CK_TILE_HOST static constexpr auto get_num_cu()
+    {
+        index_t num_cu = [&]() {
+            hipDeviceProp_t dev_prop;
+            hipDevice_t dev;
+            HIP_CHECK_ERROR(hipGetDevice(&dev));
+            HIP_CHECK_ERROR(hipGetDeviceProperties(&dev_prop, dev));
+            return dev_prop.multiProcessorCount;
+        }();
+        return num_cu;
+    }
+
+    CK_TILE_HOST static constexpr auto MakeKargs(const Hargs& h)
+    {
+        Kargs k;
+        k.p_topk_ids          = h.p_topk_ids;
+        k.p_local_expert_mask = h.p_local_expert_mask;
+        k.p_expert_mesh       = h.p_ws;
+        k.p_expert_cumsum =
+            reinterpret_cast<void*>(reinterpret_cast<IndexType*>(h.p_ws) +
+                                    impl::moe_sorting_mp_mesh_elem(h.tokens, h.num_experts));
+        k.p_expert_sem =
+            reinterpret_cast<void*>(reinterpret_cast<IndexType*>(h.p_ws) +
+                                    impl::moe_sorting_mp_mesh_elem(h.tokens, h.num_experts) +
+                                    impl::moe_sorting_mp_cumsum_elem(h.num_experts));
+        k.tokens      = h.tokens;
+        k.num_experts = h.num_experts;
+        k.mesh_stride = impl::moe_sorting_mp_mesh_stride(h.tokens);
+        k.wg_count    = WGCounts(h);
+        k.topk_mdiv   = mdiv{static_cast<uint32_t>(h.topk)};
+        return k;
+    }
+
+    CK_TILE_HOST static constexpr auto GridSize(const Hargs&) { return get_num_cu() * OCCUPANCY; }
+
+    CK_TILE_HOST static constexpr auto BlockSize(const Hargs&) { return dim3(BLOCK_SIZE); }
+
+    CK_TILE_HOST static constexpr auto WGCounts(const Hargs& h)
+    {
+        index_t total_elem = h.tokens * h.topk / Problem::SubTokenTile;
+        index_t elem_cnt   = (total_elem + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+        // no more than grid_size
+        return min(elem_cnt, GridSize(h));
+    }
+
+    // in byte
+    CK_TILE_HOST static constexpr auto GetSmemSize()
+    {
+        return BLOCK_SIZE / warpSize * sizeof(IndexType);
+    }
+
+    CK_TILE_DEVICE void operator()(Kargs kargs) const
+    {
+        workgroup_barrier wb{reinterpret_cast<uint32_t*>(kargs.p_expert_sem)};
+
+        {
+            using topk_id_t = ext_vector_t<IndexType, Problem::SubTokenTile>;
+
+            static_assert(Problem::SubTokenTile == 1 || Problem::SubTokenTile == 2 ||
+                          Problem::SubTokenTile == 4);
+
+            const topk_id_t* p_topk_ids = reinterpret_cast<const topk_id_t*>(kargs.p_topk_ids);
+            IndexType* p_expert_mesh    = reinterpret_cast<IndexType*>(kargs.p_expert_mesh);
+            index_t total_elem = kargs.tokens * kargs.topk_mdiv.divisor / Problem::SubTokenTile;
+
+#pragma unroll Problem::SubTokenTile
+            for(index_t i = blockIdx.x * BLOCK_SIZE + threadIdx.x; i < total_elem;
+                i += BLOCK_SIZE * gridDim.x)
+            {
+                auto x = p_topk_ids[i];
+                static_for<0, Problem::SubTokenTile, 1>{}([&](auto j) {
+                    IndexType eid = x[j.value]; // ext_vector_type must use int to []
+                    uint32_t curr_token_id, curr_topk_id;
+                    kargs.topk_mdiv.divmod(
+                        i * Problem::SubTokenTile + j, curr_token_id, curr_topk_id);
+                    p_expert_mesh[eid * kargs.mesh_stride + curr_token_id] = curr_topk_id + 1;
+                });
+            }
+            if(static_cast<index_t>(blockIdx.x) < kargs.wg_count)
+            {
+                wb.inc();
+            }
+        }
+
+        {
+            __shared__ char smem[GetSmemSize()];
+            int eid = blockIdx.x;
+
+            // early exist in case of extra atomic wait
+            if(eid >= kargs.num_experts)
+                return;
+
+            wb.wait_lt(kargs.wg_count);
+
+            for(; eid < kargs.num_experts; eid += gridDim.x)
+            {
+                if(threadIdx.x == 0)
+                    printf("!!! bid:%d, eid:%d (%d, %d)\n",
+                           static_cast<int>(blockIdx.x),
+                           eid,
+                           kargs.num_experts,
+                           static_cast<int>(blockDim.x));
+                constexpr index_t index_pack = 4;                         // always packed
+                using r_t          = ext_vector_t<IndexType, index_pack>; // always use int32x4
+                r_t* p_expert_mesh = reinterpret_cast<r_t*>(
+                    reinterpret_cast<index_t*>(kargs.p_expert_mesh) + eid * kargs.mesh_stride);
+
+                static_assert(Problem::SubTokenTile == 1 || Problem::SubTokenTile == 2 ||
+                              Problem::SubTokenTile == 4);
+                const IndexType* p_local_expert_mask =
+                    static_cast<const IndexType*>(kargs.p_local_expert_mask);
+                IndexType* p_expert_cumsum = reinterpret_cast<IndexType*>(kargs.p_expert_cumsum);
+
+                auto f_sum = [](auto x_, auto y_) { return x_ + y_; };
+
+                int loops = (kargs.mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+                if constexpr(Problem::LocalExpertMasking)
+                {
+                    IndexType mask = p_local_expert_mask[eid];
+                    if(mask == 0)
+                        continue; // skip
+                }
+
+                index_t cnt = 0; // per-wave cnt
+                for(int i = 0; i < loops; i++)
+                {
+                    int position = i * BLOCK_SIZE + threadIdx.x;
+                    r_t v{0};
+                    if(position < (kargs.mesh_stride / index_pack))
+                        v = p_expert_mesh[position];
+                    index_t local_sum = 0;
+                    static_for<0, index_pack, 1>{}(
+                        [&](auto i_vec) { local_sum += v[i_vec.value] != 0 ? 1 : 0; });
+                    cnt += impl::moe_sorting_wave_reduce(local_sum, f_sum);
+                }
+
+                index_t lane_id = threadIdx.x % warpSize;
+                index_t wave_id = threadIdx.x / warpSize;
+
+                // reduce cross wave
+                IndexType* s = reinterpret_cast<IndexType*>(smem);
+                __syncthreads();
+                if(lane_id == 0)
+                {
+                    s[wave_id] = cnt;
+                }
+                __syncthreads();
+
+                if(threadIdx.x == 0)
+                {
+                    index_t c = 0;
+                    for(auto i = 0; i < (BLOCK_SIZE / warpSize); i++)
+                    {
+                        c += s[i];
+                    }
+                    p_expert_cumsum[eid] = c;
+                }
+            }
         }
     }
 };
@@ -2071,7 +2271,6 @@ struct MoeSortingMultiPhaseKernel_P23
                 }
 
                 {
-                    auto total_tokens_post_pad = prev_cumsum_a * kargs.unit_size_mdiv.divisor;
                     if(blockIdx.x == 0)
                     {
                         if constexpr(Problem::LocalExpertMasking)
@@ -2091,25 +2290,17 @@ struct MoeSortingMultiPhaseKernel_P23
                                 p_sorted_expert_ids[out_0 + j] = position;
                             }
                         }
-                        if(threadIdx.x == 0)
-                        {
-                            p_total_tokens_post_pad[0] = total_tokens_post_pad;
-                        }
-                    }
-                    if(threadIdx.x == 0)
-                    {
-                        p_expert_cumsum_smem[kargs.num_experts] = total_tokens_post_pad;
                     }
                 }
             }
 
-            // if(threadIdx.x == 0)
-            // {
-            //     auto total_tokens_post_pad         = prev_cumsum_a *
-            //     kargs.unit_size_mdiv.divisor; if(blockIdx.x == 0)
-            //         p_total_tokens_post_pad[0]         = total_tokens_post_pad;
-            //     p_expert_cumsum_smem[kargs.num_experts] = total_tokens_post_pad;
-            // }
+            if(threadIdx.x == 0)
+            {
+                auto total_tokens_post_pad = prev_cumsum_a * kargs.unit_size_mdiv.divisor;
+                if(blockIdx.x == 0)
+                    p_total_tokens_post_pad[0] = total_tokens_post_pad;
+                p_expert_cumsum_smem[kargs.num_experts] = total_tokens_post_pad;
+            }
         }
 
         __syncthreads();
