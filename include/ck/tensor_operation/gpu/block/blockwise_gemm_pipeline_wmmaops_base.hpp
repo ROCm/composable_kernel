@@ -198,7 +198,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
                       "wrong! Desc should be known at compile-time");
 
         static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
-                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
+                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize");
 
         static_assert(MPerBlock % (MPerWmma * MRepeat) == 0 &&
                           NPerBlock % (NPerWmma * NRepeat) == 0,

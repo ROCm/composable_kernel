@@ -357,12 +357,22 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                             static_for<0, KPack / A_KRow, 1>{}([&](auto ik) {
                                 a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                        make_tuple(ik / A_K1, m0, k0, 0, 0, ik % A_K1))>{}];
+                                        make_tuple(Number<ik / A_K1>{},
+                                                   m0,
+                                                   k0,
+                                                   I0,
+                                                   I0,
+                                                   Number<ik % A_K1>{}))>{}];
                             });
                             static_for<0, KPack / B_KRow, 1>{}([&](auto ik) {
                                 b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                     b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                        make_tuple(ik / B_K1, n0, k0, 0, 0, ik % B_K1))>{}];
+                                        make_tuple(Number<ik / B_K1>{},
+                                                   n0,
+                                                   k0,
+                                                   I0,
+                                                   I0,
+                                                   Number<ik % B_K1>{}))>{}];
                             });
 
                             using wmma_input_type_a =
@@ -371,7 +381,7 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                 typename vector_type<ComputeTypeB, WmmaK / B_KRow>::type;
 
                             constexpr index_t c_offset =
-                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, I0));
 
                             wmma_gemm.Run(a_thread_vec.template AsType<wmma_input_type_a>(),
                                           b_thread_vec.template AsType<wmma_input_type_b>(),
@@ -416,13 +426,13 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
 
                         static_for<0, KPack / A_KRow, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(ik / A_K1, m0, k0, 0, 0, ik % A_K1))>{}];
+                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(
+                                    Number<ik / A_K1>{}, m0, k0, I0, I0, Number<ik % A_K1>{}))>{}];
                         });
                         static_for<0, KPack / B_KRow, 1>{}([&](auto ik) {
                             b_thread_vec.template AsType<ComputeTypeB>()(ik) =
-                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(ik / B_K1, n0, k0, 0, 0, ik % B_K1))>{}];
+                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(
+                                    Number<ik / B_K1>{}, n0, k0, I0, I0, Number<ik % B_K1>{}))>{}];
                         });
 
                         using wmma_input_type_a =
@@ -431,7 +441,7 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                             typename vector_type<ComputeTypeB, WmmaK / B_KRow>::type;
 
                         constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, I0));
 
                         wmma_gemm.Run(a_thread_vec.template AsType<wmma_input_type_a>(),
                                       b_thread_vec.template AsType<wmma_input_type_b>(),

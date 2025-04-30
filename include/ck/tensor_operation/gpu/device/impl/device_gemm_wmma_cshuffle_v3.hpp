@@ -340,7 +340,8 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
             if(has_main_k_block_loop)
             {
                 // Tail number always full
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
+                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(arg.KBatch > 1)
                     {
@@ -368,7 +369,28 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
             }
             else
             {
-                // TODO: Implement
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                {
+                    if(arg.KBatch > 1)
+                    {
+                        const auto kernel =
+                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                         false,
+                                                         InMemoryDataOperationEnum::AtomicAdd,
+                                                         minimum_occupancy>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                         false,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         minimum_occupancy>;
+                        Run(kernel);
+                    }
+                }
             }
 
             return ave_time;
