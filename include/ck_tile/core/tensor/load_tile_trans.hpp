@@ -112,8 +112,8 @@ struct tile_distribution_for_transpose_helper
     // make sure ps_to_rhss_major[ndimp-2] == 1
     // make sure ps_to_rhss_minor[ndimp-2] == hs_lengthss[0].size - 1;
     static constexpr bool ps_to_rhss_index1_valid =
-        (ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndim_inner_size - 2] == 1) &&
-        (ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndim_inner_size - 2] ==
+        (ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] == 1) &&
+        (ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] ==
          actual_hs_lengthss[number<0>{}].size() - 1);
     // get ys_to_rhs_major.size
     // make sure ys_to_rhs_major[ndim_y-1] == 2
