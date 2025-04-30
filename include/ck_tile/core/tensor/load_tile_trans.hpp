@@ -41,11 +41,11 @@ constexpr bool is_sequence_suffix_v = is_sequence_suffix<Suffix, Sequence>::valu
 
 } // namespace util
 
-typename<typename T, typename = void> struct valid_quad_tile_dstr_encode_for_transpose;
+template <typename T, typename = void>
+struct valid_quad_tile_dstr_encode_for_transpose;
 
-typename<typename T> struct valid_quad_tile_dstr_encode_for_transpose<
-    T,
-    std::enable_if_t<sizeof(T) == 2>>
+template <typename T>
+struct valid_quad_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) == 2>>
 {
     using TileDistrEncode = tile_distribution_encoding<sequence<>,
                                                        tuple<sequence<1, 4>, sequence<4, 4>>,
@@ -58,10 +58,10 @@ typename<typename T> struct valid_quad_tile_dstr_encode_for_transpose<
 template <typename TileDistribution_, typename DataType_>
 struct tile_distribution_for_transpose_helper
 {
-    using DstrEncode = remove_cvref_t<TileDistribution_>::DstrEncode;
+    using DstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
 
     using ValidQuadDstrEncode =
-        valid_quad_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
+        typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
 
     // every dimx in ValidQuadDstrEncode should be the suffix of DstrEncode
     static constexpr auto valid_hs_lengthss  = ValidQuadDstrEncode::hs_lengthss_;
@@ -98,31 +98,32 @@ struct tile_distribution_for_transpose_helper
     // get hs_lengthss[0].size
     static constexpr index_t ndimp_outer_size = ps_to_rhss_major.size();
     // make sure ndimp >= 2
-    static constexpr index_t ndimp_inner_size = ps_to_rhss_major[ndimp_outer_size - 1].size();
+    static constexpr index_t ndimp_inner_size =
+        ps_to_rhss_major[number<ndimp_outer_size - 1>{}].size();
     // make sure ps_to_rhss_major[ndimp-1] == 2
     // make sure ps_to_rhss_minor[ndimp-1] == hs_lengthss[1].size - 2;
 
     // the below two conditions are used to check whether encoding is based on quadrant.
     static constexpr bool ps_to_rhss_index0_valid =
-        (ps_to_rhss_major[ndimp_outer_size - 1][ndim_inner_size - 1] == 2) &&
-        (ps_to_rhss_minor[ndimp_outer_size - 1][ndim_inner_size - 1] ==
-         actual_hs_lengthss[1].size() - 2);
+        (ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] == 2) &&
+        (ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] ==
+         actual_hs_lengthss[number<1>{}].size() - 2);
 
     // make sure ps_to_rhss_major[ndimp-2] == 1
     // make sure ps_to_rhss_minor[ndimp-2] == hs_lengthss[0].size - 1;
     static constexpr bool ps_to_rhss_index1_valid =
-        (ps_to_rhss_major[ndimp_outer_size - 1][ndim_inner_size - 2] == 1) &&
-        (ps_to_rhss_minor[ndimp_outer_size - 1][ndim_inner_size - 2] ==
-         actual_hs_lengthss[0].size() - 1);
+        (ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndim_inner_size - 2] == 1) &&
+        (ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndim_inner_size - 2] ==
+         actual_hs_lengthss[number<0>{}].size() - 1);
     // get ys_to_rhs_major.size
     // make sure ys_to_rhs_major[ndim_y-1] == 2
     // make sure ys_to_rhs_minor[ndim_y-1] == hs_lengthss[0].size - 1;
     static constexpr index_t ndimy_size = ys_to_rhs_major.size();
     static constexpr bool ys_to_rhs_major_valid =
         ((ys_to_rhs_major[ndimy_size - 1] == 2) &&
-         (ys_to_rhs_minor[ndimy_size - 1] == actual_hs_lengthss[1].size() - 1)) &&
+         (ys_to_rhs_minor[ndimy_size - 1] == actual_hs_lengthss[number<1>{}].size() - 1)) &&
         ((ys_to_rhs_major[ndimy_size - 2] == 1) &&
-         (ys_to_rhs_minor[ndimy_size - 2] == actual_hs_lengthss[0].size() - 2));
+         (ys_to_rhs_minor[ndimy_size - 2] == actual_hs_lengthss[number<0>{}].size() - 2));
 
     static constexpr bool distr_encoding_valid =
         hs_lengthss_size_valid && hs_lengthss_size_dim_valid && all_hs_lengthss_are_suffixes &&
@@ -149,7 +150,7 @@ template <typename BottomTensorView_,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
           typename                   = std::enable_if_t<tile_distribution_for_transpose_helper<
-              typename TileDistribution_::DstrEncode,
+              TileDistribution_,
               typename BottomTensorView_::DataType>::distr_encoding_valid>>
 CK_TILE_DEVICE auto
 load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_,
