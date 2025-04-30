@@ -1,4 +1,3 @@
-// test_batched_gemm_device_utils.hpp
 #pragma once
 
 #include <hip/hip_runtime.h>
