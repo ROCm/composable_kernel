@@ -123,11 +123,11 @@ using BElementOp   = PassThrough;
 using CDEElementOp = MulABScaleExpertWeight;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MPerBlock = 256;
 static constexpr ck::index_t BLOCKSIZE = 256;
-static constexpr ck::index_t MXDLPerWave = 4;
+static constexpr ck::index_t MXDLPerWave = 16;
 static constexpr ck::index_t NXDLPerWave = 4;
-static constexpr ck::index_t NPerBlock   = 128;
+static constexpr ck::index_t NPerBlock   = 256;
 static constexpr ck::index_t MNPerXDL    = 16;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
 
@@ -136,11 +136,12 @@ static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
 static constexpr ck::index_t AK1           = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1           = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec          = 2;
-static constexpr ck::index_t D0Vec         = 1;
-static constexpr ck::index_t D1Vec         = 1;
-static constexpr ck::index_t D2Vec         = 1;
-static constexpr bool MulRoutedWeight      = true;
-using DeviceOpInstance                     = ck::tensor_operation::device::DeviceMoeGemm
+// TODO: Epilogue performance issue. AtomicAdd lose 15~20% performance compare with Set.
+static constexpr ck::index_t D0Vec    = 1;
+static constexpr ck::index_t D1Vec    = 1;
+static constexpr ck::index_t D2Vec    = 1;
+static constexpr bool MulRoutedWeight = true;
+using DeviceOpInstance                = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
 ///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     DsData|     EData|     AccData|         CShuffle|           A|           B|          CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
 ///######|         |         |         |        |       Type|       Type|       Type|      Type|        Type|         DataType| Elementwise| Elementwise|  Elementwise| Spacialization|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
@@ -164,7 +165,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
             //    S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
             //    S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
@@ -186,8 +187,8 @@ int main(int argc, char* argv[])
     ck::index_t N               = 4096;
     ck::index_t K               = 4096;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 16;
-    ck::index_t valid_tile_num  = 13;
+    ck::index_t sorted_tile_num = 133;
+    ck::index_t valid_tile_num  = 128;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
     ck::index_t tokens          = 128;
@@ -247,11 +248,11 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
 
     max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
-    int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
+    // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
 
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = eids[i];
+        expert_ids.mData[i] = i / ((valid_tile_num + experts - 1) / experts);
     }
     if(tokens * topk > valid_size)
     {

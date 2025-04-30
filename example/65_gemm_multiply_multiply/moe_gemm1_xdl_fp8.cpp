@@ -157,11 +157,11 @@ using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t MXDLPerWave = 8;
-static constexpr ck::index_t NXDLPerWave = 1;
+static constexpr ck::index_t MPerBlock = 256;
+static constexpr ck::index_t MXDLPerWave = 16;
+static constexpr ck::index_t NXDLPerWave = 4;
 static constexpr ck::index_t BLOCKSIZE   = 256;
-static constexpr ck::index_t NPerBlock   = 64;
+static constexpr ck::index_t NPerBlock   = 256;
 static constexpr ck::index_t MNPerXDL    = 16;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
 static constexpr ck::index_t Nswizzle    = false;
@@ -183,14 +183,14 @@ using DeviceOpInstance                   = ck::tensor_operation::device::DeviceM
                // mn_perxdl
                MNPerXDL,   MNPerXDL,
                // mn_xdlperwave 
-               MXDLPerWave,    NXDLPerWave,
+               MXDLPerWave,  NXDLPerWave,
                // a,b: loadtranfer cluster, cluster order, srcorder,VECDIM, srcpervec, dstpervec, lds_extra
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-                2,    1,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
+                2,    2,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, true, MulRoutedWeight, true, int32_t, A0DataType>;
 
 // clang-format on
@@ -268,6 +268,7 @@ int main(int argc, char* argv[])
     {
         expert_ids.mData[i] = i / (valid_tile_num / experts);
     }
+
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
 
