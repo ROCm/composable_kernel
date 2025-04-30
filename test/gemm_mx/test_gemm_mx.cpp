@@ -203,30 +203,38 @@ TYPED_TEST(TestGemmMX_MK_KN, Large)
 /// B: ColMajor
 /// C: RowMajor
 
-TYPED_TEST(TestGemmMX_KM_NK, SmallM)
+TYPED_TEST(TestGemmMX_KM_NK, SmallN)
 {
-    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
-    constexpr int N = 256;
+    constexpr int M = 256;
+    std::vector<int> Ns{1, 2, 3, 4, 5, 6};
     constexpr int K = 512;
 
+    constexpr int StrideA = M;
     constexpr int StrideB = K;
-    constexpr int StrideC = N;
 
-    for(int M : Ms)
-        this->Run(M, N, K, M, StrideB, StrideC);
+    for(int N : Ns)
+    {
+        const auto new_N   = N * 8;
+        const auto StrideC = new_N;
+        this->Run(M, new_N, K, StrideA, StrideB, StrideC);
+    }
 }
 
-TYPED_TEST(TestGemmMX_KM_NK, MidLargeM)
+TYPED_TEST(TestGemmMX_KM_NK, MidLargeN)
 {
-    std::vector<int> Ms{127, 255, 312, 799, 1573};
-    constexpr int N = 256;
+    constexpr int M = 256;
+    std::vector<int> Ns{127, 255, 312, 799, 1573};
     constexpr int K = 512;
 
+    constexpr int StrideA = M;
     constexpr int StrideB = K;
-    constexpr int StrideC = N;
 
-    for(int M : Ms)
-        this->Run(M, N, K, M, StrideB, StrideC);
+    for(int N : Ns)
+    {
+        const auto new_N   = (N + 7) / 8 * 8;
+        const auto StrideC = new_N;
+        this->Run(M, new_N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 TYPED_TEST(TestGemmMX_KM_NK, Regular)
@@ -244,13 +252,18 @@ TYPED_TEST(TestGemmMX_KM_NK, Regular)
 
 TYPED_TEST(TestGemmMX_KM_NK, Large)
 {
-    std::vector<int> Ms{4096};
-    constexpr int N = 3840;
-    constexpr int K = 4096;
+    std::vector<std::pair<int, int>> test_sizes{{4096, 3840}, {3840, 5120}, {4096, 4096}};
 
+    constexpr int K       = 4096;
     constexpr int StrideB = K;
-    constexpr int StrideC = N;
 
-    for(int M : Ms)
-        this->Run(M, N, K, M, StrideB, StrideC);
+    for(auto test_size : test_sizes)
+    {
+        auto M = test_size.first;
+        auto N = test_size.second;
+
+        const auto StrideA = M;
+        const auto StrideC = N;
+        this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
