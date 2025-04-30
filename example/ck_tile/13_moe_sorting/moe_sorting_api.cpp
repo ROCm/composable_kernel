@@ -223,17 +223,17 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                           \
     }()
 
-#define MOE_SORTING_MP_23(unroll_num_, expert_masking_)                                            \
+#define MOE_SORTING_MP_23(unroll_num_, expert_masking_)                                           \
     [&]() {                                                                                       \
         constexpr ck_tile::index_t unroll_num = unroll_num_;                                      \
         constexpr bool expert_masking         = expert_masking_;                                  \
         using ms_problem =                                                                        \
             ck_tile::MoeSortingProblemMp<ms_index_t, ms_weight_type, unroll_num, expert_masking>; \
-        using kernel      = ck_tile::MoeSortingMultiPhaseKernel_P23<ms_problem>;                   \
-        auto kargs        = kernel::MakeKargs(a);                                                 \
-        const dim3 grids  = kernel::GridSize(a);                                                  \
-        const dim3 blocks = kernel::BlockSize(a);                                                 \
-        const auto lds_size = kernel::GetSmemSize(a);                                              \
+        using kernel        = ck_tile::MoeSortingMultiPhaseKernel_P23<ms_problem>;                \
+        auto kargs          = kernel::MakeKargs(a);                                               \
+        const dim3 grids    = kernel::GridSize(a);                                                \
+        const dim3 blocks   = kernel::BlockSize(a);                                               \
+        const auto lds_size = kernel::GetSmemSize(a);                                             \
         return ck_tile::make_kernel(kernel{}, grids, blocks, lds_size, kargs);                    \
     }()
 
@@ -264,7 +264,8 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
                 return ave_time;
             }
         }
-        else {
+        else
+        {
             if(t.local_expert_masking)
             {
                 float ave_time = ck_tile::launch_kernel(s,
