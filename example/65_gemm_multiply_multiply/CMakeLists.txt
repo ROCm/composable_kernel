@@ -20,3 +20,14 @@ set(EXAMPLE_COMPILE_OPTIONS)
 list(APPEND EXAMPLE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
 list(APPEND EXAMPLE_COMPILE_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllvm --schedmodel=0 -mllvm -misched=gcn-iterative-max-occupancy-experimental")
 target_compile_options(example_moe_gemm2_xdl_fp8_blockscale PRIVATE ${EXAMPLE_COMPILE_OPTIONS})
+
+#hacky fix for bs_moe_stage2 with rocm < 6.4
+add_custom_command(
+    TARGET example_moe_gemm2_xdl_fp8_blockscale
+    PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/hsa/
+    ${CMAKE_CURRENT_BINARY_DIR}/hsa/
+)
+
+target_compile_definitions(example_moe_gemm2_xdl_fp8_blockscale PRIVATE MOE_STAGE2_ASM_DIR="${CMAKE_CURRENT_BINARY_DIR}/hsa/")
