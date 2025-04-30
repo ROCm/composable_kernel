@@ -45,6 +45,12 @@ class TestGemmMX_MK_KN
 {
 };
 
+template <typename Tuple>
+class TestGemmMX_KM_NK
+    : public ck::test::TestGemmMX<typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
+{
+};
+
 // clang-format off
 using KernelTypes_F8_MK_NK = ::testing::Types<
 #if defined(CK_ENABLE_FP8)
@@ -60,10 +66,18 @@ using KernelTypes_BF8_F8_MK_KN = ::testing::Types<
     std::tuple<      BF8,        F8,             F16, ck::Number<32> >
 #endif
     >;
+
+using KernelTypes_F8_KM_NK = ::testing::Types<
+#if defined(CK_ENABLE_FP8)
+    //         ADataType, BDataType,       CDataType, ScaleBlockSize
+    std::tuple<       F8,        F8,            BF16, ck::Number<32> >
+#endif
+    >;
 // clang-format on
 
 TYPED_TEST_SUITE(TestGemmMX_MK_NK, KernelTypes_F8_MK_NK);
 TYPED_TEST_SUITE(TestGemmMX_MK_KN, KernelTypes_BF8_F8_MK_KN);
+TYPED_TEST_SUITE(TestGemmMX_KM_NK, KernelTypes_F8_KM_NK);
 
 /// A: RowMajor
 /// B: ColMajor
@@ -188,3 +202,55 @@ TYPED_TEST(TestGemmMX_MK_KN, Large)
 /// A: ColMajor
 /// B: ColMajor
 /// C: RowMajor
+
+TYPED_TEST(TestGemmMX_KM_NK, SmallM)
+{
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    constexpr int N = 256;
+    constexpr int K = 512;
+
+    constexpr int StrideB = K;
+    constexpr int StrideC = N;
+
+    for(int M : Ms)
+        this->Run(M, N, K, M, StrideB, StrideC);
+}
+
+TYPED_TEST(TestGemmMX_KM_NK, MidLargeM)
+{
+    std::vector<int> Ms{127, 255, 312, 799, 1573};
+    constexpr int N = 256;
+    constexpr int K = 512;
+
+    constexpr int StrideB = K;
+    constexpr int StrideC = N;
+
+    for(int M : Ms)
+        this->Run(M, N, K, M, StrideB, StrideC);
+}
+
+TYPED_TEST(TestGemmMX_KM_NK, Regular)
+{
+    std::vector<int> Ms{3840};
+    constexpr int N = 512;
+    constexpr int K = 1024;
+
+    constexpr int StrideB = K;
+    constexpr int StrideC = N;
+
+    for(int M : Ms)
+        this->Run(M, N, K, M, StrideB, StrideC);
+}
+
+TYPED_TEST(TestGemmMX_KM_NK, Large)
+{
+    std::vector<int> Ms{4096};
+    constexpr int N = 3840;
+    constexpr int K = 4096;
+
+    constexpr int StrideB = K;
+    constexpr int StrideC = N;
+
+    for(int M : Ms)
+        this->Run(M, N, K, M, StrideB, StrideC);
+}
