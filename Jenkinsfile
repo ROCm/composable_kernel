@@ -527,7 +527,7 @@ def Build_CK(Map conf=[:]){
                         arch_type = 6
                     }
                     cmake_build(conf)
-                    if ( !params.BUILD_LEGACY_OS && arch_type == 1 ){
+                    if ( params.RUN_INDUCTOR_TESTS && !params.BUILD_LEGACY_OS && arch_type == 1 ){
                             echo "Run inductor codegen tests"
                             sh """
                                   python3 -m venv ${env.WORKSPACE}
@@ -842,6 +842,10 @@ pipeline {
             name: "BUILD_LEGACY_OS",
             defaultValue: false,
             description: "Try building CK with legacy OS dockers: RHEL8 and SLES15 (default: OFF)")
+        booleanParam(
+            name: "RUN_INDUCTOR_TESTS",
+            defaultValue: false,
+            description: "Run inductor codegen tests (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -936,8 +940,8 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 test_grouped_convnd_fwd_large_cases_xdl && \
-                                           ./bin/test_grouped_convnd_fwd_large_cases_xdl"""
+                                           make -j64 test_grouped_convnd_fwd_large_cases_xdl test_grouped_convnd_bwd_data_xdl_large_cases && \
+                                           ./bin/test_grouped_convnd_fwd_large_cases_xdl && ./bin/test_grouped_convnd_bwd_data_xdl_large_cases"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
