@@ -96,60 +96,60 @@ struct DeviceMoeGemmBlockScale
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
     using GridwiseGemm                  = GridwiseMoeGemmBlockScale<
-        ALayout,
-        BLayout,
-        DsLayout,
-        CLayout,
-        ADataType,
-        BDataType,
-        GemmAccDataType,
-        CShuffleDataType,
-        DsDataType,
-        CDataType,
-        AElementwiseOperation,
-        BElementwiseOperation,
-        CElementwiseOperation,
-        GemmSpec,
-        BlockSize,
-        ScaleBlockM,
-        ScaleBlockN,
-        ScaleBlockK,
-        MPerBlock,
-        NPerBlock,
-        KPerBlock,
-        AK1,
-        BK1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave,
-        ABlockTransferThreadClusterLengths_AK0_M_AK1,
-        ABlockTransferThreadClusterArrangeOrder,
-        ABlockTransferSrcAccessOrder,
-        ABlockTransferSrcVectorDim,
-        ABlockTransferSrcScalarPerVector,
-        ABlockTransferDstScalarPerVector_AK1,
-        false,
-        ABlockLdsExtraM,
-        BBlockTransferThreadClusterLengths_BK0_N_BK1,
-        BBlockTransferThreadClusterArrangeOrder,
-        BBlockTransferSrcAccessOrder,
-        BBlockTransferSrcVectorDim,
-        BBlockTransferSrcScalarPerVector,
-        BBlockTransferDstScalarPerVector_BK1,
-        false,
-        BBlockLdsExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
-        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CDEShuffleBlockTransferScalarPerVectors,
-        BlkGemmPipeSched,
-        BlkGemmPipelineVer,
-        NSwizzle,
-        ComputeTypeA,
-        ComputeTypeB,
-        LDSTypeA,
-        LDSTypeB>;
+                         ALayout,
+                         BLayout,
+                         DsLayout,
+                         CLayout,
+                         ADataType,
+                         BDataType,
+                         GemmAccDataType,
+                         CShuffleDataType,
+                         DsDataType,
+                         CDataType,
+                         AElementwiseOperation,
+                         BElementwiseOperation,
+                         CElementwiseOperation,
+                         GemmSpec,
+                         BlockSize,
+                         ScaleBlockM,
+                         ScaleBlockN,
+                         ScaleBlockK,
+                         MPerBlock,
+                         NPerBlock,
+                         KPerBlock,
+                         AK1,
+                         BK1,
+                         MPerXDL,
+                         NPerXDL,
+                         MXdlPerWave,
+                         NXdlPerWave,
+                         ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                         ABlockTransferThreadClusterArrangeOrder,
+                         ABlockTransferSrcAccessOrder,
+                         ABlockTransferSrcVectorDim,
+                         ABlockTransferSrcScalarPerVector,
+                         ABlockTransferDstScalarPerVector_AK1,
+                         false,
+                         ABlockLdsExtraM,
+                         BBlockTransferThreadClusterLengths_BK0_N_BK1,
+                         BBlockTransferThreadClusterArrangeOrder,
+                         BBlockTransferSrcAccessOrder,
+                         BBlockTransferSrcVectorDim,
+                         BBlockTransferSrcScalarPerVector,
+                         BBlockTransferDstScalarPerVector_BK1,
+                         false,
+                         BBlockLdsExtraN,
+                         CShuffleMXdlPerWavePerShuffle,
+                         CShuffleNXdlPerWavePerShuffle,
+                         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                         CDEShuffleBlockTransferScalarPerVectors,
+                         BlkGemmPipeSched,
+                         BlkGemmPipelineVer,
+                         NSwizzle,
+                         ComputeTypeA,
+                         ComputeTypeB,
+                         LDSTypeA,
+                         LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -317,9 +317,11 @@ struct DeviceMoeGemmBlockScale
 #if 1
             else
             {
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        printf("here to do odd.\n");
                         const auto kernel = kernel_moe_gemm<GridwiseGemm,
                                                             false,
                                                             MemoryDataOp,
@@ -338,6 +340,31 @@ struct DeviceMoeGemmBlockScale
                                                             TailNumber::Even>;
                         RunKernel(kernel);
                     }
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 IsInputGemm,
+                                                                 TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 IsInputGemm,
+                                                                 TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
+                }
             }
 #endif
 
