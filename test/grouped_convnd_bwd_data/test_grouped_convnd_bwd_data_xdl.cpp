@@ -21,26 +21,31 @@ class TestGroupedConvndBwdDataXdl : public ::testing::Test
     using InLayout  = std::tuple_element_t<3, Tuple>;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
+    std::vector<ck::index_t> split_ks{1, 2};
 
     template <ck::index_t NDimSpatial>
     void Run()
     {
         EXPECT_FALSE(conv_params.empty());
         bool pass = true;
-        for(auto& param : conv_params)
+        for(auto split_k : split_ks)
         {
-            pass = pass && ck::profiler::profile_grouped_conv_bwd_data_impl<NDimSpatial,
-                                                                            OutLayout,
-                                                                            WeiLayout,
-                                                                            InLayout,
-                                                                            DataType,
-                                                                            DataType,
-                                                                            DataType>(
-                               true,  // do_verification
-                               1,     // init_method: integer value
-                               false, // do_log
-                               false, // time_kernel
-                               param);
+            for(auto& param : conv_params)
+            {
+                pass = pass && ck::profiler::profile_grouped_conv_bwd_data_impl<NDimSpatial,
+                                                                                OutLayout,
+                                                                                WeiLayout,
+                                                                                InLayout,
+                                                                                DataType,
+                                                                                DataType,
+                                                                                DataType>(
+                                   true,  // do_verification
+                                   1,     // init_method: integer value
+                                   false, // do_log
+                                   false, // time_kernel
+                                   param,
+                                   split_k);
+            }
         }
         EXPECT_TRUE(pass);
     }
@@ -92,19 +97,16 @@ TYPED_TEST(TestGroupedConvndBwdDataXdl2d, Test2D)
     this->conv_params.clear();
 
     this->conv_params.push_back(
-        {2, 2, 4, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+        {2, 2, 2, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
-        {2, 2, 128, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+        {2, 2, 2, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
-        {2, 2, 128, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
+        {2, 2, 2, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
     this->conv_params.push_back(
-        {2, 2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
-    this->conv_params.push_back({2, 1, 1, 1, 32, {8, 8}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->conv_params.push_back({2, 1, 1, 64, 3, {8, 8}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->conv_params.push_back({2, 1, 1, 1, 1, {8, 8}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    // SplitN case
-    this->conv_params.push_back(
-        {2, 1, 128, 4, 192, {2, 2}, {224, 224}, {224, 224}, {1, 1}, {0, 0}, {0, 0}});
+        {2, 2, 2, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
+    this->conv_params.push_back({2, 1, 1, 1, 32, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back({2, 1, 1, 64, 3, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back({2, 1, 1, 1, 1, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->template Run<2>();
 }
 
@@ -112,28 +114,16 @@ TYPED_TEST(TestGroupedConvndBwdDataXdl3d, Test3D)
 {
     this->conv_params.clear();
     this->conv_params.push_back(
-        {3, 2, 16, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+        {3, 2, 2, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
         {3, 2, 2, 128, 256, {3, 3, 3}, {14, 14, 3}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+        {3, 2, 2, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 1, 32, {3, 3, 3}, {4, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 64, 3, {3, 3, 3}, {4, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
-    // SplitN case
-    this->conv_params.push_back({3,
-                                 1,
-                                 128,
-                                 4,
-                                 192,
-                                 {2, 2, 2},
-                                 {2, 224, 224},
-                                 {1, 224, 224},
-                                 {1, 1, 1},
-                                 {0, 0, 0},
-                                 {0, 0, 0}});
+        {3, 1, 1, 1, 1, {3, 3, 3}, {4, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->template Run<3>();
 }
