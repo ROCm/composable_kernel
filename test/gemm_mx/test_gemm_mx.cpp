@@ -127,16 +127,20 @@ TYPED_TEST(TestGemmMX_MK_NK, Regular)
 
 TYPED_TEST(TestGemmMX_MK_NK, Large)
 {
-    std::vector<int> Ms{4096};
-    constexpr int N = 3840;
-    constexpr int K = 4096;
+    std::vector<std::pair<int, int>> test_sizes{{5120, 5120}, {3840, 5120}, {4096, 4096}};
 
+    constexpr int K       = 4096;
     constexpr int StrideA = K;
     constexpr int StrideB = K;
-    constexpr int StrideC = N;
 
-    for(int M : Ms)
+    for(auto test_size : test_sizes)
+    {
+        auto M = test_size.first;
+        auto N = test_size.second;
+
+        const auto StrideC = N;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 /// A: RowMajor
@@ -187,16 +191,20 @@ TYPED_TEST(TestGemmMX_MK_KN, Regular)
 
 TYPED_TEST(TestGemmMX_MK_KN, Large)
 {
-    std::vector<int> Ms{4096};
-    constexpr int N = 3840;
-    constexpr int K = 4096;
+    std::vector<std::pair<int, int>> test_sizes{{5120, 5120}, {3840, 5120}, {4096, 4096}};
 
+    constexpr int K       = 4096;
     constexpr int StrideA = K;
-    constexpr int StrideB = N;
-    constexpr int StrideC = N;
 
-    for(int M : Ms)
+    for(auto test_size : test_sizes)
+    {
+        auto M = test_size.first;
+        auto N = test_size.second;
+
+        const auto StrideB = N;
+        const auto StrideC = N;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 /// A: ColMajor
@@ -252,7 +260,7 @@ TYPED_TEST(TestGemmMX_KM_NK, Regular)
 
 TYPED_TEST(TestGemmMX_KM_NK, Large)
 {
-    std::vector<std::pair<int, int>> test_sizes{{4096, 3840}, {3840, 5120}, {4096, 4096}};
+    std::vector<std::pair<int, int>> test_sizes{{5120, 5120}, {3840, 5120}, {4096, 4096}};
 
     constexpr int K       = 4096;
     constexpr int StrideB = K;
