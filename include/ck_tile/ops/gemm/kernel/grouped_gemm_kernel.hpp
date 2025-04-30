@@ -267,6 +267,10 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
                     block_start, kargs.M, kargs.N, block_id);
                 Run(kargs, block_idx_2d);
                 block_id = block_id + grid_size;  // advance to next block
+                if (block_id >= cum_grid_size)
+                {
+                    break;  // exit the loop if all blocks are processed
+                }
             }
         }
     }
