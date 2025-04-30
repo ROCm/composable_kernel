@@ -1,0 +1,2 @@
+add_executable(tile_example_batched_gemm batched_gemm.cpp)
+rocm_install(TARGETS tile_example_batched_gemm COMPONENT examples)
