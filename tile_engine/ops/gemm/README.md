@@ -1,21 +1,29 @@
 # GEMM Matrix Multiplication
 
-Use the files in this folder to generate and build applications that run Matrix multiplications using ck_tile programming based on the kernel parameters mentioned in the config file `./configs/instance_combination.json`.
+CK Tile Engine GEMM is used to generate and run GEMM kernels with different combinations of BlockTile sizes, WarpTile sizes, WarpTile mapping for all valid pipelines, schedulers and epilogues. 
 
 # Kernel Configurations
 
-User needs to provide kernel configuration such as datatype, layout, tile size, warp size, padding, pipeline, scheduler and epilogue in the config file. For reference please see `./configs/instance_combination.json`
+Kernel parameters are specified in the `instance_combination.json` file, including matrix layouts, data types, padding settings, pipelines, schedulers, epilogues, and numerical values for tile and warp sizes.
 
-## Build
-```
-# in the root of ck_tile
+Given a valid set of values, tile_engine_gemm will automatically iterate over all possible combinations of BlockTile and WarpTile sizes, as well as the specified pipelines, schedulers, and epilogues from `./configs/instance_combination.json`, and build the corresponding kernels.
+
+
+## Build Instructions
+``` bash
+# in the root of composable kernel create build directory
 mkdir build && cd build
-# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
-# To generate the executable
+# build composable kernel
+sh ../script/cmake-ck-dev.sh  ../ <arch> # replace <arch> with the appropriate architecture (example gfx942) or leave blank
+# generate the executable
 make tile_engine_gemm -j
 ```
 `tile_engine_gemm` will be located in the `./bin/` directory.
+
+_`tile_engine_gemm` must be rebuilt everytime `instance_combination.json` is modified._
+``` bash
+rm -rf tile_engine/ && make tile_engine_gemm -j  # rebuild
+```
 
 ## tile_engine_gemm inputs
 ```
@@ -42,11 +50,43 @@ make tile_engine_gemm -j
 
 Note: pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be one of the options specified in instance_combination.json 
 ```
+Note: In `./configs/instance_combination.json` pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be from one of the values specified above. 
 
 ## Example
 
-Below example will run gemm kernel with default dimensions of matrices, for compv3 pipeline, intrawave scheduler and default epilogue with all possible tile sizes mentioned in Config file.
+The following JSON file specifies parameters used to generate and build GEMM kernels across all possible combinations of pipelines, schedulers, epilogues with different tile and warp sizes.
 
+```json
+{     
+    /// other parameters ///
+    
+    "tile_m": {
+      "values": [256]
+    },
+    "tile_n": {
+      "values": [256]
+    },
+    "tile_k": {
+      "values": [64, 32]
+    },
+
+    /// other parameters ///
+
+    "pipeline": {
+      "values": ["compv3", "compv4", "mem"]
+    },
+    "scheduler": {
+      "values": ["intrawave", "interwave"]
+    },
+    "epilogue": {
+      "values": ["default", "cshuffle"]
+    }
+}
 ```
+
+At runtime, a specific subset of the generated kernels can be selected using command-line arguments.
+``` bash
 ./bin/tile_engine_gemm -pipeline=compv3 -scheduler=intrawave -epilogue=default 
 ```
+The above command runs kernels configured with the compv3 pipeline, intrawave scheduler, and default epilogue, while sweeping over different BlockTile sizes, WarpTile sizes, and WarpTile mappings.
+
