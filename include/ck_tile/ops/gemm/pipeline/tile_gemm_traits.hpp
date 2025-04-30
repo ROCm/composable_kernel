@@ -12,8 +12,7 @@ template <bool kPadM_,
           bool kPadK_,
           typename ALayout_,
           typename BLayout_,
-          typename CLayout_,
-          bool UseStructuredSparsity_ = false>
+          typename CLayout_>
 struct TileGemmTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -28,7 +27,7 @@ struct TileGemmTraits
     using CLayout = CLayout_;
 
     static constexpr bool TransposeC            = false;
-    static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
+    static constexpr bool UseStructuredSparsity = false;
 };
 
 template <bool kPadM_,
