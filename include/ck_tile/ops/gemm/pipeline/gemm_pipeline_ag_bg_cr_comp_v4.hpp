@@ -217,17 +217,17 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             ////////////// global window & register /////////////////
             // A DRAM tile window for load
             auto a_copy_dram_window =
-                make_tile_window_linear(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                        a_dram_block_window_tmp.get_window_origin(),
-                                        Policy::template MakeADramTileDistribution<Problem>());
+                make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
+                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                 a_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeADramTileDistribution<Problem>());
 
             // B DRAM tile window for load
             auto b_copy_dram_window =
-                make_tile_window_linear(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                        b_dram_block_window_tmp.get_window_origin(),
-                                        Policy::template MakeBDramTileDistribution<Problem>());
+                make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
+                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                 b_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeBDramTileDistribution<Problem>());
 
             // A register tile for global load
             constexpr auto ABlockTileDistr = a_copy_dram_window.get_tile_distribution();
@@ -317,25 +317,25 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             BLdsTile b_block_tile1;
 
             auto a_lds_ld_window0 =
-                make_tile_window_linear(a_lds_block0,
-                                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                        {0, 0},
-                                        ALdsTileDistr);
+                make_tile_window(a_lds_block0,
+                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                 {0, 0},
+                                 ALdsTileDistr);
             auto a_lds_ld_window1 =
-                make_tile_window_linear(a_lds_block1,
-                                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                        {0, 0},
-                                        ALdsTileDistr);
+                make_tile_window(a_lds_block1,
+                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                 {0, 0},
+                                 ALdsTileDistr);
             auto b_lds_ld_window0 =
-                make_tile_window_linear(b_lds_block0,
-                                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                        {0, 0},
-                                        BLdsTileDistr);
+                make_tile_window(b_lds_block0,
+                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                 {0, 0},
+                                 BLdsTileDistr);
             auto b_lds_ld_window1 =
-                make_tile_window_linear(b_lds_block1,
-                                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                        {0, 0},
-                                        BLdsTileDistr);
+                make_tile_window(b_lds_block1,
+                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                 {0, 0},
+                                 BLdsTileDistr);
 
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
