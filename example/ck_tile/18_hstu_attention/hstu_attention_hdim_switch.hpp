@@ -10,7 +10,7 @@
     [&] {                                                              \
         if(HDIM_1 <= 64 && HDIM_2 <= 64)                               \
         {                                                              \
-            constexpr ck_tile::index_t CONST_NAME = 64;                \
+            constexpr ck_tile::index_t CONST_NAME = 128;               \
             __VA_ARGS__();                                             \
         }                                                              \
         else if(HDIM_1 <= 128 && HDIM_2 <= 128)                        \
@@ -20,7 +20,7 @@
         }                                                              \
         else if(HDIM_1 <= 256 && HDIM_2 <= 256)                        \
         {                                                              \
-            constexpr ck_tile::index_t CONST_NAME = 256;               \
+            constexpr ck_tile::index_t CONST_NAME = 128;               \
             __VA_ARGS__();                                             \
         }                                                              \
         else                                                           \
