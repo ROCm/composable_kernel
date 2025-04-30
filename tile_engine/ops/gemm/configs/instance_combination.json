@@ -7,10 +7,10 @@
       "values": ["c"]
     },
     "layout_c": {
-      "values": ["r"] 
+      "values": ["r"]
     },
     "datatype": {
-      "values": ["fp16"] 
+      "values": ["fp16"]
     },
     "tile_m": {
       "values": [256]
@@ -49,7 +49,7 @@
       "values": [false]
     },
     "pipeline": {
-      "values": ["compv3", "mem"]
+      "values": ["compv3", "compv4", "mem"]
     },
     "scheduler": {
       "values": ["intrawave", "interwave"]
