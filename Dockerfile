@@ -49,9 +49,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     mpich \
     net-tools \
     pkg-config \
-    python3 \
-    python3-dev \
-    python3-pip \
+    python3-full \
     redis \
     rocm-llvm-dev \
     sshpass \
