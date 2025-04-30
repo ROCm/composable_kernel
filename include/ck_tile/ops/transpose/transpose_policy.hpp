@@ -23,11 +23,11 @@ struct QuartTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
     template <index_t kOuterDist, index_t kInnerDist>
     using TileDistribution =
         tile_distribution_encoding<sequence<>,
-                                   tuple<sequence<kOuterDist, 4>, sequence<kInnerDist, 4, 4>>,
+                                   tuple<sequence<kOuterDist, 1, 4>, sequence<kInnerDist, 4, 4>>,
                                    tuple<sequence<1, 2, 1, 2>>,
-                                   tuple<sequence<0, 0, 1, 1>>,
-                                   sequence<2>,
-                                   sequence<2>>;
+                                   tuple<sequence<0, 0, 2, 1>>,
+                                   sequence<1, 2>,
+                                   sequence<1, 2>>;
     // after transpose
     template <index_t kOuterDist, index_t kInnerDist>
     using TileDistributionT =
