@@ -29,6 +29,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
     constexpr int kBlockPerCu = 2;
 
     // This part comes from the Codegen
+#if defined(USING_MFMA_16x16x32) || defined(ENABLE_FP16)
     constexpr ck_tile::index_t M_Tile = 128;
     constexpr ck_tile::index_t N_Tile = 128;
     constexpr ck_tile::index_t K_Tile = 128;
@@ -41,6 +42,19 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
     constexpr ck_tile::index_t N_Warp_Tile = is_8bit_type<ADataType>::value ? 16 : 32;
     constexpr ck_tile::index_t K_Warp_Tile = is_8bit_type<ADataType>::value ? 64 : 16;
 
+#elif defined(USING_MFMA_32x32x16) && defined(ENABLE_FP8)
+    constexpr ck_tile::index_t M_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 256;
+    constexpr ck_tile::index_t K_Tile = 128;
+
+    constexpr ck_tile::index_t M_Warp = 1;
+    constexpr ck_tile::index_t N_Warp = 8;
+    constexpr ck_tile::index_t K_Warp = 1;
+
+    constexpr ck_tile::index_t M_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 32;
+    constexpr ck_tile::index_t N_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 32;
+    constexpr ck_tile::index_t K_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 16;
+#endif
     using CodegenFlatmmShape =
         ck_tile::TileFlatmmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                  ck_tile::sequence<M_Warp, N_Warp, K_Warp>,

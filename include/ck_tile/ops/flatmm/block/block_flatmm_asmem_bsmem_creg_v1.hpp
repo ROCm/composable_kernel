@@ -74,7 +74,8 @@ struct BlockFlatmmASmemBSmemCRegV1
         // constexpr index_t MPerBlock = ABlockWindow{}.get_window_lengths()[number<0>{}];
         // constexpr index_t KPerBlock = ABlockWindow{}.get_window_lengths()[number<1>{}];
 
-        // static_assert(MPerBlock == BlockGemmShape::kM && KPerBlock == BlockGemmShape::kK, "wrong!");
+        // static_assert(MPerBlock == BlockGemmShape::kM && KPerBlock == BlockGemmShape::kK,
+        // "wrong!");
 
         constexpr index_t MPerBlock = BlockGemmShape::kM;
         constexpr index_t KPerBlock = BlockGemmShape::kK;

@@ -19,8 +19,36 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         using namespace ck_tile;
-        
-#if 0
+#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
+        /*reduce transform layers,compare with old ck*/
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPack     = GetSmemPackA<Problem>();
+
+        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
+            make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
+            number<KPack>{},
+            number<1>{});
+
+        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+            a_lds_block_desc_0,
+            make_tuple(
+                make_xor_transform(make_tuple(number<MPerBlock>{}, number<KPerBlock / KPack>{})),
+                make_pass_through_transform(number<KPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+
+        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+            a_lds_block_desc_permuted,
+            make_tuple(make_pass_through_transform(number<MPerBlock>{}),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return a_lds_block_desc;
+#elif defined(USING_MFMA_32x32x16)
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t kKPack     = GetSmemPackA<Problem>();
@@ -37,6 +65,8 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
                        make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return a_lds_block_desc;
 #endif
 /*xor*/
 #if 0
@@ -82,32 +112,6 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
                         make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
-#endif
-#if 1 /*reduce transform layers,compare with old ck*/
-        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t KPack     = GetSmemPackA<Problem>();
-
-        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
-            make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
-            number<KPack>{},
-            number<1>{});
-
-        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-            a_lds_block_desc_0,
-            make_tuple(make_xor_transform(make_tuple(number<MPerBlock>{},
-            number<KPerBlock / KPack>{})),
-        make_pass_through_transform(number<KPack>{})),
-        make_tuple(sequence<1, 0>{}, sequence<2>{}),
-        make_tuple(sequence<1, 0>{}, sequence<2>{}));
-
-        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-            a_lds_block_desc_permuted,
-        make_tuple(make_pass_through_transform(number<MPerBlock>{}),
-        make_merge_transform_v3_division_mod(make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-        make_tuple(sequence<1>{}, sequence<0, 2>{}),
-        make_tuple(sequence<0>{}, sequence<1>{}));
 #endif
         return a_lds_block_desc;
     }

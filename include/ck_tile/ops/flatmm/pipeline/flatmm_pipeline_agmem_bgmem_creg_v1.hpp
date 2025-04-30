@@ -91,14 +91,14 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         constexpr index_t A_LDS_Read_Inst_Num    = MIterPerWarp * KIterPerWarp;
         constexpr index_t B_Buffer_Load_Inst_Num = NIterPerWarp * KIterPerWarp;
         // constexpr index_t A_LDS_Read_Inst_Remain = A_LDS_Read_Inst_Num - A_Buffer_Load_Inst_Num;
-
+#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
         static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
         });
-        static_for<0, A_LDS_Read_Inst_Num-A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
+        static_for<0, A_LDS_Read_Inst_Num - A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
             __builtin_amdgcn_sched_group_barrier(0x008, 3, 0); // MFMA
@@ -113,6 +113,41 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
             __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
         });
+
+#elif defined(USING_MFMA_32x32x16)
+        static_for<0,
+                   A_LDS_Read_Inst_Num / 2 - A_Buffer_Load_Inst_Num - B_Buffer_Load_Inst_Num,
+                   1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        });
+        static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        });
+        static_for<0, A_LDS_Read_Inst_Num / 2, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        });
+        static_for<0, B_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        });
+        static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+            __builtin_amdgcn_sched_group_barrier(0x008, 3, 0); // MFMA
+        });
+        __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
+#endif
     }
 
     template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>
@@ -188,7 +223,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                 a_warp_windows(mIter)(kIter) = a_warp_window_tmp;
 
                 move_tile_window(a_warp_windows(mIter)(kIter),
-                                    {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
+                                 {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
             });
         });
 

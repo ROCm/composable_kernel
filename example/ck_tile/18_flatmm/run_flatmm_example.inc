@@ -183,7 +183,11 @@ int run_flatmm_example_with_layouts(int argc,
 
     // do pre-shuffle
     std::string mfma                              = arg_parser.get_str("prec");
-    ck_tile::index_t mfma_type = is_8bit_type<BDataType>::value ? 1 : 0;
+#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
+    ck_tile::index_t mfma_type = 1;
+#else
+    ck_tile::index_t mfma_type = 0;
+#endif
     ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b(b_origin_host, mfma, mfma_type);
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
