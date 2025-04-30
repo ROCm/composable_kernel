@@ -223,6 +223,20 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                           \
     }()
 
+#define MOE_SORTING_MP_23(unroll_num_, expert_masking_)                                            \
+    [&]() {                                                                                       \
+        constexpr ck_tile::index_t unroll_num = unroll_num_;                                      \
+        constexpr bool expert_masking         = expert_masking_;                                  \
+        using ms_problem =                                                                        \
+            ck_tile::MoeSortingProblemMp<ms_index_t, ms_weight_type, unroll_num, expert_masking>; \
+        using kernel      = ck_tile::MoeSortingMultiPhaseKernel_P23<ms_problem>;                   \
+        auto kargs        = kernel::MakeKargs(a);                                                 \
+        const dim3 grids  = kernel::GridSize(a);                                                  \
+        const dim3 blocks = kernel::BlockSize(a);                                                 \
+        const auto lds_size = kernel::GetSmemSize(a);                                              \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, lds_size, kargs);                    \
+    }()
+
 float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s)
 {
     if(t.weight_type == "fp32" && t.index_type == "int32")
@@ -230,23 +244,45 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
         using ms_index_t     = ck_tile::index_t;
         using ms_weight_type = float;
 
-        if(t.local_expert_masking)
+        if(ck_tile::moe_sorting_get_smem_size_p23(a.num_experts) <= ck_tile::get_smem_capacity())
         {
-            float ave_time = ck_tile::launch_kernel(s,
-                                                    MOE_SORTING_MP_0(1, true),
-                                                    MOE_SORTING_MP_1(1, true),
-                                                    MOE_SORTING_MP_2(1, true),
-                                                    MOE_SORTING_MP_3(1, true));
-            return ave_time;
+            printf("@@@@@@@ %d\n", __LINE__);
+            if(t.local_expert_masking)
+            {
+                float ave_time = ck_tile::launch_kernel(s,
+                                                        MOE_SORTING_MP_0(1, true),
+                                                        MOE_SORTING_MP_1(1, true),
+                                                        MOE_SORTING_MP_23(1, true));
+                return ave_time;
+            }
+            else
+            {
+                float ave_time = ck_tile::launch_kernel(s,
+                                                        MOE_SORTING_MP_0(1, false),
+                                                        MOE_SORTING_MP_1(1, false),
+                                                        MOE_SORTING_MP_23(1, false));
+                return ave_time;
+            }
         }
-        else
-        {
-            float ave_time = ck_tile::launch_kernel(s,
-                                                    MOE_SORTING_MP_0(1, false),
-                                                    MOE_SORTING_MP_1(1, false),
-                                                    MOE_SORTING_MP_2(1, false),
-                                                    MOE_SORTING_MP_3(1, false));
-            return ave_time;
+        else {
+            if(t.local_expert_masking)
+            {
+                float ave_time = ck_tile::launch_kernel(s,
+                                                        MOE_SORTING_MP_0(1, true),
+                                                        MOE_SORTING_MP_1(1, true),
+                                                        MOE_SORTING_MP_2(1, true),
+                                                        MOE_SORTING_MP_3(1, true));
+                return ave_time;
+            }
+            else
+            {
+                float ave_time = ck_tile::launch_kernel(s,
+                                                        MOE_SORTING_MP_0(1, false),
+                                                        MOE_SORTING_MP_1(1, false),
+                                                        MOE_SORTING_MP_2(1, false),
+                                                        MOE_SORTING_MP_3(1, false));
+                return ave_time;
+            }
         }
     }
     return -1;
