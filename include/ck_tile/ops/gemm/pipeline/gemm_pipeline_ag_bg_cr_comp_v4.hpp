@@ -86,6 +86,9 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
+    static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
+    static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
+
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
@@ -140,7 +143,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             constexpr index_t A_LDS_Read_Inst_Num =
                 WaveNumN * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
             constexpr index_t B_LDS_Read_Inst_Num =
-                WaveNumM * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumM * NPerBlock * KPerBlock / (BlockSize * KPerXDL);
 
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
@@ -214,17 +217,17 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             ////////////// global window & register /////////////////
             // A DRAM tile window for load
             auto a_copy_dram_window =
-                make_tile_window_linear(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                        a_dram_block_window_tmp.get_window_origin(),
-                                        Policy::template MakeADramTileDistribution<Problem>());
+                make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
+                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                 a_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeADramTileDistribution<Problem>());
 
             // B DRAM tile window for load
             auto b_copy_dram_window =
-                make_tile_window_linear(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                        b_dram_block_window_tmp.get_window_origin(),
-                                        Policy::template MakeBDramTileDistribution<Problem>());
+                make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
+                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                 b_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeBDramTileDistribution<Problem>());
 
             // A register tile for global load
             constexpr auto ABlockTileDistr = a_copy_dram_window.get_tile_distribution();
@@ -314,25 +317,25 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             BLdsTile b_block_tile1;
 
             auto a_lds_ld_window0 =
-                make_tile_window_linear(a_lds_block0,
-                                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                        {0, 0},
-                                        ALdsTileDistr);
+                make_tile_window(a_lds_block0,
+                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                 {0, 0},
+                                 ALdsTileDistr);
             auto a_lds_ld_window1 =
-                make_tile_window_linear(a_lds_block1,
-                                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                        {0, 0},
-                                        ALdsTileDistr);
+                make_tile_window(a_lds_block1,
+                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                 {0, 0},
+                                 ALdsTileDistr);
             auto b_lds_ld_window0 =
-                make_tile_window_linear(b_lds_block0,
-                                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                        {0, 0},
-                                        BLdsTileDistr);
+                make_tile_window(b_lds_block0,
+                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                 {0, 0},
+                                 BLdsTileDistr);
             auto b_lds_ld_window1 =
-                make_tile_window_linear(b_lds_block1,
-                                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                        {0, 0},
-                                        BLdsTileDistr);
+                make_tile_window(b_lds_block1,
+                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                                 {0, 0},
+                                 BLdsTileDistr);
 
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
@@ -439,6 +442,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                             Base::LocalPrefill(
                                 b_copy_lds_window1, b_global_load_tile, b_element_func);
                         }
+                        block_sync_lds();
 
                         Base::GlobalPrefetch(
                             a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);

@@ -67,7 +67,7 @@ inline __host__ float2_t scaled_type_convert<float2_t, f8x2_ocp_t>(e8m0_bexp_t s
 #endif
 {
 #if CK_MX_FP8_CVT_FAST_PATH
-    return fp8_impl::cast_to_f32x2_from_f8x2_scaled<f8_ocp_t::default_interpret>(
+    return fp8_impl::cast_to_f32_from_f8_scaled<f8_ocp_t::default_interpret>(
         type_convert<float>(scale), x.AsType<fp8_impl::fp8x2_storage_t>()[Number<0>{}]);
 #else
     return float2_t{scaled_type_convert<float>(scale, x.AsType<f8_ocp_t>()[Number<0>{}]),
@@ -86,7 +86,7 @@ inline __host__ float2_t scaled_type_convert<float2_t, bf8x2_ocp_t>(e8m0_bexp_t 
 #endif
 {
 #if CK_MX_FP8_CVT_FAST_PATH
-    return fp8_impl::cast_to_f32x2_from_f8x2_scaled<bf8_ocp_t::default_interpret>(
+    return fp8_impl::cast_to_f32_from_f8_scaled<bf8_ocp_t::default_interpret>(
         type_convert<float>(scale), x.AsType<fp8_impl::fp8x2_storage_t>()[Number<0>{}]);
 #else
     return float2_t{scaled_type_convert<float>(scale, x.AsType<bf8_ocp_t>()[Number<0>{}]),

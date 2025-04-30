@@ -523,14 +523,14 @@ CK_TILE_HOST_DEVICE DstT run_cast_from_f8(SrcT x)
     int exponent                = (x & 0x7F) >> SrcT_mant;
     if constexpr(is_fnuz)
     {
-        if(x == 0x80)
+        if((x & 0xff) == 0x80)
         {
             return fNaN;
         }
     }
     else
     {
-        if(x == 0x80)
+        if(x == SrcT(0x80))
         {
             return fNeg0;
         }

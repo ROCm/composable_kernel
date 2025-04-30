@@ -1,0 +1,60 @@
+{
+   
+    "layout_a": {
+      "values": ["r"]
+    },
+    "layout_b": {
+      "values": ["c"]
+    },
+    "layout_c": {
+      "values": ["r"]
+    },
+    "datatype": {
+      "values": ["fp16"]
+    },
+    "tile_m": {
+      "values": [256]
+    },
+    "tile_n": {
+      "values": [256]
+    },
+    "tile_k": {
+      "values": [64, 32]
+    },
+    "warp_m": {
+      "values": [2]
+    },
+    "warp_n": {
+      "values": [2]
+    },
+    "warp_k": {
+      "values": [1]
+    },
+    "warp_tile_m": {
+      "values": [32]
+    },
+    "warp_tile_n": {
+      "values": [32]
+    },
+    "warp_tile_k": {
+      "values": [16]
+    },
+    "kPadM": {
+      "values": [false]
+    },
+    "kPadN": {
+      "values": [false]
+    },
+    "kPadK": {
+      "values": [false]
+    },
+    "pipeline": {
+      "values": ["compv3", "compv4", "mem"]
+    },
+    "scheduler": {
+      "values": ["intrawave", "interwave"]
+    },
+    "epilogue": {
+      "values": ["default", "cshuffle"]
+    }
+}

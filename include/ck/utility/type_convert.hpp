@@ -14,7 +14,7 @@
 
 namespace ck {
 // Define the common macro for MI300 models
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 
@@ -117,7 +117,7 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
 #if CK_USE_RNE_BF16_CONVERSION
     return bf16_convert_rtn<bhalf_t>(x);
 #else
-    return uint16_t(u.int32 >> 16);
+    return uint16_t(static_cast<uint32_t>(x) >> 16);
 #endif
 }
 
@@ -356,6 +356,180 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, half_t>(half_t x
 #endif
 }
 
+/**
+ * @brief Converts a float to a 8-bit float type (f8_ocp_t) using stochastic rounding.
+ *
+ * @param x     The input float value.
+ * @return      The converted f8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, float>(float x)
+{
+    return f8_ocp_t{
+        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation, true>(
+            x)};
+}
+
+/**
+ * @brief Converts a vector of 2 floats to a vector of 2 8-bit float types (f8_ocp_t) using
+ * stochastic rounding.
+ *
+ * @param x     The input vector of 2 floats.
+ * @return      The converted vector of 2 f8_ocp_t.
+ */
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_sr<f8x2_ocp_t, float2_t>(float2_t x)
+{
+    return f8x2_ocp_t{
+        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation, true>(
+            x)};
+}
+
+/**
+ * @brief Converts a float to a 8-bit float type (bf8_ocp_t) using stochastic rounding.
+ *
+ * @param x     The input float value.
+ * @return      The converted bf8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, float>(float x)
+{
+    return bf8_ocp_t{fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret,
+                                                bf8_ocp_t::default_saturation,
+                                                true>(x)};
+}
+
+/**
+ * @brief Converts a vector of 2 floats to a vector of 2 8-bit float types (bf8_ocp_t) using
+ * stochastic rounding.
+ *
+ * @param x     The input vector of 2 floats.
+ * @return      The converted vector of 2 bf8_ocp_t.
+ */
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_sr<bf8x2_ocp_t, float2_t>(float2_t x)
+{
+    return bf8x2_ocp_t{fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret,
+                                                  bf8_ocp_t::default_saturation,
+                                                  true>(x)};
+}
+
+/**
+ * @brief Converts a half_t to a 8-bit float type (f8_ocp_t) using stochastic rounding.
+ *
+ * @param x     The input half_t value.
+ * @return      The converted f8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, half_t>(half_t x)
+{
+    return f8_ocp_t{fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret,
+                                                f8_ocp_t::default_saturation,
+                                                true>(x)};
+}
+
+/**
+ * @brief Converts a vector of 2 half_t to a vector of 2 8-bit float types (f8_ocp_t) using
+ * stochastic rounding.
+ *
+ * @param x     The input vector of 2 half_t.
+ * @return      The converted vector of 2 f8_ocp_t.
+ */
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_sr<f8x2_ocp_t, half2_t>(half2_t x)
+{
+    return f8x2_ocp_t{fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret,
+                                                  f8_ocp_t::default_saturation,
+                                                  true>(x)};
+}
+
+/**
+ * @brief Converts a half_t to a 8-bit half_t type (bf8_ocp_t) using stochastic rounding.
+ *
+ * @param x     The input half_t value.
+ * @return      The converted bf8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, half_t>(half_t x)
+{
+    return bf8_ocp_t{fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret,
+                                                 bf8_ocp_t::default_saturation,
+                                                 true>(x)};
+}
+
+/**
+ * @brief Converts a vector of 2 half_t to a vector of 2 8-bit float types (bf8_ocp_t) using
+ * stochastic rounding.
+ *
+ * @param x     The input vector of 2 half_t.
+ * @return      The converted vector of 2 bf8_ocp_t.
+ */
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_sr<bf8x2_ocp_t, half2_t>(half2_t x)
+{
+    return bf8x2_ocp_t{fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret,
+                                                   bf8_ocp_t::default_saturation,
+                                                   true>(x)};
+}
+
+/**
+ * @brief Converts a bhalf_t to a 8-bit float type (f8_ocp_t) using stochastic rounding.
+ *
+ * @param x     The input bhalf_t value.
+ * @return      The converted f8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, bhalf_t>(bhalf_t x)
+{
+    return f8_ocp_t{fp8_impl::cvt_bhalf_t_to_fp8<f8_ocp_t::default_interpret,
+                                                 f8_ocp_t::default_saturation,
+                                                 true>(x)};
+}
+
+/**
+ * @brief Converts a vector of 2 bhalf_t to a vector of 2 8-bit float types (f8_ocp_t) using
+ * stochastic rounding.
+ *
+ * @param x     The input vector of 2 bhalf_t.
+ * @return      The converted vector of 2 f8_ocp_t.
+ */
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_sr<f8x2_ocp_t, bhalf2_t>(bhalf2_t x)
+{
+    return f8x2_ocp_t{fp8_impl::cvt_bhalf_t_to_fp8<f8_ocp_t::default_interpret,
+                                                   f8_ocp_t::default_saturation,
+                                                   true>(x)};
+}
+
+/**
+ * @brief Converts a bhalf_t to a 8-bit half_t type (bf8_ocp_t) using stochastic rounding.
+ *
+ * @param x     The input bhalf_t value.
+ * @return      The converted bf8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, bhalf_t>(bhalf_t x)
+{
+    return bf8_ocp_t{fp8_impl::cvt_bhalf_t_to_fp8<bf8_ocp_t::default_interpret,
+                                                  bf8_ocp_t::default_saturation,
+                                                  true>(x)};
+}
+
+/**
+ * @brief Converts a vector of 2 bhalf_t to a vector of 2 8-bit float types (bf8_ocp_t) using
+ * stochastic rounding.
+ *
+ * @param x     The input vector of 2 bhalf_t.
+ * @return      The converted vector of 2 bf8_ocp_t.
+ */
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_sr<bf8x2_ocp_t, bhalf2_t>(bhalf2_t x)
+{
+    return bf8x2_ocp_t{fp8_impl::cvt_bhalf_t_to_fp8<bf8_ocp_t::default_interpret,
+                                                    bf8_ocp_t::default_saturation,
+                                                    true>(x)};
+}
+
 // Declare a template function for fp8 conversion using RNE
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_rne(X x);
@@ -466,6 +640,172 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_rne<bf8_fnuz_t, half_t>(half_t 
 #endif
 }
 
+/**
+ * @brief Converts a float to a 8-bit float type (f8_ocp_t) using rounding to nearest/even.
+ *
+ * @param x     The input float value.
+ * @return      The converted f8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, float>(float x)
+{
+    return f8_ocp_t{
+        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+/**
+ * @brief Converts a vector of 2 floats to a vector of 2 8-bit float types (f8_ocp_t) using rounding
+ * to nearest/even.
+ *
+ * @param x     The input vector of 2 floats.
+ * @return      The converted vector of 2 f8_ocp_t.
+ */
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_rne<f8x2_ocp_t, float2_t>(float2_t x)
+{
+    return f8x2_ocp_t{
+        fp8_impl::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+/**
+ * @brief Converts a float to a 8-bit float type (bf8_ocp_t) using rounding to nearest/even.
+ *
+ * @param x     The input float value.
+ * @return      The converted bf8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_rne<bf8_ocp_t, float>(float x)
+{
+    return bf8_ocp_t{
+        fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(x)};
+}
+
+/**
+ * @brief Converts a vector of 2 floats to a vector of 2 8-bit float types (bf8_ocp_t) using
+ * rounding to nearest/even.
+ *
+ * @param x     The input vector of 2 floats.
+ * @return      The converted vector of 2 bf8_ocp_t.
+ */
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_rne<bf8x2_ocp_t, float2_t>(float2_t x)
+{
+    return bf8x2_ocp_t{
+        fp8_impl::cvt_float_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(x)};
+}
+
+/**
+ * @brief Converts a half_t to a 8-bit float type (f8_ocp_t) using rounding to nearest/even.
+ *
+ * @param x     The input half_t value.
+ * @return      The converted f8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, half_t>(half_t x)
+{
+    return f8_ocp_t{
+        fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+/**
+ * @brief Converts a vector of 2 half_t to a vector of 2 8-bit float types (f8_ocp_t) using rounding
+ * to nearest/even.
+ *
+ * @param x     The input vector of 2 half_t.
+ * @return      The converted vector of 2 f8_ocp_t.
+ */
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_rne<f8x2_ocp_t, half2_t>(half2_t x)
+{
+    return f8x2_ocp_t{
+        fp8_impl::cvt_half_t_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+/**
+ * @brief Converts a half_t to a 8-bit half_t type (bf8_ocp_t) using rounding to nearest/even.
+ *
+ * @param x     The input half_t value.
+ * @return      The converted bf8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_rne<bf8_ocp_t, half_t>(half_t x)
+{
+    return bf8_ocp_t{
+        fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(
+            x)};
+}
+
+/**
+ * @brief Converts a vector of 2 half_t to a vector of 2 8-bit float types (bf8_ocp_t) using
+ * rounding to nearest/even.
+ *
+ * @param x     The input vector of 2 half_t.
+ * @return      The converted vector of 2 bf8_ocp_t.
+ */
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_rne<bf8x2_ocp_t, half2_t>(half2_t x)
+{
+    return bf8x2_ocp_t{
+        fp8_impl::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(
+            x)};
+}
+
+/**
+ * @brief Converts a bhalf_t to a 8-bit float type (f8_ocp_t) using rounding to nearest/even.
+ *
+ * @param x     The input bhalf_t value.
+ * @return      The converted f8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, bhalf_t>(bhalf_t x)
+{
+    return f8_ocp_t{
+        fp8_impl::cvt_bhalf_t_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+/**
+ * @brief Converts a vector of 2 bhalf_t to a vector of 2 8-bit float types (f8_ocp_t) using
+ * rounding to nearest/even.
+ *
+ * @param x     The input vector of 2 bhalf_t.
+ * @return      The converted vector of 2 f8_ocp_t.
+ */
+template <>
+inline __host__ __device__ f8x2_ocp_t f8_convert_rne<f8x2_ocp_t, bhalf2_t>(bhalf2_t x)
+{
+    return f8x2_ocp_t{
+        fp8_impl::cvt_bhalf_t_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
+
+/**
+ * @brief Converts a bhalf_t to a 8-bit half_t type (bf8_ocp_t) using rounding to nearest/even.
+ *
+ * @param x     The input bhalf_t value.
+ * @return      The converted bf8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_rne<bf8_ocp_t, bhalf_t>(bhalf_t x)
+{
+    return bf8_ocp_t{
+        fp8_impl::cvt_bhalf_t_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(
+            x)};
+}
+
+/**
+ * @brief Converts a vector of 2 bhalf_t to a vector of 2 8-bit float types (bf8_ocp_t) using
+ * rounding to nearest/even.
+ *
+ * @param x     The input vector of 2 bhalf_t.
+ * @return      The converted vector of 2 bf8_ocp_t.
+ */
+template <>
+inline __host__ __device__ bf8x2_ocp_t f8_convert_rne<bf8x2_ocp_t, bhalf2_t>(bhalf2_t x)
+{
+    return bf8x2_ocp_t{
+        fp8_impl::cvt_bhalf_t_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(
+            x)};
+}
+
 // convert fp32 to fp8
 template <>
 inline __host__ __device__ f8_fnuz_t type_convert<f8_fnuz_t, float>(float x)
@@ -474,17 +814,6 @@ inline __host__ __device__ f8_fnuz_t type_convert<f8_fnuz_t, float>(float x)
     return f8_convert_sr<f8_fnuz_t>(x);
 #else
     return f8_convert_rne<f8_fnuz_t>(x);
-#endif
-}
-
-// convert fp32 to fp8
-template <>
-inline __host__ __device__ f8_ocp_t type_convert<f8_ocp_t, float>(float x)
-{
-#if CK_USE_SR_F8_CONVERSION
-    return f8_convert_sr<f8_ocp_t>(x);
-#else
-    return f8_convert_rne<f8_ocp_t>(x);
 #endif
 }
 
@@ -524,17 +853,267 @@ inline __host__ __device__ float2_t type_convert<float2_t, f8x2_fnuz_t>(f8x2_fnu
 #endif
 }
 
+/**
+ * @brief Converts a f8_ocp_t value to a float value.
+ *
+ * @param x     The input f8_ocp_t value.
+ * @return      The converted float value.
+ */
+template <>
+inline __host__ __device__ float type_convert<float, f8_ocp_t>(f8_ocp_t x)
+{
+#if CK_OCP_FP8_CVT_FAST_PATH
+    union
+    {
+        unsigned int i32val;
+        fp8_storage_t i8val[4];
+    } val;
+    val.i8val[0] = x.data;
+    return __builtin_amdgcn_cvt_f32_fp8(val.i32val, 0);
+#else
+    return fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(x.data);
+#endif
+}
+
+/**
+ * @brief Converts a vector of 2 f8_ocp_t values to a vector of 2 float values.
+ *
+ * @param x     The input vector of 2 f8_ocp_t values.
+ * @return      The converted vector of 2 float values.
+ */
 template <>
 inline __host__ __device__ float2_t type_convert<float2_t, f8x2_ocp_t>(f8x2_ocp_t x)
 {
 #if CK_OCP_FP8_CVT_FAST_PATH
-    return fp8_impl::cast_to_f32x2_from_f8x2<f8_ocp_t::default_interpret>(
-        x.AsType<fp8_impl::fp8x2_storage_t>()[Number<0>{}]);
+    return __builtin_amdgcn_cvt_pk_f32_fp8(bit_cast<uint16_t>(x), false);
 #else
     return float2_t{fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(
                         x.AsType<fp8_storage_t>()[Number<0>{}]),
                     fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(
                         x.AsType<fp8_storage_t>()[Number<1>{}])};
+#endif
+}
+
+/**
+ * @brief Converts a f8_ocp_t value to a half_t value.
+ *
+ * @param x     The input f8_ocp_t value.
+ * @return      The converted half_t value.
+ */
+template <>
+inline __host__ __device__ half_t type_convert<half_t, f8_ocp_t>(f8_ocp_t x)
+{
+#if defined(__gfx950__)
+    union
+    {
+        uint16_t i16val;
+        fp8_storage_t i8val[2];
+    } input;
+    input.i8val[0] = x.data;
+
+    union
+    {
+        half2_t half_vec;
+        half_t half_arr[2];
+    } output;
+    output.half_vec = __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(input.i16val, /*scale*/ 1.f, 0);
+
+    return output.half_arr[0];
+#else
+    return fp8_impl::cast_from_f8<half_t, f8_ocp_t::wm, f8_ocp_t::we, false>(x.data);
+#endif
+}
+
+/**
+ * @brief Converts a vector of 2 f8_ocp_t values to a vector of 2 half_t values.
+ *
+ * @param x     The input vector of 2 f8_ocp_t values.
+ * @return      The converted vector of 2 half_t values.
+ */
+template <>
+inline __host__ __device__ half2_t type_convert<half2_t, f8x2_ocp_t>(f8x2_ocp_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#else
+    return half2_t{type_convert<half_t>(float(x.AsType<f8_ocp_t>()[Number<0>{}])),
+                   type_convert<half_t>(float(x.AsType<f8_ocp_t>()[Number<1>{}]))};
+#endif
+}
+
+/**
+ * @brief Converts a f8_ocp_t value to a bhalf_t value.
+ *
+ * @param x     The input f8_ocp_t value.
+ * @return      The converted bhalf_t value.
+ */
+template <>
+inline __host__ __device__ bhalf_t type_convert<bhalf_t, f8_ocp_t>(f8_ocp_t x)
+{
+#if defined(__gfx950__)
+    union
+    {
+        uint16_t i16val;
+        fp8_storage_t i8val[2];
+    } input;
+    input.i8val[0] = x.data;
+
+    union
+    {
+        bhalf2_t bhalf_vec;
+        bhalf_t bhalf_arr[2];
+    } output;
+    output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp8(input.i16val, /*scale*/ 1.f, 0);
+
+    return output.bhalf_arr[0];
+#else
+    return type_convert<bhalf_t>(
+        fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(x.data));
+#endif
+}
+
+/**
+ * @brief Converts a vector of 2 f8_ocp_t values to a vector of 2 bhalf_t values.
+ *
+ * @param x     The input vector of 2 f8_ocp_t values.
+ * @return      The converted vector of 2 bhalf_t values.
+ */
+template <>
+inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, f8x2_ocp_t>(f8x2_ocp_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk_bf16_fp8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#else
+    return bhalf2_t{type_convert<bhalf_t>(float(x.AsType<f8_ocp_t>()[Number<0>{}])),
+                    type_convert<bhalf_t>(float(x.AsType<f8_ocp_t>()[Number<1>{}]))};
+#endif
+}
+
+/**
+ * @brief Converts a bf8_ocp_t value to a float value.
+ *
+ * @param x     The input bf8_ocp_t value.
+ * @return      The converted float value.
+ */
+template <>
+inline __host__ __device__ float type_convert<float, bf8_ocp_t>(bf8_ocp_t x)
+{
+#if CK_OCP_FP8_CVT_FAST_PATH
+    union
+    {
+        unsigned int i32val;
+        fp8_storage_t i8val[4];
+    } val;
+    val.i8val[0] = x.data;
+    return __builtin_amdgcn_cvt_f32_bf8(val.i32val, 0);
+#else
+    return fp8_impl::cast_from_f8<float, bf8_ocp_t::wm, bf8_ocp_t::we, false>(x.data);
+#endif
+}
+
+/**
+ * @brief Converts a vector of 2 bf8_ocp_t values to a vector of 2 float values.
+ *
+ * @param x     The input vector of 2 bf8_ocp_t values.
+ * @return      The converted vector of 2 float values.
+ */
+template <>
+inline __host__ __device__ float2_t type_convert<float2_t, bf8x2_ocp_t>(bf8x2_ocp_t x)
+{
+#if CK_OCP_FP8_CVT_FAST_PATH
+    return __builtin_amdgcn_cvt_pk_f32_bf8(bit_cast<uint16_t>(x), false);
+#else
+    return float2_t{fp8_impl::cast_from_f8<float, bf8_ocp_t::wm, bf8_ocp_t::we, false>(
+                        x.AsType<fp8_storage_t>()[Number<0>{}]),
+                    fp8_impl::cast_from_f8<float, bf8_ocp_t::wm, bf8_ocp_t::we, false>(
+                        x.AsType<fp8_storage_t>()[Number<1>{}])};
+#endif
+}
+
+/**
+ * @brief Converts a bf8_ocp_t value to a half_t value.
+ *
+ * @param x     The input bf8_ocp_t value.
+ * @return      The converted half_t value.
+ */
+template <>
+inline __host__ __device__ half_t type_convert<half_t, bf8_ocp_t>(bf8_ocp_t x)
+{
+#if defined(__gfx950__)
+    union
+    {
+        uint16_t i16val;
+        fp8_storage_t i8val[2];
+    } val;
+    val.i8val[0] = x.data;
+    return __builtin_amdgcn_cvt_scalef32_pk_f16_bf8(val.i16val, /*scale*/ 1.f, 0)[0];
+#else
+    return fp8_impl::cast_from_f8<half_t, bf8_ocp_t::wm, bf8_ocp_t::we, false>(x.data);
+#endif
+}
+
+/**
+ * @brief Converts a vector of 2 bf8_ocp_t values to a vector of 2 half_t values.
+ *
+ * @param x     The input vector of 2 bf8_ocp_t values.
+ * @return      The converted vector of 2 half_t values.
+ */
+template <>
+inline __host__ __device__ half2_t type_convert<half2_t, bf8x2_ocp_t>(bf8x2_ocp_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk_f16_bf8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#else
+    return half2_t{type_convert<half_t>(float(x.AsType<bf8_ocp_t>()[Number<0>{}])),
+                   type_convert<half_t>(float(x.AsType<bf8_ocp_t>()[Number<1>{}]))};
+#endif
+}
+
+/**
+ * @brief Converts a bf8_ocp_t value to a bhalf_t value.
+ *
+ * @param x     The input bf8_ocp_t value.
+ * @return      The converted bhalf_t value.
+ */
+template <>
+inline __host__ __device__ bhalf_t type_convert<bhalf_t, bf8_ocp_t>(bf8_ocp_t x)
+{
+#if defined(__gfx950__)
+    union
+    {
+        uint16_t i16val;
+        fp8_storage_t i8val[2];
+    } input;
+    input.i8val[0] = x.data;
+
+    union
+    {
+        bhalf2_t bhalf_vec;
+        bhalf_t bhalf_arr[2];
+    } output;
+    output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(input.i16val, /*scale*/ 1.f, 0);
+
+    return output.bhalf_arr[0];
+#else
+    return type_convert<bhalf_t>(
+        fp8_impl::cast_from_f8<float, bf8_ocp_t::wm, bf8_ocp_t::we, false>(x.data));
+#endif
+}
+
+/**
+ * @brief Converts a vector of 2 bf8_ocp_t values to a vector of 2 bhalf_t values.
+ *
+ * @param x     The input vector of 2 bf8_ocp_t values.
+ * @return      The converted vector of 2 bhalf_t values.
+ */
+template <>
+inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, bf8x2_ocp_t>(bf8x2_ocp_t x)
+{
+#if defined(__gfx950__)
+    return __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#else
+    return bhalf2_t{type_convert<bhalf_t>(float(x.AsType<bf8_ocp_t>()[Number<0>{}])),
+                    type_convert<bhalf_t>(float(x.AsType<bf8_ocp_t>()[Number<1>{}]))};
 #endif
 }
 
@@ -610,7 +1189,12 @@ inline __host__ __device__ f8_fnuz_t type_convert<f8_fnuz_t, half_t>(half_t x)
 #endif
 }
 
-// convert fp16 to fp8
+/**
+ * @brief Converts a half_t value to a f8_ocp_t value with rounding determined by a flag.
+ *
+ * @param x     The input half_t value.
+ * @return      The converted f8_ocp_t value.
+ */
 template <>
 inline __host__ __device__ f8_ocp_t type_convert<f8_ocp_t, half_t>(half_t x)
 {
@@ -618,6 +1202,22 @@ inline __host__ __device__ f8_ocp_t type_convert<f8_ocp_t, half_t>(half_t x)
     return f8_convert_sr<f8_ocp_t>(x);
 #else
     return f8_convert_rne<f8_ocp_t>(x);
+#endif
+}
+
+/**
+ * @brief Converts a half_t value to a bf8_ocp_t value with rounding determined by a flag.
+ *
+ * @param x     The input half_t value.
+ * @return      The converted bf8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ bf8_ocp_t type_convert<bf8_ocp_t, half_t>(half_t x)
+{
+#if CK_USE_SR_F8_CONVERSION
+    return f8_convert_sr<bf8_ocp_t>(x);
+#else
+    return f8_convert_rne<bf8_ocp_t>(x);
 #endif
 }
 
@@ -645,9 +1245,62 @@ inline __host__ __device__ bf8_fnuz_t type_convert<bf8_fnuz_t, float>(float x)
 #endif
 }
 
-// convert fp32 to bf8
+/**
+ * @brief Converts a float value to a f8_ocp_t value with rounding determined by a flag.
+ *
+ * @param x     The input float value.
+ * @return      The converted f8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ f8_ocp_t type_convert<f8_ocp_t, float>(float x)
+{
+#if CK_USE_SR_F8_CONVERSION
+    return f8_convert_sr<f8_ocp_t>(x);
+#else
+    return f8_convert_rne<f8_ocp_t>(x);
+#endif
+}
+
+/**
+ * @brief Converts a float value to a bf8_ocp_t value with rounding determined by a flag.
+ *
+ * @param x     The input float value.
+ * @return      The converted bf8_ocp_t value.
+ */
 template <>
 inline __host__ __device__ bf8_ocp_t type_convert<bf8_ocp_t, float>(float x)
+{
+#if CK_USE_SR_F8_CONVERSION
+    return f8_convert_sr<bf8_ocp_t>(x);
+#else
+    return f8_convert_rne<bf8_ocp_t>(x);
+#endif
+}
+
+/**
+ * @brief Converts a bhalf_t value to a f8_ocp_t value with rounding determined by a flag.
+ *
+ * @param x     The input bhalf_t value.
+ * @return      The converted f8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ f8_ocp_t type_convert<f8_ocp_t, bhalf_t>(bhalf_t x)
+{
+#if CK_USE_SR_F8_CONVERSION
+    return f8_convert_sr<f8_ocp_t>(x);
+#else
+    return f8_convert_rne<f8_ocp_t>(x);
+#endif
+}
+
+/**
+ * @brief Converts a bhalf_t value to a bf8_ocp_t value with rounding determined by a flag.
+ *
+ * @param x     The input bhalf_t value.
+ * @return      The converted bf8_ocp_t value.
+ */
+template <>
+inline __host__ __device__ bf8_ocp_t type_convert<bf8_ocp_t, bhalf_t>(bhalf_t x)
 {
 #if CK_USE_SR_F8_CONVERSION
     return f8_convert_sr<bf8_ocp_t>(x);
@@ -683,17 +1336,6 @@ inline __host__ __device__ bf8_fnuz_t type_convert<bf8_fnuz_t, half_t>(half_t x)
 #endif
 }
 
-// convert fp16 to bf8
-template <>
-inline __host__ __device__ bf8_ocp_t type_convert<bf8_ocp_t, half_t>(half_t x)
-{
-#if CK_USE_SR_F8_CONVERSION
-    return f8_convert_sr<bf8_ocp_t>(x);
-#else
-    return f8_convert_rne<bf8_ocp_t>(x);
-#endif
-}
-
 // convert bf8 to fp16
 template <>
 inline __host__ __device__ half_t type_convert<half_t, bf8_fnuz_t>(bf8_fnuz_t x)
@@ -706,7 +1348,7 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_fnuz_t>(bf8_fnuz_t x)
     return utils::cast_from_f8<bf8_fnuz_t, half_t, negative_zero_nan>(x);
 #endif
 }
-
+#ifndef CK_CODE_GEN_RTC
 // convert fp32 to fp4 with rounding to nearest even
 inline __host__ __device__ f4_t f4_convert_rne(float x, float scale = 1.0f)
 {
@@ -791,7 +1433,11 @@ inline __host__ __device__ f4x32_t f4_convert_rne(float32_t x, float scale = 1.0
 inline __host__ __device__ f4_t f4_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
 #if defined(__gfx950__)
     union
     {
@@ -816,16 +1462,27 @@ inline __host__ __device__ f4_t f4_convert_sr(float x, float scale = 1.0f)
 inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
+#endif
 #if defined(__gfx950__)
     union
     {
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
+// apply a temporary workaround for gfx950
+#if CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION
+    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
+    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    value.bitwise = (h << 4) | l;
+#else
     // permute high bits and low bits to match the order of the original vector
     value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
         value.bitwise, float2_t{x[1], x[0]}, rng, scale, 0);
+#endif // CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION
     return value.f4x2_array[0];
 #else
     union
@@ -844,7 +1501,11 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
 inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
+#endif
 #if defined(__gfx950__)
     union
     {
@@ -1097,7 +1758,11 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
 inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
 #if defined(__gfx950__)
     union
     {
@@ -1137,8 +1802,13 @@ inline __host__ __device__ f6x32_t f6_convert_sr(float32_t x, float scale = 1.0f
         float32_t float_vector;
         float float_array[32];
     } float_values{x};
+#ifndef CK_CODE_GEN_RTC
     uint32_t rng =
         prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
+#else
+    uint32_t rng =
+        prand_generator<float, seed>(reinterpret_cast<size_t>(&x), float_values.float_array[0]);
+#endif
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(x, rng, scale);
 #else
@@ -1356,7 +2026,11 @@ inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1
 inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
 {
     constexpr int seed = 1254739;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+#else
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
+#endif
 #if defined(__gfx950__)
     union
     {
@@ -1398,8 +2072,13 @@ inline __host__ __device__ bf6x32_t bf6_convert_sr(float32_t x, float scale = 1.
         float32_t float_vector;
         float float_array[32];
     } float_values{x};
+#ifndef CK_CODE_GEN_RTC
     uint32_t rng =
         prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
+#else
+    uint32_t rng =
+        prand_generator<float, seed>(reinterpret_cast<size_t>(&x), float_values.float_array[0]);
+#endif
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(x, rng, scale);
 #else
@@ -1531,7 +2210,7 @@ inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t 
     return out.float_vector;
 #endif
 }
-
+#endif
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename Y, typename X, size_t NumElems>
 inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,

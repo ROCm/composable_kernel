@@ -29,8 +29,68 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     // Use higher threshold
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
-template <typename Tensor>
+
+template <typename Tensor,
+          typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 void permute_tensor_b(Tensor& tensor)
+{
+    using GemmShape = ck_tile::TileGemmShape<
+        ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+        ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
+        ck_tile::
+            sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
+        GemmConfig::PermuteA,
+        GemmConfig::PermuteB>;
+
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
+                                                                 GemmConfig::kPadN,
+                                                                 GemmConfig::kPadK,
+                                                                 GemmConfig::DoubleSmemBuffer,
+                                                                 ALayout,
+                                                                 BLayout,
+                                                                 CLayout,
+                                                                 GemmConfig::TransposeC,
+                                                                 GemmConfig::UseStructuredSparsity>;
+
+    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                       BDataType,
+                                                                       AccDataType,
+                                                                       GemmShape,
+                                                                       GemmUniversalTraits,
+                                                                       GEMM_PIPELINE_SCHEDULER,
+                                                                       true,
+                                                                       ck_tile::TailNumber::Full>;
+
+    using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+
+    const ck_tile::index_t K  = tensor.get_length(0);
+    const ck_tile::index_t N  = tensor.get_length(1);
+    const ck_tile::index_t K1 = GemmPipeline::GetSmemPackB();
+    const ck_tile::index_t K0 = K / K1;
+
+    Tensor tensor_copy = tensor;
+
+    // int K0, N, K1
+    for(int j = 0; j < K0; j++)
+    {
+        for(int i = 0; i < N; i++)
+        {
+            for(int jj = 0; jj < K1; jj++)
+            {
+                tensor(j * N * K1 + i * K1 + jj) = tensor_copy(i * K + (j * K1 + jj));
+            }
+        }
+    }
+}
+
+template <typename Tensor>
+void permute_vectors_i4x4_b(Tensor& tensor)
 {
     const ck_tile::index_t K = tensor.get_length(0);
     const ck_tile::index_t N = tensor.get_length(1);
@@ -126,13 +186,15 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
-              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
-              << " C_Layout =" << CLayout::name << " A Type = " << DataTypeTraits<ADataType>::name
-              << " B Type = " << DataTypeTraits<BDataType>::name
-              << " C Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+    std::cout << "Run Gemm kernel with M=" << M << " N=" << N << " K=" << K
+              << " StrideA=" << stride_A << " StrideB=" << stride_B << " StrideC=" << stride_C
+              << " A_Layout=" << ALayout::name << " B_Layout =" << BLayout::name
+              << " C_Layout=" << CLayout::name << " A_Type=" << DataTypeTraits<ADataType>::name
+              << " B_Type=" << DataTypeTraits<BDataType>::name
+              << " C_Type=" << DataTypeTraits<CDataType>::name
+              << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
+              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << std::endl;
 
     return ave_time;
 }
@@ -153,7 +215,7 @@ int run_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using AccDataType = typename GemmBasicTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
+    using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -191,8 +253,8 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
     }
     else
     {
@@ -200,22 +262,45 @@ int run_gemm_example_with_layouts(int argc,
         b_k_n.SetZero();
     }
 
+    if(GemmConfig::UseStructuredSparsity)
+    {
+        ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
+    }
+
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-    a_m_k_dev_buf.ToDevice(a_m_k.data());
+    static_assert(!GemmConfig::PermuteA, "Not implemented");
     if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
     {
-        // Permute data for device implementation
+        // Permute vector pk_i4x4 data for device implementation
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-        permute_tensor_b(b_k_n_dev);
+        if constexpr(GemmConfig::PermuteB)
+        {
+            permute_tensor_b<decltype(b_k_n_dev),
+                             ADataType,
+                             BDataType,
+                             AccDataType,
+                             CDataType,
+                             ALayout,
+                             BLayout,
+                             CLayout>(b_k_n_dev);
+        }
+        permute_vectors_i4x4_b(b_k_n_dev);
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
     }
     else
     {
+        if constexpr(GemmConfig::PermuteB)
+        {
+            std::cout << "Permute for this DataType is not implemented." << std::endl;
+            return false;
+        }
         b_k_n_dev_buf.ToDevice(b_k_n.data());
     }
+
+    a_m_k_dev_buf.ToDevice(a_m_k.data());
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
@@ -317,7 +402,6 @@ int run_gemm_example_with_layouts(int argc,
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
                                   rtol_atol.at(ck_tile::number<1>{}));
-
         std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;

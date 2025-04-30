@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -193,9 +194,17 @@ struct GridwiseGemm_xdl_cshuffle_v3
     using BsGridPointer = decltype(MakeBsGridPointer());
     using DsGridPointer = decltype(MakeDsGridPointer());
 
-    static constexpr index_t KPack = math::max(
-        math::lcm(AK1Number, BK1Number),
-        MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>::selected_mfma.k_per_blk);
+    static constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
+    static constexpr bool is_single_rate_mfma =
+        (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
+          lcm_AK1_BK1 <= 4) ||
+         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8))
+            ? true
+            : false;
+    static constexpr index_t KPack =
+        math::max(lcm_AK1_BK1,
+                  MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB, is_single_rate_mfma>::
+                      selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
