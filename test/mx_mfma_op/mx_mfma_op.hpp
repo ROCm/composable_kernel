@@ -981,10 +981,10 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
     auto fragXb  = BScaleFragT{};
 
     // Load the inputs.
-    fragA = load_mx_A_row_major<AType, AFragT, ScaleType, ScaleFragT, BLOCK_M, BLOCK_K, BLOCK_X>(
+    fragA = load_mx_A_row_major<AType, AFragT, ScaleType, AScaleFragT, BLOCK_M, BLOCK_K, BLOCK_X>(
         a, xa, fragXa);
 
-    fragB = load_mx_B_col_major<BType, BFragT, ScaleType, ScaleFragT, BLOCK_K, BLOCK_N, BLOCK_X>(
+    fragB = load_mx_B_col_major<BType, BFragT, ScaleType, BScaleFragT, BLOCK_K, BLOCK_N, BLOCK_X>(
         b, xb, fragXb);
 
     // Scaled Matrix multiply-accumulate using MFMA units
