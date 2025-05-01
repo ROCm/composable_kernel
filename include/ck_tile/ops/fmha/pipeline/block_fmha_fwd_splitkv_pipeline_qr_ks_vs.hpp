@@ -26,6 +26,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     using PDataType           = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType           = remove_cvref_t<typename Problem::ODataType>;
+    using AttentionVariant    = remove_cvref_t<typename Problem::AttentionVariant>;
     using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
@@ -134,7 +135,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename PComputeElementFunction,
               typename OAccElementFunction,
               typename PositionEncoding,
-              typename LogitsSoftCapParams>
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -156,7 +158,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               const LogitsSoftCapParams& logits_soft_cap_params,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
                void* smem_ptr) const
     {
@@ -408,21 +412,23 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
             else
             {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                s_acc                       = tile_elementwise_in(s_acc_element_func, s_acc);
+                auto apply_logits_transform = [&variant, &variant_params, &block_indices](auto& x) {
+                    x = variant.LogitsTransform(variant_params,
+                                                variant.QueryTransform(variant_params, x),
+                                                block_indices.batch_idx,
+                                                block_indices.qo_head_idx,
+                                                block_indices.kv_head_idx);
+                };
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
-#else
-                if constexpr(kHasLogitsSoftCap)
+                for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
                 {
-                    float scale_lo = scale_s * 0.6931472f;
-                    tile_elementwise_inout(
-                        [&scale_lo,
-                         &logits_cap = logits_soft_cap_params.logits_soft_cap,
-                         &logits_cap_rev = logits_soft_cap_params.logits_soft_cap_rcp](auto& x) {
-                            x = log2e_v<SaccDataType> * logits_cap *
-                                tanh_fast<SaccDataType>(x * scale_lo * logits_cap_rev);
-                        },
-                        s_acc);
+                    apply_logits_transform(s_acc.thread_buf_[i]);
+                }
+#else
+                for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
+                {
+                    apply_logits_transform(s_acc.thread_buf_[i]);
                 }
 #endif
             }
@@ -505,9 +511,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                [[maybe_unused]] auto row_max = scale_s * get_validated_m(m[i_idx]);
-#endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
@@ -518,14 +521,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                     }
                     else
                     {
-                        if constexpr(kHasLogitsSoftCap)
-                        {
-                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
-                        }
-                        else
-                        {
-                            p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
-                        }
+                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
 #else
                     p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -550,15 +546,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                     }
                     else
                     {
-                        if constexpr(kHasLogitsSoftCap)
-                        {
-                            return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
-                        }
-                        else
-                        {
-                            auto row_max = scale_s * get_validated_m(m[i_idx]);
-                            return exp2(scale_s * m_old[i_idx] - row_max);
-                        }
+                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                     }
                 }();
 #else
@@ -655,7 +643,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 }
                 else
                 {
-                    lse_acc(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                    lse_acc(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
                 }
 #else
                     lse_acc(i_idx) = m_[i_idx] + log(l_[i_idx]);
@@ -698,7 +686,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding,
-              typename LogitsSoftCapParams>
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,         // M0*K0 tile
                const KDramBlockWindowLengths& k_dram_block_window_lengths, // N0*K0 tile
@@ -712,7 +701,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               const LogitsSoftCapParams& logits_soft_cap_params,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
                void* smem_ptr) const
     {
@@ -736,7 +727,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                           mask,
                           position_encoding,
                           scale_s,
-                          logits_soft_cap_params,
+                          variant,
+                          variant_params,
+                          block_indices,
                           kv_l2p_offset,
                           smem_ptr);
     }

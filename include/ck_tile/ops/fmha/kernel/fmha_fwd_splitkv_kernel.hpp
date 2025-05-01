@@ -6,6 +6,8 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/variants.hpp"
+
 #include <string>
 #include <type_traits>
 
@@ -50,8 +52,8 @@ struct FmhaFwdSplitKVKernel
     static constexpr bool kIsPagedKV        = FmhaPipeline::Problem::kIsPagedKV;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ =
         FmhaPipeline::Problem::kMergeNumHeadGroupsSeqLenQ;
-
-    using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
+    using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
+    using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
 
     static_assert(!kMergeNumHeadGroupsSeqLenQ ||
@@ -267,6 +269,13 @@ struct FmhaFwdSplitKVKernel
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, GroupModeKargs, BatchModeKargs>;
+
+    struct BlockIndices
+    {
+        ck_tile::index_t batch_idx;
+        ck_tile::index_t qo_head_idx;
+        ck_tile::index_t kv_head_idx;
+    };
 
     template <bool Cond = !kIsGroupMode>
     __host__ static constexpr std::enable_if_t<Cond, Kargs>
@@ -1005,6 +1014,21 @@ struct FmhaFwdSplitKVKernel
             }
         }();
 
+        AttentionVariant variant;
+        const auto variant_params = [&] {
+            if constexpr(AttentionVariant::use_logits_soft_cap)
+            {
+                return ck_tile::LogitsSoftCapParams<FmhaMask, AttentionVariant::use_exp2>{
+                    mask, kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
+            }
+            else
+            {
+                return ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
+            }
+        }();
+
+        BlockIndices block_indices{i_batch, i_nhead, i_nhead_k};
+
         auto o_acc_tile = [&, i_split_ = i_split]() {
             if constexpr(kDoFp8StaticQuant)
             {
@@ -1028,7 +1052,9 @@ struct FmhaFwdSplitKVKernel
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
-                                      kargs,
+                                      variant,
+                                      variant_params,
+                                      block_indices,
                                       kv_l2p_offset,
                                       smem_ptr);
             }
@@ -1046,7 +1072,9 @@ struct FmhaFwdSplitKVKernel
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
-                                      kargs,
+                                      variant,
+                                      variant_params,
+                                      block_indices,
                                       kv_l2p_offset,
                                       smem_ptr);
             }
