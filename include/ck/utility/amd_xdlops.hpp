@@ -532,7 +532,44 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                0, // cbsz
+                0, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                0, // blgp
+                0, // OPSEL
+                scale_a,
+                0, // OPSEL
+                scale_b);
+        // XXX: Note on the scale_a and scale_b parameters:
+        // If compiler detects that one or both scales are constant values, it will treat that
+        // constant as F32 constant. I.e., if scale_a at some point was declared as
+        // `e8m0_bexp_t a_scale{1.0f}`, the instruction would only work if scale_a parameter is
+        // assigned value `bit_cast<int32_t>(static_cast<float>(a_scale))`.
+
+        // XXX: Note on the OPSEL parameters: Instruction always takes byte0 as a scale value even
+        // when OPSEL is set otherwise.
+#else
+        ignore = reg_a;
+        ignore = scale_a;
+        ignore = reg_b;
+        ignore = scale_b;
+        ignore = reg_c;
+#endif
+    }
+
+    template <class FloatC>
+    __device__ static void Run(const bf8x32_t& reg_a,
+                               const int32_t& scale_a,
+                               const f8x32_t& reg_b,
+                               const int32_t& scale_b,
+                               FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
+        reg_c.template AsType<float16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float16_t>()[Number<0>{}],
+                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0, // blgp
                 0, // OPSEL
                 scale_a,
@@ -576,7 +613,7 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                0, // cbsz
+                0, // cbsz   {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0, // blgp
                 0, // OPSEL
                 scale_a,
@@ -605,8 +642,66 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                1, // cbsz
+                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 1, // blgp
+                0, // OPSEL
+                scale_a,
+                0, // OPSEL
+                scale_b);
+#else
+        ignore = reg_a;
+        ignore = scale_a;
+        ignore = reg_b;
+        ignore = scale_b;
+        ignore = reg_c;
+#endif
+    }
+
+    template <class FloatC>
+    __device__ static void Run(const f8x32_t& reg_a,
+                               const int32_t& scale_a,
+                               const bf8x32_t& reg_b,
+                               const int32_t& scale_b,
+                               FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float4_t>()[Number<0>{}],
+                0, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1, // blgp
+                0, // OPSEL
+                scale_a,
+                0, // OPSEL
+                scale_b);
+#else
+        ignore = reg_a;
+        ignore = scale_a;
+        ignore = reg_b;
+        ignore = scale_b;
+        ignore = reg_c;
+#endif
+    }
+
+    template <class FloatC>
+    __device__ static void Run(const bf8x32_t& reg_a,
+                               const int32_t& scale_a,
+                               const f8x32_t& reg_b,
+                               const int32_t& scale_b,
+                               FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float4_t>()[Number<0>{}],
+                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                0, // blgp
                 0, // OPSEL
                 scale_a,
                 0, // OPSEL
