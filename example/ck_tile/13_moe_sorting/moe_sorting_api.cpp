@@ -175,89 +175,106 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
     return -1;
 }
 
-#define MOE_SORTING_MP_0(unroll_num_, expert_masking_)                                            \
-    [&]() {                                                                                       \
-        constexpr ck_tile::index_t unroll_num = unroll_num_;                                      \
-        constexpr bool expert_masking         = expert_masking_;                                  \
-        using ms_problem =                                                                        \
-            ck_tile::MoeSortingProblemMp<ms_index_t, ms_weight_type, unroll_num, expert_masking>; \
-        using kernel      = ck_tile::MoeSortingMultiPhaseKernel_P0<ms_problem>;                   \
-        auto kargs        = kernel::MakeKargs(a);                                                 \
-        const dim3 grids  = kernel::GridSize(a);                                                  \
-        const dim3 blocks = kernel::BlockSize(a);                                                 \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);       \
+#define MOE_SORTING_MP_0(mesh_type_, unroll_num_, expert_masking_)                                  \
+    [&]() {                                                                                         \
+        constexpr ck_tile::index_t unroll_num = unroll_num_;                                        \
+        constexpr bool expert_masking         = expert_masking_;                                    \
+        using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,            \
+                                                        ms_weight_type,        \
+                                                        mesh_type_,            \
+                                                        unroll_num,            \
+                                                        expert_masking>;       \
+        using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P0<ms_problem>; \
+        auto kargs                            = kernel::MakeKargs(a);                               \
+        const dim3 grids                      = kernel::GridSize(a);                                \
+        const dim3 blocks                     = kernel::BlockSize(a);                               \
+        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);         \
     }()
 
-#define MOE_SORTING_MP_1(unroll_num_, expert_masking_)                                            \
-    [&]() {                                                                                       \
-        constexpr ck_tile::index_t unroll_num = unroll_num_;                                      \
-        constexpr bool expert_masking         = expert_masking_;                                  \
-        using ms_problem =                                                                        \
-            ck_tile::MoeSortingProblemMp<ms_index_t, ms_weight_type, unroll_num, expert_masking>; \
-        using kernel      = ck_tile::MoeSortingMultiPhaseKernel_P1<ms_problem>;                   \
-        auto kargs        = kernel::MakeKargs(a);                                                 \
-        const dim3 grids  = kernel::GridSize(a);                                                  \
-        const dim3 blocks = kernel::BlockSize(a);                                                 \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);       \
+#define MOE_SORTING_MP_1(mesh_type_, unroll_num_, expert_masking_)                                  \
+    [&]() {                                                                                         \
+        constexpr ck_tile::index_t unroll_num = unroll_num_;                                        \
+        constexpr bool expert_masking         = expert_masking_;                                    \
+        using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,            \
+                                                        ms_weight_type,        \
+                                                        mesh_type_,            \
+                                                        unroll_num,            \
+                                                        expert_masking>;       \
+        using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P1<ms_problem>; \
+        auto kargs                            = kernel::MakeKargs(a);                               \
+        const dim3 grids                      = kernel::GridSize(a);                                \
+        const dim3 blocks                     = kernel::BlockSize(a);                               \
+        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);         \
     }()
 #if MOE_SORTING_HUGE_EXPERT_FALLBACK
-#define MOE_SORTING_MP_2(unroll_num_, expert_masking_)                                            \
-    [&]() {                                                                                       \
-        constexpr ck_tile::index_t unroll_num = unroll_num_;                                      \
-        constexpr bool expert_masking         = expert_masking_;                                  \
-        using ms_problem =                                                                        \
-            ck_tile::MoeSortingProblemMp<ms_index_t, ms_weight_type, unroll_num, expert_masking>; \
-        using kernel      = ck_tile::MoeSortingMultiPhaseKernel_P2<ms_problem>;                   \
-        auto kargs        = kernel::MakeKargs(a);                                                 \
-        const dim3 grids  = kernel::GridSize(a);                                                  \
-        const dim3 blocks = kernel::BlockSize(a);                                                 \
-        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                           \
+#define MOE_SORTING_MP_2(mesh_type_, unroll_num_, expert_masking_)                                  \
+    [&]() {                                                                                         \
+        constexpr ck_tile::index_t unroll_num = unroll_num_;                                        \
+        constexpr bool expert_masking         = expert_masking_;                                    \
+        using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,            \
+                                                        ms_weight_type,        \
+                                                        mesh_type_,            \
+                                                        unroll_num,            \
+                                                        expert_masking>;       \
+        using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P2<ms_problem>; \
+        auto kargs                            = kernel::MakeKargs(a);                               \
+        const dim3 grids                      = kernel::GridSize(a);                                \
+        const dim3 blocks                     = kernel::BlockSize(a);                               \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                             \
     }()
 
-#define MOE_SORTING_MP_3(unroll_num_, expert_masking_)                                            \
-    [&]() {                                                                                       \
-        constexpr ck_tile::index_t unroll_num = unroll_num_;                                      \
-        constexpr bool expert_masking         = expert_masking_;                                  \
-        using ms_problem =                                                                        \
-            ck_tile::MoeSortingProblemMp<ms_index_t, ms_weight_type, unroll_num, expert_masking>; \
-        using kernel      = ck_tile::MoeSortingMultiPhaseKernel_P3<ms_problem>;                   \
-        auto kargs        = kernel::MakeKargs(a);                                                 \
-        const dim3 grids  = kernel::GridSize(a);                                                  \
-        const dim3 blocks = kernel::BlockSize(a);                                                 \
-        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                           \
+#define MOE_SORTING_MP_3(mesh_type_, unroll_num_, expert_masking_)                                  \
+    [&]() {                                                                                         \
+        constexpr ck_tile::index_t unroll_num = unroll_num_;                                        \
+        constexpr bool expert_masking         = expert_masking_;                                    \
+        using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,            \
+                                                        ms_weight_type,        \
+                                                        mesh_type_,            \
+                                                        unroll_num,            \
+                                                        expert_masking>;       \
+        using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P3<ms_problem>; \
+        auto kargs                            = kernel::MakeKargs(a);                               \
+        const dim3 grids                      = kernel::GridSize(a);                                \
+        const dim3 blocks                     = kernel::BlockSize(a);                               \
+        return ck_tile::make_kernel(kernel{}, grids, blocks, 0, kargs);                             \
     }()
 #endif
 
-#define MOE_SORTING_MP_23(unroll_num_, expert_masking_)                                            \
-    [&]() {                                                                                        \
-        constexpr ck_tile::index_t unroll_num = unroll_num_;                                       \
-        constexpr bool expert_masking         = expert_masking_;                                   \
-        using ms_problem =                                                                         \
-            ck_tile::MoeSortingProblemMp<ms_index_t, ms_weight_type, unroll_num, expert_masking>;  \
-        using kernel        = ck_tile::MoeSortingMultiPhaseKernel_P23<ms_problem>;                 \
-        auto kargs          = kernel::MakeKargs(a);                                                \
-        const dim3 grids    = kernel::GridSize(a);                                                 \
-        const dim3 blocks   = kernel::BlockSize(a);                                                \
-        const auto lds_size = kernel::GetSmemSize(a);                                              \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, lds_size, kargs); \
+#define MOE_SORTING_MP_23(mesh_type_, unroll_num_, expert_masking_)                                  \
+    [&]() {                                                                                          \
+        constexpr ck_tile::index_t unroll_num = unroll_num_;                                         \
+        constexpr bool expert_masking         = expert_masking_;                                     \
+        using ms_problem                      = ck_tile::MoeSortingProblemMp<ms_index_t,             \
+                                                        ms_weight_type,         \
+                                                        mesh_type_,             \
+                                                        unroll_num,             \
+                                                        expert_masking>;        \
+        using kernel                          = ck_tile::MoeSortingMultiPhaseKernel_P23<ms_problem>; \
+        auto kargs                            = kernel::MakeKargs(a);                                \
+        const dim3 grids                      = kernel::GridSize(a);                                 \
+        const dim3 blocks                     = kernel::BlockSize(a);                                \
+        const auto lds_size                   = kernel::GetSmemSize(a);                              \
+        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, lds_size, kargs);   \
     }()
 
-#define MOR_SORTING_MP_DISPATCH_(token_vec_0_, token_vec_1_, token_vec_23_)               \
-    if(t.local_expert_masking)                                                            \
-    {                                                                                     \
-        float ave_time = ck_tile::launch_kernel(s,                                        \
-                                                MOE_SORTING_MP_0(token_vec_0_, true),     \
-                                                MOE_SORTING_MP_1(token_vec_1_, true),     \
-                                                MOE_SORTING_MP_23(token_vec_23_, true));  \
-        return ave_time;                                                                  \
-    }                                                                                     \
-    else                                                                                  \
-    {                                                                                     \
-        float ave_time = ck_tile::launch_kernel(s,                                        \
-                                                MOE_SORTING_MP_0(token_vec_0_, false),    \
-                                                MOE_SORTING_MP_1(token_vec_1_, false),    \
-                                                MOE_SORTING_MP_23(token_vec_23_, false)); \
-        return ave_time;                                                                  \
+#define MOR_SORTING_MP_DISPATCH_(mesh_type_, token_vec_0_, token_vec_1_, token_vec_23_)  \
+    if(t.local_expert_masking)                                                           \
+    {                                                                                    \
+        float ave_time =                                                                 \
+            ck_tile::launch_kernel(s,                                                    \
+                                   MOE_SORTING_MP_0(mesh_type_, token_vec_0_, true),     \
+                                   MOE_SORTING_MP_1(mesh_type_, token_vec_1_, true),     \
+                                   MOE_SORTING_MP_23(mesh_type_, token_vec_23_, true));  \
+        return ave_time;                                                                 \
+    }                                                                                    \
+    else                                                                                 \
+    {                                                                                    \
+        float ave_time =                                                                 \
+            ck_tile::launch_kernel(s,                                                    \
+                                   MOE_SORTING_MP_0(mesh_type_, token_vec_0_, false),    \
+                                   MOE_SORTING_MP_1(mesh_type_, token_vec_1_, false),    \
+                                   MOE_SORTING_MP_23(mesh_type_, token_vec_23_, false)); \
+        return ave_time;                                                                 \
     }
 
 float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s)
@@ -267,25 +284,26 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
         using ms_index_t     = ck_tile::index_t;
         using ms_weight_type = float;
 
-        if(ck_tile::moe_sorting_get_smem_size_p23(a.num_experts) > ck_tile::get_smem_capacity())
+        if(ck_tile::impl::moe_sorting_get_smem_size_p23(a.num_experts) >
+           ck_tile::get_smem_capacity())
         {
 #if MOE_SORTING_HUGE_EXPERT_FALLBACK
             if(t.local_expert_masking)
             {
                 float ave_time = ck_tile::launch_kernel(s,
-                                                        MOE_SORTING_MP_0(1, true),
-                                                        MOE_SORTING_MP_1(1, true),
-                                                        MOE_SORTING_MP_2(1, true),
-                                                        MOE_SORTING_MP_3(1, true));
+                                                        MOE_SORTING_MP_0(ms_index_t, 1, true),
+                                                        MOE_SORTING_MP_1(ms_index_t, 1, true),
+                                                        MOE_SORTING_MP_2(ms_index_t, 1, true),
+                                                        MOE_SORTING_MP_3(ms_index_t, 1, true));
                 return ave_time;
             }
             else
             {
                 float ave_time = ck_tile::launch_kernel(s,
-                                                        MOE_SORTING_MP_0(1, false),
-                                                        MOE_SORTING_MP_1(1, false),
-                                                        MOE_SORTING_MP_2(1, false),
-                                                        MOE_SORTING_MP_3(1, false));
+                                                        MOE_SORTING_MP_0(ms_index_t, 1, false),
+                                                        MOE_SORTING_MP_1(ms_index_t, 1, false),
+                                                        MOE_SORTING_MP_2(ms_index_t, 1, false),
+                                                        MOE_SORTING_MP_3(ms_index_t, 1, false));
                 return ave_time;
             }
 #else
@@ -295,20 +313,20 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
         }
         else
         {
-            if(a.tokens >= 2048)
+            if(ck_tile::impl::moe_sorting_use_i16_mesh(a.tokens, a.num_experts))
             {
                 if(a.tokens * a.topk % 4 == 0)
                 {
-                    MOR_SORTING_MP_DISPATCH_(4, 1, 4)
+                    MOR_SORTING_MP_DISPATCH_(uint16_t, 4, 8, 8)
                 }
                 else
                 {
-                    MOR_SORTING_MP_DISPATCH_(1, 1, 4)
+                    MOR_SORTING_MP_DISPATCH_(uint16_t, 1, 8, 8)
                 }
             }
             else
             {
-                MOR_SORTING_MP_DISPATCH_(1, 1, 1)
+                MOR_SORTING_MP_DISPATCH_(ck_tile::index_t, 1, 1, 1)
             }
         }
     }
