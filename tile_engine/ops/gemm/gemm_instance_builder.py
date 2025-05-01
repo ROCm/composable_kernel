@@ -476,21 +476,27 @@ struct GemmKernel {{
         content = """// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "gemm_common.hpp"
-#include "gemm_instances.hpp"
-#include "gemm_host_api.hpp"
 #include <unordered_map>
 #include <functional>
 #include <vector>
 
+#include "gemm_common.hpp"
+#include "gemm_instances.hpp"
+#include "gemm_host_api.hpp"
+#include "benchmark_gemm.hpp"
+
 struct GemmDispatcher {
     static auto& get_kernel_map() {
         // Use a static local variable
-        static std::unordered_map<std::string, 
-            std::function<void(ck_tile::DeviceMem& c_m_n_dev_buf,
-                               ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                               ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                               int verify, ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> kernel_map;
+        static std::unordered_map<std::string,
+                                  std::function<void(Profiler&,
+                                                     ck_tile::DeviceMem&,
+                                                     ck_tile::HostTensor<CDataType>&,
+                                                     ck_tile::HostTensor<CDataType>&,
+                                                     int,
+                                                     ck_tile::GemmHostArgs&,
+                                                     const ck_tile::stream_config&)>>
+            kernel_map;
         return kernel_map;
     }
 
@@ -513,7 +519,8 @@ struct GemmDispatcher {
 
         
         for group in self.all_kernels:
-            content += f"""            kernel_map["{group}"] = [](ck_tile::DeviceMem& c_m_n_dev_buf,
+            content += f"""            kernel_map["{group}"] = [](Profiler& profiler,
+                                                                  ck_tile::DeviceMem& c_m_n_dev_buf,
                                                                   ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                                                                   ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                                                                   int verify, ck_tile::GemmHostArgs& args,
@@ -526,46 +533,29 @@ struct GemmDispatcher {
                    ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
                     continue
                 content += f"""
-                run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, s);"""
+                profiler.benchmark_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, s);"""
             content += f"""
             }};\n"""
 
         content += """    }
     
-    template <typename Kernel>
-    static void run_kernel(ck_tile::DeviceMem& c_m_n_dev_buf,
-                           ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                           ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                           int verify, ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
-    {
-        float avg_time = Kernel::launch(args, s);
-        std::string description = Kernel::get_name();
-        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
-        
-        std::size_t flop = std::size_t(2) * args.M * args.N * args.K;
-        std::size_t num_byte = sizeof(ADataType) * args.M * args.K + sizeof(BDataType) * args.N * args.K + sizeof(CDataType) * args.M * args.N;
-        float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
-        float gb_per_sec = num_byte / 1.E6 / avg_time;
-
-        std::cout << "Performance for " << description << " : " << avg_time << " ms, "
-                << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
-
-        if(verify)
-            compare(args.K, args.k_batch, c_m_n_dev_result, c_m_n_host_result);
-        c_m_n_dev_buf.SetZero();
-        c_m_n_dev_result.SetZero();
-    }
-
     static auto dispatch(ck_tile::DeviceMem& c_m_n_dev_buf,
                          ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                          ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                         int verify, const KernelTraits &trait, ck_tile::GemmHostArgs& gemm_args,
+                         int verify,
+                         int metric,
+                         const KernelTraits& trait,
+                         ck_tile::GemmHostArgs& gemm_args,
                          const ck_tile::stream_config& s) {
         init();
         const std::string key = assemble_key(trait);
         auto& kernel_map = get_kernel_map(); 
+        auto& profiler        = Profiler::instance();
         if(auto it = kernel_map.find(key); it != kernel_map.end()) {
-            return it->second(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify,gemm_args, s); 
+            it->second(
+                profiler, c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, gemm_args, s);
+            profiler.select_best_instance(static_cast<Metric>(metric));
+            return;
         }
         throw std::runtime_error("No suitable kernel found: " + key);
     }

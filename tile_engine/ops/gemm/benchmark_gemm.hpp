@@ -8,17 +8,15 @@
 #include <filesystem>
 #include <memory>
 
+#include "ck/version.h"
 #include "ck/host_utility/device_prop.hpp"
-#include "profile_cache.hpp"
 
-class Executor
+class Profiler
 {
     public:
-    ~Executor() { kernel_instances_.clear(); }
-
-    static Executor& instance(bool enable_profile_cache = true, bool flush_profile_cache = false)
+    static Profiler& instance()
     {
-        static Executor instance{enable_profile_cache, flush_profile_cache};
+        static Profiler instance;
         return instance;
     }
 
@@ -61,108 +59,39 @@ class Executor
 
         KernelInstance kernel_instance{environment_, description, problem, {-1.0f, -1.0f, -1.0f}};
 
-        auto launch_kernel = [&] {
-            float avg_time = Kernel::launch(args, s);
-            c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+        float avg_time = Kernel::launch(args, s);
+        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
-            std::size_t flop     = std::size_t(2) * args.M * args.N * args.K;
-            std::size_t num_byte = sizeof(ADataType) * args.M * args.K +
-                                   sizeof(BDataType) * args.N * args.K +
-                                   sizeof(CDataType) * args.M * args.N;
-            float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
-            float gb_per_sec = num_byte / 1.E6 / avg_time;
+        std::size_t flop     = std::size_t(2) * args.M * args.N * args.K;
+        std::size_t num_byte = sizeof(ADataType) * args.M * args.K +
+                               sizeof(BDataType) * args.N * args.K +
+                               sizeof(CDataType) * args.M * args.N;
+        float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+        float gb_per_sec = num_byte / 1.E6 / avg_time;
 
-            kernel_instance.perf_result.latency   = avg_time;
-            kernel_instance.perf_result.tflops    = tflops;
-            kernel_instance.perf_result.bandwidth = gb_per_sec;
+        kernel_instance.perf_result.latency   = avg_time;
+        kernel_instance.perf_result.tflops    = tflops;
+        kernel_instance.perf_result.bandwidth = gb_per_sec;
 
-            std::cout << kernel_instance << std::endl;
+        std::cout << kernel_instance << std::endl;
 
-            bool verified_correct =
-                !verify || compare(args.K, args.k_batch, c_m_n_dev_result, c_m_n_host_result);
+        bool verified_correct =
+            !verify || compare(args.K, args.k_batch, c_m_n_dev_result, c_m_n_host_result);
 
-            if(verified_correct)
-            {
-                kernel_instances_.emplace_back(kernel_instance);
-            }
-            else
-            {
-                std::cout << "Verification failed, skip kernel: " << description << std::endl;
-            }
-
-            c_m_n_dev_buf.SetZero();
-            c_m_n_dev_result.SetZero();
-        };
-
-        if(enable_profile_cache_)
+        if(verified_correct)
         {
-            if(!cache_db_->check_if_record(kernel_instance))
-            {
-
-                launch_kernel();
-                cache_db_->insert_batch({kernel_instance});
-            }
-            else
-            {
-                auto perf_result = cache_db_->query_performance_result(kernel_instance);
-                kernel_instance.perf_result.latency   = perf_result.latency;
-                kernel_instance.perf_result.tflops    = perf_result.tflops;
-                kernel_instance.perf_result.bandwidth = perf_result.bandwidth;
-                std::cout << "Skip this kernel for " << description
-                          << ", Because it has already been recorded in the cache database"
-                          << std::endl;
-                kernel_instances_.emplace_back(kernel_instance);
-            }
+            kernel_instances_.emplace_back(kernel_instance);
         }
         else
         {
-            launch_kernel();
+            std::cout << "Verification failed, skip kernel: " << description << std::endl;
         }
+
+        c_m_n_dev_buf.SetZero();
+        c_m_n_dev_result.SetZero();
     }
 
-    void export_perf_to_csv(const std::vector<KernelInstance>& instances,
-                            const std::string& filename)
-    {
-
-        std::ostringstream buffer;
-
-        buffer << "ROCmVersion,CommitID,DeviceName,KernelName,SplitK,M,N,K,"
-               << "StrideA,StrideB,StrideC,ADataType,BDataType,AccDataType,"
-               << "CDataType,ALayout,BLayout,CLayout,Latency(ms),TFLOPS,Bandwidth\n";
-
-        for(const auto& instance : instances)
-        {
-            const auto& env  = instance.env;
-            const auto& p    = instance.problem;
-            const auto& perf = instance.perf_result;
-
-            std::string sanitized_name = instance.name;
-            std::replace(sanitized_name.begin(), sanitized_name.end(), '\"', '\'');
-
-            buffer << env.rocm_version << "," << env.commit_id << "," << env.device_name << ","
-                   << "\"" << sanitized_name << "\"," << p.split_k << "," << p.m << "," << p.n
-                   << "," << p.k << "," << p.stride_a << "," << p.stride_b << "," << p.stride_c
-                   << "," << p.dtype_a << "," << p.dtype_b << "," << p.dtype_acc << "," << p.dtype_c
-                   << "," << p.layout_a << "," << p.layout_b << "," << p.layout_c << ","
-                   << std::fixed << std::setprecision(6) << perf.latency << "," << std::scientific
-                   << perf.tflops << "," << std::fixed << perf.bandwidth << "\n";
-        }
-
-        std::ofstream csv_file(filename, std::ios::trunc);
-        if(!csv_file)
-        {
-            throw std::runtime_error("Failed to open CSV file: " + filename);
-        }
-        csv_file << buffer.str();
-        csv_file.close();
-
-        if(csv_file.fail())
-        {
-            throw std::runtime_error("Incomplete write to CSV file: " + filename);
-        }
-    }
-
-    KernelInstance select_best_instance(Metric metric, const std::string& csv_path = "")
+    KernelInstance select_best_instance(Metric metric)
     {
         if(kernel_instances_.empty())
             throw std::runtime_error("Empty instances");
@@ -174,126 +103,28 @@ class Executor
                                                          b.perf_result, a.perf_result, metric);
                                                  });
 
+        std::cout << "**********************************" << std::endl;
         std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
                   << "The best kernel instance is: " << kernel_instance << std::endl;
-
-        if(!csv_path.empty())
-        {
-            try
-            {
-                export_perf_to_csv(kernel_instances_, csv_path);
-            }
-            catch(const std::exception& e)
-            {
-                std::cerr << "CSV export failed: " << e.what() << std::endl;
-            }
-        }
+        std::cout << "**********************************" << std::endl;
 
         return kernel_instance;
     }
 
     private:
-    Executor(bool enable_profile_cache = true, bool flush_profile_cache = false)
-        : enable_profile_cache_(enable_profile_cache), flush_profile_cache_(flush_profile_cache)
+    Profiler()
     {
         environment_ = Environment{
             get_rocm_version(),
-            "89f",
             ck::get_device_name(),
         };
-        std::cout << "Init gemm bechmark on device: " << environment_.device_name << std::endl;
-
-        initialize_profile_cache();
     }
+    ~Profiler() { kernel_instances_.clear(); }
 
-    void initialize_profile_cache()
-    {
-        // Init cache if enable profile cache
-        if(enable_profile_cache_)
-        {
-            // get profile cache path
-            std::filesystem::path cache_db_prefix_path =
-                std::filesystem::current_path() / ".tile_engine";
-            if(!create_cache_directory(cache_db_prefix_path))
-            {
-                std::cerr << "Error: Failed to create cache directory" << std::endl;
-                return;
-            }
-            std::filesystem::path cache_db_path =
-                cache_db_prefix_path / ("tile_engine_" + environment_.device_name + ".db");
-
-            // remove cache if flush_profile_cache
-            handle_cache_flush(cache_db_path);
-
-            // load profile cache
-            initialize_cache_db(cache_db_path);
-        }
-        else
-        {
-            std::cout << "Executor disable profile cache! " << std::endl;
-        }
-    }
-
-    bool create_cache_directory(const std::filesystem::path& cache_db_prefix_path)
-    {
-        std::error_code ec;
-        bool created = std::filesystem::create_directories(cache_db_prefix_path, ec);
-
-        if(ec)
-        {
-            std::cerr << "Error creating directory " << cache_db_prefix_path << ": " << ec.message()
-                      << std::endl;
-            return false;
-        }
-
-        if(created)
-        {
-            std::cout << "Created cache directory: " << cache_db_prefix_path << std::endl;
-        }
-        else
-        {
-            std::cout << "Using existing cache directory: " << cache_db_prefix_path << std::endl;
-        }
-        return true;
-    }
-
-    void handle_cache_flush(const std::filesystem::path& cache_db_path) const
-    {
-        if(flush_profile_cache_ && std::filesystem::exists(cache_db_path))
-        {
-            std::error_code ec;
-            if(std::filesystem::remove(cache_db_path, ec))
-            {
-                std::cout << "Successfully flushed cache: " << cache_db_path << std::endl;
-            }
-            else
-            {
-                std::cerr << "Error flushing cache: " << ec.message() << std::endl;
-            }
-        }
-    }
-
-    void initialize_cache_db(const std::filesystem::path& path)
-    {
-        try
-        {
-            cache_db_ = std::make_unique<ProfileCacheDB>(path);
-            std::cout << "Loaded profile cache from " << path << std::endl;
-        }
-        catch(const std::exception& e)
-        {
-            std::cerr << "Failed to initialize profile cache: " << e.what() << std::endl;
-        }
-    }
-
-    Executor(const Executor&)            = delete;
-    Executor& operator=(const Executor&) = delete;
+    Profiler(const Profiler&)            = delete;
+    Profiler& operator=(const Profiler&) = delete;
 
     Environment environment_;
 
-    bool enable_profile_cache_;
-    bool flush_profile_cache_;
-
-    std::unique_ptr<ProfileCacheDB> cache_db_;
     std::vector<KernelInstance> kernel_instances_;
 };

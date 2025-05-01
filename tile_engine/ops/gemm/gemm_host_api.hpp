@@ -94,7 +94,6 @@ struct PerformanceResult
 struct Environment
 {
     std::string rocm_version;
-    std::string commit_id;
     std::string device_name;
 
     std::string serialize() const
@@ -102,7 +101,6 @@ struct Environment
         std::ostringstream oss;
         oss << "{"
             << "\"rocm_version\":\"" << rocm_version << "\","
-            << "\"commit_id\":\"" << commit_id << "\","
             << "\"device_name\":\"" << device_name << "\""
             << "}";
         return oss.str();
@@ -239,13 +237,7 @@ inline auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("metric", "latency", "latency, tflops, bandwidth")
-        .insert("enable_profile_cache",
-                "false",
-                "whether use profile cache or not when benchmark kernel")
-        .insert("flush_profile_cache",
-                "false",
-                "whether flush profile cache or not when benchmark kernel")
+        .insert("metric", "0", "0:latency, 1:tflops, 2:bandwidth")
         .insert("pipeline", "compv3", "compv3, compv4, mem")
         .insert("scheduler", "intrawave", "intrawave, interwave")
         .insert("epilogue", "cshuffle", "cshuffle, default")
