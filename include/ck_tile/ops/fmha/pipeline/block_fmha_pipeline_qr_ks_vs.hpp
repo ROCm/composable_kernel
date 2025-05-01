@@ -603,7 +603,7 @@ struct BlockFmhaPipelineQRKSVS
                 }
                 else
                 {
-                    lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                    lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
                 }
 #else
                 lse(i_idx) = m_[i_idx] + log(l_[i_idx]);
