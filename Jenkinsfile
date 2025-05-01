@@ -845,8 +845,8 @@ pipeline {
             description: "Try building CK with legacy OS dockers: RHEL8 and SLES15 (default: OFF)")
         booleanParam(
             name: "RUN_INDUCTOR_TESTS",
-            defaultValue: false,
-            description: "Run inductor codegen tests (default: OFF)")
+            defaultValue: true,
+            description: "Run inductor codegen tests (default: ON)")
     }
     environment{
         dbuser = "${dbuser}"
