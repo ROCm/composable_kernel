@@ -61,7 +61,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static_assert(KPack % (B_K1 * B_KRow) == 0, "wrong!");
 
     static constexpr auto wmma_gemm =
-        WmmaGemm<ADataType, BDataType, AccDataType, MPerWmma, NPerWmma, KPack, TransposeC>{};
+        WmmaGemm<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma, KPack, TransposeC>{};
 
     static constexpr index_t KRepeat = KPerBlock / KPack;
 

@@ -128,6 +128,17 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
+        if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<CDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
+            }
+        }
+#endif
 #endif // CK_USE_WMMA
 
 #ifdef CK_USE_XDL
