@@ -7,8 +7,12 @@
 #define MOE_SORTING_USE_EX_KERNEL 1
 #endif
 
-#ifndef MOE_SORTING_HUGE_EXPERT_FALLBACK
-#define MOE_SORTING_HUGE_EXPERT_FALLBACK 0
+#ifndef MOE_SORTING_SUPPORT_LARGE_EXPERT
+#define MOE_SORTING_SUPPORT_LARGE_EXPERT 0
+#endif
+
+#ifndef MOE_SORTING_SUPPORT_LARGE_TOPK
+#define MOE_SORTING_SUPPORT_LARGE_TOPK 0
 #endif
 
 #if !MOE_SORTING_USE_EX_KERNEL
@@ -157,7 +161,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         }
         }
 #else
-        if(moe_sorting_get_workspace_size(a.tokens, a.num_experts) != 0)
+        if(moe_sorting_get_workspace_size(a.tokens, a.num_experts, a.topk) != 0)
         {
             return moe_sorting_mp(t, a, s);
         }
@@ -206,7 +210,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         const dim3 blocks                     = kernel::BlockSize(a);                               \
         return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);         \
     }()
-#if MOE_SORTING_HUGE_EXPERT_FALLBACK
+#if MOE_SORTING_SUPPORT_LARGE_EXPERT
 #define MOE_SORTING_MP_2(mesh_type_, unroll_num_, expert_masking_)                                  \
     [&]() {                                                                                         \
         constexpr ck_tile::index_t unroll_num = unroll_num_;                                        \
@@ -287,7 +291,7 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
         if(ck_tile::impl::moe_sorting_get_smem_size_p23(a.num_experts) >
            ck_tile::get_smem_capacity())
         {
-#if MOE_SORTING_HUGE_EXPERT_FALLBACK
+#if MOE_SORTING_SUPPORT_LARGE_EXPERT
             if(t.local_expert_masking)
             {
                 float ave_time = ck_tile::launch_kernel(s,
@@ -307,14 +311,28 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
                 return ave_time;
             }
 #else
-            printf("do not support huge expert %d\n", a.num_experts);
+            printf("do not support large expert %d\n", a.num_experts);
             return -1;
 #endif
         }
         else
         {
-            if(ck_tile::impl::moe_sorting_use_i16_mesh(a.tokens, a.num_experts))
+            ck_tile::index_t mesh_byte_size =
+                ck_tile::impl::moe_sorting_mesh_byte_size(a.tokens, a.num_experts, a.topk);
+            if(mesh_byte_size == 1)
             {
+                if(a.tokens * a.topk % 4 == 0)
+                {
+                    MOR_SORTING_MP_DISPATCH_(uint8_t, 4, 16, 16)
+                }
+                else
+                {
+                    MOR_SORTING_MP_DISPATCH_(uint8_t, 1, 16, 16)
+                }
+            }
+            else if(mesh_byte_size == 2)
+            {
+#if MOE_SORTING_SUPPORT_LARGE_TOPK
                 if(a.tokens * a.topk % 4 == 0)
                 {
                     MOR_SORTING_MP_DISPATCH_(uint16_t, 4, 8, 8)
@@ -323,6 +341,10 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
                 {
                     MOR_SORTING_MP_DISPATCH_(uint16_t, 1, 8, 8)
                 }
+#else
+                printf("do not support large topk %d\n", a.topk);
+                return -1;
+#endif
             }
             else
             {
@@ -333,7 +355,7 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
     return -1;
 }
 
-int moe_sorting_get_workspace_size(int tokens, int num_experts)
+int moe_sorting_get_workspace_size(int tokens, int num_experts, int topk)
 {
-    return ck_tile::moe_sorting_get_workspace_size(tokens, num_experts);
+    return ck_tile::moe_sorting_get_workspace_size(tokens, num_experts, topk);
 }

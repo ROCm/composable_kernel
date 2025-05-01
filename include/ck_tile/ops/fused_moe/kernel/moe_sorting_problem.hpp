@@ -65,7 +65,8 @@ struct MoeSortingProblemMp
     static constexpr index_t SubTokenTile           = SubTokenTile_;
     static constexpr bool LocalExpertMasking        = LocalExpertMasking_;
     static constexpr bool SkipExpertsWithZeroTokens = SkipExpertsWithZeroTokens_;
-    static_assert(SubTokenTile == 1 || SubTokenTile == 2 || SubTokenTile == 4 || SubTokenTile == 8);
+    static_assert(SubTokenTile == 1 || SubTokenTile == 2 || SubTokenTile == 4 ||
+                  SubTokenTile == 8 || SubTokenTile == 16);
 };
 
 } // namespace ck_tile
