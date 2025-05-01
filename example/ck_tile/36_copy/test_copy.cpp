@@ -10,6 +10,7 @@ auto create_args(int argc, char* argv[])
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "32", "m dimension")
         .insert("n", "128", "n dimension")
+        .insert("id", "0", "warp to use")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
         .insert("warmup", "50", "cold iter")
@@ -27,6 +28,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t m = arg_parser.get_int("m");
     ck_tile::index_t n = arg_parser.get_int("n");
+    ck_tile::index_t warp_id        = arg_parser.get_int("id");
     int do_validation  = arg_parser.get_int("v");
     int warmup         = arg_parser.get_int("warmup");
     int repeat         = arg_parser.get_int("repeat");
@@ -50,9 +52,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
 
     using BlockWaves = ck_tile::sequence<2, 1>;
-    using BlockTile  = ck_tile::sequence<32, 128>;
-    using WaveTile   = ck_tile::sequence<32, 128>;
-    using Vector     = ck_tile::sequence<8, 8>;
+    using BlockTile  = ck_tile::sequence<64, 8>;
+    using WaveTile   = ck_tile::sequence<64, 8>;
+    using Vector     = ck_tile::sequence<1, 4>;
 
     ck_tile::index_t kGridSize             = (m / BlockTile::at(ck_tile::number<0>{}));
     std::cout << "grid size " << kGridSize << std::endl;
@@ -69,9 +71,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "Block waves: " << BlockWaves::at(ck_tile::number<0>{}) << " " <<BlockWaves::at(ck_tile::number<1>{}) << std::endl;
     std::cout << " Wave Groups: " << Shape::WaveGroups << std::endl;
 
-    
-
-
     float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
                                    ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
                                        Kernel{},
@@ -81,8 +80,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
                                        static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
                                        m,
-                                       n 
-                                       ));
+                                       n,
+                                       warp_id
+                                    ));
 
     std::size_t num_btype = sizeof(XDataType) * m * n + sizeof(YDataType) * m;
 
