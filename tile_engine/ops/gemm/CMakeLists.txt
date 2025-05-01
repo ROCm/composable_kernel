@@ -1,3 +1,5 @@
+
+
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
@@ -5,6 +7,10 @@ execute_process(
             --json ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
             --list_blobs
             RESULT_VARIABLE ret
+)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
+  ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
 )
 
 if(ret AND NOT ret EQUAL 0)
@@ -19,7 +25,9 @@ add_custom_command(
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
             --json ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
             --gen_blobs
-    DEPENDS ${GEMM_CODEGEN_BLOBS}
+    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
+            ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt
+            ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
 )
 
 set(EXECUTABLE_GEMM_INSTANCE "tile_engine_gemm")
@@ -32,3 +40,12 @@ target_include_directories(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${CMAKE_CURRENT_L
 target_sources(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${GEMM_CODEGEN_BLOBS})
 
 set(EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS)
+
+list(APPEND EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS
+     -Wno-undefined-func-template
+     -Wno-float-equal
+     --offload-compress)
+
+target_compile_options(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS})
+
+set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
