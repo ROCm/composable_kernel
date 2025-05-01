@@ -120,6 +120,7 @@ struct ReferenceMXGemm : public device::BaseOperator
                 {
                     if constexpr(is_same_v<BDataType, f4x2_pk_t>)
                     {
+                        // TODO: add support for RowMajor layout as well
                         if(k % 2 == 1)
                             b_k_n_scaled(k, n) =
                                 type_convert<ComputeTypeB>(

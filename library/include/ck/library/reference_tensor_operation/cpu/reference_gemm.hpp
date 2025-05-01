@@ -122,11 +122,6 @@ struct ReferenceGemm : public device::BaseOperator
 
                     v_acc +=
                         ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
-
-                    // if ((m == 2) && (n == 0))
-                    // {
-                    //     printf("K:%i A:%f, B:%f, C:%f \n", k, v_a, v_b, v_acc);
-                    // }
                 }
 
                 CDataType v_c{0};

@@ -296,7 +296,8 @@ __device__ AFragT load_A_row_major(AType const* input_ptr)
     // BLOCK_K is a stride in A matrix
     auto startOffset = row_major(
         startCoord2D, BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1));
-    // auto kMinorOffset = row_major(minorStepCoord2D, BLOCK_K);
+    // auto kMinorOffset = row_major(minorStepCoord2D, BLOCK_K /
+    // (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1));
     auto kMajorOffset =
         row_major(majorStepCoord2D,
                   BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1));
@@ -513,7 +514,8 @@ __device__ BFragT load_B_col_major(BType const* input_ptr)
     // BLOCK_K is a stride in B matrix
     auto startOffset = col_major(
         startCoord2D, BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1));
-    // auto kMinorOffset = col_major(minorStepCoord2D, BLOCK_K);
+    // auto kMinorOffset = col_major(minorStepCoord2D, BLOCK_K /
+    // (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1));
     auto kMajorOffset =
         col_major(majorStepCoord2D,
                   BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1));
@@ -937,7 +939,6 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
         fragC[i] = type_convert<CType>(fragAcc.template AsType<RawAccumFragT>()[Number<0>{}][i]);
     }
 
-    // auto storeC = store_C_col_major<CType, CFragT, BLOCK_M, BLOCK_N>{};
     auto storeC = store_C_row_major<CType, CFragT, BLOCK_M, BLOCK_N>{};
     storeC(c, fragC);
 }
@@ -1134,20 +1135,12 @@ struct TestMXMFMA
         {
         case 0:
             a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}}); // 1/64
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{0.015625f}}); // 1/6
             // NOTE: not all numbers are representable in FP8, BF8, etc.
             // 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 16 18 20 20 20 22 24 24 24 26 28 28 28 30 32
             b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
             b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
             break;
-            // b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            // a_scales.GenerateTensorValue(
-            //     GeneratorTensor_1<ScaleType>{ScaleType{1.0f}}); // 1/64
-            // // NOTE: not all numbers are representable in FP8, BF8, etc.
-            // // 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 16 18 20 20 20 22 24 24 24 26 28 28 28 30
-            // 32 a_m_k.GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 1>{});
-            // b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
-            // break;
         case 1:
             // results in C = {K}
             a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
@@ -1158,11 +1151,9 @@ struct TestMXMFMA
         case 2:
             // expect small round off errors
             a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-            a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
-
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{512.0f}});
             b_n_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-            b_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{126, 129});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f / 512}});
             break;
         case 3:
             // expect small round off errors
@@ -1343,15 +1334,10 @@ struct TestMFMA
         switch(init)
         {
         case 0:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{0.015625f});
             // NOTE: not all numbers are representable in FP8, BF8, etc.
             b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
             break;
-        // case 0:
-        //     b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-        //     // NOTE: not all numbers are representable in FP8, BF8, etc.
-        //     a_m_k.GenerateTensorValue(GeneratorTensor_Sequential<ADataType, 1>{});
-        //     break;
         case 1:
             // results in C = {K}
             a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
