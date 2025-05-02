@@ -118,9 +118,9 @@ static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
 
-#if 1
-static constexpr ck::index_t MPerBlock = 32;
-static constexpr ck::index_t BLOCKSIZE = 256;
+#if 0
+static constexpr ck::index_t MPerBlock   = 32;
+static constexpr ck::index_t BLOCKSIZE   = 256;
 static constexpr ck::index_t MXDLPerWave = 1;
 static constexpr ck::index_t NXDLPerWave = 1;
 static constexpr ck::index_t NPerBlock   = 128;
@@ -180,10 +180,10 @@ int main(int argc, char* argv[])
     // experts = 8
     // per expert:
 
-    constexpr ck::index_t valid_tile_num  = 52;
+    constexpr ck::index_t valid_tile_num  = 13;
     constexpr ck::index_t sorted_tile_num = valid_tile_num + 3;
-    ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
-    ck::index_t valid_size      = valid_tile_num * MPerBlock;
+    ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size                = valid_tile_num * MPerBlock;
 #if 0
     // GEMM shape
     ck::index_t N               = 6144;
@@ -192,12 +192,12 @@ int main(int argc, char* argv[])
     ck::index_t tokens          = 1;
     ck::index_t topk            = 2;
 #else
-    //deepseek
-    ck::index_t N               = 2048;
-    ck::index_t K               = 7160;
-    ck::index_t experts         = 256;
-    ck::index_t tokens          = 1;
-    ck::index_t topk            = 8;
+    // deepseek
+    ck::index_t N       = 2048;
+    ck::index_t K       = 7160;
+    ck::index_t experts = 8;
+    ck::index_t tokens  = 1;
+    ck::index_t topk    = 2;
 #endif
 
     if(argc == 1)
@@ -247,20 +247,22 @@ int main(int argc, char* argv[])
     max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
     // int eids[]         = {0, 1, 3, 3, 3};
     //  int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7}; //, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
-    //int eids[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
+    // int eids[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
     int eids[sorted_tile_num]{};
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        if (i < valid_tile_num){
-            eids[i] = std::rand() % experts;
+        if(i < valid_tile_num)
+        {
+            eids[i] = (i * experts) / valid_tile_num;
         }
-        else{
+        else
+        {
             eids[i] = 3;
         }
     }
 
-    // int eids[]         = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-    //                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+    // int eids[]         = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    //                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     //                     2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
     //                     3, 3, 3, 3, 3, 3, 3, 3, 4, 4,
     //                     5, 5, 5, 5, 6, 6, 6, 6, 7, 7,
@@ -360,7 +362,7 @@ int main(int argc, char* argv[])
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
-    
+
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) *
                                    sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
@@ -445,7 +447,7 @@ int main(int argc, char* argv[])
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s"  << device_op.GetTypeString() << std::endl;
+                  << " GB/s" << device_op.GetTypeString() << std::endl;
     }
 
     if(do_verification)
