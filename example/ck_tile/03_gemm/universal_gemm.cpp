@@ -12,6 +12,7 @@
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
+
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -143,66 +144,33 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             throw std::runtime_error(err.str());
         }
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-        // Tail pipeline One to Seven
-        if(tail_num == ck_tile::TailNumber::One)
-        {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Full)
-        {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
+    if (tail_num == ck_tile::TailNumber::One) {
+        Run(ck_tile::bool_constant<true>{},
+            ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
+    } else if (tail_num == ck_tile::TailNumber::Full) {
+        Run(ck_tile::bool_constant<true>{},
+            ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+    }
 
-        if constexpr(BaseGemmPipeline::PrefetchStages > 2)
-        {
-            if(tail_num == ck_tile::TailNumber::Two)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
+    template <ck_tile::TailNumber TN>
+    void try_run(ck_tile::TailNumber tn) {
+        if constexpr (BaseGemmPipeline::PrefetchStages > static_cast<int>(TN)) {
+            if (tn == TN) {
+                Run(ck_tile::bool_constant<true>{}, ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
             }
         }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 3)
-        {
-            if(tail_num == ck_tile::TailNumber::Three)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 4)
-        {
-            if(tail_num == ck_tile::TailNumber::Four)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 5)
-        {
-            if(tail_num == ck_tile::TailNumber::Five)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 6)
-        {
-            if(tail_num == ck_tile::TailNumber::Six)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 7)
-        {
-            if(tail_num == ck_tile::TailNumber::Seven)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
-            }
-        }
+    }
+
+    check_tail(
+        ck_tile::TailNumber::Two,
+        ck_tile::TailNumber::Three,
+        ck_tile::TailNumber::Four,
+        ck_tile::TailNumber::Five,
+        ck_tile::TailNumber::Six,
+        ck_tile::TailNumber::Seven
+    );
+
+
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
         if(tail_num == ck_tile::TailNumber::Three)
         {

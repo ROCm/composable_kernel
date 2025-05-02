@@ -91,16 +91,16 @@ if (tail_num == ck_tile::TailNumber::One) {
 
 // Variadic call using fold expression
 auto check_tail = [&](auto... TNs) {
-    (mem_cshuffle_intrawave_pad_false_false_false::try_run<BaseGemmPipeline, TNs>(tail_num), ...);
+    (mem_cshuffle_intrawave_pad_false_false_false::try_run< BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
 };
 
 check_tail(
-    ck_tile::TailNumber::Two,
-    ck_tile::TailNumber::Three,
-    ck_tile::TailNumber::Four,
-    ck_tile::TailNumber::Five,
-    ck_tile::TailNumber::Six,
-    ck_tile::TailNumber::Seven
+    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
+    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
+    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
+    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
+    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
+    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{}
 );
            
 """
