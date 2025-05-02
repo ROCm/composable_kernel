@@ -79,30 +79,27 @@ HOT_LOOP_FALSE = """
             }  
 """
 RUN_MEM = """
-// Handle One and Full cases directly
-if (tail_num == ck_tile::TailNumber::One) {
-    Run(ck_tile::bool_constant<true>{},
-        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
-} else if (tail_num == ck_tile::TailNumber::Full) {
-    Run(ck_tile::bool_constant<true>{},
-        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-}
+            // Handle One and Full cases directly
+            if (tail_num == ck_tile::TailNumber::One) {
+                Run(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
+            } else if (tail_num == ck_tile::TailNumber::Full) {
+                Run(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            }
+            // Variadic call using fold expression
+            auto check_tail = [&](auto... TNs) {
+                (try_run< BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
+            };
 
-
-// Variadic call using fold expression
-auto check_tail = [&](auto... TNs) {
-    (mem_cshuffle_intrawave_pad_false_false_false::try_run< BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
-};
-
-check_tail(
-    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
-    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
-    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
-    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
-    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
-    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{}
-);
-           
+            check_tail(
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{}
+            );
 """
 
 RUN_COMPV3 = """
@@ -328,14 +325,14 @@ namespace {group_name} {{
         """Generate kernel struct template"""
         return f"""
 template <typename Pipeline, ck_tile::TailNumber TN>
- void try_run(ck_tile::TailNumber tn) {{
-        if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN)) {{
-            if (tn == TN) {{
-                Run(ck_tile::bool_constant<true>{{}},
-                    ck_tile::integral_constant<ck_tile::TailNumber, TN>{{}});
-            }}
+void try_run(ck_tile::TailNumber tn) {{
+    if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN)) {{
+        if (tn == TN) {{
+            Run(ck_tile::bool_constant<true>{{}},
+                ck_tile::integral_constant<ck_tile::TailNumber, TN>{{}});
         }}
     }}
+}}
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
           int WarpTileM, int WarpTileN, int WarpTileK,
@@ -440,6 +437,7 @@ struct GemmKernel {{
 
         return ave_time;
     }}
+    
     static std::string get_name() {{
         return std::string("GemmKernel<Bllktile: ") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) + ", " +
                 "WaveMap: " + std::to_string(WarpM) + "x" + std::to_string(WarpN) + "x" + std::to_string(WarpK) + ", " +

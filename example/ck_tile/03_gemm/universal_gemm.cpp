@@ -12,6 +12,15 @@
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
+template <typename Pipeline, ck_tile::TailNumber TN>
+ void try_run(ck_tile::TailNumber tn) {
+    if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN)) {
+        if (tn == TN) {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
+        }
+    }
+}
 
 template <typename ADataType,
           typename BDataType,
@@ -152,24 +161,18 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
     }
 
-    template <ck_tile::TailNumber TN>
-    void try_run(ck_tile::TailNumber tn) {
-        if constexpr (BaseGemmPipeline::PrefetchStages > static_cast<int>(TN)) {
-            if (tn == TN) {
-                Run(ck_tile::bool_constant<true>{}, ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
-            }
-        }
-    }
-
+    auto check_tail = [&](auto... TNs) {
+        (try_run< BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
+    };
+    
     check_tail(
-        ck_tile::TailNumber::Two,
-        ck_tile::TailNumber::Three,
-        ck_tile::TailNumber::Four,
-        ck_tile::TailNumber::Five,
-        ck_tile::TailNumber::Six,
-        ck_tile::TailNumber::Seven
+        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
+        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
+        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
+        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
+        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
+        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{}
     );
-
 
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
         if(tail_num == ck_tile::TailNumber::Three)
@@ -222,51 +225,18 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
-    {
-        if(a_layout == "R" && b_layout == "C")
+    
+       if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
                 argc, argv, Row{}, Col{}, Row{});
         }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices when "
-                                     "BPrecType is ck_tile::pk_int4_t!");
-        }
-    }
-    else
-    {
-        if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
+       
         else
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices!");
-        }
-    }
+       }
+    
 }
 
 int run_gemm_example(int argc, char* argv[])
@@ -283,29 +253,7 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "bf16")
-    {
-        return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "fp8")
-    {
-        return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "bf8")
-    {
-        return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-    else if(data_type == "pk_int4_t")
-    {
-        // TODO: Add support for bhalf_t ADataType
-        return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-#endif
+    
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
