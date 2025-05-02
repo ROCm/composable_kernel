@@ -229,13 +229,13 @@ constexpr auto conditional_expr(X&& x, Y&& y)
     }
 }
 
-enum class TileWindowType
-{
-    Null,
-    StaticDistribution,
-    StaticLengths,
-    Linear
-};
+// enum class TileWindowType
+// {
+//     Null,
+//     StaticDistribution,
+//     StaticLengths,
+//     Linear
+// };
 
 
 } // namespace ck_tile

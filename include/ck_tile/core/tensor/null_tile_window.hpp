@@ -17,7 +17,7 @@ namespace ck_tile {
 template <typename WindowLengths_>
 struct null_tile_window
 {   
-    static constexpr TileWindowType WindowTypeEnum = TileWindowType::Null;
+    //static constexpr TileWindowType WindowTypeEnum = TileWindowType::Null;
     using BottomTensorView = null_tensor_view;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
 

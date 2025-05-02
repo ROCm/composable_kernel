@@ -44,7 +44,7 @@ template <typename BottomTensorView_,
           typename LinearBottomDims_>
 struct tile_window_linear
 {   
-    static constexpr TileWindowType WindowTypeEnum = TileWindowType::Linear;
+    // static constexpr TileWindowType WindowTypeEnum = TileWindowType::Linear;
 
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
@@ -1216,5 +1216,22 @@ CK_TILE_DEVICE void move_tile_window(
 {
     window.move(step);
 }
+
+template <typename T>
+struct is_tile_window_linear : std::false_type {};
+
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          typename LinearBottomDims_>
+struct is_tile_window_linear<
+                            tile_window_linear< BottomTensorView_,
+                                          WindowLengths_,
+                                          StaticTileDistribution_,
+                                          LinearBottomDims_>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_tile_window_linear_v =
+    is_tile_window_linear<T>::value;
+
 
 } // namespace ck_tile

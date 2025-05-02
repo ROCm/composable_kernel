@@ -35,7 +35,7 @@ template <typename BottomTensorView_,
           index_t NumCoord>
 struct tile_window_with_static_distribution
 {   
-    static constexpr TileWindowType WindowTypeEnum = TileWindowType::StaticDistribution;
+    // static constexpr TileWindowType WindowTypeEnum = TileWindowType::StaticDistribution;
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
@@ -1039,7 +1039,7 @@ CK_TILE_DEVICE void move_tile_window(
 template <typename BottomTensorView_, typename WindowLengths_>
 struct tile_window_with_static_lengths
 {   
-    static constexpr TileWindowType WindowTypeEnum = TileWindowType::StaticLengths;
+    // static constexpr TileWindowType WindowTypeEnum = TileWindowType::StaticLengths;
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using BottomTensorDesc = typename BottomTensorView::TensorDesc;
@@ -1165,5 +1165,35 @@ CK_TILE_DEVICE void move_tile_window(
 {
     window.move(step);
 }
+
+template <typename T>
+struct is_tile_window_with_static_distribution : std::false_type {};
+
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          index_t NumCoord>
+struct is_tile_window_with_static_distribution<
+    tile_window_with_static_distribution<BottomTensorView_,
+                                         WindowLengths_,
+                                         StaticTileDistribution_,
+                                         NumCoord>> : std::true_type {};
+
+
+template <typename T>
+inline constexpr bool is_tile_window_with_static_distribution_v =
+    is_tile_window_with_static_distribution<T>::value;
+
+template <typename T>
+struct is_tile_window_with_static_lengths : std::false_type {};
+
+template <typename BottomTensorView_, typename WindowLengths_>
+struct is_tile_window_with_static_lengths<
+    tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_tile_window_with_static_lengths_v =
+    is_tile_window_with_static_lengths<T>::value;
+
 
 } // namespace ck_tile
