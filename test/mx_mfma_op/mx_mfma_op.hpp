@@ -900,7 +900,10 @@ template <typename AType,
           typename AccType,
           int32_t BLOCK_M,
           int32_t BLOCK_N,
-          int32_t BLOCK_K>
+          int32_t BLOCK_K,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 __global__ void matmul(const AType* a, const BType* b, CType* c)
 {
     constexpr int WAVE_SIZE = 64;
@@ -926,8 +929,23 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
     auto fragAcc = AccumFragT{0};
 
     // Load the inputs.
-    fragA = load_A_row_major<AType, AFragT, BLOCK_M, BLOCK_K>(a);
-    fragB = load_B_col_major<BType, BFragT, BLOCK_K, BLOCK_N>(b);
+    if constexpr(is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+    {
+        fragA = load_A_row_major<AType, AFragT, BLOCK_M, BLOCK_K>(a);
+    }
+    else
+    {
+        fragA = load_A_col_major<AType, AFragT, BLOCK_M, BLOCK_K>(a);
+    }
+
+    if constexpr(is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+    {
+        printf("This layout is not implemented\n");
+    }
+    else
+    {
+        fragB = load_B_col_major<BType, BFragT, BLOCK_K, BLOCK_N>(b);
+    }
 
     // Matrix multiply-accumulate using MFMA units
     // Accumulation intermediate = BLOCK_M x BLOCK_N
@@ -939,8 +957,14 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
         fragC[i] = type_convert<CType>(fragAcc.template AsType<RawAccumFragT>()[Number<0>{}][i]);
     }
 
-    auto storeC = store_C_row_major<CType, CFragT, BLOCK_M, BLOCK_N>{};
-    storeC(c, fragC);
+    if constexpr(is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+    {
+        store_C_row_major<CType, CFragT, BLOCK_M, BLOCK_N>{}(c, fragC);
+    }
+    else
+    {
+        store_C_col_major<CType, CFragT, BLOCK_M, BLOCK_N>{}(c, fragC);
+    }
 }
 
 template <typename AType,
@@ -951,7 +975,10 @@ template <typename AType,
           int32_t BLOCK_M,
           int32_t BLOCK_N,
           int32_t BLOCK_K,
-          int32_t BLOCK_X>
+          int32_t BLOCK_X,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 __global__ void
 matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb, CType* c)
 {
@@ -982,11 +1009,27 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
     auto fragXb  = BScaleFragT{};
 
     // Load the inputs.
-    fragA = load_mx_A_row_major<AType, AFragT, ScaleType, AScaleFragT, BLOCK_M, BLOCK_K, BLOCK_X>(
-        a, xa, fragXa);
+    if constexpr(is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+    {
+        fragA =
+            load_mx_A_row_major<AType, AFragT, ScaleType, AScaleFragT, BLOCK_M, BLOCK_K, BLOCK_X>(
+                a, xa, fragXa);
+    }
+    else
+    {
+        printf("This layout is not implemented\n");
+    }
 
-    fragB = load_mx_B_col_major<BType, BFragT, ScaleType, BScaleFragT, BLOCK_K, BLOCK_N, BLOCK_X>(
-        b, xb, fragXb);
+    if constexpr(is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
+    {
+        printf("This layout is not implemented\n");
+    }
+    else
+    {
+        fragB =
+            load_mx_B_col_major<BType, BFragT, ScaleType, BScaleFragT, BLOCK_K, BLOCK_N, BLOCK_X>(
+                b, xb, fragXb);
+    }
 
     // Scaled Matrix multiply-accumulate using MFMA units
     // Accumulation intermediate = BLOCK_M x BLOCK_N
@@ -1002,8 +1045,14 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
         fragC[i] = type_convert<CType>(fragAcc.template AsType<RawAccumFragT>()[Number<0>{}][i]);
     }
 
-    auto storeC = store_C_row_major<CType, CFragT, BLOCK_M, BLOCK_N>{};
-    storeC(c, fragC);
+    if constexpr(is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+    {
+        store_C_row_major<CType, CFragT, BLOCK_M, BLOCK_N>{}(c, fragC);
+    }
+    else
+    {
+        store_C_col_major<CType, CFragT, BLOCK_M, BLOCK_N>{}(c, fragC);
+    }
 }
 
 /**
@@ -1144,16 +1193,17 @@ struct TestMXMFMA
         case 1:
             // results in C = {K}
             a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{512.0f}});
             b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f / 512}});
             break;
         case 2:
             // expect small round off errors
             a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{512.0f}});
+            a_scales.GenerateTensorValue(
+                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
             b_n_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f / 512}});
+            b_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{126, 129});
             break;
         case 3:
             // expect small round off errors
