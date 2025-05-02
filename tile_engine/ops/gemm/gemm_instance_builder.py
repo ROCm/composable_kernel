@@ -309,18 +309,16 @@ using CLayout = {LAYOUT_MAP[self.config.layouts[2]]};
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/host.hpp"
-namespace{{
 
-}}
 namespace {group_name} {{
 """
         # Add template struct with configuration
-        content += self._generate_kernel_struct(group_name, pipeline, epilogue, scheduler, kPadM, kPadN, kPadK)
+        content += self._generate_kernel_struct(pipeline, epilogue, scheduler, kPadM, kPadN, kPadK)
 
         content += f"\n}} // namespace {group_name}\n"
         (self.output_dir / filename).write_text(content)
 
-    def _generate_kernel_struct(self, group_name, pipeline: str, epilogue: str, scheduler: str,
+    def _generate_kernel_struct(self, pipeline: str, epilogue: str, scheduler: str,
                                kPadM: bool, kPadN: bool, kPadK: bool) -> str:
         """Generate kernel struct template"""
         return f"""
@@ -341,7 +339,6 @@ struct GemmKernel {{
     static constexpr bool kPadM = {BOOL_MAP(kPadM)};
     static constexpr bool kPadN = {BOOL_MAP(kPadN)};
     static constexpr bool kPadK = {BOOL_MAP(kPadK)};
-   
    
     static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s) {{
         static constexpr bool permuteA = false;
