@@ -194,183 +194,6 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
     __device__ static constexpr auto HotLoopScheduler()
     {
-#if 0
-        constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
-        constexpr auto num_ds_write_inst_a    = HotLoopInstList::A_LDS_Write_Inst_Num;
-        constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = MWaves * HotLoopInstList::B_Buffer_Load_Inst_Num;
-
-        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
-
-        constexpr auto staged_num_ds_read_inst_a = num_ds_read_inst_a / MRepeat;
-        constexpr auto staged_num_mfma           = num_mfma / MRepeat;
-
-        constexpr auto staged_num_mfma_per_ds_read_a = staged_num_mfma / staged_num_ds_read_inst_a;
-
-        if constexpr(stage.value == 0)
-        {
-            // B VMEM access.
-            constexpr auto staged_num_buffer_load_b_per_ds_read_a =
-                num_buffer_load_inst_b / staged_num_ds_read_inst_a;
-            constexpr auto staged_num_mfma_per_buffer_load_b =
-                staged_num_mfma / num_buffer_load_inst_b;
-            // B global
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                ignore = i_inst;
-                static_for<0, staged_num_buffer_load_b_per_ds_read_a - 1, 1>{}([&](auto ibuf_inst) {
-                    ignore = ibuf_inst;
-                    static_for<0, staged_num_mfma_per_buffer_load_b, 1>{}([&](auto i_mfma) {
-                        ignore = i_mfma;
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    });
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                });
-
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-
-                static_for<0, staged_num_mfma_per_buffer_load_b - 1, 1>{}([&](auto i_mfma) {
-                    ignore = i_mfma;
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                });
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else if constexpr(stage.value == 1)
-        {
-            // A LDS write access.
-            constexpr auto staged_num_mfma_per_ds_write_a =
-                math::integer_divide_ceil(staged_num_mfma, num_ds_write_inst_a);
-
-            constexpr auto stage_more_mfma =
-                staged_num_mfma - (staged_num_mfma_per_ds_write_a - 1) * num_ds_write_inst_a;
-
-            // A local write
-            static_for<0, num_ds_write_inst_a, 1>{}([&](auto i_inst) {
-                if constexpr(i_inst.value < stage_more_mfma)
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        static_for<0, staged_num_mfma_per_ds_write_a - 1, 1>{}([&](auto i_mfma) {
-                            ignore = i_mfma;
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        });
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        static_for<0, staged_num_mfma_per_ds_write_a, 1>{}([&](auto i_mfma) {
-                            ignore = i_mfma;
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        });
-
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    }
-                }
-                else
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        static_for<0, staged_num_mfma_per_ds_write_a - 2, 1>{}([&](auto i_mfma) {
-                            ignore = i_mfma;
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        });
-
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        static_for<0, staged_num_mfma_per_ds_write_a - 1, 1>{}([&](auto i_mfma) {
-                            ignore = i_mfma;
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        });
-
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    }
-                }
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else if constexpr(stage.value == 2)
-        {
-            // A VMEM access.
-            constexpr auto staged_num_mfma_per_buffer_load_a =
-                math::integer_divide_ceil(staged_num_mfma, num_buffer_load_inst_a);
-
-            constexpr auto stage_more_mfma =
-                staged_num_mfma - (staged_num_mfma_per_buffer_load_a - 1) * num_buffer_load_inst_a;
-
-            // A global
-            static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i_inst) {
-                if constexpr(i_inst.value < stage_more_mfma)
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        static_for<0, staged_num_mfma_per_buffer_load_a - 1, 1>{}([&](auto i_mfma) {
-                            ignore = i_mfma;
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        });
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        static_for<0, staged_num_mfma_per_buffer_load_a, 1>{}([&](auto i_mfma) {
-                            ignore = i_mfma;
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        });
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    }
-                }
-                else
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        static_for<0, staged_num_mfma_per_buffer_load_a - 2, 1>{}([&](auto i_mfma) {
-                            ignore = i_mfma;
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        });
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        static_for<0, staged_num_mfma_per_buffer_load_a - 1, 1>{}([&](auto i_mfma) {
-                            ignore = i_mfma;
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        });
-
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    }
-                }
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else
-        {
-            // A local Read
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                ignore = i_inst;
-                static_for<0, staged_num_mfma_per_ds_read_a, 1>{}([&](auto i_mfma) {
-                    ignore = i_mfma;
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                });
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-#elif 1
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
         constexpr auto num_ds_read_inst_a =
@@ -439,6 +262,13 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
         // B global read
         static_for<0, buffer_load_b_stages, 1>{}([&](auto i) {
+            // Scale load, 1B
+            if constexpr (i.value==0){
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            }
+            // Scale load, 1A
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
 
@@ -456,11 +286,15 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 {
                     __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
                 }
+                __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
             });
+            // __builtin_amdgcn_sched_barrier(0);
         });
 
         // A global read + A local write
         static_for<0, buffer_load_a_stages, 1>{}([&](auto i) {
+            // Scale load, 1A
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
@@ -485,7 +319,9 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 {
                     __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
                 }
+                __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
             });
+            // __builtin_amdgcn_sched_barrier(0);
         });
 
         // lds synchronization, prefetch next loop local A
@@ -493,13 +329,19 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             ignore = i;
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                // Scale load, 1A
+                if constexpr(imfma == 0){
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                }
+
                 if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                 {
                     __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
                 }
+                __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
             });
+            // __builtin_amdgcn_sched_barrier(0);
         });
-#endif
     }
 
     template <bool HasMainLoop,
@@ -577,12 +419,17 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
         StaticallyIndexedArray<decltype(b_thread_buf), Number<2>{}> b_thread_bufs;
         constexpr auto b_block_origin_idx = make_tuple(I0, I0, I0, I0);
+
         auto a_scale_thread_buf           = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
             a_scale_thread_desc.GetElementSpaceSize());
         auto b_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
             b_scale_thread_desc.GetElementSpaceSize());
         auto c_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
             c_scale_thread_desc.GetElementSpaceSize());
+
+        StaticallyIndexedArray<decltype(a_scale_thread_buf), Number<2>{}> a_scale_thread_bufs;
+        StaticallyIndexedArray<decltype(b_scale_thread_buf), Number<2>{}> b_scale_thread_bufs;
+        // StaticallyIndexedArray<decltype(c_scale_thread_buf), Number<2>{}> c_scale_thread_bufs;
 
         // Global prefetch A1 B1, AScale1 BScale1
         b_blockwise_copy.Run(b_grid_desc,
@@ -601,7 +448,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                     a_scale_grid_buf,
                                     a_scale_thread_desc,
                                     make_tuple(m0, I0),
-                                    a_scale_thread_buf);
+                                    a_scale_thread_bufs(I0));
             a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
                                                    a_scale_thread_copy_step.At(Number<0>{}));
         });
@@ -621,12 +468,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                 b_scale_grid_buf,
                                 b_scale_thread_desc,
                                 make_tuple(I0, I0),
-                                b_scale_thread_buf);
+                                b_scale_thread_bufs(I0));
 
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
-            c_scale_thread_buf(m0) = __builtin_elementwise_fma(a_scale_thread_buf[m0], b_scale_thread_buf[I0], .0f);
+            c_scale_thread_buf(m0) = a_scale_thread_bufs[I0][m0] * b_scale_thread_bufs[I0][I0];
         });
 
         // Local prefill A1
@@ -636,12 +483,13 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
+#if 1
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             a_scale_thread_copy.Run(a_scale_grid_desc,
                                     a_scale_grid_buf,
                                     a_scale_thread_desc,
                                     make_tuple(m0, I0),
-                                    a_scale_thread_buf);
+                                    a_scale_thread_bufs(I0));
             a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
                                                    a_scale_thread_copy_step.At(Number<0>{}));
         });
@@ -661,13 +509,16 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                 b_scale_grid_buf,
                                 b_scale_thread_desc,
                                 make_tuple(I0, I0),
-                                b_scale_thread_buf);
+                                b_scale_thread_bufs(I0));
 
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
-
+#endif
         // Initialize C
         c_thread_buf.Clear();
 
+        // Double register buffer for non-scaled gemm computation
+        // 1. Reduce register pressure
+        // 2. Decouple the dependency between mfma instruction and scale-fma instruction following.
         StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                                   AccDataType,
                                   1,
@@ -681,7 +532,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
                     a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                       make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                        a_block_buf.At(I0),
                                        a_thread_desc_,
                                        make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
@@ -690,6 +541,32 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             });
         });
 
+#if 0
+        static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+            c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
+                .template AsType<AccDataType>()(Number<t>{}) = 0;
+        });
+
+        // Fill first mfma buffer
+        static_for<0, KRepeat, 1>{}([&](auto k0) {
+            vector_type<ComputeDataType, KPack> a_thread_vec;
+            vector_type<ComputeDataType, KPack> b_thread_vec;
+
+            static_for<0, KPack, 1>{}([&](auto ik) {
+                a_thread_vec.template AsType<ComputeDataType>()(ik) = a_thread_buf
+                    [Number<a_thread_desc_.CalculateOffset(make_tuple(I0, I0, I0, k0, I0, ik))>{}];
+                b_thread_vec.template AsType<ComputeDataType>()(ik) = b_thread_bufs
+                    [I0][Number<b_thread_desc_.CalculateOffset(make_tuple(I0, I0, k0, ik))>{}];
+            });
+
+            using mfma_input_type =
+                typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+            xdlops_gemm.template Run<>(a_thread_vec.template AsType<mfma_input_type>(),
+                                       b_thread_vec.template AsType<mfma_input_type>(),
+                                       c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
+        });
+#endif
         __builtin_amdgcn_sched_barrier(0);
 
         // main body
@@ -709,6 +586,36 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(local_read_buf));
                     a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                    
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        a_scale_thread_copy.Run(a_scale_grid_desc,
+                                                a_scale_grid_buf,
+                                                a_scale_thread_desc,
+                                                make_tuple(m0, I0),
+                                                a_scale_thread_bufs(local_read_buf));
+                        a_scale_thread_copy.MoveSrcSliceWindow(
+                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<0>{}));
+                    });
+
+                    if constexpr(NumKBlockPerScale == 1)
+                    {
+                        a_scale_thread_copy.MoveSrcSliceWindow(
+                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<2>{}));
+                    }
+                    else
+                    {
+                        a_scale_thread_copy.MoveSrcSliceWindow(
+                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<1>{}));
+                    }
+
+                    b_scale_thread_copy.Run(b_scale_grid_desc,
+                                            b_scale_grid_buf,
+                                            b_scale_thread_desc,
+                                            make_tuple(I0, I0),
+                                            b_scale_thread_bufs(local_read_buf));
+
+                    b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
+                                                           b_scale_thread_copy_step);
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         vector_type<AccDataType, 2> c_scale_thread_vec;
@@ -779,7 +686,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                         make_tuple(Number<(m0 + 2) % MRepeat>{},
                                                    I0,
                                                    I0,
-                                                   Number<k0 * 2 + kg0>{},
+                                                   Number<k0 * KGroup + kg0>{},
                                                    I0,
                                                    I0),
                                         a_block_buf.At(local_read_buf),
@@ -805,7 +712,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                         make_tuple(Number<(m0 + 2) % MRepeat>{},
                                                    I0,
                                                    I0,
-                                                   Number<k0 * 2 + kg0>{},
+                                                   Number<k0 * KGroup + kg0>{},
                                                    I0,
                                                    I0),
                                         a_block_buf.At(local_read_buf),
@@ -831,7 +738,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                         make_tuple(Number<(m0 + 2) % MRepeat>{},
                                                    I0,
                                                    I0,
-                                                   Number<k0 * 2 + kg0>{},
+                                                   Number<k0 * KGroup + kg0>{},
                                                    I0,
                                                    I0),
                                         a_block_buf.At(mfma_reg_buf),
@@ -849,44 +756,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             });
                         }
                     });
+
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        c_scale_thread_buf(m0) = a_scale_thread_bufs[mfma_reg_buf][m0] * b_scale_thread_bufs[mfma_reg_buf][I0];
+                    });
+
                     HotLoopScheduler();
-                    __builtin_amdgcn_sched_barrier(0);
-
-                    static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        c_scale_thread_buf(m0) = __builtin_elementwise_fma(a_scale_thread_buf[m0], b_scale_thread_buf[I0], .0f);
-                    });
-
-                    static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        a_scale_thread_copy.Run(a_scale_grid_desc,
-                                                a_scale_grid_buf,
-                                                a_scale_thread_desc,
-                                                make_tuple(m0, I0),
-                                                a_scale_thread_buf);
-                        a_scale_thread_copy.MoveSrcSliceWindow(
-                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<0>{}));
-                    });
-
-                    if constexpr(NumKBlockPerScale == 1)
-                    {
-                        a_scale_thread_copy.MoveSrcSliceWindow(
-                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<2>{}));
-                    }
-                    else
-                    {
-                        a_scale_thread_copy.MoveSrcSliceWindow(
-                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<1>{}));
-                    }
-
-                    b_scale_thread_copy.Run(b_scale_grid_desc,
-                                            b_scale_grid_buf,
-                                            b_scale_thread_desc,
-                                            make_tuple(I0, I0),
-                                            b_scale_thread_buf);
-
-                    b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                                           b_scale_thread_copy_step);
-
-                    // __builtin_amdgcn_sched_group_barrier(0x020, MRepeat + 1, 0); // VMEM read
                     __builtin_amdgcn_sched_barrier(0);
                 };
 
@@ -907,7 +782,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                  b_thread_bufs(I1));
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
 
-            static_for<0, MRepeat, 1>{}([&](auto m0) {
+            static_for<0, MRepeat, 1>{}([&](auto m0) {                                                       
                 vector_type<AccDataType, 2> c_scale_thread_vec;
                 c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
                     c_scale_thread_buf[m0];
@@ -968,7 +843,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                 make_tuple(Number<(m0 + 2) % MRepeat>{},
                                            I0,
                                            I0,
-                                           Number<k0 * 2 + kg0>{},
+                                           Number<k0 * KGroup + kg0>{},
                                            I0,
                                            I0),
                                 a_block_buf.At(I1),
@@ -988,7 +863,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                 make_tuple(Number<(m0 + 2) % MRepeat>{},
                                            I0,
                                            I0,
-                                           Number<k0 * 2 + kg0>{},
+                                           Number<k0 * KGroup + kg0>{},
                                            I0,
                                            I0),
                                 a_block_buf.At(I1),
@@ -1008,7 +883,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                 make_tuple(Number<(m0 + 2) % MRepeat>{},
                                            I0,
                                            I0,
-                                           Number<k0 * 2 + kg0>{},
+                                           Number<k0 * KGroup + kg0>{},
                                            I0,
                                            I0),
                                 a_block_buf.At(I0),
@@ -1024,7 +899,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             HotLoopScheduler();
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                c_scale_thread_buf(m0) = __builtin_elementwise_fma(a_scale_thread_buf[m0], b_scale_thread_buf[I0], .0f);
+                c_scale_thread_buf(m0) = a_scale_thread_bufs[I0][m0] * b_scale_thread_bufs[I0][I0];
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -1083,7 +958,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             a_thread_copy_.Run(
                                 a_block_desc_m0_m1_m2_k0_k1_k2,
                                 make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                 a_block_buf.At(I1),
                                 a_thread_desc_,
                                 make_tuple(Number<(m0 + 2 + HotloopLocalBufSwitch) % 2>{},
@@ -1159,7 +1034,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             a_thread_copy_.Run(
                                 a_block_desc_m0_m1_m2_k0_k1_k2,
                                 make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                 a_block_buf.At(I0),
                                 a_thread_desc_,
                                 make_tuple(

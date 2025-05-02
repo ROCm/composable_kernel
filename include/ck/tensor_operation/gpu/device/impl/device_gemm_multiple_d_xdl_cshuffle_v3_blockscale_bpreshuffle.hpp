@@ -266,6 +266,7 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
+                    #if 0
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
                         const auto kernel =
@@ -288,6 +289,15 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
                                 TailNumber::Even>;
                         Run(kernel);
                     }
+                    #endif
+                    const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3_multi_d_blockscale_b_preshuffle_2lds<
+                                GridwiseGemm,
+                                true,
+                                InMemoryDataOperationEnum::Set,
+                                minimum_occupancy,
+                                TailNumber::Even>;
+                    Run(kernel);
                 }
             }
             else
