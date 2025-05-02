@@ -222,21 +222,12 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                                  a_dram_block_window_tmp.get_window_origin(),
                                  Policy::template MakeADramTileDistribution<Problem>());
 
-            // static_assert(is_tile_window_with_static_distribution_v<decltype(a_copy_dram_window)>,
-            //                      "a_copy_dram_window must be tile_window_with_static_distribution");
-
-            // static_assert(is_tile_window_linear_v<decltype(a_copy_dram_window)>,
-            //                      "a_copy_dram_window must be tile_window_linear");
-
             // B DRAM tile window for load
             auto b_copy_dram_window =
                 make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
                                  make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
                                  b_dram_block_window_tmp.get_window_origin(),
                                  Policy::template MakeBDramTileDistribution<Problem>());
-
-            // static_assert((is_tile_window_linear_v<decltype(b_copy_dram_window)>),
-            //                     "b_copy_dram_window must not be tile_window_linear");
 
             // A register tile for global load
             constexpr auto ABlockTileDistr = a_copy_dram_window.get_tile_distribution();
@@ -274,7 +265,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             auto b_copy_lds_window1 = make_tile_window(
                 b_lds_block1, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
 
-            
             // Block GEMM
             auto block_gemm   = BlockGemm();
             auto c_block_tile = block_gemm.MakeCBlockTile();
@@ -346,22 +336,11 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                                  make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
                                  {0, 0},
                                  BLdsTileDistr);
-            
-            // LDS swizzled windows can not be linear
-            // static_assert(decltype(a_lds_ld_window0)::WindowTypeEnum != TileWindowType::Linear,
-            // "LDS Swizzled window is not supported with linear layout");
-            // static_assert(decltype(a_lds_ld_window1)::WindowTypeEnum != TileWindowType::Linear,
-            // "LDS Swizzled window is not supported with linear layout");
-            // static_assert(decltype(b_lds_ld_window0)::WindowTypeEnum != TileWindowType::Linear,
-            // "LDS Swizzled window is not supported with linear layout");
-            // static_assert(decltype(b_lds_ld_window1)::WindowTypeEnum != TileWindowType::Linear,
-            // "LDS Swizzled window is not supported with linear layout");
 
             static_assert(
-                !(is_tile_window_linear_v<decltype(a_lds_ld_window0)>) &&
-                !(is_tile_window_linear_v<decltype(a_lds_ld_window1)>) &&
-                !(is_tile_window_linear_v<decltype(b_lds_ld_window0)>) &&
-                !(is_tile_window_linear_v<decltype(b_lds_ld_window1)>),
+                !(is_tile_window_linear_v<decltype(a_lds_ld_window0)>)&&!(is_tile_window_linear_v<decltype(a_lds_ld_window1)>)&&!(
+                    is_tile_window_linear_v<
+                        decltype(b_lds_ld_window0)>)&&!(is_tile_window_linear_v<decltype(b_lds_ld_window1)>),
                 "LDS windows must not be linear");
 
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
