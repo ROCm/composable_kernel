@@ -16,7 +16,8 @@ namespace ck_tile {
 // placeholder type if we want to opt-out a tile window parameter
 template <typename WindowLengths_>
 struct null_tile_window
-{
+{   
+    static constexpr TileWindowType WindowTypeEnum = TileWindowType::Null;
     using BottomTensorView = null_tensor_view;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
 

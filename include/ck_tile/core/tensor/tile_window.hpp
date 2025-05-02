@@ -34,7 +34,8 @@ template <typename BottomTensorView_,
           typename StaticTileDistribution_,
           index_t NumCoord>
 struct tile_window_with_static_distribution
-{
+{   
+    static constexpr TileWindowType WindowTypeEnum = TileWindowType::StaticDistribution;
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
@@ -1037,7 +1038,8 @@ CK_TILE_DEVICE void move_tile_window(
  */
 template <typename BottomTensorView_, typename WindowLengths_>
 struct tile_window_with_static_lengths
-{
+{   
+    static constexpr TileWindowType WindowTypeEnum = TileWindowType::StaticLengths;
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using BottomTensorDesc = typename BottomTensorView::TensorDesc;

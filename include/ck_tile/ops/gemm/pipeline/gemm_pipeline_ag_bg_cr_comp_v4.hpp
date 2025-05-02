@@ -265,6 +265,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             auto b_copy_lds_window1 = make_tile_window(
                 b_lds_block1, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
 
+            
             // Block GEMM
             auto block_gemm   = BlockGemm();
             auto c_block_tile = block_gemm.MakeCBlockTile();
@@ -336,6 +337,16 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                                  make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
                                  {0, 0},
                                  BLdsTileDistr);
+
+            static_assert(decltype(a_lds_ld_window0)::WindowTypeEnum != TileWindowType::Linear,
+            "LDS Swizzled window is not supported with linear layout");
+            static_assert(decltype(a_lds_ld_window1)::WindowTypeEnum != TileWindowType::Linear,
+            "LDS Swizzled window is not supported with linear layout");
+            static_assert(decltype(b_lds_ld_window0)::WindowTypeEnum != TileWindowType::Linear,
+            "LDS Swizzled window is not supported with linear layout");
+            static_assert(decltype(b_lds_ld_window1)::WindowTypeEnum != TileWindowType::Linear,
+            "LDS Swizzled window is not supported with linear layout");
+                 
 
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);

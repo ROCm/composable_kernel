@@ -43,7 +43,9 @@ template <typename BottomTensorView_,
           typename StaticTileDistribution_,
           typename LinearBottomDims_>
 struct tile_window_linear
-{
+{   
+    static constexpr TileWindowType WindowTypeEnum = TileWindowType::Linear;
+
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
