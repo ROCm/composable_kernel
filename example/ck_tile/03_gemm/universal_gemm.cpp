@@ -13,9 +13,12 @@
 #include "gemm_utils.hpp"
 
 template <typename Pipeline, ck_tile::TailNumber TN>
- void try_run(ck_tile::TailNumber tn) {
-    if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN)) {
-        if (tn == TN) {
+void try_run(ck_tile::TailNumber tn)
+{
+    if constexpr(Pipeline::PrefetchStages > static_cast<int>(TN))
+    {
+        if(tn == TN)
+        {
             Run(ck_tile::bool_constant<true>{},
                 ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
         }
@@ -153,26 +156,27 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             throw std::runtime_error(err.str());
         }
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-    if (tail_num == ck_tile::TailNumber::One) {
-        Run(ck_tile::bool_constant<true>{},
-            ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
-    } else if (tail_num == ck_tile::TailNumber::Full) {
-        Run(ck_tile::bool_constant<true>{},
-            ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-    }
+        if(tail_num == ck_tile::TailNumber::One)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Full)
+        {
+            Run(ck_tile::bool_constant<true>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+        }
 
-    auto check_tail = [&](auto... TNs) {
-        (try_run< BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
-    };
-    
-    check_tail(
-        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
-        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
-        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
-        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
-        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
-        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{}
-    );
+        auto check_tail = [&](auto... TNs) {
+            (try_run<BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
+        };
+
+        check_tail(ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
 
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
         if(tail_num == ck_tile::TailNumber::Three)
