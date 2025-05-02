@@ -79,52 +79,30 @@ HOT_LOOP_FALSE = """
             }  
 """
 RUN_MEM = """
-            if(tail_num == ck_tile::TailNumber::One)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
-            }
-            else if(tail_num == ck_tile::TailNumber::Full)
-            {
-                Run(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
+// Handle One and Full cases directly
+if (tail_num == ck_tile::TailNumber::One) {
+    Run(ck_tile::bool_constant<true>{},
+        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
+} else if (tail_num == ck_tile::TailNumber::Full) {
+    Run(ck_tile::bool_constant<true>{},
+        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+}
 
-            if constexpr(BaseGemmPipeline::PrefetchStages > 2)
-            {
-                if(tail_num == ck_tile::TailNumber::Two)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
-                }
-        
-                if(tail_num == ck_tile::TailNumber::Three)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Four)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Five)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Six)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Seven)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
-                }
-                throw std::runtime_error("The tile number is wrong! It should not exceed the prefetch stage numbers");
-            }
+
+// Variadic call using fold expression
+auto check_tail = [&](auto... TNs) {
+    (mem_cshuffle_intrawave_pad_false_false_false::try_run<BaseGemmPipeline, TNs>(tail_num), ...);
+};
+
+check_tail(
+    ck_tile::TailNumber::Two,
+    ck_tile::TailNumber::Three,
+    ck_tile::TailNumber::Four,
+    ck_tile::TailNumber::Five,
+    ck_tile::TailNumber::Six,
+    ck_tile::TailNumber::Seven
+);
+           
 """
 
 RUN_COMPV3 = """
@@ -334,19 +312,30 @@ using CLayout = {LAYOUT_MAP[self.config.layouts[2]]};
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/host.hpp"
+namespace{{
 
+}}
 namespace {group_name} {{
 """
         # Add template struct with configuration
-        content += self._generate_kernel_struct(pipeline, epilogue, scheduler, kPadM, kPadN, kPadK)
+        content += self._generate_kernel_struct(group_name, pipeline, epilogue, scheduler, kPadM, kPadN, kPadK)
 
         content += f"\n}} // namespace {group_name}\n"
         (self.output_dir / filename).write_text(content)
 
-    def _generate_kernel_struct(self, pipeline: str, epilogue: str, scheduler: str,
+    def _generate_kernel_struct(self, group_name, pipeline: str, epilogue: str, scheduler: str,
                                kPadM: bool, kPadN: bool, kPadK: bool) -> str:
         """Generate kernel struct template"""
         return f"""
+template <typename Pipeline, ck_tile::TailNumber TN>
+ void try_run(ck_tile::TailNumber tn) {{
+        if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN)) {{
+            if (tn == TN) {{
+                Run(ck_tile::bool_constant<true>{{}},
+                    ck_tile::integral_constant<ck_tile::TailNumber, TN>{{}});
+            }}
+        }}
+    }}
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
           int WarpTileM, int WarpTileN, int WarpTileK,
@@ -355,7 +344,8 @@ struct GemmKernel {{
     static constexpr bool kPadM = {BOOL_MAP(kPadM)};
     static constexpr bool kPadN = {BOOL_MAP(kPadN)};
     static constexpr bool kPadK = {BOOL_MAP(kPadK)};
-
+   
+   
     static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s) {{
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;

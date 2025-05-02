@@ -13,19 +13,19 @@
       "values": ["fp16"]
     },
     "tile_m": {
-      "values": [256]
+      "values": [128]
     },
     "tile_n": {
-      "values": [256]
+      "values": [32]
     },
     "tile_k": {
-      "values": [64, 32]
+      "values": [64]
     },
     "warp_m": {
-      "values": [2]
+      "values": [4]
     },
     "warp_n": {
-      "values": [2]
+      "values": [1]
     },
     "warp_k": {
       "values": [1]
@@ -37,7 +37,7 @@
       "values": [32]
     },
     "warp_tile_k": {
-      "values": [16]
+      "values": [8]
     },
     "kPadM": {
       "values": [false]
@@ -49,12 +49,12 @@
       "values": [false]
     },
     "pipeline": {
-      "values": ["compv3", "compv4", "mem"]
+      "values": ["mem"]
     },
     "scheduler": {
-      "values": ["intrawave", "interwave"]
+      "values": ["intrawave"]
     },
     "epilogue": {
-      "values": ["default", "cshuffle"]
+      "values": ["cshuffle"]
     }
 }
