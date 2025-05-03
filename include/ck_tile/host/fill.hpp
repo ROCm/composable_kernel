@@ -17,13 +17,30 @@
 
 namespace ck_tile {
 
+/**
+ * @brief Functor for filling a range with randomly generated values from a uniform distribution.
+ * 
+ * This struct provides functionality to fill iterators or ranges with random values 
+ * generated from a uniform distribution. It supports both single-threaded and 
+ * multi-threaded operation.
+ * 
+ * @tparam T The target type for the generated values.
+ * 
+ * @note The multi-threaded implementation is not guaranteed to provide perfectly 
+ * distributed values across threads.
+ * 
+ * @example  
+ *     
+ *     // Direct usage without creating a separate variable:
+ *     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_host_tensor);
+ */
 template <typename T>
 struct FillUniformDistribution
 {
     float a_{-5.f};
     float b_{5.f};
     std::optional<uint32_t> seed_{11939};
-    // ATTENTION: threaded does not guarantee the distribution between thread
+    // ATTENTION: Whether to use multi-threading (note: not guaranteed to be perfectly distributed across threads).
     bool threaded = false;
 
     template <typename ForwardIter>
@@ -33,46 +50,7 @@ struct FillUniformDistribution
         {
             uint32_t num_thread  = std::thread::hardware_concurrency();
             auto total           = static_cast<std::size_t>(std::distance(first, last));
-            auto work_per_thread = static_cast<std::size_t>((total + num_thread - 1) / num_thread);
-
-            std::vector<joinable_thread> threads(num_thread);
-            for(std::size_t it = 0; it < num_thread; ++it)
-            {
-                std::size_t iw_begin = it * work_per_thread;
-                std::size_t iw_end   = std::min((it + 1) * work_per_thread, total);
-                auto thread_f        = [this, total, iw_begin, iw_end, &first] {
-                    if(iw_begin > total || iw_end > total)
-                        return;
-                    // need to make each thread unique, add an offset to current seed
-                    std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                              : std::random_device{}());
-                    std::uniform_real_distribution<float> dis(a_, b_);
-                    std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
-                        return ck_tile::type_convert<T>(dis(gen));
-                    });
-                };
-                threads[it] = joinable_thread(thread_f);
-            }
-        }
-        else
-        {
-            std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
-            std::uniform_real_distribution<float> dis(a_, b_);
-            std::generate(
-                first, last, [&dis, &gen]() { return ck_tile::type_convert<T>(dis(gen)); });
-        }
-    }
-
-    template <typename ForwardRange>
-    auto operator()(ForwardRange&& range) const
-        -> std::void_t<decltype(std::declval<const FillUniformDistribution&>()(
-            std::begin(std::forward<ForwardRange>(range)),
-            std::end(std::forward<ForwardRange>(range))))>
-    {
-        (*this)(std::begin(std::forward<ForwardRange>(range)),
-                std::end(std::forward<ForwardRange>(range)));
-    }
-};
+            auto work_per_thread = static_cast<std::size_t>((total + num_thread - 
 
 namespace impl {
 
