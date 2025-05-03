@@ -36,6 +36,7 @@ set(REGRESSION_TESTS
     test_batchnorm_bwd_rank_4
     test_grouped_convnd_bwd_data_xdl
     test_conv_tensor_rearrange
+    test_gemm_mx
 )
 
 function(add_test_executable TEST_NAME)
