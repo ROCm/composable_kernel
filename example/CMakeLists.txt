@@ -5,7 +5,6 @@ include_directories(BEFORE
 
 add_custom_target(examples)
 
-
 # list of examples that are labelled as REGRESSION_EXAMPLE for make regression (runtime more than 30 seconds)
 # all other tests are labelled as SMOKE_EXAMPLE
 set(REGRESSION_EXAMPLES
@@ -232,6 +231,9 @@ endfunction(add_example_executable_no_testing EXAMPLE_NAME)
 
 # add all example subdir
 file(GLOB dir_list LIST_DIRECTORIES true *)
+if (NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+    list(FILTER dir_list EXCLUDE REGEX ".*/ck_tile")
+endif()
 FOREACH(subdir ${dir_list})
     if(IS_DIRECTORY "${subdir}" AND EXISTS "${subdir}/CMakeLists.txt")
         add_subdirectory(${subdir})
