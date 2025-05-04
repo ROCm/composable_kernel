@@ -65,6 +65,27 @@ bool profile_gemm_b_scale_impl(int do_verification,
             }
         };
 
+    auto f_get_default_stride =
+        [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
+            if(stride == -1)
+            {
+                // give a chance if stride is -1, return a default packed stride
+                if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
+                {
+                    return static_cast<std::size_t>(col);
+                }
+                else
+                {
+                    return static_cast<std::size_t>(row);
+                }
+            }
+            else
+                return static_cast<std::size_t>(stride);
+        };
+
+    StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
+    StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
+    StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
     ck::index_t Scale_Stride_BN = ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
                                       : N;
@@ -159,21 +180,28 @@ bool profile_gemm_b_scale_impl(int do_verification,
         {
             for(int k = 0; k < K; k++)
             {
-                ck::pk_i4_t i4x2 = b_k_n(k, n).data;
-                int8_t i4        = 0;
-                if(k % 2 == 1)
-                    i4 = (i4x2.data >> 0) & 0xf;
-                else
-                    i4 = (i4x2.data >> 4) & 0xf;
-                i4  = i4 - 8;
-                v_b = ck::type_convert<float>(i4);
+                if constexpr(is_same_v<BDataType, pk_i4_t>)
+                {
+                    ck::pk_i4_t i4x2 = b_k_n(k, n).data;
+                    int8_t i4        = 0;
+                    if(k % 2 == 1)
+                        i4 = (i4x2.data >> 0) & 0xf;
+                    else
+                        i4 = (i4x2.data >> 4) & 0xf;
+                    i4  = i4 - 8;
+                    v_b = ck::type_convert<float>(i4);
+                }
+                else if constexpr(is_same_v<BDataType, int8_t>)
+                {
+                    v_b = ck::type_convert<float>(b_k_n(k, n));
+                }
 
                 b_k_n_dequant(k, n) = ck::type_convert<float>(v_b) *
                                       ck::type_convert<float>(b1_k_n(k / ScaleBlockK, n));
             }
         }
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                BDataType,
+                                                                                float,
                                                                                 CDataType,
                                                                                 AccDataType,
                                                                                 AElementOp,
@@ -218,7 +246,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
                 }
             }
 
-            if(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
+            if constexpr(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
             {
                 // vector pk_i4x4 permute
                 for(int i = 0; i < N; i++)
