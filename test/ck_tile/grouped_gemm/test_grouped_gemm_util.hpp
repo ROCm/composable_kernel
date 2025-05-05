@@ -24,6 +24,10 @@ class TestCkTileGroupedGemm : public ::testing::Test
     using AccDataType = std::tuple_element_t<5, Tuple>;
     using CDataType   = std::tuple_element_t<6, Tuple>;
 
+    // Get the persistent value from bool_constant
+    using PersistentType             = std::tuple_element_t<7, Tuple>;
+    static constexpr bool Persistent = PersistentType::value;
+
     struct GroupedGemKernelParam
     {
         static const bool kPadM = false;
@@ -50,7 +54,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
     }
 
-    template <typename ALayout, typename BLayout, typename CLayout>
+    template <typename ALayout, typename BLayout, typename CLayout, bool Persistent>
     void invoke_grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                              const ck_tile::stream_config& s,
                              void* p_workspace_)
@@ -87,7 +91,9 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                                      ALayout,
                                                                      BLayout,
                                                                      CLayout,
-                                                                     TransposeC>;
+                                                                     TransposeC,
+                                                                     false,
+                                                                     Persistent>;
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -139,7 +145,15 @@ class TestCkTileGroupedGemm : public ::testing::Test
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
 
-            const dim3 grids      = Kernel::GridSize(gemm_descs);
+            dim3 grids;
+            if constexpr (Persistent)
+            {
+                grids = Kernel::MaxOccupancyGridSize();
+            }
+            else
+            {
+                grids = Kernel::GridSize(gemm_descs);
+            }
             constexpr dim3 blocks = Kernel::BlockSize();
 
             ck_tile::hip_check_error(hipMemcpyWithStream(p_workspace_,
@@ -324,7 +338,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         ck_tile::DeviceMem gemm_workspace;
         gemm_workspace.Realloc(get_workspace_size(gemm_descs));
 
-        invoke_grouped_gemm<ALayout, BLayout, CLayout>(
+        invoke_grouped_gemm<ALayout, BLayout, CLayout, Persistent>(
             gemm_descs, ck_tile::stream_config{nullptr, false}, gemm_workspace.GetDeviceBuffer());
 
         for(int i = 0; i < group_count; i++)
