@@ -968,7 +968,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
             return b_lds_block_desc_bk0_n_bk1;
         }
     }
-
     
     __device__ static constexpr auto GetBScaleGridDescriptor_N_K(const Problem& problem)
     {
