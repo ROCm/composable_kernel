@@ -14,6 +14,8 @@
 #endif
 #include "generic_memory_space_atomic.hpp"
 
+
+
 namespace ck {
 
 // T may be scalar or vector
@@ -138,7 +140,8 @@ struct DynamicBuffer
     template <InMemoryDataOperationEnum Op,
               typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                         typename scalar_type<remove_cvref_t<T>>::type>::value ||
+                                         !is_native_type<X>(),
                                  bool>::type = false>
     __host__ __device__ void Update(index_t i, bool is_valid_element, const X& x)
     {
@@ -158,6 +161,8 @@ struct DynamicBuffer
         {
             auto tmp       = this->template Get<X>(i, is_valid_element);
             using scalar_t = typename scalar_type<remove_cvref_t<T>>::type;
+            
+#if 0
             // handle bfloat addition
             if constexpr(is_same_v<scalar_t, bhalf_t>)
             {
@@ -186,6 +191,34 @@ struct DynamicBuffer
             {
                 this->template Set<X>(i, is_valid_element, x + tmp);
             }
+#endif
+
+            // Properly handle addition for all low-precision types
+            if constexpr(is_same_v<scalar_t, bhalf_t> || is_same_v<scalar_t, half_t>)
+            {
+                if constexpr(is_scalar_type<X>::value)
+                {
+                    // Scalar type: Convert to float, add, convert back
+                    auto result = type_convert<X>(type_convert<float>(x) + type_convert<float>(tmp));
+                    this->template Set<X>(i, is_valid_element, result);
+                }
+                else
+                {
+                    // Vector type
+                    constexpr auto vector_size = scalar_type<remove_cvref_t<X>>::vector_size;
+                    const vector_type<scalar_t, vector_size> a_vector{tmp};
+                    const vector_type<scalar_t, vector_size> b_vector{x};
+                    
+                    // Process each element of the vector in higher precision
+                    static_for<0, vector_size, 1>{}([&](auto idx) {
+                        auto result = type_convert<scalar_t>(
+                            type_convert<float>(a_vector.template AsType<scalar_t>()[idx]) +
+                            type_convert<float>(b_vector.template AsType<scalar_t>()[idx]));
+                        this->template Set<scalar_t>(i + idx, is_valid_element, result);
+                    });
+                }
+            }
+
         }
     }
 
@@ -239,9 +272,33 @@ struct DynamicBuffer
         if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
+            
+            // To Fix Compilation Error Stream-K reduction caused by type convertion
+#if 0
             amd_buffer_store<remove_cvref_t<T>, t_per_x, coherence>(
                 x, p_data_, i, is_valid_element, element_space_size_ / PackedSize);
+#endif
+          
+#if 1
+            using vector_t = typename vector_type_maker<remove_cvref_t<T>, t_per_x>::type::type;
+            vector_t tmp;
+
+            // Convert the x value to the appropriate vector type
+            if constexpr(std::is_same_v<remove_cvref_t<X>, vector_t>)
+            {
+                // If x is already the correct type, use it directly
+                tmp = x;
+            }
+            else
+            {
+                // Otherwise, use memory copy to safely convert between types
+                __builtin_memcpy(&tmp, &x, sizeof(vector_t));
+            }
+
+            amd_buffer_store<remove_cvref_t<T>, t_per_x, coherence>(
+                tmp, p_data_, i, is_valid_element, element_space_size_ / PackedSize);
+#endif
+
         }
         else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds &&
                           is_same<typename scalar_type<remove_cvref_t<T>>::type, int8_t>::value &&
