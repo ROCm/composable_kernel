@@ -42,7 +42,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
     using Base                    = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
-    using Kernel                  = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
+    using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
 
     static constexpr index_t KernelBlockSize  = GemmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = GemmPipeline::UsePersistentKernel;
@@ -66,8 +66,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
     }
 
-    CK_TILE_HOST static auto GetWorkSpaceSize(index_t group_count)
-        -> std::size_t
+    CK_TILE_HOST static auto GetWorkSpaceSize(index_t group_count) -> std::size_t
     {
         return group_count * sizeof(GemmTransKernelArg);
     }
@@ -84,9 +83,10 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     CK_TILE_HOST static auto MaxOccupancyGridSize() -> dim3
     {
         using ConstantPointer = const void CK_CONSTANT_ADDRESS_SPACE*;
-        const auto kernel = kentry<KernelBlockSize, 1, Kernel, ConstantPointer, index_t>;
+        const auto kernel     = kentry<KernelBlockSize, 1, Kernel, ConstantPointer, index_t>;
         int occupancy;
-        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
+        hip_check_error(
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
         hipDeviceProp_t dev_prop;
         hipDevice_t dev;
         hip_check_error(hipGetDevice(&dev));
@@ -159,16 +159,18 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
      * @param [in] group_count   Number of groups.
      * @return The total grid size needed to compute the grouped GEMM.
      */
-    CK_TILE_DEVICE static auto GridUpdateBlocks(GemmTransKernelArg* gemm_desc_ptr, const index_t group_count) -> index_t
+    CK_TILE_DEVICE static auto GridUpdateBlocks(GemmTransKernelArg* gemm_desc_ptr,
+                                                const index_t group_count) -> index_t
     {
         index_t grid_size = 0;
         for(index_t i = 0; i < group_count; ++i)
         {
-            const auto& group            = gemm_desc_ptr[i].group_karg;
-            const auto local_grid_size   = TilePartitioner::GridSize(group.M, group.N) * group.k_batch;
+            const auto& group = gemm_desc_ptr[i].group_karg;
+            const auto local_grid_size =
+                TilePartitioner::GridSize(group.M, group.N) * group.k_batch;
             gemm_desc_ptr[i].block_start = grid_size;
             gemm_desc_ptr[i].block_end   = grid_size + local_grid_size;
-            grid_size                   += local_grid_size;
+            grid_size += local_grid_size;
         }
         return grid_size;
     }
@@ -178,12 +180,14 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs, const tuple<index_t, index_t>& block_idx_2d) const
+    CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs,
+                            const tuple<index_t, index_t>& block_idx_2d) const
     {
         Run(kargs.group_karg, block_idx_2d);
     }
 
-    CK_TILE_DEVICE void Run(const GemmKernelArgs& kargs, const tuple<index_t, index_t>& block_idx_2d) const
+    CK_TILE_DEVICE void Run(const GemmKernelArgs& kargs,
+                            const tuple<index_t, index_t>& block_idx_2d) const
     {
         const auto [iM, iN] = block_idx_2d;
 
@@ -199,17 +203,15 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        this->RunGemm(
-            a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
     }
-    
 
-    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg* gemm_desc_ptr, 
-                                      index_t block_id,
-                                      index_t group_count) const
+    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg* gemm_desc_ptr,
+                                       index_t block_id,
+                                       index_t group_count) const
     {
-        index_t left = 0;
-        index_t right = group_count;
+        index_t left     = 0;
+        index_t right    = group_count;
         index_t group_id = index_t((left + right) >> 1);
 
         while((!(block_id >= gemm_desc_ptr[group_id].block_start &&
@@ -226,19 +228,19 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
             }
             group_id = index_t((left + right) >> 1);
         }
-        
+
         return group_id;
     }
 
     // For non-persistent kernels
-    template <bool U = UsePersistentKernel, 
-              typename = std::enable_if_t<!U>>
+    template <bool U = UsePersistentKernel, typename = std::enable_if_t<!U>>
     CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                  index_t group_count) const {
-        const index_t block_id = ck_tile::get_block_1d_id();
+                                   index_t group_count) const
+    {
+        const index_t block_id   = ck_tile::get_block_1d_id();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
-        
+
         const index_t group_id  = FindGroupId(gemm_desc_ptr, block_id, group_count);
         const auto& kargs       = gemm_desc_ptr[group_id];
         const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
@@ -247,29 +249,31 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     }
 
     // For persistent kernels
-    template <bool U = UsePersistentKernel,
+    template <bool U   = UsePersistentKernel,
               typename = std::enable_if_t<U>,
               typename = void> // extra template parameter to avoid redefinition
-    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const, const index_t group_count) const {
+    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                   const index_t group_count) const
+    {
         const index_t grid_size  = ck_tile::get_grid_size();
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
-        index_t block_id         = ck_tile::get_block_1d_id();  // initial block_id
-        index_t cum_grid_size    = 0;
-        for (index_t group_id = 0; group_id < group_count; ++group_id)
+        index_t block_id      = ck_tile::get_block_1d_id(); // initial block_id
+        index_t cum_grid_size = 0;
+        for(index_t group_id = 0; group_id < group_count; ++group_id)
         {
-            const auto& kargs       = gemm_desc_ptr[group_id].group_karg;
-            const auto block_start  = cum_grid_size;
-            cum_grid_size          += TilePartitioner::GridSize(kargs.M, kargs.N) * kargs.k_batch;
-            while (block_id < cum_grid_size)
+            const auto& kargs      = gemm_desc_ptr[group_id].group_karg;
+            const auto block_start = cum_grid_size;
+            cum_grid_size += TilePartitioner::GridSize(kargs.M, kargs.N) * kargs.k_batch;
+            while(block_id < cum_grid_size)
             {
                 const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
                     block_start, kargs.M, kargs.N, block_id);
                 Run(kargs, block_idx_2d);
-                block_id = block_id + grid_size;  // advance to next block
-                if (block_id >= cum_grid_size)
+                block_id = block_id + grid_size; // advance to next block
+                if(block_id >= cum_grid_size)
                 {
-                    break;  // exit the loop if all blocks are processed
+                    break; // exit the loop if all blocks are processed
                 }
             }
         }
