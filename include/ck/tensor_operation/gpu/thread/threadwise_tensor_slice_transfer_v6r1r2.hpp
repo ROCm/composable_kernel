@@ -116,7 +116,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1r2
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
-            //copy data from dst_vector into dst_buf
+            // copy data from dst_vector into dst_buf
             dst_buf.template Update<DstInMemOp, dst_vector_t>(
                 dst_coord_.GetOffset(),
                 is_dst_valid,

@@ -15,7 +15,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/data_type.hpp"
 
-#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp" 
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -59,8 +59,8 @@ struct ProblemSizeStreamK_universal final
     ck::index_t StrideB = -1;
     ck::index_t StrideC = -1;
 
-    ck::index_t Grid_size   = -1; // defaults to max occupancy
-    ck::index_t Streamk_sel = 1;  // defaults to 1-tile SK
+    ck::index_t Grid_size                           = -1; // defaults to max occupancy
+    ck::index_t Streamk_sel                         = 1;  // defaults to 1-tile SK
     ck::StreamKReductionStrategy reduction_strategy = ck::StreamKReductionStrategy::Atomic;
 };
 
