@@ -42,7 +42,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     for (int i = 0; i < m; i++){
         value = 1;
         for (int j = 0; j < n; j++){
-            x_host(i, j) = value ++;
+            x_host(i, j) = value++;
         }
     }
 
@@ -52,9 +52,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
 
     using BlockWaves = ck_tile::sequence<2, 1>;
-    using BlockTile  = ck_tile::sequence<64, 128>;
-    using WaveTile   = ck_tile::sequence<32, 128>;
-    using Vector     = ck_tile::sequence<8, 8>;
+    using BlockTile  = ck_tile::sequence<64, 8>;
+    using WaveTile   = ck_tile::sequence<64, 8>;
+    using Vector     = ck_tile::sequence<1, 4>;
 
     ck_tile::index_t kGridSize             = (m / BlockTile::at(ck_tile::number<0>{}));
     std::cout << "grid size " << kGridSize << std::endl;
@@ -97,7 +97,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         y_buf.FromDevice(y_host_dev.mData.data());
         pass = ck_tile::check_err(y_host_dev, x_host);
 
-        std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+        std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;       
     }
 
     return pass;

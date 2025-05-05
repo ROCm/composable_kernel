@@ -20,9 +20,8 @@ struct TileCopyShape
     // We split Workgroup waves into two specialized groups.
     // One for reading data from global -> LDS, the other is doing reduction
     static constexpr index_t WaveGroups = 2;
-
-    static constexpr index_t MWarps = BlockWaves::at(number<0>{});
-    static constexpr index_t NWarps = BlockWaves::at(number<0>{});
+    static constexpr index_t MWarps     = BlockWaves::at(number<0>{});
+    static constexpr index_t NWarps     = BlockWaves::at(number<0>{});
 
     static constexpr index_t Block_M = BlockTile::at(number<0>{});
     static constexpr index_t Block_N = BlockTile::at(number<1>{});
@@ -33,23 +32,20 @@ struct TileCopyShape
     static constexpr index_t Vector_M = Vector::at(number<0>{});
     static constexpr index_t Vector_N = Vector::at(number<1>{});
 
+    static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
+    static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
+
     static constexpr index_t WarpPerBlock_M =
         integer_divide_ceil(BlockWaves::at(number<0>{}), WaveGroups);
     static constexpr index_t WarpPerBlock_N =
         integer_divide_ceil(BlockWaves::at(number<1>{}), WaveGroups);
 
-    static constexpr index_t ThreadPerWarp_M = Warp_M / Vector_M;
-    static constexpr index_t ThreadPerWarp_N = Warp_N / Vector_N;
+    static constexpr index_t Repeat_M = Block_M / (WarpPerBlock_M * Warp_M);
+    static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N);
 
-    static constexpr index_t Repeat_M =
-        Block_M / (WarpPerBlock_M * Warp_M);
-    static constexpr index_t Repeat_N =
-        Block_N / (WarpPerBlock_N * Warp_N);
+    static constexpr index_t WaveNum = reduce_on_sequence(BlockWaves{}, multiplies{}, number<1>{});
 
-    static constexpr index_t WaveNum =
-        reduce_on_sequence(BlockWaves{}, multiplies{}, number<1>{});
-
-    static constexpr index_t BlockSize     = get_warp_size() * WaveNum;
+    static constexpr index_t BlockSize = get_warp_size() * WaveNum;
     static constexpr index_t WaveGroupSize = WaveNum / WaveGroups;
     static_assert(WaveGroupSize == WarpPerBlock_M * WarpPerBlock_N, "Inconsisten wave group size!");
 };
@@ -96,37 +92,6 @@ struct TileCopy
         return make_static_tile_distribution(outer_encoding);
     }
 
-    template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto MakeLdsXBlockTileDistribution()
-    {
-        using S                        = typename Problem::BlockShape;
-        constexpr index_t MWarp        = S::MWarps;
-        constexpr index_t NWarp        = S::NWarps;
-        constexpr index_t MIterPerWarp = S::Repeat_M;
-        constexpr index_t NIterPerWarp = S::Repeat_N;
-
-        constexpr auto outer_encoding = tile_distribution_encoding<
-            sequence<1>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 0>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
-
-        using inner_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<S::ThreadPerWarp_M, S::Vector_M>,
-                                             sequence<S::ThreadPerWarp_N, S::Vector_N>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<0, 0>>,
-                                       sequence<1, 2>, 
-                                       sequence<1, 1>>;
-
-        constexpr auto x_block_dstr_enc =
-            detail::make_embed_tile_distribution_encoding(outer_encoding, inner_encoding{});
-        return x_block_dstr_enc;
-    }
-
     CK_TILE_DEVICE void
     operator()(const XDataType* p_x, XDataType* p_y, index_t M, index_t N, index_t warp_id) const
     {
@@ -136,14 +101,12 @@ struct TileCopy
         __shared__ XDataType x_lds[number<S::Block_M>{} * number<S::Block_N>{}];
         XDataType* __restrict__ p_x_lds = static_cast<XDataType*>(x_lds);
 
-        constexpr auto LdsTileDstr =
-            decltype(make_static_tile_distribution(MakeLdsXBlockTileDistribution<Problem>())){};
-
         const auto x_lds_desc = make_naive_tensor_descriptor(
             make_tuple(number<S::Block_M>{}, number<S::Block_N>{}, number<S::Vector_N>{}),
             make_tuple(number<S::Block_N>{}, number<S::Vector_N>{}, 1),
             number<S::Vector_N>{},
             number<1>{});
+
         auto x_lds_block_desc = transform_tensor_descriptor(
             x_lds_desc,
             make_tuple(make_pass_through_transform(number<S::Block_M>{}),
@@ -151,13 +114,14 @@ struct TileCopy
                            make_tuple(number<S::Block_N>{} / S::Vector_N, number<S::Vector_N>{}))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
+
         auto x_lds_view = make_tensor_view<address_space_enum::lds>(p_x_lds, x_lds_block_desc);
 
         auto x_block_lds_window =
             make_tile_window(x_lds_view,
                              make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
                              {0, 0},
-                             LdsTileDstr);
+                             MakeDRAMDistribution<Problem>());
         auto x_block_lds_window_no_dist = make_tile_window(
             x_lds_view, make_tuple(number<S::Block_M>{}, number<S::Block_N>{}), {0, 0});
 
@@ -177,7 +141,6 @@ struct TileCopy
 
         auto y_block_window =
             make_tile_window(y_m, make_tuple(number<S::Block_M>{}, number<S::Block_N>{}), {iM, 0});
-        // LdsTileDstr);
 
         // Programming logic
         index_t num_n_tile_iteration =
@@ -187,14 +150,9 @@ struct TileCopy
         auto DramTileDist   = x_block_window.get_tile_distribution();
         using dram_reg_tile = decltype(make_static_distributed_tensor<XDataType>(DramTileDist));
 
-        auto LdsRegTileDist =
-            decltype(make_static_tile_distribution(MakeLdsXBlockTileDistribution<Problem>())){};
-        using lds_reg_tile = decltype(make_static_distributed_tensor<XDataType>(LdsRegTileDist));
-
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             dram_reg_tile dram_tile;
-            lds_reg_tile lds_tile;
 
             if(my_id == warp_id)
             {
@@ -205,10 +163,10 @@ struct TileCopy
                 store_tile(x_block_lds_window_no_dist, dram_tile);
 
                 // read from lds to registers
-                load_tile(lds_tile, x_block_lds_window);
+                load_tile(dram_tile, x_block_lds_window);
 
                 // store from registers to DRAM
-                store_tile(y_block_window, lds_tile);
+                store_tile(y_block_window, dram_tile);
             }
             __syncthreads();
             move_tile_window(x_block_window, {0, S::Block_N});
