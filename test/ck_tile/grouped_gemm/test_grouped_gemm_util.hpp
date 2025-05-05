@@ -146,7 +146,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             auto kargs   = Kernel::MakeKargs(gemm_descs);
 
             dim3 grids;
-            if constexpr (Persistent)
+            if constexpr(Persistent)
             {
                 grids = Kernel::MaxOccupancyGridSize();
             }

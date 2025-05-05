@@ -150,27 +150,27 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            // NOTE: With the persistent kernel, we do not necessarily need to have `gemm_descs` known
-            //       on the host. Instead, we can just pass the workspace pointer to the kernel and
-            //       let the workgroups figure out which tiles to work on from the workspace.
-            //       In this example however, we generate the `kargs` using the known gemm_descs,
-            //       and copy the gemm descriptions to the device memory similarly to non-persistent
-            //       case. The contents of the memory pointed to by `p_workspace` pointer could be written
-            //       by e.g. another kernel.
-            auto kargs   = Kernel::MakeKargs(gemm_descs);
+            // NOTE: With the persistent kernel, we do not necessarily need to have `gemm_descs`
+            // known on the host. Instead, we can just pass the workspace pointer to the kernel and
+            // let the workgroups figure out which tiles to work on from the workspace.
+            // In this example however, we generate the `kargs` using the known gemm_descs,
+            // and copy the gemm descriptions to the device memory similarly to non-persistent
+            // case. The contents of the memory pointed to by `p_workspace` pointer could be
+            // written by e.g. another kernel.
+            auto kargs = Kernel::MakeKargs(gemm_descs);
 
             constexpr dim3 blocks = Kernel::BlockSize();
             dim3 grids;
-            if constexpr (PersistentKernel)
+            if constexpr(PersistentKernel)
             {
-                // With persistent kernel, we do not necessarily know how many workgroups should be launched,
-                // so we launch as many as needed to fully occupy the GPU.
+                // With persistent kernel, we do not necessarily know how many workgroups should be
+                // launched, so we launch as many as needed to fully occupy the GPU.
                 grids = Kernel::MaxOccupancyGridSize();
             }
             else
             {
-                // Non-persistent kernel, in which each tile is assigned its own workgroup. We need to know
-                // `gemm_descs` on the host.
+                // Non-persistent kernel, in which each tile is assigned its own workgroup. We need
+                // to know `gemm_descs` on the host.
                 grids = Kernel::GridSize(gemm_descs);
             }
 
@@ -197,7 +197,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                     0,
                     ck_tile::cast_pointer_to_constant_address_space(p_workspace_),
                     gemm_descs.size()));
-            
+
             return ave_time;
         };
 

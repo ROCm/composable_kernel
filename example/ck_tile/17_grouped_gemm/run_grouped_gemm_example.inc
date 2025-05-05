@@ -221,7 +221,7 @@ int run_grouped_gemm_example(int argc, char* argv[])
 
     const std::string a_layout = arg_parser.get_str("a_layout");
     const std::string b_layout = arg_parser.get_str("b_layout");
-    const bool persistent = arg_parser.get_bool("persistent");
+    const bool persistent      = arg_parser.get_bool("persistent");
 
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
