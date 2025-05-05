@@ -16,7 +16,7 @@
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_MEMORY
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
 #endif
 
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
@@ -53,8 +53,8 @@ struct GemmConfig
 
     static constexpr bool DoubleSmemBuffer = false;
 
-    static constexpr bool SkipALds = false;
-    static constexpr bool SkipBLds = false;
+    static constexpr bool SkipALds = true;
+    static constexpr bool SkipBLds = true;
 #endif
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
     // Compute friendly for Intrawave scheduler

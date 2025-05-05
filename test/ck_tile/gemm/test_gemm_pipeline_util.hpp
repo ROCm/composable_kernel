@@ -35,8 +35,6 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 enum struct GemmPipelineType
 {
     Mem,
-    MemSkipALds,
-    MemSkipBLds,
     CompV3,
     CompV4
 };

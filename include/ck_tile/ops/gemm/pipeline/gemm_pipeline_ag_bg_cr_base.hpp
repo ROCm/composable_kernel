@@ -37,8 +37,8 @@ struct GemmPipelineAgBgCrImplBase
                                      const SrcBlockTile& src_block_tile,
                                      const ElementFunction& element_func) const
     {
-        const auto block_tile_tmp = tile_elementwise_in(element_func, src_block_tile);
-        store_tile(lds_tile_window, block_tile_tmp);
+        const auto block_tile = tile_elementwise_in(element_func, src_block_tile);
+        store_tile(lds_tile_window, block_tile);
     }
 
     template <typename DstBlockTile, typename SrcTileWindow>
@@ -46,26 +46,6 @@ struct GemmPipelineAgBgCrImplBase
                                       const SrcTileWindow& lds_tile_window) const
     {
         load_tile(dst_block_tile, lds_tile_window);
-    }
-
-    CK_TILE_DEVICE auto GetALdsTensorView(void* p_smem) const
-    {
-        // A tile in LDS
-        ADataType* __restrict__ p_a_lds = static_cast<ADataType*>(p_smem);
-        constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
-        auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
-
-        return a_lds_block;
-    }
-
-    CK_TILE_DEVICE auto GetBLdsTensorView(void* p_smem) const
-    {
-        // B tile in LDS
-        BDataType* __restrict__ p_b_lds = static_cast<BDataType*>(p_smem);
-        constexpr auto b_lds_block_desc = Policy::template MakeBLdsBlockDescriptor<Problem>();
-        auto b_lds_block = make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);
-
-        return b_lds_block;
     }
 
     CK_TILE_DEVICE auto GetABLdsTensorViews(void* p_smem) const
@@ -91,8 +71,8 @@ struct GemmPipelineAgBgCrImplBase
         return make_tuple(std::move(a_lds_block), std::move(b_lds_block));
     }
 
-    template <typename ADramBlockWindowTmp, typename ALdsTensorView, typename ALdsLoadTileDistr>
-    CK_TILE_DEVICE constexpr auto GetAWindows(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    template <typename ADramBlockWindow, typename ALdsTensorView, typename ALdsLoadTileDistr>
+    CK_TILE_DEVICE constexpr auto GetAWindows(const ADramBlockWindow& a_dram_block_window,
                                               const ALdsTensorView& a_lds_block_view,
                                               const ALdsLoadTileDistr&) const
     {
@@ -105,16 +85,16 @@ struct GemmPipelineAgBgCrImplBase
         decltype(auto) a_copy_dram_window = [&] {
             if constexpr(Problem::SkipALds == false)
             {
-                return make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
+                return make_tile_window(a_dram_block_window.get_bottom_tensor_view(),
                                         make_tuple(YPerTile{}, XPerTile{}),
-                                        a_dram_block_window_tmp.get_window_origin(),
+                                        a_dram_block_window.get_window_origin(),
                                         Policy::template MakeADramTileDistribution<Problem>());
             }
             else
             {
-                return make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
+                return make_tile_window(a_dram_block_window.get_bottom_tensor_view(),
                                         make_tuple(YPerTile{}, XPerTile{}),
-                                        a_dram_block_window_tmp.get_window_origin(),
+                                        a_dram_block_window.get_window_origin(),
                                         ALdsLoadTileDistr{});
             }
         }();
@@ -134,8 +114,8 @@ struct GemmPipelineAgBgCrImplBase
                           std::move(a_lds_gemm_window));
     }
 
-    template <typename BDramBlockWindowTmp, typename BLdsTensorView, typename BLdsLoadTileDistr>
-    CK_TILE_DEVICE constexpr auto GetBWindows(const BDramBlockWindowTmp& b_dram_block_window_tmp,
+    template <typename BDramBlockWindow, typename BLdsTensorView, typename BLdsLoadTileDistr>
+    CK_TILE_DEVICE constexpr auto GetBWindows(const BDramBlockWindow& b_dram_block_window,
                                               const BLdsTensorView& b_lds_block_view,
                                               const BLdsLoadTileDistr&) const
     {
@@ -147,16 +127,16 @@ struct GemmPipelineAgBgCrImplBase
         decltype(auto) b_copy_dram_window = [&] {
             if constexpr(Problem::SkipBLds == false)
             {
-                return make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
+                return make_tile_window(b_dram_block_window.get_bottom_tensor_view(),
                                         make_tuple(YPerTile{}, XPerTile{}),
-                                        b_dram_block_window_tmp.get_window_origin(),
+                                        b_dram_block_window.get_window_origin(),
                                         Policy::template MakeBDramTileDistribution<Problem>());
             }
             else
             {
-                return make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
+                return make_tile_window(b_dram_block_window.get_bottom_tensor_view(),
                                         make_tuple(YPerTile{}, XPerTile{}),
-                                        b_dram_block_window_tmp.get_window_origin(),
+                                        b_dram_block_window.get_window_origin(),
                                         BLdsLoadTileDistr{});
             }
         }();
@@ -176,42 +156,6 @@ struct GemmPipelineAgBgCrImplBase
         return make_tuple(std::move(b_copy_dram_window),
                           std::move(b_copy_lds_window),
                           std::move(b_lds_gemm_window));
-    }
-
-    template <typename ADramBlockWindowTmp, typename ALdsLoadTileDistr>
-    CK_TILE_DEVICE constexpr auto
-    GetADramWindowSkipLds(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                          const ALdsLoadTileDistr&) const
-    {
-        constexpr bool is_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-
-        using YPerTile = std::conditional_t<is_col_major, number<KPerBlock>, number<MPerBlock>>;
-        using XPerTile = std::conditional_t<is_col_major, number<MPerBlock>, number<KPerBlock>>;
-
-        auto a_copy_dram_window = make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                                                   make_tuple(YPerTile{}, XPerTile{}),
-                                                   a_dram_block_window_tmp.get_window_origin(),
-                                                   ALdsLoadTileDistr{});
-
-        return a_copy_dram_window;
-    }
-
-    template <typename BDramBlockWindowTmp, typename BLdsLoadTileDistr>
-    CK_TILE_DEVICE constexpr auto
-    GetBDramWindowSkipLds(const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                          const BLdsLoadTileDistr&) const
-    {
-        constexpr bool is_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
-
-        using YPerTile = std::conditional_t<is_row_major, number<KPerBlock>, number<NPerBlock>>;
-        using XPerTile = std::conditional_t<is_row_major, number<NPerBlock>, number<KPerBlock>>;
-
-        auto b_copy_dram_window = make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                                                   make_tuple(YPerTile{}, XPerTile{}),
-                                                   b_dram_block_window_tmp.get_window_origin(),
-                                                   BLdsLoadTileDistr{});
-
-        return b_copy_dram_window;
     }
 };
 

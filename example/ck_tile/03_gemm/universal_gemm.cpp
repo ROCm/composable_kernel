@@ -144,9 +144,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                 << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
             throw std::runtime_error(err.str());
         }
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY ||            \
-      CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY_SKIP_B_LDS || \
-      CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY_SKIP_A_LDS)
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
         // Tail pipeline One to Seven
         if(tail_num == ck_tile::TailNumber::One)
         {
