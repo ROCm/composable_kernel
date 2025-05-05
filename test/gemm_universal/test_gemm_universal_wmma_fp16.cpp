@@ -7,6 +7,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_gemm_universal_util.hpp"
 
+using I4  = ck::pk_i4_t;
 using F8  = ck::f8_t;
 using F16 = ck::half_t;
 
@@ -68,6 +69,7 @@ using KernelTypes_KM_NK = ::testing::Types<
 #if defined(CK_ENABLE_FP8) 
     std::tuple<       F8,       F16,             F16,       F16>,
     std::tuple<      F16,        F8,             F16,       F16>,
+    std::tuple<      F16,        I4,             F16,       F16>,
 #endif
     std::tuple<      F16,       F16,             F16,       F16>
     >;
