@@ -153,28 +153,6 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return gemm_kernel_args_;
     }
 
-    /**
-     * @brief Update the grid size and block start/end for each group on the device.
-     * @param [in] gemm_desc_ptr Pointer to the array of GemmTransKernelArg.
-     * @param [in] group_count   Number of groups.
-     * @return The total grid size needed to compute the grouped GEMM.
-     */
-    CK_TILE_DEVICE static auto GridUpdateBlocks(GemmTransKernelArg* gemm_desc_ptr,
-                                                const index_t group_count) -> index_t
-    {
-        index_t grid_size = 0;
-        for(index_t i = 0; i < group_count; ++i)
-        {
-            const auto& group = gemm_desc_ptr[i].group_karg;
-            const auto local_grid_size =
-                TilePartitioner::GridSize(group.M, group.N) * group.k_batch;
-            gemm_desc_ptr[i].block_start = grid_size;
-            gemm_desc_ptr[i].block_end   = grid_size + local_grid_size;
-            grid_size += local_grid_size;
-        }
-        return grid_size;
-    }
-
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemSize() -> index_t
     {
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
