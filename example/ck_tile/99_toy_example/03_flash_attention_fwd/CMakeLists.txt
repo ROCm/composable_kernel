@@ -24,6 +24,12 @@ if(ENABLE_TOY_FA_FWD_QK_SWIZZLE)
     target_compile_definitions(${EXAMPLE_REDUCE} PRIVATE TOY_FA_FWD_QK_SWIZZLE)
 endif()
 
+option(ENABLE_TOY_FA_FWD_CACHE_AWARE "Enable toy FA fwd cache aware" OFF)
+if(ENABLE_TOY_FA_FWD_CACHE_AWARE)
+    message("Compiling with toy FA fwd cache aware")
+    target_compile_definitions(${EXAMPLE_REDUCE} PRIVATE TOY_FA_FWD_CACHE_AWARE)
+endif()
+
 target_compile_options(${EXAMPLE_REDUCE} PRIVATE ${EXAMPLE_REDUCE_COMPILE_OPTIONS})
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated

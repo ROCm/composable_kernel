@@ -114,8 +114,8 @@ struct FlashAttentionFwd
         const index_t num_tile_m0 = integer_divide_ceil(M0, kM0PerBlock);
         const index_t num_tile_n1 = integer_divide_ceil(N1, kN1PerBlock);
 
-#if defined(TOY_FA_FWD_OPT)
-#pragma message("Enable toy FA fwd opt")
+#if defined(TOY_FA_FWD_CACHE_AWARE)
+#pragma message("Enable toy FA fwd cache aware")
         const auto block2tile = MakeBlock2TileMap(num_tile_m0, num_tile_n1);
 
         const index_t id_tile_batch = id_block / num_tile_n1 / num_tile_m0;
