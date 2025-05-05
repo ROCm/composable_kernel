@@ -52,6 +52,8 @@ void permute_tensor_b(Tensor& tensor)
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
                                                                  GemmConfig::DoubleSmemBuffer,
+                                                                 GemmConfig::SkipALds,
+                                                                 GemmConfig::SkipBLds,
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,

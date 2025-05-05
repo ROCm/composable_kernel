@@ -52,20 +52,6 @@ struct GemmPipelineTypeSelector<GemmPipelineType::Mem, Problem>
 };
 
 template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::MemSkipALds, Problem>
-{
-    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
-    using pipeline      = ck_tile::GemmPipelineAgBgCrMemSkipALds<Problem>;
-};
-
-template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::MemSkipBLds, Problem>
-{
-    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
-    using pipeline      = ck_tile::GemmPipelineAgBgCrMemSkipBLds<Problem>;
-};
-
-template <typename Problem>
 struct GemmPipelineTypeSelector<GemmPipelineType::CompV3, Problem>
 {
     using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<Problem>;
@@ -116,6 +102,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
 
+        constexpr bool SkipALds = false;
+        constexpr bool SkipBLds = false;
+
         // TODO: For now - but this should also be a test parameter
         constexpr bool TransposeC = false;
 
@@ -137,6 +126,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
+                                                                     SkipALds,
+                                                                     SkipBLds,
                                                                      ALayout,
                                                                      BLayout,
                                                                      CLayout,
@@ -230,9 +221,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
                 }
             }
 
-            if constexpr(PipelineType == GemmPipelineType::Mem ||
-                         PipelineType == GemmPipelineType::MemSkipBLds ||
-                         PipelineType == GemmPipelineType::MemSkipALds)
+            if constexpr(PipelineType == GemmPipelineType::Mem)
             {
                 // Tail pipeline One to Seven
                 if(tail_num == ck_tile::TailNumber::One)

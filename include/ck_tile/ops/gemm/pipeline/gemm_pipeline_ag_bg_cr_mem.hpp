@@ -693,6 +693,10 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                     Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
                 }
             }
+            // TODO add encoding and support for BRowMajor for SkipBLds, current
+            // MakeShuffledBRegTileDistribution takes into account shuffling encoding which is used
+            // for [Global -> Vgpr -> Lds -> Vgpr] reading, but for skipping lds we need to have
+            // different shuffled layout for [Global -> Vgpr] reads, similar for AColMajor
 
             // Global prefetch [1, PrefetchStages]
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {

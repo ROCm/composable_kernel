@@ -51,14 +51,13 @@ struct TileGemmUniversalTraits
 
     static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
 
-    static constexpr bool SkipALds = SkipALds_;
-    static constexpr bool SkipBLds = SkipBLds_;
-
     using ALayout = ALayout_;
     using BLayout = BLayout_;
     using CLayout = CLayout_;
 
     static constexpr bool TransposeC            = TransposeC_;
+    static constexpr bool SkipALds              = SkipALds_;
+    static constexpr bool SkipBLds              = SkipBLds_;
     static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
 };
 

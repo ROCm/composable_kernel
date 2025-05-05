@@ -129,6 +129,31 @@ struct BlockUniversalGemmArBsCr
     using I0 = number<0>;
     using I1 = number<1>;
 
+    CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
+    {
+        constexpr index_t KPerThread     = Traits::KPerThread;
+        constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters;
+        constexpr index_t KPerInnerLoop =
+            ck_tile::max(KPerThread / NumMacClusters, WarpGemm::kKPerThread);
+        constexpr index_t KIterInterwave = KPerInnerLoop / WarpGemm::kKPerThread;
+
+        using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
+                                            sequence<KIterInterwave>,
+                                            sequence<KIterPerWarp>>;
+
+        constexpr auto a_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, KIterSeq>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
+
+        return a_block_dstr_encode;
+    }
+
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
         constexpr index_t KPerThread     = Traits::KPerThread;

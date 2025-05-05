@@ -43,6 +43,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
                                                                  GemmConfig::DoubleSmemBuffer,
+                                                                 GemmConfig::SkipALds,
+                                                                 GemmConfig::SkipBLds,
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,
