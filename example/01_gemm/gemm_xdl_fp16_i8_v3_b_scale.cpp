@@ -76,7 +76,7 @@ using CShuffleDataType = ck::half_t;
 using CDataType        = ck::half_t;
 
 using ALayout = Row;
-using BLayout = Col;
+using BLayout = Row;
 using CLayout = Row;
 
 using AElementOp = PassThrough;
@@ -91,8 +91,8 @@ static constexpr bool PermuteB = false;
 static constexpr ck::index_t Scale_Block_N = 1;
 static constexpr ck::index_t Scale_Block_K = 1024;
 
-static constexpr ck::index_t KPerBlock = 64;
  
+
 // clang-format off
 using DeviceGemmV2Instance = 
     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3<
@@ -100,16 +100,16 @@ using DeviceGemmV2Instance =
         ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
         256, Scale_Block_N, Scale_Block_K,
-        128, 128,
-        KPerBlock, 8, 32,
-        32,   32,
-        4,    1,
+        128, 128, 64, 
+        8, 4,
+        32,  32,
+        2,   2,
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        2, 8, 8, 0,
-        S<2, 128, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        2, 16, 16, 0,
-        1, 1, S<1, 32, 1, 8>, 8,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, CDataType, CDataType, PermuteA, PermuteB>;
+        2,   8,  8,  0,
+        S<16, 16, 1>, S<0, 2, 1>,  S<0, 2, 1>,
+        1,   8,  4,  0,
+        1,   1,  S<1, 32, 1, 8>, 8,
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v4, CDataType, CDataType, PermuteA, PermuteB>;
 
 // clang-format on
 
