@@ -46,12 +46,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf_a.ToDevice(x_host_a.data());
     x_buf_b.ToDevice(x_host_b.data());
 
-    using BlockWarps = ck_tile::sequence<1, 8>;
-    using BlockTile  = ck_tile::sequence<1, 4096>;
-    using WarpTile   = ck_tile::sequence<1, 512>;
-    using Vector     = ck_tile::sequence<1, 8>;
+    using BlockWarps =
+        ck_tile::sequence<1, 8>; // number of concurrent warps in one block (if 8 warps * 64 threads
+                                 // per warp, 512 threads in one block are NEEDED)
+    using BlockTile =
+        ck_tile::sequence<1, 4096>; // shape of one blockTile (elements covered by one block)
+    using WarpTile = ck_tile::sequence<1, 512>; // shape of one warpTile (elements covered by one
+                                                // warp (64 threads))
+    using Vector = ck_tile::sequence<1, 8>; // shape of one vector (elements covered by one thread)
 
-    constexpr ck_tile::index_t kBlockSize  = 512;
+    constexpr ck_tile::index_t kBlockSize =
+        512; // number of blockWarps * number of threads per warp
     constexpr ck_tile::index_t kBlockPerCu = 1;
     ck_tile::index_t kGridSize             = (m / BlockTile::at(ck_tile::number<0>{}));
     std::cout << "block x-size = " << BlockTile::at(ck_tile::number<0>{}) << std::endl;
