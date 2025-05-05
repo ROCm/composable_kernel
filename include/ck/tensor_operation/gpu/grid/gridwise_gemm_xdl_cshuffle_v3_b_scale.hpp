@@ -977,6 +977,24 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }
     }
 
+    __device__ static constexpr auto GetBScaleGridDescriptor_N_K(const Problem& problem)
+    {
+        if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
+                           math::integer_divide_ceil(problem.K, ScaleBlockK)),
+                make_tuple(1, problem.StrideScaleB));
+        }
+        else // ColumnMajor B
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
+                           math::integer_divide_ceil(problem.K, ScaleBlockK)),
+                make_tuple(problem.StrideScaleB, 1));
+        }
+    }
+
     __device__ static constexpr auto GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
         constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
@@ -1715,10 +1733,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
         // B Scale grid
-        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
-                       math::integer_divide_ceil(problem.K, ScaleBlockK)),
-            make_tuple(problem.StrideScaleB, 1));
+        const auto b_scale_grid_desc_bn_ak = GetBScaleGridDescriptor_N_K(problem);
 
         Run<decltype(a_grid_desc_ak0_m_ak1),
             decltype(b_grid_desc_bk0_n_bk1),
@@ -2190,10 +2205,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
-        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
-                       math::integer_divide_ceil(problem.K, ScaleBlockK)),
-            make_tuple(problem.StrideScaleB, 1));
+        const auto b_scale_grid_desc_bn_ak = GetBScaleGridDescriptor_N_K(problem);
 
         Run_2Lds<decltype(a_grid_desc_ak0_m_ak1),
                  decltype(b_grid_desc_bk0_n_bk1),

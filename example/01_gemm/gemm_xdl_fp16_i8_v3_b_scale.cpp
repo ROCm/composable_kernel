@@ -13,7 +13,7 @@ using CShuffleDataType = ck::half_t;
 using CDataType        = ck::half_t;
 
 using ALayout = Row;
-using BLayout = Col;
+using BLayout = Row;
 using CLayout = Row;
 
 using AElementOp = PassThrough;
@@ -23,12 +23,10 @@ using CElementOp = PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 static constexpr bool PermuteA = false;
-static constexpr bool PermuteB = true;
+static constexpr bool PermuteB = false;
 
 static constexpr ck::index_t Scale_Block_N = 1;
-static constexpr ck::index_t Scale_Block_K = 128;
-
-static constexpr ck::index_t KPerBlock = 64;
+static constexpr ck::index_t Scale_Block_K = 1024;
 
 // clang-format off
 using DeviceGemmV2Instance = 
@@ -37,16 +35,16 @@ using DeviceGemmV2Instance =
         ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
         256, Scale_Block_N, Scale_Block_K,
-        128, 128,
-        KPerBlock, 8, 32,
-        32,   32,
-        4,    1,
+        128, 128, 64, 
+        8, 4,
+        32,  32,
+        2,   2,
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        2, 8, 8, 0,
-        S<2, 128, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        2, 16, 16, 0,
-        1, 1, S<1, 32, 1, 8>, 8,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, CDataType, CDataType, PermuteA, PermuteB>;
+        2,   8,  8,  0,
+        S<16, 16, 1>, S<0, 2, 1>,  S<0, 2, 1>,
+        1,   8,  4,  0,
+        1,   1,  S<1, 32, 1, 8>, 8,
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v4, CDataType, CDataType, PermuteA, PermuteB>;
 
 // clang-format on
 
@@ -100,15 +98,16 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 return static_cast<std::size_t>(stride);
         };
 
-    ck::index_t Scale_Stride_BN = (K + Scale_Block_K - 1) / Scale_Block_K;
-
-    StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
-    StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
-    StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
+    StrideA                     = f_get_default_stride(M, K, StrideA, ALayout{});
+    StrideB                     = f_get_default_stride(K, N, StrideB, BLayout{});
+    StrideC                     = f_get_default_stride(M, N, StrideC, CLayout{});
+    ck::index_t Scale_Stride_BN = f_get_default_stride((K + Scale_Block_K - 1) / Scale_Block_K,
+                                                       (N + Scale_Block_N - 1) / Scale_Block_N,
+                                                       -1,
+                                                       BLayout{});
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<BDataType> b_k_n_permute(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<BScaleDataType> b1_k_n(f_host_tensor_descriptor((K + Scale_Block_K - 1) / Scale_Block_K,
                                                            (N + Scale_Block_N - 1) / Scale_Block_N,
                                                            Scale_Stride_BN,
@@ -161,41 +160,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem b1_scale_device_buf(sizeof(BScaleDataType) * b1_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
-    // weight permute
-    if constexpr(PermuteB)
-    {
-        int K1 = KPerBlock;
-        int K0 = K / KPerBlock;
-
-        // int K0, N, K1
-        for(int j = 0; j < K0; j++)
-        {
-            for(int i = 0; i < N; i++)
-            {
-                for(int jj = 0; jj < K1; jj++)
-                {
-                    b_k_n_permute(j * N * K1 + i * K1 + jj) = b_k_n(i * K + (j * K1 + jj));
-                }
-            }
-        }
-    }
-    else
-    {
-        for(int i = 0; i < N; i++)
-        {
-            for(int j = 0; j < K; j++)
-            {
-                b_k_n_permute(i * K + j) = b_k_n(i * K + j);
-            }
-        }
-    }
-
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n_permute.mData.data());
+    b_k_n_device_buf.ToDevice(b_k_n.mData.data());
     b1_scale_device_buf.ToDevice(b1_k_n.mData.data());
     DeviceMem workspace;
 
@@ -208,6 +178,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto invoker   = gemm.MakeInvoker();
     float ave_time = 0;
 
+    std::cout << "StrideA: " << StrideA << " StrideB: " << StrideB << " StrideC:" << StrideC
+              << " Scale_Stride_BN: " << Scale_Stride_BN << std::endl;
     auto argument =
         gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
                           static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
@@ -295,8 +267,8 @@ bool run_gemm_splitk_example(int argc, char* argv[])
     ProblemSizeSplitK problem_size;
     ExecutionConfig config;
 
-    problem_size.M = 2048;
-    problem_size.N = 1024;
+    problem_size.M = 8;
+    problem_size.N = 3072;
     problem_size.K = 1024;
 
     config.do_verification = true;
