@@ -30,17 +30,17 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ALayout, typename BLayout, typename CLayout, bool Persistent>
 float invoke_gemm(int n_warmup,
                   int n_repeat,
                   int group_count,
                   const std::vector<grouped_gemm_kargs>& args)
 {
-
+    // Workspace memory allocated to hold the gemm descriptions.
     ck_tile::DeviceMem gemm_workspace;
     gemm_workspace.Realloc(get_workspace_size(args));
 
-    float ave_time = grouped_gemm<ALayout, BLayout, CLayout>(
+    float ave_time = grouped_gemm<ALayout, BLayout, CLayout, Persistent>(
         args,
         ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
         gemm_workspace.GetDeviceBuffer());
@@ -66,7 +66,7 @@ float invoke_gemm(int n_warmup,
     return ave_time;
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <bool Persistent, typename ALayout, typename BLayout, typename CLayout>
 int run_grouped_gemm_example_with_layouts(int argc,
                                           char* argv[],
                                           const ALayout a_layout                  = ALayout{},
@@ -175,7 +175,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
             {p_a, p_b, p_c, k_batch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
     }
 
-    invoke_gemm<ALayout, BLayout, CLayout>(warmup, repeat, group_count, gemm_descs);
+    invoke_gemm<ALayout, BLayout, CLayout, Persistent>(warmup, repeat, group_count, gemm_descs);
 
     for(int i = 0; i < group_count; i++)
     {
@@ -221,15 +221,20 @@ int run_grouped_gemm_example(int argc, char* argv[])
 
     const std::string a_layout = arg_parser.get_str("a_layout");
     const std::string b_layout = arg_parser.get_str("b_layout");
+    const bool persistent = arg_parser.get_bool("persistent");
 
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if(a_layout == "R" && b_layout == "C")
+    if(a_layout == "R" && b_layout == "C" && persistent)
     {
-        return run_grouped_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+        return run_grouped_gemm_example_with_layouts<true>(argc, argv, Row{}, Col{}, Row{});
     }
-    // else if(a_layout == "R" && b_layout == "R")
+    else if(a_layout == "R" && b_layout == "C" && !persistent)
+    {
+        return run_grouped_gemm_example_with_layouts<false>(argc, argv, Row{}, Col{}, Row{});
+    }
+    // else if(a_layout == "R" && b_layout == "R" && persistent)
     // {
     //     return run_grouped_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
     // }

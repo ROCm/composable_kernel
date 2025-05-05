@@ -70,7 +70,8 @@ auto create_args(int argc, char* argv[])
         .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
         .insert("warmup", "10", "number of iterations before benchmark the kernel.")
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
-        .insert("group_count", "8", "group count.");
+        .insert("group_count", "8", "group count.")
+        .insert("persistent", "false", "Use persistent kernel.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
