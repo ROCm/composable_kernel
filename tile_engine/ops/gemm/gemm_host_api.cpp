@@ -6,11 +6,23 @@
 #include "gemm_dispatcher.hpp"
 #include "gemm_host_api.hpp"
 
-float gemm_kernel_launch(KernelTraits& trait,
-                         ck_tile::GemmHostArgs& args,
-                         const ck_tile::stream_config& s)
+void gemm_kernel_launch(ck_tile::DeviceMem& c_m_n_dev_buf,
+                        ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                        ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                        int verify,
+                        bool structured_sparsity,
+                        KernelTraits& trait,
+                        ck_tile::GemmHostArgs& args,
+                        const ck_tile::stream_config& stream)
 {
-    return GemmDispatcher::dispatch(trait, args, s);
+    return GemmDispatcher::dispatch(c_m_n_dev_buf,
+                                    c_m_n_host_result,
+                                    c_m_n_dev_result,
+                                    verify,
+                                    structured_sparsity,
+                                    trait,
+                                    args,
+                                    stream);
 }
 
 template <typename ADataType,
@@ -20,11 +32,10 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool run(const ck_tile::ArgParser& arg_parser)
+void run(const ck_tile::ArgParser& arg_parser)
 {
     const ALayout a_layout = ALayout{};
     const BLayout b_layout = BLayout{};
-    // const CLayout c_layout = CLayout{};
 
     ck_tile::index_t kbatch = arg_parser.get_int("split_k");
     ck_tile::index_t M      = arg_parser.get_int("m");
@@ -39,6 +50,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int n_repeat                 = arg_parser.get_int("repeat");
     int verify                   = arg_parser.get_int("v");
     ck_tile::index_t init_method = arg_parser.get_int("init");
+    bool structured_sparsity     = arg_parser.get_bool("structured_sparsity");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -70,6 +82,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         a_m_k.SetZero();
         b_k_n.SetZero();
+    }
+
+    if(structured_sparsity)
+    {
+        ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
     }
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
@@ -113,43 +130,48 @@ bool run(const ck_tile::ArgParser& arg_parser)
     trait.kPadN     = arg_parser.get_bool("pad_n");
     trait.kPadK     = arg_parser.get_bool("pad_k");
 
-    float ave_time = gemm_kernel_launch(
-        trait, gemm_args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
-
-    std::size_t flop = std::size_t(2) * M * N * K;
-    std::size_t num_byte =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
               << " A_Layout =" << ALayout::name << " B_Layout =" << BLayout::name
               << " C_Layout =" << CLayout::name << " A Type = " << DataTypeTraits<ADataType>::name
               << " B Type = " << DataTypeTraits<BDataType>::name
-              << " C Type = " << DataTypeTraits<CDataType>::name << " : " << ave_time << " ms, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+              << " C Type = " << DataTypeTraits<CDataType>::name << std::endl;
 
-    c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
-    bool pass = true;
+    ck_tile::HostTensor<CDataType> c_m_n_host_result(
+        ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+
     if(verify)
     {
-        pass = gemm_verify<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
-            verify,
-            a_m_k,
-            b_k_n,
-            c_m_n_dev_result,
-            a_m_k_dev_buf,
-            b_k_n_dev_buf,
-            M,
-            N,
-            K,
-            stride_A,
-            stride_B,
-            stride_C,
-            kbatch);
+        gemm_host_reference<ADataType,
+                            BDataType,
+                            AccDataType,
+                            CDataType,
+                            ALayout,
+                            BLayout,
+                            CLayout>(verify,
+                                     a_m_k,
+                                     b_k_n,
+                                     c_m_n_host_result,
+                                     a_m_k_dev_buf,
+                                     b_k_n_dev_buf,
+                                     M,
+                                     N,
+                                     K,
+                                     stride_A,
+                                     stride_B,
+                                     stride_C);
     }
-    return pass;
+
+    gemm_kernel_launch(c_m_n_dev_buf,
+                       c_m_n_host_result,
+                       c_m_n_dev_result,
+                       verify,
+                       structured_sparsity,
+                       trait,
+                       gemm_args,
+                       ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+
+    return;
 }
 
 int main(int argc, char* argv[])
@@ -159,7 +181,8 @@ int main(int argc, char* argv[])
         auto [result, parser] = create_args(argc, argv);
         if(!result)
             return EXIT_FAILURE;
-        return run<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(parser);
+        run<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(parser);
+        return 0;
     }
     catch(const std::exception& e)
     {

@@ -26,9 +26,10 @@ struct TileGemmTraits
     using BLayout = BLayout_;
     using CLayout = CLayout_;
 
-    static constexpr bool TransposeC = false;
-    static constexpr bool SkipALds   = false;
-    static constexpr bool SkipBLds   = false;
+    static constexpr bool TransposeC            = false;
+    static constexpr bool SkipALds              = false;
+    static constexpr bool SkipBLds              = false;
+    static constexpr bool UseStructuredSparsity = false;
 };
 
 template <bool kPadM_,
@@ -40,7 +41,8 @@ template <bool kPadM_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_,
-          bool TransposeC_ = false>
+          bool TransposeC_            = false,
+          bool UseStructuredSparsity_ = false>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -56,7 +58,8 @@ struct TileGemmUniversalTraits
     using BLayout = BLayout_;
     using CLayout = CLayout_;
 
-    static constexpr bool TransposeC = TransposeC_;
+    static constexpr bool TransposeC            = TransposeC_;
+    static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
 };
 
 } // namespace ck_tile

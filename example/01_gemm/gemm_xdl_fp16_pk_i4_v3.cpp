@@ -134,7 +134,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
+    DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize() / 2);
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
     // weight permute
@@ -242,10 +242,16 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                       b_element_op,
                                       c_element_op);
 
-    if(!gemm.IsSupportedArgument(argument) || ck::get_device_name() != "gfx942" ||
-       ck::get_device_name() != "gfx950")
+    if(!gemm.IsSupportedArgument(argument))
     {
         std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+        return true;
+    }
+
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    {
+        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
 
         return true;
     }

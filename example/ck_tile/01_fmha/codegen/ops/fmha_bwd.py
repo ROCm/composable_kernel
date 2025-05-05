@@ -545,10 +545,9 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= dpad == dvpad
                     if not cond:
                         continue
+            # aiter::mha_bwd C++ api integration
             elif receipt == 600:
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= mode in ["batch", "group"]
-                    cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
                     cond &= dpad == dvpad
                     if not cond:
                         continue
@@ -687,6 +686,11 @@ def get_bwd_dot_do_o_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaB
             elif receipt == 400:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= mode == "group"
+                    if not cond:
+                        continue
+            # aiter::mha_bwd C++ api integration
+            elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
                     if not cond:
                         continue
             gen.append(k)
@@ -841,6 +845,11 @@ def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[Fmh
                     cond &= mode == "group"
                     if not cond:
                         continue
+            # aiter::mha_bwd C++ api integration
+            elif receipt == 600:
+                    cond = dtype in ['fp16', 'bf16']
+                    if not cond:
+                        continue
             gen.append(k)
 
     return gen
@@ -857,9 +866,11 @@ def write_single_bwd_convert_dq_kernel(kernel: FmhaBwdConvertQGradKernel, autoge
 def write_bwd_api(api_pool : FmhaBwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_BWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> None:
+def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (3 - len(filter_list)))
+    # TODO
+    assert optdim_list == [-1]
 
     kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)
     for kernel in kernels:
@@ -872,9 +883,11 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, mask_impl) -> Non
         write_single_bwd_dq_dk_dv_kernel(kernel, output_dir)
     write_bwd_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, filter_list : str, receipt, mask_impl) -> None:
+def list_blobs(file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (3 - len(filter_list)))
+    # TODO
+    assert optdim_list == [-1]
 
     with file_path.open('a') as f:
         kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)

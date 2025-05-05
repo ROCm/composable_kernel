@@ -27,7 +27,9 @@ LAYOUT_MAP = {'r' : 'ck_tile::tensor_layout::gemm::RowMajor',
 
 DEFAULT_EPILOGUE = """
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-                                ck_tile::DefaultGemm2DEpilogueProblem<AccDataType, 
+                                ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
+                                                                      BDataType,
+                                                                      AccDataType, 
                                                                       CDataType, 
                                                                       CLayout, 
                                                                       kPadM,
@@ -69,7 +71,7 @@ HOT_LOOP_FALSE = """
             else if(tail_num == ck_tile::TailNumber::Even)
             {
                 Run(ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
             else
             {
@@ -280,14 +282,14 @@ class GemmCodeGenerator:
 
     def _generate_common_header(self):
         """Generate common header with datatypes and layout"""
-        ctype = self.config.datatype
-        atype = self.config.datatype
-        btype = self.config.datatype
+        self.ctype = self.config.datatype
+        self.atype = self.config.datatype
+        self.btype = self.config.datatype
         if self.config.datatype in ['fp8', 'bf8']:
-            ctype = 'fp16'
+            self.ctype = 'fp16'
         elif self.config.datatype in ['int4']:
-            atype = 'fp16'
-            ctype = 'fp16'
+            self.atype = 'fp16'
+            self.ctype = 'fp16'
 
         content = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
@@ -296,10 +298,10 @@ class GemmCodeGenerator:
 #include "ck_tile/core.hpp"
 
 // Data types
-using ADataType = {DATA_TYPE_MAP[atype]};
-using BDataType = {DATA_TYPE_MAP[btype]};
+using ADataType = {DATA_TYPE_MAP[self.atype]};
+using BDataType = {DATA_TYPE_MAP[self.btype]};
 using AccDataType = float;
-using CDataType = {DATA_TYPE_MAP[ctype]};
+using CDataType = {DATA_TYPE_MAP[self.ctype]};
 
 // Layout configurations
 using ALayout = {LAYOUT_MAP[self.config.layouts[0]]};
@@ -347,7 +349,8 @@ namespace {group_name} {{
         return f"""
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
-          int WarpTileM, int WarpTileN, int WarpTileK>
+          int WarpTileM, int WarpTileN, int WarpTileK,
+          bool structured_sparsity>
 struct GemmKernel {{
     static constexpr bool kPadM = {BOOL_MAP(kPadM)};
     static constexpr bool kPadN = {BOOL_MAP(kPadN)};
@@ -356,7 +359,7 @@ struct GemmKernel {{
     static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s) {{
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;
-        static constexpr bool DoubleSmemBuffer = false;
+        static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
         static constexpr bool TransposeC = false;
 
         static constexpr int kBlockPerCu                         = 1;
@@ -381,7 +384,7 @@ struct GemmKernel {{
 
         using GemmUniversalTraits =
             ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                             ALayout, BLayout, CLayout, TransposeC>;    
+                                             ALayout, BLayout, CLayout, TransposeC, structured_sparsity>;    
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -447,6 +450,17 @@ struct GemmKernel {{
 
         return ave_time;
     }}
+    static std::string get_name() {{
+        return std::string("GemmKernel<Bllktile: ") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) + ", " +
+                "WaveMap: " + std::to_string(WarpM) + "x" + std::to_string(WarpN) + "x" + std::to_string(WarpK) + ", " +
+                "WarpTile: " + std::to_string(WarpTileM) + "x" + std::to_string(WarpTileN) + "x" + std::to_string(WarpTileK) + ", " +
+                "PadidngM: " + "{kPadM}" + ", " +
+                "PaddingN: " + "{kPadN}" + ", " +
+                "PaddingK: " + "{kPadK}" + ", " +
+                "Pipeline: " + "{pipeline}" + ", " +
+                "Epilogue: " + "{epilogue}" + ", " +
+                "Scheduler: " + "{scheduler}";
+                }}
 }};
 """
 
@@ -476,13 +490,16 @@ struct GemmDispatcher {
     static auto& get_kernel_map() {
         // Use a static local variable
         static std::unordered_map<std::string, 
-            std::function<float(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> kernel_map;
+            std::function<void(ck_tile::DeviceMem& c_m_n_dev_buf,
+                               ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                               ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                               int verify, ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>> kernel_map;
         return kernel_map;
     }
 
-    static void init() {
+    static void init(bool structured_sparsity) {
         auto& kernel_map = get_kernel_map();    
-        if(!kernel_map.empty()) return;
+        if(!kernel_map.empty()) return;            
         \n"""
          # Add tile/warp instantiations
         tile_params = set(itertools.product(
@@ -499,9 +516,25 @@ struct GemmDispatcher {
 
         
         for group in self.all_kernels:
-            content += f"""            kernel_map["{group}"] = [](ck_tile::GemmHostArgs& args, 
-                                        const ck_tile::stream_config& s) {{
-                std::vector<float> results;"""
+            content += f"""        kernel_map["{group}"] = [=](ck_tile::DeviceMem& c_m_n_dev_buf,
+                                                               ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                                                               ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                                                               int verify, ck_tile::GemmHostArgs& args,
+                                                               const ck_tile::stream_config& stream) {{
+            if(structured_sparsity){{  // SMFMA"""
+            for tile in tile_params:
+                # Check if we have valid tile/warp combinations 
+                # (tile_m/(warp_m*warp_tile_m)) * warp_m * warp_tile_m == tile_m
+                if ((tile[0]/(tile[3] * tile[7]) * tile[3] * tile[7]) != tile[0]) or \
+                   ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
+                    continue
+                sparse = self.atype == 'fp16' and \
+                    ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
+                     (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
+                content += f"""
+                run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
+            content += f"""
+            }} else {{"""
             for tile in tile_params:
                 # Check if we have valid tile/warp combinations 
                 # (tile_m/(warp_m*warp_tile_m)) * warp_m * warp_tile_m == tile_m
@@ -509,21 +542,47 @@ struct GemmDispatcher {
                    ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
                     continue
                 content += f"""
-                //we can have multiple tiles config for the one kernel_trait
-                return {group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}>::launch(args, s);"""
-            content += """
-            };\n"""
+                run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
+            content += f"""
+            }}
+        }};\n"""
 
         content += """    }
-        
     
-    static float dispatch(const KernelTraits &trait, ck_tile::GemmHostArgs& gemm_args,
-                         const ck_tile::stream_config& s) {
-        init();
+    template <typename Kernel>
+    static void run_kernel(ck_tile::DeviceMem& c_m_n_dev_buf,
+                           ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                           ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                           int verify, ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream)
+    {
+        float avg_time = Kernel::launch(args, stream);
+        std::string description = Kernel::get_name();
+        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+        
+        std::size_t flop = std::size_t(2) * args.M * args.N * args.K;
+        std::size_t num_byte = sizeof(ADataType) * args.M * args.K + sizeof(BDataType) * args.N * args.K + sizeof(CDataType) * args.M * args.N;
+        float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+        float gb_per_sec = num_byte / 1.E6 / avg_time;
+
+        std::cout << "Performance for " << description << " : " << avg_time << " ms, "
+                << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+
+        if(verify)
+            compare(args.K, args.k_batch, c_m_n_dev_result, c_m_n_host_result);
+        c_m_n_dev_buf.SetZero();
+        c_m_n_dev_result.SetZero();
+    }
+
+    static auto dispatch(ck_tile::DeviceMem& c_m_n_dev_buf,
+                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                         int verify, bool structured_sparsity, const KernelTraits &trait, ck_tile::GemmHostArgs& gemm_args,
+                         const ck_tile::stream_config& stream) {
+        init(structured_sparsity);
         const std::string key = assemble_key(trait);
         auto& kernel_map = get_kernel_map(); 
         if(auto it = kernel_map.find(key); it != kernel_map.end()) {
-            return it->second(gemm_args, s); //Running single instance
+            return it->second(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, gemm_args, stream); 
         }
         throw std::runtime_error("No suitable kernel found: " + key);
     }

@@ -46,7 +46,8 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
     static constexpr index_t A_K1 = ATileDesc{}.GetLength(I2);
-    static constexpr index_t B_K1 = BTileDesc{}.GetLength(I2);
+    static constexpr index_t B_K1 =
+        BTileDesc{}.GetLength(Number < BTileDesc{}.GetNumOfDimension() == 4 ? 3 : 2 > {});
 
     static constexpr auto xdlops_gemm =
         XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, ComputeDataType, TransposeC>{};
@@ -333,7 +334,7 @@ struct BlockwiseGemmXdlops_pipeline_base
         return xdlops_gemm.MakeCDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(
             c_grid_desc_g_m0_n0_m1_n1_m2_n2);
     }
-
+    __host__ __device__ static constexpr auto GetCThreadDesc() { return c_thread_desc_; }
     static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_k;
     static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_k;
 

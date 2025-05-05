@@ -65,7 +65,8 @@
 #define __gfx103__
 #endif
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
-    defined(__gfx1103__) || defined(__gfx11_generic__)
+    defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
+    defined(__gfx1152__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
@@ -124,7 +125,7 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx9__) // for GPU code
+#elif defined(__gfx9__) || defined(__gfx12__) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
@@ -242,6 +243,9 @@
 
 // workaround: compiler issue on gfx950
 #define CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION 1
+
+// workaround: compiler issue on gfx950
+#define CK_TEMP_DISABLE_FP4_TESTS 1
 
 // workaround: compiler issue on gfx950
 #define CK_WORKAROUND_FP16_TO_FP8_CONVERSION 1
