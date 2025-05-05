@@ -30,7 +30,8 @@ struct GemmPipelineProblemBase
     using BLayout = remove_cvref_t<typename Traits::BLayout>;
     using CLayout = remove_cvref_t<typename Traits::CLayout>;
 
-    static constexpr bool TransposeC            = Traits::TransposeC;
+    static constexpr bool TransposeC = Traits::TransposeC;
+
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();

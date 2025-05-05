@@ -150,7 +150,7 @@ bool profile_gemm_mx_impl(int do_verification,
         break;
 
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
         a_m_k_scale.GenerateTensorValue(
             GeneratorTensor_3<ScaleDataType>{powf(2.0f, -125.0f), 1.0f}); // R[2^-125, 1]
 
