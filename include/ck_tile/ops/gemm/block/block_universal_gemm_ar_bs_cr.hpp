@@ -129,31 +129,6 @@ struct BlockUniversalGemmArBsCr
     using I0 = number<0>;
     using I1 = number<1>;
 
-    CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
-    {
-        constexpr index_t KPerThread     = Traits::KPerThread;
-        constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters;
-        constexpr index_t KPerInnerLoop =
-            ck_tile::max(KPerThread / NumMacClusters, WarpGemm::kKPerThread);
-        constexpr index_t KIterInterwave = KPerInnerLoop / WarpGemm::kKPerThread;
-
-        using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
-                                            sequence<KIterInterwave>,
-                                            sequence<KIterPerWarp>>;
-
-        constexpr auto a_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<NWarp>,
-                                       tuple<sequence<MIterPerWarp, MWarp>, KIterSeq>,
-                                       tuple<sequence<1, 0>>,
-                                       tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
-
-        return a_block_dstr_encode;
-    }
-
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
         constexpr index_t KPerThread     = Traits::KPerThread;
@@ -206,15 +181,9 @@ struct BlockUniversalGemmArBsCr
     template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Default, GemmTraits>
     {
-        static constexpr auto ALdsTileDistr =
-            decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
             decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
-
-        using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(ALdsTileDistr));
         using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
-
-        ALdsTile a_warp_tile_;
         BLdsTile b_warp_tile_;
 
         // C += A * B
@@ -231,7 +200,6 @@ struct BlockUniversalGemmArBsCr
                           "The ADataType and BDataType as defined in "
                           "traits should be the same as correspoinding block window data type!");
 
-            a_warp_tile_.get_thread_buffer() = a_block_tensor.get_thread_buffer();
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
                 load_interleaved_pk_type(b_warp_tile_, b_block_window);
@@ -247,7 +215,7 @@ struct BlockUniversalGemmArBsCr
                     // read A warp tensor from A block tensor
                     AWarpTensor a_warp_tensor;
 
-                    a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+                    a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
@@ -283,19 +251,13 @@ struct BlockUniversalGemmArBsCr
     template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>
     {
-        static constexpr auto ALdsTileDistr =
-            decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
             decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
-
-        using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(ALdsTileDistr));
         using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
-
-        ALdsTile a_warp_tile_;
         BLdsTile b_warp_tile_;
 
         template <typename BSmemBlockWindow>
-        CK_TILE_DEVICE void LocalPrefetch(const BSmemBlockWindow& b_block_window)
+        CK_TILE_DEVICE void LocalPrefetchB(const BSmemBlockWindow& b_block_window)
         {
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
@@ -317,14 +279,13 @@ struct BlockUniversalGemmArBsCr
                           "The CDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
 
-            a_warp_tile_.get_thread_buffer() = a_block_tensor.get_thread_buffer();
             // hot loop:
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor
                     AWarpTensor a_warp_tensor;
 
-                    a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+                    a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
@@ -367,19 +328,13 @@ struct BlockUniversalGemmArBsCr
         static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
         static constexpr index_t KInnerLoopIter = KPerInnerLoop / WarpGemm::kKPerThread;
 
-        static constexpr auto ALdsTileDistr =
-            decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
             decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
-
-        using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(ALdsTileDistr));
         using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
-
-        ALdsTile a_warp_tile_;
         BLdsTile b_warp_tile_;
 
         template <index_t KIdx, typename BSmemBlockWindow>
-        CK_TILE_DEVICE void LocalPrefetch(const BSmemBlockWindow& b_block_window)
+        CK_TILE_DEVICE void LocalPrefetchB(const BSmemBlockWindow& b_block_window)
         {
             constexpr auto b_lds_load_tile_distr =
                 make_static_tile_distribution(MakeBBlockDistributionEncode());
@@ -410,10 +365,10 @@ struct BlockUniversalGemmArBsCr
                           "The CDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
 
-            a_warp_tile_.get_thread_buffer() = a_block_tensor.get_thread_buffer();
+            // a_warp_tile_.get_thread_buffer() = a_block_tensor.get_thread_buffer();
             // hot loop:
             static_for<0, KRepeat, 1>{}([&](auto kIter) {
-                LocalPrefetch<kIter.value>(b_block_window);
+                LocalPrefetchB<kIter.value>(b_block_window);
                 __builtin_amdgcn_sched_barrier(0);
                 // NOTE: Synchronize threads in a workgroup at the start of each MAC
                 // cluster, but except the first, as we can shorten non-MAC cluster a bit
@@ -433,7 +388,7 @@ struct BlockUniversalGemmArBsCr
                         // read A warp tensor from A block tensor
                         AWarpTensor a_warp_tensor;
 
-                        a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+                        a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
                             merge_sequences(sequence<mIter, kInnerIter>{}, a_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
                         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -515,9 +470,9 @@ struct BlockUniversalGemmArBsCr
     }
 
     template <typename BSmemBlockWindow>
-    CK_TILE_DEVICE void LocalPrefetch(const BSmemBlockWindow& b_block_window)
+    CK_TILE_DEVICE void LocalPrefetchB(const BSmemBlockWindow& b_block_window)
     {
-        block_gemm_impl_.LocalPrefetch(b_block_window);
+        block_gemm_impl_.LocalPrefetchB(b_block_window);
     }
 
     // C += A * B

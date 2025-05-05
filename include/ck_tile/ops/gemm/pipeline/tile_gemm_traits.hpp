@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -27,12 +27,16 @@ struct TileGemmTraits
     using CLayout = CLayout_;
 
     static constexpr bool TransposeC = false;
+    static constexpr bool SkipALds   = false;
+    static constexpr bool SkipBLds   = false;
 };
 
 template <bool kPadM_,
           bool kPadN_,
           bool kPadK_,
           bool DoubleSmemBuffer_,
+          bool SkipALds_,
+          bool SkipBLds_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_,
@@ -44,6 +48,9 @@ struct TileGemmUniversalTraits
     static constexpr bool kPadK = kPadK_;
 
     static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
+
+    static constexpr bool SkipALds = SkipALds_;
+    static constexpr bool SkipBLds = SkipBLds_;
 
     using ALayout = ALayout_;
     using BLayout = BLayout_;

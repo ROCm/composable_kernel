@@ -76,8 +76,11 @@ struct GemmPipelineAgBgCrImplBase
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         // TODO: LDS alignment should come from Policy!
-        constexpr index_t a_lds_block_space_size_aligned = integer_least_multiple(
-            sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16);
+        constexpr index_t a_lds_block_space_size_aligned =
+            Problem::SkipALds
+                ? 0
+                : integer_least_multiple(
+                      sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16);
 
         // B tile in LDS
         BDataType* __restrict__ p_b_lds = static_cast<BDataType*>(
@@ -99,11 +102,22 @@ struct GemmPipelineAgBgCrImplBase
         using XPerTile = std::conditional_t<is_col_major, number<MPerBlock>, number<KPerBlock>>;
 
         // A DRAM tile window for load
-        auto a_copy_dram_window =
-            make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(YPerTile{}, XPerTile{}),
-                             a_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeADramTileDistribution<Problem>());
+        decltype(auto) a_copy_dram_window = [&] {
+            if constexpr(Problem::SkipALds == false)
+            {
+                return make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        make_tuple(YPerTile{}, XPerTile{}),
+                                        a_dram_block_window_tmp.get_window_origin(),
+                                        Policy::template MakeADramTileDistribution<Problem>());
+            }
+            else
+            {
+                return make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        make_tuple(YPerTile{}, XPerTile{}),
+                                        a_dram_block_window_tmp.get_window_origin(),
+                                        ALdsLoadTileDistr{});
+            }
+        }();
 
         // A LDS tile window for store
         auto a_copy_lds_window = make_tile_window(
@@ -130,11 +144,22 @@ struct GemmPipelineAgBgCrImplBase
         using YPerTile = std::conditional_t<is_row_major, number<KPerBlock>, number<NPerBlock>>;
         using XPerTile = std::conditional_t<is_row_major, number<NPerBlock>, number<KPerBlock>>;
 
-        auto b_copy_dram_window =
-            make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(YPerTile{}, XPerTile{}),
-                             b_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakeBDramTileDistribution<Problem>());
+        decltype(auto) b_copy_dram_window = [&] {
+            if constexpr(Problem::SkipBLds == false)
+            {
+                return make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        make_tuple(YPerTile{}, XPerTile{}),
+                                        b_dram_block_window_tmp.get_window_origin(),
+                                        Policy::template MakeBDramTileDistribution<Problem>());
+            }
+            else
+            {
+                return make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        make_tuple(YPerTile{}, XPerTile{}),
+                                        b_dram_block_window_tmp.get_window_origin(),
+                                        BLdsLoadTileDistr{});
+            }
+        }();
 
         // TODO: Do we really need those two tile windows???
         // They're exactly same...

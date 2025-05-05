@@ -40,6 +40,9 @@ struct GemmPipelineProblemBase
 
     static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
 
+    static constexpr bool SkipALds = Traits::SkipALds;
+    static constexpr bool SkipBLds = Traits::SkipBLds;
+
     static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
 
@@ -195,6 +198,8 @@ struct UniversalGemmPipelineProblem
     static constexpr auto TailNum    = TailNum_;
 
     static constexpr bool TransposeC = Traits::TransposeC;
+    static constexpr bool SkipALds   = Traits::SkipALds;
+    static constexpr bool SkipBLds   = Traits::SkipBLds;
 };
 
 } // namespace ck_tile

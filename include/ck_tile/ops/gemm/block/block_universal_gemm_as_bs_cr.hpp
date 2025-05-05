@@ -300,9 +300,8 @@ struct BlockUniversalGemmAsBsCr
         ALdsTile a_warp_tile_;
         BLdsTile b_warp_tile_;
 
-        template <typename ASmemBlockWindow, typename BSmemBlockWindow>
-        CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                          const BSmemBlockWindow& b_block_window)
+        template <typename ASmemBlockWindow>
+        CK_TILE_DEVICE void LocalPrefetchA(const ASmemBlockWindow& a_block_window)
         {
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
@@ -312,6 +311,11 @@ struct BlockUniversalGemmAsBsCr
             {
                 load_tile(a_warp_tile_, a_block_window);
             }
+        }
+
+        template <typename BSmemBlockWindow>
+        CK_TILE_DEVICE void LocalPrefetchB(const BSmemBlockWindow& b_block_window)
+        {
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
                 load_interleaved_pk_type(b_warp_tile_, b_block_window);
@@ -392,25 +396,16 @@ struct BlockUniversalGemmAsBsCr
         ALdsTile a_warp_tile_;
         BLdsTile b_warp_tile_;
 
-        template <index_t KIdx, typename ASmemBlockWindow, typename BSmemBlockWindow>
-        CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                          const BSmemBlockWindow& b_block_window)
+        template <index_t KIdx, typename ASmemBlockWindow>
+        CK_TILE_DEVICE void LocalPrefetchA(const ASmemBlockWindow& a_block_window)
         {
             constexpr auto a_lds_load_tile_distr =
                 make_static_tile_distribution(MakeABlockDistributionEncode());
-            constexpr auto b_lds_load_tile_distr =
-                make_static_tile_distribution(MakeBBlockDistributionEncode());
-
             auto a_lds_gemm_window = make_tile_window(
                 a_block_window.get_bottom_tensor_view(),
                 make_tuple(number<GemmTraits::MPerBlock>{}, number<KPerInnerLoop>{}),
                 {0, KIdx * KPerInnerLoop},
                 a_lds_load_tile_distr);
-            auto b_lds_gemm_window = make_tile_window(
-                b_block_window.get_bottom_tensor_view(),
-                make_tuple(number<GemmTraits::NPerBlock>{}, number<KPerInnerLoop>{}),
-                {0, KIdx * KPerInnerLoop},
-                b_lds_load_tile_distr);
 
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
@@ -420,6 +415,19 @@ struct BlockUniversalGemmAsBsCr
             {
                 load_tile(a_warp_tile_, a_lds_gemm_window);
             }
+        }
+
+        template <index_t KIdx, typename BSmemBlockWindow>
+        CK_TILE_DEVICE void LocalPrefetchB(const BSmemBlockWindow& b_block_window)
+        {
+            constexpr auto b_lds_load_tile_distr =
+                make_static_tile_distribution(MakeBBlockDistributionEncode());
+            auto b_lds_gemm_window = make_tile_window(
+                b_block_window.get_bottom_tensor_view(),
+                make_tuple(number<GemmTraits::NPerBlock>{}, number<KPerInnerLoop>{}),
+                {0, KIdx * KPerInnerLoop},
+                b_lds_load_tile_distr);
+
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
                 load_interleaved_pk_type(b_warp_tile_, b_block_window);
@@ -442,7 +450,8 @@ struct BlockUniversalGemmAsBsCr
 
             // hot loop:
             static_for<0, KRepeat, 1>{}([&](auto kIter) {
-                LocalPrefetch<kIter.value>(a_block_window, b_block_window);
+                LocalPrefetchA<kIter.value>(a_block_window);
+                LocalPrefetchB<kIter.value>(b_block_window);
                 __builtin_amdgcn_sched_barrier(0);
                 // NOTE: Synchronize threads in a workgroup at the start of each MAC
                 // cluster, but except the first, as we can shorten non-MAC cluster a bit
@@ -547,7 +556,20 @@ struct BlockUniversalGemmAsBsCr
     CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                       const BSmemBlockWindow& b_block_window)
     {
-        block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window);
+        block_gemm_impl_.LocalPrefetchA(a_block_window);
+        block_gemm_impl_.LocalPrefetchB(b_block_window);
+    }
+
+    template <typename ASmemBlockWindow>
+    CK_TILE_DEVICE void LocalPrefetchA(const ASmemBlockWindow& a_block_window)
+    {
+        block_gemm_impl_.LocalPrefetchA(a_block_window);
+    }
+
+    template <typename BSmemBlockWindow>
+    CK_TILE_DEVICE void LocalPrefetchB(const BSmemBlockWindow& b_block_window)
+    {
+        block_gemm_impl_.LocalPrefetchB(b_block_window);
     }
 
     // C += A * B

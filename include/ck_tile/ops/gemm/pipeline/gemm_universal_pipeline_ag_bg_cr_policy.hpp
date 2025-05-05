@@ -319,8 +319,8 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
-        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
+        constexpr index_t smem_size_a = Problem::SkipALds ? 0 : GetSmemSizeA<Problem>();
+        constexpr index_t smem_size_b = Problem::SkipBLds ? 0 : GetSmemSizeB<Problem>();
 
         return smem_size_a + smem_size_b;
     }
@@ -586,7 +586,23 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                                       typename Problem::CDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;
-        return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
+
+        if constexpr(Problem::SkipALds == false && Problem::SkipBLds == false)
+        {
+            return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
+        }
+        else if constexpr(Problem::SkipALds == false && Problem::SkipBLds == true)
+        {
+            return BlockUniversalGemmAsBrCr<Problem, BlockGemmPolicy>{};
+        }
+        else if constexpr(Problem::SkipALds == true && Problem::SkipBLds == false)
+        {
+            return BlockUniversalGemmArBsCr<Problem, BlockGemmPolicy>{};
+        }
+        else
+        {
+            return BlockUniversalGemmArBrCr<Problem, BlockGemmPolicy>{};
+        }
     }
 };
 
