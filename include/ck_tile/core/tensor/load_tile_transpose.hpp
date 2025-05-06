@@ -248,26 +248,21 @@ template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
           index_t NumCoord,
-          index_t i_access           = -1,
-          bool oob_conditional_check = true,
-          typename                   = std::enable_if_t<TransposeTileDistrChecker<
+          typename = std::enable_if_t<TransposeTileDistrChecker<
               TileDistribution_,
               typename BottomTensorView_::DataType>::distr_encoding_valid>>
 CK_TILE_DEVICE auto
 load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_,
                                                                WindowLengths_,
                                                                TileDistribution_,
-                                                               NumCoord>& tile_window,
-                    number<i_access>                     = {},
-                    bool_constant<oob_conditional_check> = {})
+                                                               NumCoord>& tile_window)
 {
     using OutTileDstrEncode =
         typename OutputTileDistributionTraits<TileDistribution_,
                                               typename BottomTensorView_::DataType>::OutDstrEncode;
     auto out_tensor = make_static_distributed_tensor<typename BottomTensorView_::DataType>(
         make_static_tile_distribution(OutTileDstrEncode{}));
-    auto trans_tensor =
-        tile_window.load_transpose(number<i_access>{}, bool_constant<oob_conditional_check>{});
+    auto trans_tensor           = tile_window.load_transpose();
     constexpr auto input_distr  = TileDistribution_{};
     constexpr auto output_distr = make_static_tile_distribution(OutTileDstrEncode{});
 
