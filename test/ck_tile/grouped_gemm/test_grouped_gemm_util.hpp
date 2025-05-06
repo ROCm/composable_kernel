@@ -102,10 +102,13 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
         float ave_time{0};
 
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
-            constexpr bool has_hot_loop_v = has_hot_loop_.value;
-            constexpr auto tail_number_v  = tail_number_.value;
-            constexpr auto scheduler      = ck_tile::GemmPipelineScheduler::Intrawave;
+        const auto Run = [&](const auto has_hot_loop_,
+                             const auto tail_number_,
+                             const auto memory_operation_) {
+            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
+            constexpr auto tail_number_v    = tail_number_.value;
+            constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
+            constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                                BDataType,
@@ -131,7 +134,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                  GroupedGemKernelParam::M_Warp_Tile,
                                                  GroupedGemKernelParam::N_Warp_Tile,
                                                  GroupedGemKernelParam::K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC>>;
+                                                 UniversalGemmProblem::TransposeC,
+                                                 memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
 
@@ -164,11 +168,29 @@ class TestCkTileGroupedGemm : public ::testing::Test
             return ave_time;
         };
 
+        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
+            if(gemm_descs[0].k_batch == 1)
+            {
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                               ck_tile::memory_operation_enum::set>{});
+            }
+            else
+            {
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                               ck_tile::memory_operation_enum::atomic_add>{});
+            }
+        };
+
         if(has_hot_loop)
         {
             if(tail_num == ck_tile::TailNumber::Full)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(
+                    ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
             else
