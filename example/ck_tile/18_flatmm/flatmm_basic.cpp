@@ -12,7 +12,13 @@
 #include "ck_tile/host.hpp"
 #include "flatmm_basic.hpp"
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
@@ -23,17 +29,18 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
     constexpr int kBlockPerCu = 2;
 
     // This part comes from the Codegen
-    constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 128;
-    constexpr ck_tile::index_t K_Tile = 64;
+    static_assert(sizeof(ADataType) == 2 || sizeof(ADataType) == 1);
+    constexpr ck_tile::index_t M_Tile = GemmConfig<BDataType>::M_Tile;
+    constexpr ck_tile::index_t N_Tile = GemmConfig<BDataType>::N_Tile;
+    constexpr ck_tile::index_t K_Tile = GemmConfig<BDataType>::K_Tile;
 
-    constexpr ck_tile::index_t M_Warp = 1;
-    constexpr ck_tile::index_t N_Warp = 4;
-    constexpr ck_tile::index_t K_Warp = 1;
+    constexpr ck_tile::index_t M_Warp = GemmConfig<BDataType>::M_Warp;
+    constexpr ck_tile::index_t N_Warp = GemmConfig<BDataType>::N_Warp;
+    constexpr ck_tile::index_t K_Warp = GemmConfig<BDataType>::K_Warp;
 
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
+    constexpr ck_tile::index_t M_Warp_Tile = GemmConfig<BDataType>::M_Warp_Tile;
+    constexpr ck_tile::index_t N_Warp_Tile = GemmConfig<BDataType>::N_Warp_Tile;
+    constexpr ck_tile::index_t K_Warp_Tile = GemmConfig<BDataType>::K_Warp_Tile;
 
     using CodegenFlatmmShape =
         ck_tile::TileFlatmmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,

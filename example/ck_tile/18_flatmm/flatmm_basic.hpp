@@ -32,6 +32,22 @@
 #endif
 
 template <typename DataType>
+struct GemmConfig
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = sizeof(DataType) == 2 ? 64 : 128;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(DataType) == 2 ? 16 : 64;
+};
+
+template <typename DataType>
 struct GemmBasicTypeConfig;
 
 template <>
@@ -41,7 +57,33 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
     using BDataType   = ck_tile::half_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
-    // ToDo: Add more bias config to support different categories of GEMM.
+};
+
+template <>
+struct GemmBasicTypeConfig<ck_tile::bf16_t>
+{
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::bf16_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::bf16_t;
+};
+
+template <>
+struct GemmBasicTypeConfig<ck_tile::fp8_t>
+{
+    using ADataType   = ck_tile::fp8_t;
+    using BDataType   = ck_tile::fp8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmBasicTypeConfig<ck_tile::bf8_t>
+{
+    using ADataType   = ck_tile::bf8_t;
+    using BDataType   = ck_tile::bf8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
 };
 
 template <typename T>
@@ -65,13 +107,23 @@ struct DataTypeTraits<ck_tile::half_t>
     static constexpr const char* name = "fp16";
 };
 
-using Types = GemmBasicTypeConfig<ck_tile::half_t>;
+template <>
+struct DataTypeTraits<ck_tile::bf16_t>
+{
+    static constexpr const char* name = "bf16";
+};
 
-// Specific type aliases for easy access
-using ADataType   = Types::ADataType;
-using BDataType   = Types::BDataType;
-using AccDataType = Types::AccDataType;
-using CDataType   = Types::CDataType;
+template <>
+struct DataTypeTraits<ck_tile::fp8_t>
+{
+    static constexpr const char* name = "fp8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::bf8_t>
+{
+    static constexpr const char* name = "bf8";
+};
 
 auto create_args(int argc, char* argv[])
 {

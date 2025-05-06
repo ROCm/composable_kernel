@@ -11,39 +11,30 @@ static constexpr inline auto is_row_major(Layout layout_)
 
 // mfma_type, 0:32x32, 1:16x16
 template <typename T>
-auto shuffle_b(const ck_tile::HostTensor<T>& t, std::string mfma_dtype, int mfma_type = 0)
+auto shuffle_b(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
     int n_ = t.get_lengths()[1];
     int k_ = t.get_lengths()[0];
 
-    if((mfma_dtype == "bf16" || mfma_dtype == "fp16") && mfma_type == 0)
+    if constexpr(GemmConfig<T>::N_Warp_Tile == 32)
     {
-        ck_tile::HostTensor<T> t_view({n_ / 32, 32, k_ / 16, 2, 8});
+        ck_tile::HostTensor<T> t_view(
+            {n_ / 32, 32, k_ / GemmConfig<T>::K_Warp_Tile, 2, GemmConfig<T>::K_Warp_Tile / 2});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
-    else if((mfma_dtype == "bf16" || mfma_dtype == "fp16") && mfma_type == 1)
+    else
     {
-        ck_tile::HostTensor<T> t_view({n_ / 16, 16, k_ / 32, 4, 8});
+        static_assert(GemmConfig<T>::N_Warp_Tile == 16);
+        ck_tile::HostTensor<T> t_view(
+            {n_ / 16, 16, k_ / GemmConfig<T>::K_Warp_Tile, 4, GemmConfig<T>::K_Warp_Tile / 4});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
-    else if((mfma_dtype == "int8" || mfma_dtype == "fp8") && mfma_type == 0)
-    {
-        ck_tile::HostTensor<T> t_view({n_ / 32, 32, k_ / 32, 2, 16});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-    }
-    else if((mfma_dtype == "int8" || mfma_dtype == "fp8") && mfma_type == 1)
-    {
-        ck_tile::HostTensor<T> t_view({n_ / 16, 16, k_ / 64, 4, 16});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-    }
-    return t;
 }
 
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
@@ -64,7 +55,13 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
                     ck_tile::DeviceMem& b_shuffle_dev_buf,
                     ck_tile::DeviceMem& c_dev_buf,
@@ -91,8 +88,9 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
     args.stride_B = stride_B;
     args.stride_C = stride_C;
 
-    float ave_time = flatmm_calc<ALayout, BLayout, CLayout>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+    float ave_time =
+        flatmm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -108,7 +106,13 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
     return ave_time;
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 int run_flatmm_example_with_layouts(int argc,
                                     char* argv[],
                                     const ALayout a_layout                  = ALayout{},
@@ -153,23 +157,23 @@ int run_flatmm_example_with_layouts(int argc,
     c_rslt_host.SetZero();
 
     // do pre-shuffle
-    std::string mfma                              = arg_parser.get_str("prec");
-    ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b(b_origin_host, mfma, 0);
+    ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b(b_origin_host);
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
 
-    invoke_flatmm<ALayout, BLayout, CLayout>(a_dev_buf,
-                                             b_shuffle_dev_buf,
-                                             c_dev_buf,
-                                             M,
-                                             N,
-                                             K,
-                                             stride_A,
-                                             stride_B,
-                                             stride_C,
-                                             kbatch,
-                                             n_warmup,
-                                             n_repeat);
+    invoke_flatmm<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+        a_dev_buf,
+        b_shuffle_dev_buf,
+        c_dev_buf,
+        M,
+        N,
+        K,
+        stride_A,
+        stride_B,
+        stride_C,
+        kbatch,
+        n_warmup,
+        n_repeat);
 
     c_dev_buf.FromDevice(c_rslt_host.data());
     bool pass = true;
@@ -184,8 +188,9 @@ int run_flatmm_example_with_layouts(int argc,
             a_host, b_origin_host, c_ref_host);
         const float max_accumulated_value =
             *std::max_element(c_ref_host.mData.begin(), c_ref_host.mData.end());
-        const auto rtol_atol = calculate_rtol_atol(K, kbatch, max_accumulated_value);
-        pass                 = ck_tile::check_err(c_rslt_host,
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+        pass = ck_tile::check_err(c_rslt_host,
                                   c_ref_host,
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
@@ -242,8 +247,9 @@ int run_flatmm_example_with_layouts(int argc,
         c_gpu_ref_dev_buf.FromDevice(c_gpu_ref_host.data());
         const float max_accumulated_value =
             *std::max_element(c_gpu_ref_host.mData.begin(), c_gpu_ref_host.mData.end());
-        const auto rtol_atol = calculate_rtol_atol(K, kbatch, max_accumulated_value);
-        pass                 = ck_tile::check_err(c_rslt_host,
+        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            K, kbatch, max_accumulated_value);
+        pass = ck_tile::check_err(c_rslt_host,
                                   c_gpu_ref_host,
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
@@ -267,12 +273,76 @@ int run_flatmm_example(int argc, char* argv[])
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    std::string a_layout = arg_parser.get_str("a_layout");
-    std::string b_layout = arg_parser.get_str("b_layout");
+    std::string a_layout  = arg_parser.get_str("a_layout");
+    std::string b_layout  = arg_parser.get_str("b_layout");
+    std::string data_type = arg_parser.get_str("prec");
 
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_flatmm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+        if(data_type == "fp16")
+        {
+            using Types       = GemmBasicTypeConfig<ck_tile::half_t>;
+            using ADataType   = Types::ADataType;
+            using BDataType   = Types::BDataType;
+            using AccDataType = Types::AccDataType;
+            using CDataType   = Types::CDataType;
+            return run_flatmm_example_with_layouts<ADataType,
+                                                   BDataType,
+                                                   AccDataType,
+                                                   CDataType,
+                                                   Row,
+                                                   Col,
+                                                   Row>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(data_type == "bf16")
+        {
+            using Types       = GemmBasicTypeConfig<ck_tile::bf16_t>;
+            using ADataType   = Types::ADataType;
+            using BDataType   = Types::BDataType;
+            using AccDataType = Types::AccDataType;
+            using CDataType   = Types::CDataType;
+            return run_flatmm_example_with_layouts<ADataType,
+                                                   BDataType,
+                                                   AccDataType,
+                                                   CDataType,
+                                                   Row,
+                                                   Col,
+                                                   Row>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(data_type == "fp8")
+        {
+            using Types       = GemmBasicTypeConfig<ck_tile::fp8_t>;
+            using ADataType   = Types::ADataType;
+            using BDataType   = Types::BDataType;
+            using AccDataType = Types::AccDataType;
+            using CDataType   = Types::CDataType;
+            return run_flatmm_example_with_layouts<ADataType,
+                                                   BDataType,
+                                                   AccDataType,
+                                                   CDataType,
+                                                   Row,
+                                                   Col,
+                                                   Row>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(data_type == "bf8")
+        {
+            using Types       = GemmBasicTypeConfig<ck_tile::bf8_t>;
+            using ADataType   = Types::ADataType;
+            using BDataType   = Types::BDataType;
+            using AccDataType = Types::AccDataType;
+            using CDataType   = Types::CDataType;
+            return run_flatmm_example_with_layouts<ADataType,
+                                                   BDataType,
+                                                   AccDataType,
+                                                   CDataType,
+                                                   Row,
+                                                   Col,
+                                                   Row>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data type for this operation !!!");
+        }
     }
     else
     {
