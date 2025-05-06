@@ -79,6 +79,16 @@ struct ReferenceGemm : public device::BaseOperator
                         i4  = i4 - 8;
                         v_a = type_convert<ComputeTypeA>(i4);
                     }
+                    else if constexpr(is_same_v<ADataType, f4x2_pk_t>)
+                    {
+                        // TODO: add support for ColMajor layout as well
+                        if(k % 2 == 1)
+                            v_a = type_convert<ComputeTypeA>(
+                                f4_t(arg.a_m_k_(m, k).template unpack<>(Number<1>{})));
+                        else
+                            v_a = type_convert<ComputeTypeA>(
+                                f4_t(arg.a_m_k_(m, k).template unpack<>(Number<0>{})));
+                    }
                     else
                     {
                         arg.a_element_op_(v_a, arg.a_m_k_(m, k));
@@ -94,6 +104,16 @@ struct ReferenceGemm : public device::BaseOperator
                             i4 = (i4x2 >> 4) & 0xf;
                         i4  = i4 - 8;
                         v_b = type_convert<ComputeTypeB>(i4);
+                    }
+                    else if constexpr(is_same_v<BDataType, f4x2_pk_t>)
+                    {
+                        // TODO: add support for RowMajor layout as well
+                        if(k % 2 == 1)
+                            v_b = type_convert<ComputeTypeB>(
+                                f4_t(arg.b_k_n_(k, n).template unpack<>(Number<1>{})));
+                        else
+                            v_b = type_convert<ComputeTypeB>(
+                                f4_t(arg.b_k_n_(k, n).template unpack<>(Number<0>{})));
                     }
                     else
                     {
