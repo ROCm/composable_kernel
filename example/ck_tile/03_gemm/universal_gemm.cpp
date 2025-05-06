@@ -20,7 +20,7 @@ void try_run(ck_tile::TailNumber tn)
         if(tn == TN)
         {
             RunSplitk(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
+                      ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
         }
     }
 }

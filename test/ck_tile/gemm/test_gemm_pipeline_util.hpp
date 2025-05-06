@@ -71,7 +71,7 @@ void try_run(ck_tile::TailNumber tn)
         if(tn == TN)
         {
             RunSplitk(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
+                      ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
         }
     }
 }
@@ -267,13 +267,14 @@ class TestCkTileGemmPipeline : public ::testing::Test
                 auto check_tail = [&](auto... TNs) {
                     (try_run<BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
                 };
-        
-                check_tail(ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
-                           ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
-                           ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
-                           ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
-                           ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
-                           ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
+
+                check_tail(
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
             }
 
             if constexpr(PipelineType == GemmPipelineType::CompV4)
