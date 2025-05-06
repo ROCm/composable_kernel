@@ -257,5 +257,5 @@
 #endif
 
 #ifndef CK_TILE_WA_ISSUE_2028
-#define CK_TILE_WA_ISSUE_2028 1
+#define CK_TILE_WA_ISSUE_2028 0
 #endif
