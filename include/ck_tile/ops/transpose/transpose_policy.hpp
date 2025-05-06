@@ -23,11 +23,11 @@ struct QuartTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
     template <index_t kOuterDistDim0, index_t kOuterDistDim1, index_t kInnerDist>
     using TileDistribution = tile_distribution_encoding<
         sequence<>,
-        tuple<sequence<kOuterDistDim0, kOuterDistDim1, 1, 4>, sequence<kInnerDist, 4, 4>>,
+        tuple<sequence<kOuterDistDim0, kOuterDistDim1, 4>, sequence<kInnerDist, 4, 4>>,
         tuple<sequence<1, 2, 1, 2>>,
-        tuple<sequence<0, 0, 3, 1>>,
-        sequence<1, 1, 2>,
-        sequence<1, 2, 2>>;
+        tuple<sequence<0, 0, 2, 1>>,
+        sequence<1, 2>,
+        sequence<1, 2>>;
     // after transpose
     template <index_t kOuterDist, index_t kInnerDistDim0, index_t kInnerDistDim1>
     using TileDistributionT = tile_distribution_encoding<
@@ -114,11 +114,12 @@ struct TransposePolicy
         constexpr index_t kSecond = Problem::kLeadSizePerXdl;
         constexpr index_t kLeadDimstr =
             kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDimT;
-        constexpr index_t kLeadDimStrSub = kLeadDimstr / Problem::kIterations;
+        constexpr index_t kLeadDimIterations = Problems::kIterationsInSecondDim;
+        constexpr index_t kLeadDimStrSub     = kLeadDimstr / kLeadDimIterations;
         constexpr index_t kSecondDimstr =
             kSecond / QuartTransposeTraits<typename Problem::DataType>::ksecondDimT;
         using xdllevel_dstr_encoding = typename QuartTransposeTraits<typename Problem::DataType>::
-            template TileDistributionT<kSecondDimstr, kLeadDimStrSub, Problem::kIterations>;
+            template TileDistributionT<kSecondDimstr, kLeadDimStrSub, kLeadDimIterations>;
 
         constexpr auto block_outer_dst_encoding =
             tile_distribution_encoding<sequence<>,
@@ -198,9 +199,10 @@ struct TransposePolicy
             kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDim;
         constexpr index_t kSecondDimstr =
             kSecond / QuartTransposeTraits<typename Problem::DataType>::ksecondDim;
-        constexpr index_t kSecondDimStrSub = kSecondDimstr / Problem::kIterations;
+        constexpr index_t kSecondDimIterations = Problems::kIterationsInSecondDim;
+        constexpr index_t kSecondDimStrSub     = kSecondDimstr / kSecondDimIterations;
         using xdllevel_dstr_encoding = typename QuartTransposeTraits<typename Problem::DataType>::
-            template TileDistribution<kSecondDimStrSub, Problem::kIterations, kLeadDimstr>;
+            template TileDistribution<kSecondDimStrSub, kSecondDimIterations, kLeadDimstr>;
 
         constexpr index_t kLeadIterPerWarp   = Problem::kLeadXdlNumPerWarp;
         constexpr index_t kSecondIterPerWarp = Problem::kSecondXdlNumPerWarp;
