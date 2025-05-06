@@ -185,7 +185,8 @@ struct BlockTranspose
         //         y.get_thread_buffer().template get_as<DataVec>(number<iAccess>{}));
         // });
 
-        store_tile(output_tile_window, out_tensor);
+        // store_tile(output_tile_window, out_tensor);
+        store_tile(output_tile_window, y);
     }
 };
 
