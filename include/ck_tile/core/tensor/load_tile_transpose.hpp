@@ -268,14 +268,14 @@ load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_
         make_static_tile_distribution(OutTileDstrEncode{}));
     auto trans_tensor =
         tile_window.load_transpose(number<i_access>{}, bool_constant<oob_conditional_check>{});
-    constexpr auto lds_load_distr  = TileDistribution_{};
-    constexpr auto glb_store_distr = make_static_tile_distribution(OutTileDstrEncode{});
+    constexpr auto input_distr  = TileDistribution_{};
+    constexpr auto output_distr = make_static_tile_distribution(OutTileDstrEncode{});
 
-    constexpr auto y_in_desc  = lds_load_distr.get_ys_to_d_descriptor();
-    constexpr auto y_out_desc = glb_store_distr.get_ys_to_d_descriptor();
+    constexpr auto y_in_desc  = input_distr.get_ys_to_d_descriptor();
+    constexpr auto y_out_desc = output_distr.get_ys_to_d_descriptor();
 
-    constexpr index_t NDimYIn  = lds_load_distr.get_num_of_dimension_y();
-    constexpr index_t NDimYOut = glb_store_distr.get_num_of_dimension_y();
+    constexpr index_t NDimYIn  = input_distr.get_num_of_dimension_y();
+    constexpr index_t NDimYOut = output_distr.get_num_of_dimension_y();
 
     constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
     constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
