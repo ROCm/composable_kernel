@@ -471,6 +471,13 @@ struct scalar_type<e8m0_bexp_t>
 };
 
 template <>
+struct scalar_type<f4x2_pk_t>
+{
+    using type                           = f4x2_pk_t::type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
 struct scalar_type<bool>
 {
     using type                           = bool;
