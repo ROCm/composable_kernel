@@ -105,33 +105,39 @@ struct TransposePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
     {
-        constexpr index_t kSecondIterPerWarp = Problem::kLeadXdlNumPerWarp;
-        constexpr index_t kLeadIterPerWarp   = Problem::kSecondXdlNumPerWarp;
-        constexpr index_t kSecondNumWarps    = Problem::kLeadNumWarps;
-        constexpr index_t kLeadNumWarps      = Problem::kSecondNumWarps;
-        // transpose is based on 64 Bytes
-        constexpr index_t kLead   = Problem::kSecondSizePerXdl; // Problem::kLeadSizePerXdl;
-        constexpr index_t kSecond = Problem::kLeadSizePerXdl;
-        constexpr index_t kLeadDimstr =
-            kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDimT;
-        constexpr index_t kLeadDimIterations = Problem::kIterationsInSecondDim;
-        constexpr index_t kLeadDimStrSub     = kLeadDimstr / kLeadDimIterations;
-        constexpr index_t kSecondDimstr =
-            kSecond / QuartTransposeTraits<typename Problem::DataType>::ksecondDimT;
-        using xdllevel_dstr_encoding = typename QuartTransposeTraits<typename Problem::DataType>::
-            template TileDistributionT<kSecondDimstr, kLeadDimStrSub, kLeadDimIterations>;
+        // constexpr index_t kSecondIterPerWarp = Problem::kLeadXdlNumPerWarp;
+        // constexpr index_t kLeadIterPerWarp   = Problem::kSecondXdlNumPerWarp;
+        // constexpr index_t kSecondNumWarps    = Problem::kLeadNumWarps;
+        // constexpr index_t kLeadNumWarps      = Problem::kSecondNumWarps;
+        // // transpose is based on 64 Bytes
+        // constexpr index_t kLead   = Problem::kSecondSizePerXdl; // Problem::kLeadSizePerXdl;
+        // constexpr index_t kSecond = Problem::kLeadSizePerXdl;
+        // constexpr index_t kLeadDimstr =
+        //     kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDimT;
+        // constexpr index_t kLeadDimIterations = Problem::kIterationsInSecondDim;
+        // constexpr index_t kLeadDimStrSub     = kLeadDimstr / kLeadDimIterations;
+        // constexpr index_t kSecondDimstr =
+        //     kSecond / QuartTransposeTraits<typename Problem::DataType>::ksecondDimT;
+        // using xdllevel_dstr_encoding = typename QuartTransposeTraits<typename
+        // Problem::DataType>::
+        //     template TileDistributionT<kSecondDimstr, kLeadDimStrSub, kLeadDimIterations>;
 
-        constexpr auto block_outer_dst_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<kSecondIterPerWarp, kSecondNumWarps>,
-                                             sequence<kLeadIterPerWarp, kLeadNumWarps>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<1, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-        constexpr auto blk_distr_encode = detail::make_embed_tile_distribution_encoding(
-            block_outer_dst_encoding, xdllevel_dstr_encoding{});
-        constexpr auto block_dstr = make_static_tile_distribution(blk_distr_encode);
+        // constexpr auto block_outer_dst_encoding =
+        //     tile_distribution_encoding<sequence<>,
+        //                                tuple<sequence<kSecondIterPerWarp, kSecondNumWarps>,
+        //                                      sequence<kLeadIterPerWarp, kLeadNumWarps>>,
+        //                                tuple<sequence<1, 2>>,
+        //                                tuple<sequence<1, 1>>,
+        //                                sequence<1, 2>,
+        //                                sequence<0, 0>>{};
+        // constexpr auto blk_distr_encode = detail::make_embed_tile_distribution_encoding(
+        //     block_outer_dst_encoding, xdllevel_dstr_encoding{});
+        constexpr auto input_dstr = MakeLdsLoadBlockDescriptor<Problem>();
+
+        using OutTileDstrEncode =
+            typename OutputTileDistributionTraits<remove_cvref_t<decltype(input_dstr)>,
+                                                  typename Problem::DataType>::OutDstrEncode;
+        constexpr auto block_dstr = make_static_tile_distribution(OutTileDstrEncode{});
 
         return block_dstr;
     }
