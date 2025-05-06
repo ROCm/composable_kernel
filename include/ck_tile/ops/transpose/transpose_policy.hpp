@@ -132,7 +132,7 @@ struct TransposePolicy
         //                                sequence<0, 0>>{};
         // constexpr auto blk_distr_encode = detail::make_embed_tile_distribution_encoding(
         //     block_outer_dst_encoding, xdllevel_dstr_encoding{});
-        constexpr auto input_dstr = MakeLdsLoadBlockDescriptor<Problem>();
+        constexpr auto input_dstr = MakeLdsLoadTileDistribution<Problem>();
 
         using OutTileDstrEncode =
             typename OutputTileDistributionTraits<remove_cvref_t<decltype(input_dstr)>,
