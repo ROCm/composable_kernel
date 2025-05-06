@@ -3,7 +3,9 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
-#include "ck_tile/ops/transpose.hpp"
+#include "batched_transpose_kernel.hpp"
+#include "block_transpose.hpp"
+#include "transpose_policy.hpp"
 
 #include <vector>
 #include <string>
