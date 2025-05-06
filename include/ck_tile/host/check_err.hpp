@@ -235,6 +235,7 @@ check_err(const Range& out,
     bool res{true};
     int err_count = 0;
     double err    = 0;
+    double rmse = 0;
     // TODO: This is a hack. We should have proper specialization for bf16_t data type.
     double max_err = std::numeric_limits<float>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
@@ -242,6 +243,7 @@ check_err(const Range& out,
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
         err            = std::abs(o - r);
+        rmse += err*err;
         if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
         {
             max_err = err > max_err ? err : max_err;
@@ -254,6 +256,7 @@ check_err(const Range& out,
             res = false;
         }
     }
+    std::cout<<"rmse: "<<std::setprecision(8) << std::scientific<<std::sqrt(rmse/ref.size())<<std::endl;
     if(!res)
     {
         const float error_percent =

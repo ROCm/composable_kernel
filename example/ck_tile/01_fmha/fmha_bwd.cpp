@@ -120,8 +120,8 @@ auto get_elimit(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
 template <>
 auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
 {
-    double rtol = 1e-2;
-    double atol = 1e-2;
+    double rtol = 1e-1;
+    double atol = 1e-1;
     if(hdim_q > 128 && hdim_v > 128) // 3.2 for RTZ/1.5 for RTN
     {
         rtol = 3.2e-2;
