@@ -42,6 +42,7 @@ struct reference_hstu_attention
                     HostTensor<InOutDataType>& o_batch_seq_nhead_hdim,
                     int num_batch,
                     float alpha,
+                    int max_seqlen,
                     std::vector<int> seq_offsets,
                     std::vector<int> num_targets, // define masking length at the end of token
                                                   // sequence to be excluded for attention
@@ -89,10 +90,10 @@ struct reference_hstu_attention
         // check num_tagets
         assert(num_tagets.empty() || num_targets.size() == num_batch);
 
-        auto silu = [](CompDataType x) {
+        auto silu = [&](CompDataType x) {
             const auto one = ck_tile::type_convert<CompDataType>(1.0f);
 
-            return x / (one + std::exp(-x));
+            return x / (one + std::exp(-x)) / ck_tile::type_convert<CompDataType>(max_seqlen);
         };
 
         auto f = [&](auto i_batch, auto i_head) {
