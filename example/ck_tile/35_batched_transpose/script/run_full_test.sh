@@ -32,7 +32,7 @@ function print_log_header(){
 }
 
 #run verification tests
-example/ck_tile/01_fmha/script/smoke_test.sh
+example/ck_tile/35_batched_transpose/script/smoke_test.sh
 
 #run performance benchmarks
 
