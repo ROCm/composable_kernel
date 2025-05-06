@@ -45,7 +45,7 @@
 #include "ck_tile/core/tensor/static_distributed_tensor.hpp"
 #include "ck_tile/core/tensor/store_tile.hpp"
 #include "ck_tile/core/tensor/sweep_tile.hpp"
-#include "ck_tile/core/tensor/load_tile_trans.hpp"
+#include "ck_tile/core/tensor/load_tile_transpose.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor_coordinate.hpp"
 #include "ck_tile/core/tensor/tensor_coordinate.hpp"
