@@ -290,9 +290,6 @@ load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_
     constexpr index_t num_of_access =
         reduce_on_sequence(y_in_lengths, multiplies{}, number<1>{}) / vecLoadSize;
 
-    // constexpr auto lds_distr_y_indx_zeros = uniform_sequence_gen_t<decltype(Policy::template
-    // MakeLdsLoadTileDistribution<Problem>())::NDimY, 0>{};
-
     using DataVec = array<typename BottomTensorView_::DataType, vecLoadSize>;
     static_for<0, num_of_access, 1>{}([&](auto iAccess) {
         out_tensor.get_thread_buffer().template set_as<DataVec>(
