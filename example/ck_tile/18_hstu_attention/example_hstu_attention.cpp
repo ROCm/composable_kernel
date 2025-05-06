@@ -449,6 +449,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                               o_host_ref,
                                                               num_batch,
                                                               1.0f / std::sqrt(params.hdim_qk),
+                                                              is_jagged ? max_seqlen : seqlen,
                                                               seq_offsets,
                                                               num_targets,
                                                               window_size,

@@ -92,6 +92,7 @@ struct jagged_forward_causal_local_bias_dropout_dispatch
                                          param.bias_ptr,
                                          param.o_ptr,
                                          param.seq_offsets_ptr,
+                                         param.max_seqlen,
                                          param.hdim_qk,
                                          param.hdim_v,
                                          param.num_head,

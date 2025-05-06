@@ -133,6 +133,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                const OAccElementFunction& o_acc_element_func,
                HstuMask mask,
                float scale_s,
+               index_t max_seqlen, // used by silu
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -232,16 +233,17 @@ struct HstuAttentionFwdPipelineQRKSVS
         statically_indexed_array<PcompBlockTileType, k1_loops> pcomp_tiles;
 
         // reduction function for softmax
-        const auto f_silu = [](CompDataType& x) {
+        const auto f_silu = [&](CompDataType& x) {
             const auto neg_one = ck_tile::type_convert<CompDataType>(-1.0f);
 
             if constexpr(std::is_same_v<CompDataType, float>)
             {
-                x = x * __builtin_amdgcn_rcpf(neg_one - __expf(x));
+                x = x * __builtin_amdgcn_rcpf(neg_one - __expf(x)) *
+                    __builtin_amdgcn_rcpf(static_cast<CompDataType>(max_seqlen));
             }
             else
             {
-                x = x / (neg_one - exp(x));
+                x = x / (neg_one - exp(x)) / static_cast<CompDataType>(max_seqlen);
             }
         };
 
@@ -477,6 +479,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                HstuMask mask,
                float scale_s,
+               index_t max_seqlen,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -493,6 +496,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                           identity{},
                           mask,
                           scale_s,
+                          max_seqlen,
                           smem_ptr,
                           dropout);
     }
