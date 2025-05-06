@@ -211,24 +211,17 @@ struct OutputTileDistributionTraits
         number<input_ps_to_rhss_minor.size()>{});
 
     // for major because of dst_out_hs_lengthss is reversed, this index also need to be reversed
+    template <index_t Idx>
+    struct swap_one_and_two
+    {
+        static constexpr index_t value = (Idx == 1) ? 2 : (Idx == 2 ? 1 : Idx);
+    };
+
     static constexpr auto dst_ps_to_rhss_major = generate_tuple(
         [](auto i) {
             constexpr auto seq = modified_ps_to_rhss_major[i];
             return generate_sequence_v2(
-                [&](auto j) {
-                    if constexpr(seq[j] == 1)
-                    {
-                        return number<2>{};
-                    }
-                    else if constexpr(seq[j] == 2)
-                    {
-                        return number<1>{};
-                    }
-                    else
-                    {
-                        return seq[j];
-                    }
-                },
+                [&](auto j) { return number<swap_one_and_two<seq[j]>::value>{}; },
                 number<seq.size()>{});
         },
         number<modified_ps_to_rhss_major.size()>{});
@@ -237,20 +230,7 @@ struct OutputTileDistributionTraits
         input_ys_to_rhs_major.pop_back().push_back(number<1>{});
 
     static constexpr auto dst_ys_to_rhs_major = generate_sequence_v2(
-        [](auto i) {
-            if constexpr(modified_input_ys_to_rhs_major[i] == 1)
-            {
-                return number<2>{};
-            }
-            else if constexpr(modified_input_ys_to_rhs_major[i] == 2)
-            {
-                return number<1>{};
-            }
-            else
-            {
-                return modified_input_ys_to_rhs_major[i];
-            }
-        },
+        [](auto i) { return number<swap_one_and_two<modified_input_ys_to_rhs_major[i]>::value>{}; },
         number<modified_input_ys_to_rhs_major.size()>{});
 
     static constexpr auto dst_ys_to_rhs_minor =
