@@ -114,7 +114,7 @@ struct TransposePolicy
         constexpr index_t kSecond = Problem::kLeadSizePerXdl;
         constexpr index_t kLeadDimstr =
             kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDimT;
-        constexpr index_t kLeadDimIterations = Problems::kIterationsInSecondDim;
+        constexpr index_t kLeadDimIterations = Problem::kIterationsInSecondDim;
         constexpr index_t kLeadDimStrSub     = kLeadDimstr / kLeadDimIterations;
         constexpr index_t kSecondDimstr =
             kSecond / QuartTransposeTraits<typename Problem::DataType>::ksecondDimT;
@@ -199,7 +199,7 @@ struct TransposePolicy
             kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDim;
         constexpr index_t kSecondDimstr =
             kSecond / QuartTransposeTraits<typename Problem::DataType>::ksecondDim;
-        constexpr index_t kSecondDimIterations = Problems::kIterationsInSecondDim;
+        constexpr index_t kSecondDimIterations = Problem::kIterationsInSecondDim;
         constexpr index_t kSecondDimStrSub     = kSecondDimstr / kSecondDimIterations;
         using xdllevel_dstr_encoding = typename QuartTransposeTraits<typename Problem::DataType>::
             template TileDistribution<kSecondDimStrSub, kSecondDimIterations, kLeadDimstr>;

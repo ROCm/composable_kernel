@@ -60,7 +60,6 @@ struct valid_quad_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) =
                                                                  tuple<sequence<0>>,
                                                                  sequence<2>,
                                                                  sequence<0>>;
-    > ;
 };
 
 // template <typename TileDistribution_, typename DataType_>
@@ -277,66 +276,115 @@ template <typename TileDistribution_, typename DataType_>
 struct OutputTileDistributionTraits
 {
     using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
-    static constexpr auto actual_hs_lengthss = InDstrEncode::hs_lengthss_;
+    static constexpr auto input_hs_lengthss = InDstrEncode::hs_lengthss_;
     using ValidQuadDstrEncode =
         typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
     using ValidOutQuadDstrEncode =
         typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TransposedTileDistrEncode;
 
-    static constexpr auto valid_hs_lengthss     = ValidQuadDstrEncode::hs_lengthss_;
-    static constexpr auto valid_out_hs_lengthss = ValidOutQuadDstrEncode::hs_lengthss_;
-    static constexpr auto ps_to_rhss_major      = InDstrEncode::ps_to_rhss_major_;
-    static constexpr auto ps_to_rhss_minor      = InDstrEncode::ps_to_rhss_minor_;
-    static constexpr auto ys_to_rhs_major       = InDstrEncode::ys_to_rhs_major_;
-    static constexpr auto ys_to_rhs_minor       = InDstrEncode::ys_to_rhs_minor_;
+    static constexpr auto quad_input_hs_lengthss      = ValidQuadDstrEncode::hs_lengthss_;
+    static constexpr auto quad_output_hs_lengthss     = ValidOutQuadDstrEncode::hs_lengthss_;
+    static constexpr auto input_ps_to_rhss_major      = InDstrEncode::ps_to_rhss_major_;
+    static constexpr auto input_ps_to_rhss_minor      = InDstrEncode::ps_to_rhss_minor_;
+    static constexpr auto input_ys_to_rhs_major       = InDstrEncode::ys_to_rhs_major_;
+    static constexpr auto input_ys_to_rhs_minor       = InDstrEncode::ys_to_rhs_minor_;
+
+    static constexpr auto quad_ps_to_rhss_major = ValidQuadDstrEncode::ps_to_rhss_major_;
+    static constexpr auto quad_ps_to_rhss_minor = ValidQuadDstrEncode::ps_to_rhss_minor_;
+    
+    //for transpose load
+    static constexpr auto reversed_quad_output_hs_lengthss = tuple_reverse(quad_output_hs_lengthss);
 
     static constexpr auto full_out_hs_lengthss = generate_tuple(
-        [&](auto i) {
-            return actual_hs_lengthss[i]
+        [](auto i) {
+            return input_hs_lengthss[i]
                 .extract(typename arithmetic_sequence_gen<0,
-                                                          actual_hs_lengthss[i].size() -
-                                                              valid_hs_lengthss[i].size(),
-                                                          1>::type{})
-                .push_back(valid_out_hs_lengthss[i]);
+                    input_hs_lengthss[i].size() - quad_input_hs_lengthss[i].size(),
+                    1>::type{})
+                .push_back(reversed_quad_output_hs_lengthss[i]);
         },
         number<InDstrEncode::NDimX>{});
-
+    
+    static constexpr auto dst_out_hs_lengthss = tuple_reverse(full_out_hs_lengthss);
+    
     static constexpr auto modified_ps_to_rhss_major = generate_tuple(
-        [&](auto i) {
-            if constexpr(i == ps_to_rhss_major.size() - 1)
+        [](auto i) {
+            if constexpr(i == input_ps_to_rhss_major.size() - 1)
             {
-                // For the last sequence, remove the last element
-                return ps_to_rhss_major[i].pop_back();
+                constexpr auto current_size = input_ps_to_rhss_major[i].size();
+                constexpr auto reduce_size = quad_ps_to_rhss_major[number<0>{}].size();
+                constexpr auto reduced_ps_to_rhss_major = input_ps_to_rhss_major[i].extract(
+                    typename arithmetic_sequence_gen<0, current_size - reduce_size, 1>::type{});
+                return reduced_ps_to_rhss_major.push_back(number<2>{});
+                //return reduced_ps_to_rhss_major;
             }
             else
             {
                 // For all other sequences, keep them unchanged
-                return ps_to_rhss_major[i];
+                return input_ps_to_rhss_major[i];
             }
         },
-        number<ps_to_rhss_major.size()>{});
+        number<input_ps_to_rhss_major.size()>{});
+    
+    static constexpr auto minor_last_index = full_out_hs_lengthss[number<InDstrEncode::NDimX-1>{}].size()-1;
+    static constexpr auto major_last_index = full_out_hs_lengthss[number<0>{}].size()-1;
 
-    static constexpr auto modified_ps_to_rhss_minor = generate_tuple(
-        [&](auto i) {
-            if constexpr(i == ps_to_rhss_minor.size() - 1)
+    static constexpr auto dst_ps_to_rhss_minor = generate_tuple(
+        [](auto i) {
+            if constexpr(i == input_ps_to_rhss_minor.size() - 1)
             {
-                // For the last sequence, remove the last element
-                return ps_to_rhss_minor[i].pop_back();
+                constexpr auto current_size = input_ps_to_rhss_minor[i].size();
+                constexpr auto reduce_size = quad_ps_to_rhss_minor[number<0>{}].size();
+                constexpr auto reduced_ps_to_rhss_minor = input_ps_to_rhss_minor[i].extract(
+                    typename arithmetic_sequence_gen<0, current_size - reduce_size, 1>::type{});
+                return reduced_ps_to_rhss_minor.push_back(number<minor_last_index>{});
             }
             else
             {
                 // For all other sequences, keep them unchanged
-                return ps_to_rhss_minor[i];
+                return input_ps_to_rhss_minor[i];
             }
         },
-        number<ps_to_rhss_minor.size()>{});
+        number<input_ps_to_rhss_minor.size()>{});
 
-    using OutDstrEncode = tile_distribution_encoding<InDstrEncode::RsLengths,
-                                                     decltype(full_out_hs_lengthss),
-                                                     decltype(modified_ps_to_rhss_major),
-                                                     decltype(modified_ps_to_rhss_minor),
-                                                     InDstrEncode::Ys2RHsMajor,
-                                                     InDstrEncode::Ys2RHsMinor>;
+    // for major because of dst_out_hs_lengthss is reversed, this index also need to be reversed
+    static constexpr auto dst_ps_to_rhss_major = generate_tuple(
+            [](auto i) {
+                constexpr auto seq = modified_ps_to_rhss_major[i];
+                return generate_sequence_v2(
+                    [&](auto j) { if constexpr(seq[j] == 1) 
+                                      {return number<2>{};}
+                                  else if constexpr(seq[j] == 2)
+                                      {return number<1>{};}
+                                  else {return seq[j];}},
+                    number<seq.size()>{});
+            },
+    number<modified_ps_to_rhss_major.size()>{});
+
+    static constexpr auto modified_input_ys_to_rhs_major = input_ys_to_rhs_major.pop_back().push_back(number<1>{});
+
+    static constexpr auto dst_ys_to_rhs_major = generate_sequence_v2(
+         [](auto i) {
+            if constexpr(modified_input_ys_to_rhs_major[i]==1)
+            {return number<2>{};}
+            else if constexpr(modified_input_ys_to_rhs_major[i]==2)
+            {return number<1>{};}
+            else
+            {return modified_input_ys_to_rhs_major[i];}
+         },
+         number<modified_input_ys_to_rhs_major.size()>{}
+    );
+
+    static constexpr auto dst_ys_to_rhs_minor = input_ys_to_rhs_minor.pop_back().push_back(number<major_last_index>{});
+
+
+
+    using OutDstrEncode = tile_distribution_encoding<typename InDstrEncode::RsLengths,
+                                                     remove_cvref_t<decltype(dst_out_hs_lengthss)>,
+                                                     remove_cvref_t<decltype(dst_ps_to_rhss_major)>,
+                                                     remove_cvref_t<decltype(dst_ps_to_rhss_minor)>,
+                                                     remove_cvref_t<decltype(dst_ys_to_rhs_major)>,
+                                                     remove_cvref_t<decltype(dst_ys_to_rhs_minor)>>;
 };
 
 template <typename BottomTensorView_,
@@ -356,16 +404,15 @@ load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_
                     number<i_access>                     = {},
                     bool_constant<oob_conditional_check> = {})
 {
-    // auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-    //     Policy::template MakeShuffledARegTileDistribution<Problem>());
     using OutTileDstrEncode =
         typename OutputTileDistributionTraits<TileDistribution_,
                                               typename BottomTensorView_::DataType>::OutDstrEncode;
+    //Debug<OutTileDstrEncode> cccc;
     auto out_tensor = make_static_distributed_tensor<typename BottomTensorView_::DataType>(
         make_static_tile_distribution(OutTileDstrEncode{}));
     auto trans_tensor =
         tile_window.load_transpose(number<i_access>{}, bool_constant<oob_conditional_check>{});
-
+    //return trans_tensor;
     constexpr auto lds_load_distr  = TileDistribution_{};
     constexpr auto glb_store_distr = make_static_tile_distribution(OutTileDstrEncode{});
 
@@ -391,10 +438,10 @@ load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_
     // constexpr auto lds_distr_y_indx_zeros = uniform_sequence_gen_t<decltype(Policy::template
     // MakeLdsLoadTileDistribution<Problem>())::NDimY, 0>{};
 
-    using DataVec = array<DataType, vecLoadSize>;
+    using DataVec = array<typename BottomTensorView_::DataType, vecLoadSize>;
     static_for<0, num_of_access, 1>{}([&](auto iAccess) {
         out_tensor.get_thread_buffer().template set_as<DataVec>(
-            number<iAccess>{}, y.get_thread_buffer().template get_as<DataVec>(number<iAccess>{}));
+            number<iAccess>{}, trans_tensor.get_thread_buffer().template get_as<DataVec>(number<iAccess>{}));
     });
 
     return out_tensor;
