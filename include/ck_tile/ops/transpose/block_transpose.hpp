@@ -85,7 +85,7 @@ struct TransposePipelineProblem
     static constexpr index_t kQuadNumPerLeadDim   = kLeadSizePerXdl / kQuadrantLeadDim;
     static constexpr index_t kQuadNumPerSecondDim = kSecondSizePerXdl / kQuadrantSecondDim;
 
-    static constexpr index_t kIterations =
+    static constexpr index_t kIterationsInSecondDim =
         kQuadNumPerLeadDim * kQuadNumPerSecondDim * 16 / get_warp_size();
 };
 
@@ -149,40 +149,41 @@ struct BlockTranspose
 
         auto y = load_tile_transpose(load_from_lds_window);
 
-        auto out_tensor = make_static_distributed_tensor<DataType>(
-            Policy::template MakeOutputDistribution<Problem>());
+        // auto out_tensor = make_static_distributed_tensor<DataType>(
+        //     Policy::template MakeOutputDistribution<Problem>());
 
-        constexpr auto lds_load_distr  = Policy::template MakeLdsLoadTileDistribution<Problem>();
-        constexpr auto glb_store_distr = Policy::template MakeOutputDistribution<Problem>();
+        // constexpr auto lds_load_distr  = Policy::template MakeLdsLoadTileDistribution<Problem>();
+        // constexpr auto glb_store_distr = Policy::template MakeOutputDistribution<Problem>();
 
-        constexpr auto y_in_desc  = lds_load_distr.get_ys_to_d_descriptor();
-        constexpr auto y_out_desc = glb_store_distr.get_ys_to_d_descriptor();
+        // constexpr auto y_in_desc  = lds_load_distr.get_ys_to_d_descriptor();
+        // constexpr auto y_out_desc = glb_store_distr.get_ys_to_d_descriptor();
 
-        constexpr index_t NDimYIn  = lds_load_distr.get_num_of_dimension_y();
-        constexpr index_t NDimYOut = glb_store_distr.get_num_of_dimension_y();
+        // constexpr index_t NDimYIn  = lds_load_distr.get_num_of_dimension_y();
+        // constexpr index_t NDimYOut = glb_store_distr.get_num_of_dimension_y();
 
-        constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
-        constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
+        // constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
+        // constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
 
-        constexpr auto y_in_element_space_size  = y_in_desc.get_element_space_size();
-        constexpr auto y_out_element_space_size = y_out_desc.get_element_space_size();
-        static_assert(y_in_element_space_size == y_out_element_space_size,
-                      "the element space size is not the same!");
-        static_assert(y_in_lengths[NDimYIn - 1] == y_out_lengths[NDimYOut - 1],
-                      "the vector length is not the same!");
-        constexpr index_t vecLoadSize = y_in_lengths[NDimYIn - 1];
-        constexpr index_t num_of_access =
-            reduce_on_sequence(y_in_lengths, multiplies{}, number<1>{}) / vecLoadSize;
+        // constexpr auto y_in_element_space_size  = y_in_desc.get_element_space_size();
+        // constexpr auto y_out_element_space_size = y_out_desc.get_element_space_size();
+        // static_assert(y_in_element_space_size == y_out_element_space_size,
+        //               "the element space size is not the same!");
+        // static_assert(y_in_lengths[NDimYIn - 1] == y_out_lengths[NDimYOut - 1],
+        //               "the vector length is not the same!");
+        // constexpr index_t vecLoadSize = y_in_lengths[NDimYIn - 1];
+        // constexpr index_t num_of_access =
+        //     reduce_on_sequence(y_in_lengths, multiplies{}, number<1>{}) / vecLoadSize;
 
-        // constexpr auto lds_distr_y_indx_zeros = uniform_sequence_gen_t<decltype(Policy::template
-        // MakeLdsLoadTileDistribution<Problem>())::NDimY, 0>{};
+        // // constexpr auto lds_distr_y_indx_zeros =
+        // uniform_sequence_gen_t<decltype(Policy::template
+        // // MakeLdsLoadTileDistribution<Problem>())::NDimY, 0>{};
 
-        using DataVec = array<DataType, vecLoadSize>;
-        static_for<0, num_of_access, 1>{}([&](auto iAccess) {
-            out_tensor.get_thread_buffer().template set_as<DataVec>(
-                number<iAccess>{},
-                y.get_thread_buffer().template get_as<DataVec>(number<iAccess>{}));
-        });
+        // using DataVec = array<DataType, vecLoadSize>;
+        // static_for<0, num_of_access, 1>{}([&](auto iAccess) {
+        //     out_tensor.get_thread_buffer().template set_as<DataVec>(
+        //         number<iAccess>{},
+        //         y.get_thread_buffer().template get_as<DataVec>(number<iAccess>{}));
+        // });
 
         store_tile(output_tile_window, out_tensor);
     }

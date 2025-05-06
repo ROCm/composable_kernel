@@ -48,99 +48,295 @@ template <typename T>
 struct valid_quad_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) == 2>>
 {
     using TileDistrEncode = tile_distribution_encoding<sequence<>,
-                                                       tuple<sequence<1, 4>, sequence<4, 4>>,
+                                                       tuple<sequence<4>, sequence<4, 4>>,
                                                        tuple<sequence<1, 2>>,
-                                                       tuple<sequence<1, 0>>,
-                                                       sequence<1, 2>,
-                                                       sequence<0, 1>>;
+                                                       tuple<sequence<0, 0>>,
+                                                       sequence<2>,
+                                                       sequence<1>>;
+
+    using TransposedTileDistrEncode = tile_distribution_encoding<sequence<>,
+                                                                 tuple<sequence<16>, sequence<4>>,
+                                                                 tuple<sequence<1>>,
+                                                                 tuple<sequence<0>>,
+                                                                 sequence<2>,
+                                                                 sequence<0>>;
+    > ;
 };
 
+// template <typename TileDistribution_, typename DataType_>
+// struct tile_distribution_for_transpose_helper
+// {
+//     using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
+
+//     static constexpr auto actual_hs_lengthss = InDstrEncode::hs_lengthss_;
+//     using ValidQuadDstrEncode =
+//         typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
+//     using ValidOutQuadDstrEncode =
+//         typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TransposedTileDistrEncode;
+//     // every dimx in ValidQuadDstrEncode should be the suffix of DstrEncode
+//     static constexpr auto valid_hs_lengthss     = ValidQuadDstrEncode::hs_lengthss_;
+//     static constexpr auto valid_out_hs_lengthss = ValidOutQuadDstrEncode::hs_lengthss_;
+//     static constexpr auto ps_to_rhss_major      = InDstrEncode::ps_to_rhss_major_;
+//     static constexpr auto ps_to_rhss_minor      = InDstrEncode::ps_to_rhss_minor_;
+//     static constexpr auto ys_to_rhs_major       = InDstrEncode::ys_to_rhs_major_;
+//     static constexpr auto ys_to_rhs_minor       = InDstrEncode::ys_to_rhs_minor_;
+
+//     static constexpr bool hs_lengthss_size_valid =
+//         (InDstrEncode::NDimX == ValidQuadDstrEncode::NDimX);
+
+//     static constexpr auto full_out_hs_lengthss = generate_tuple(
+//         [&](auto i) {
+//             return actual_hs_lengthss[i]
+//                 .extract(typename arithmetic_sequence_gen<0,
+//                                                           actual_hs_lengthss[i].size() -
+//                                                               valid_hs_lengthss[i].size(),
+//                                                           1>::type{})
+//                 .push_back(valid_out_hs_lengthss[i]);
+//         },
+//         number<InDstrEncode::NDimX>{});
+
+//     static constexpr auto modified_ps_to_rhss_major = generate_tuple(
+//         [&](auto i) {
+//             if constexpr(i == ps_to_rhss_major.size() - 1)
+//             {
+//                 // For the last sequence, remove the last element
+//                 return ps_to_rhss_major[i].pop_back();
+//             }
+//             else
+//             {
+//                 // For all other sequences, keep them unchanged
+//                 return ps_to_rhss_major[i];
+//             }
+//         },
+//         number<ps_to_rhss_major.size()>{});
+
+//     static constexpr auto modified_ps_to_rhss_minor = generate_tuple(
+//         [&](auto i) {
+//             if constexpr(i == ps_to_rhss_minor.size() - 1)
+//             {
+//                 // For the last sequence, remove the last element
+//                 return ps_to_rhss_minor[i].pop_back();
+//             }
+//             else
+//             {
+//                 // For all other sequences, keep them unchanged
+//                 return ps_to_rhss_minor[i];
+//             }
+//         },
+//         number<ps_to_rhss_minor.size()>{});
+
+//     using OutDstrEncode = tile_distribution_encoding<InDstrEncode::RsLengths,
+//                                                      decltype(full_out_hs_lengthss),
+//                                                      decltype(modified_ps_to_rhss_major),
+//                                                      decltype(modified_ps_to_rhss_minor),
+//                                                      InDstrEncode::Ys2RHsMajor,
+//                                                      InDstrEncode::Ys2RHsMinor>;
+//     // make sure NDimX == 2; only support 2D transpose
+//     static constexpr bool hs_lengthss_size_dim_valid = (InDstrEncode::NDimX == 2);
+//     // Check each element using helper function
+//     template <index_t I = 0>
+//     struct check_hs_lengthss_suffixes
+//     {
+//         static constexpr bool value =
+//             util::is_sequence_suffix_v<decltype(valid_hs_lengthss.template get<I>()),
+//                                        decltype(actual_hs_lengthss.template get<I>())> &&
+//             check_hs_lengthss_suffixes<I + 1>::value;
+//     };
+
+//     template <>
+//     struct check_hs_lengthss_suffixes<valid_hs_lengthss.size()>
+//     {
+//         static constexpr bool value = true;
+//     };
+
+//     static constexpr bool all_hs_lengthss_are_suffixes = check_hs_lengthss_suffixes<>::value;
+
+//     // static constexpr auto hs_lengthss      = DstrEncode::hs_lengthss_;
+
+//     // get hs_lengthss[0].size
+//     static constexpr index_t ndimp_outer_size = ps_to_rhss_major.size();
+//     // make sure ndimp >= 2
+//     static constexpr index_t ndimp_inner_size =
+//         ps_to_rhss_major[number<ndimp_outer_size - 1>{}].size();
+//     // make sure ps_to_rhss_major[ndimp-1] == 2
+//     // make sure ps_to_rhss_minor[ndimp-1] == hs_lengthss[1].size - 2;
+
+//     // the below two conditions are used to check whether encoding is based on quadrant.
+//     static constexpr bool ps_to_rhss_index0_valid =
+//         (ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] == 2) &&
+//         (ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] ==
+//          actual_hs_lengthss[number<1>{}].size() - 2);
+
+//     // make sure ps_to_rhss_major[ndimp-2] == 1
+//     // make sure ps_to_rhss_minor[ndimp-2] == hs_lengthss[0].size - 1;
+//     static constexpr bool ps_to_rhss_index1_valid =
+//         (ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] == 1) &&
+//         (ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] ==
+//          actual_hs_lengthss[number<0>{}].size() - 1);
+//     // get ys_to_rhs_major.size
+//     // make sure ys_to_rhs_major[ndim_y-1] == 2
+//     // make sure ys_to_rhs_minor[ndim_y-1] == hs_lengthss[0].size - 1;
+//     static constexpr index_t ndimy_size = ys_to_rhs_major.size();
+//     static constexpr bool ys_to_rhs_major_valid =
+//         ((ys_to_rhs_major[ndimy_size - 1] == 2) &&
+//          (ys_to_rhs_minor[ndimy_size - 1] == actual_hs_lengthss[number<1>{}].size() - 1)) &&
+//         ((ys_to_rhs_major[ndimy_size - 2] == 1) &&
+//          (ys_to_rhs_minor[ndimy_size - 2] == actual_hs_lengthss[number<0>{}].size() - 2));
+
+//     static constexpr bool distr_encoding_valid =
+//         hs_lengthss_size_valid && hs_lengthss_size_dim_valid && all_hs_lengthss_are_suffixes &&
+//         ps_to_rhss_index0_valid && ps_to_rhss_index1_valid && ys_to_rhs_major_valid;
+
+//     // if ndimy >= 2, others is iteration number per thread
+//     // get ys_to_rhs_major[ndim_y-2] and ys_to_rhs_minor[ndim_y-2]
+//     // static constexpr index_t iteration_number = ys_to_rhs_major[ndimy_size]
+//     // get other dims in ps_to_rhss_major from [0:ndimp-2)
+//     // static constexpr index_t iteration_number =
+//     //     ndimy_size == 1 ? 1
+//     //                     : reduce_on_sequence(
+//     //                           ys_to_rhs_major.extract(
+//     //                               typename arithmetic_sequence_gen<0, ndimy_size - 1,
+//     //                               1>::type{}),
+//     //                           multiplies{},
+//     //                           number<1>{});
+// };
+
 template <typename TileDistribution_, typename DataType_>
-struct tile_distribution_for_transpose_helper
+struct TransposeTileDistrChecker
 {
-    using DstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
+    using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
+
+    static constexpr auto input_hs_lengthss = InDstrEncode::hs_lengthss_;
 
     using ValidQuadDstrEncode =
         typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
 
-    // every dimx in ValidQuadDstrEncode should be the suffix of DstrEncode
-    static constexpr auto valid_hs_lengthss  = ValidQuadDstrEncode::hs_lengthss_;
-    static constexpr auto actual_hs_lengthss = DstrEncode::hs_lengthss_;
-    static constexpr bool hs_lengthss_size_valid =
-        (DstrEncode::NDimX == ValidQuadDstrEncode::NDimX);
+    static constexpr auto quad_hs_lengthss = ValidQuadDstrEncode::hs_lengthss_;
 
-    // make sure NDimX == 2; only support 2D transpose
-    static constexpr bool hs_lengthss_size_dim_valid = (DstrEncode::NDimX == 2);
-    // Check each element using helper function
+    static constexpr auto input_ps_to_rhss_major = InDstrEncode::ps_to_rhss_major_;
+    static constexpr auto input_ps_to_rhss_minor = InDstrEncode::ps_to_rhss_minor_;
+    static constexpr auto input_ys_to_rhs_major  = InDstrEncode::ys_to_rhs_major_;
+    static constexpr auto input_ys_to_rhs_minor  = InDstrEncode::ys_to_rhs_minor_;
+
+    // only support 2D transpose
+    static constexpr bool hs_lengthss_size_valid =
+        (InDstrEncode::NDimX == ValidQuadDstrEncode::NDimX);
+
+    static constexpr bool hs_lengthss_size_dim_valid = (InDstrEncode::NDimX == 2);
+
+    // each element of quad_hs_lengthss is suffix of input_hs_lengthss
     template <index_t I = 0>
     struct check_hs_lengthss_suffixes
     {
         static constexpr bool value =
-            util::is_sequence_suffix_v<decltype(valid_hs_lengthss.template get<I>()),
-                                       decltype(actual_hs_lengthss.template get<I>())> &&
+            util::is_sequence_suffix_v<decltype(quad_hs_lengthss.template get<I>()),
+                                       decltype(input_hs_lengthss.template get<I>())> &&
             check_hs_lengthss_suffixes<I + 1>::value;
     };
 
     template <>
-    struct check_hs_lengthss_suffixes<valid_hs_lengthss.size()>
+    struct check_hs_lengthss_suffixes<input_hs_lengthss.size()>
     {
         static constexpr bool value = true;
     };
 
     static constexpr bool all_hs_lengthss_are_suffixes = check_hs_lengthss_suffixes<>::value;
 
-    // static constexpr auto hs_lengthss      = DstrEncode::hs_lengthss_;
-    static constexpr auto ps_to_rhss_major = DstrEncode::ps_to_rhss_major_;
-    static constexpr auto ps_to_rhss_minor = DstrEncode::ps_to_rhss_minor_;
-    static constexpr auto ys_to_rhs_major  = DstrEncode::ys_to_rhs_major_;
-    static constexpr auto ys_to_rhs_minor  = DstrEncode::ys_to_rhs_minor_;
+    static constexpr index_t ndimp_outer_size = input_ps_to_rhss_major.size();
 
-    // get hs_lengthss[0].size
-    static constexpr index_t ndimp_outer_size = ps_to_rhss_major.size();
-    // make sure ndimp >= 2
     static constexpr index_t ndimp_inner_size =
-        ps_to_rhss_major[number<ndimp_outer_size - 1>{}].size();
-    // make sure ps_to_rhss_major[ndimp-1] == 2
-    // make sure ps_to_rhss_minor[ndimp-1] == hs_lengthss[1].size - 2;
+        input_ps_to_rhss_major[number<ndimp_outer_size - 1>{}].size();
 
-    // the below two conditions are used to check whether encoding is based on quadrant.
+    // make sure ps_to_rhss_major[ndimp-1] == 2
+    // make sure ps_to_rhss_minor[ndimp-1] == input_hs_lengthss[1].size - 2;
     static constexpr bool ps_to_rhss_index0_valid =
-        (ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] == 2) &&
-        (ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] ==
-         actual_hs_lengthss[number<1>{}].size() - 2);
+        (input_ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] == 2) &&
+        (input_ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] ==
+         input_hs_lengthss[number<1>{}].size() - 2);
 
     // make sure ps_to_rhss_major[ndimp-2] == 1
-    // make sure ps_to_rhss_minor[ndimp-2] == hs_lengthss[0].size - 1;
+    // make sure ps_to_rhss_minor[ndimp-2] == input_hs_lengthss[0].size - 1;
     static constexpr bool ps_to_rhss_index1_valid =
-        (ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] == 1) &&
-        (ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] ==
-         actual_hs_lengthss[number<0>{}].size() - 1);
-    // get ys_to_rhs_major.size
-    // make sure ys_to_rhs_major[ndim_y-1] == 2
-    // make sure ys_to_rhs_minor[ndim_y-1] == hs_lengthss[0].size - 1;
-    static constexpr index_t ndimy_size = ys_to_rhs_major.size();
+        (input_ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] == 1) &&
+        (input_ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] ==
+         input_hs_lengthss[number<0>{}].size() - 1);
+
+    static constexpr index_t ndimy_size = input_ys_to_rhs_major.size();
     static constexpr bool ys_to_rhs_major_valid =
-        ((ys_to_rhs_major[ndimy_size - 1] == 2) &&
-         (ys_to_rhs_minor[ndimy_size - 1] == actual_hs_lengthss[number<1>{}].size() - 1)) &&
-        ((ys_to_rhs_major[ndimy_size - 2] == 1) &&
-         (ys_to_rhs_minor[ndimy_size - 2] == actual_hs_lengthss[number<0>{}].size() - 2));
+        ((input_ys_to_rhs_major[ndimy_size - 1] == 2) &&
+         (input_ys_to_rhs_minor[ndimy_size - 1] == input_hs_lengthss[number<1>{}].size() - 1)) &&
+        ((input_ys_to_rhs_major[ndimy_size - 2] == 1) &&
+         (input_ys_to_rhs_minor[ndimy_size - 2] == input_hs_lengthss[number<0>{}].size() - 2));
 
     static constexpr bool distr_encoding_valid =
         hs_lengthss_size_valid && hs_lengthss_size_dim_valid && all_hs_lengthss_are_suffixes &&
         ps_to_rhss_index0_valid && ps_to_rhss_index1_valid && ys_to_rhs_major_valid;
+};
 
-    // if ndimy >= 2, others is iteration number per thread
-    // get ys_to_rhs_major[ndim_y-2] and ys_to_rhs_minor[ndim_y-2]
-    // static constexpr index_t iteration_number = ys_to_rhs_major[ndimy_size]
-    // get other dims in ps_to_rhss_major from [0:ndimp-2)
-    // static constexpr index_t iteration_number =
-    //     ndimy_size == 1 ? 1
-    //                     : reduce_on_sequence(
-    //                           ys_to_rhs_major.extract(
-    //                               typename arithmetic_sequence_gen<0, ndimy_size - 1,
-    //                               1>::type{}),
-    //                           multiplies{},
-    //                           number<1>{});
+template <typename TileDistribution_, typename DataType_>
+struct OutputTileDistributionTraits
+{
+    using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
+    static constexpr auto actual_hs_lengthss = InDstrEncode::hs_lengthss_;
+    using ValidQuadDstrEncode =
+        typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
+    using ValidOutQuadDstrEncode =
+        typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TransposedTileDistrEncode;
+
+    static constexpr auto valid_hs_lengthss     = ValidQuadDstrEncode::hs_lengthss_;
+    static constexpr auto valid_out_hs_lengthss = ValidOutQuadDstrEncode::hs_lengthss_;
+    static constexpr auto ps_to_rhss_major      = InDstrEncode::ps_to_rhss_major_;
+    static constexpr auto ps_to_rhss_minor      = InDstrEncode::ps_to_rhss_minor_;
+    static constexpr auto ys_to_rhs_major       = InDstrEncode::ys_to_rhs_major_;
+    static constexpr auto ys_to_rhs_minor       = InDstrEncode::ys_to_rhs_minor_;
+
+    static constexpr auto full_out_hs_lengthss = generate_tuple(
+        [&](auto i) {
+            return actual_hs_lengthss[i]
+                .extract(typename arithmetic_sequence_gen<0,
+                                                          actual_hs_lengthss[i].size() -
+                                                              valid_hs_lengthss[i].size(),
+                                                          1>::type{})
+                .push_back(valid_out_hs_lengthss[i]);
+        },
+        number<InDstrEncode::NDimX>{});
+
+    static constexpr auto modified_ps_to_rhss_major = generate_tuple(
+        [&](auto i) {
+            if constexpr(i == ps_to_rhss_major.size() - 1)
+            {
+                // For the last sequence, remove the last element
+                return ps_to_rhss_major[i].pop_back();
+            }
+            else
+            {
+                // For all other sequences, keep them unchanged
+                return ps_to_rhss_major[i];
+            }
+        },
+        number<ps_to_rhss_major.size()>{});
+
+    static constexpr auto modified_ps_to_rhss_minor = generate_tuple(
+        [&](auto i) {
+            if constexpr(i == ps_to_rhss_minor.size() - 1)
+            {
+                // For the last sequence, remove the last element
+                return ps_to_rhss_minor[i].pop_back();
+            }
+            else
+            {
+                // For all other sequences, keep them unchanged
+                return ps_to_rhss_minor[i];
+            }
+        },
+        number<ps_to_rhss_minor.size()>{});
+
+    using OutDstrEncode = tile_distribution_encoding<InDstrEncode::RsLengths,
+                                                     decltype(full_out_hs_lengthss),
+                                                     decltype(modified_ps_to_rhss_major),
+                                                     decltype(modified_ps_to_rhss_minor),
+                                                     InDstrEncode::Ys2RHsMajor,
+                                                     InDstrEncode::Ys2RHsMinor>;
 };
 
 template <typename BottomTensorView_,
@@ -149,7 +345,7 @@ template <typename BottomTensorView_,
           index_t NumCoord,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
-          typename                   = std::enable_if_t<tile_distribution_for_transpose_helper<
+          typename                   = std::enable_if_t<TransposeTileDistrChecker<
               TileDistribution_,
               typename BottomTensorView_::DataType>::distr_encoding_valid>>
 CK_TILE_DEVICE auto
@@ -160,16 +356,48 @@ load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_
                     number<i_access>                     = {},
                     bool_constant<oob_conditional_check> = {})
 {
-    return tile_window.load_transpose(number<i_access>{}, bool_constant<oob_conditional_check>{});
-    // using transpose_tile_distribution_helper =
-    //     tile_distribution_for_transpose_helper<typename TileDistribution_::DstrEncode,
-    //                                            typename BottomTensorView_::DataType>;
+    // auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+    //     Policy::template MakeShuffledARegTileDistribution<Problem>());
+    using OutTileDstrEncode =
+        typename OutputTileDistributionTraits<TileDistribution_,
+                                              typename BottomTensorView_::DataType>::OutDstrEncode;
+    auto out_tensor = make_static_distributed_tensor<typename BottomTensorView_::DataType>(
+        make_static_tile_distribution(OutTileDstrEncode{}));
+    auto trans_tensor =
+        tile_window.load_transpose(number<i_access>{}, bool_constant<oob_conditional_check>{});
 
-    // constexpr index_t iteration_num = transpose_tile_distribution_helper::iteration_number;
+    constexpr auto lds_load_distr  = TileDistribution_{};
+    constexpr auto glb_store_distr = make_static_tile_distribution(OutTileDstrEncode{});
 
-    // static_for<0, iteration_num, 1>{}([&](auto i) {
+    constexpr auto y_in_desc  = lds_load_distr.get_ys_to_d_descriptor();
+    constexpr auto y_out_desc = glb_store_distr.get_ys_to_d_descriptor();
 
-    // });
+    constexpr index_t NDimYIn  = lds_load_distr.get_num_of_dimension_y();
+    constexpr index_t NDimYOut = glb_store_distr.get_num_of_dimension_y();
+
+    constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
+    constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
+
+    constexpr auto y_in_element_space_size  = y_in_desc.get_element_space_size();
+    constexpr auto y_out_element_space_size = y_out_desc.get_element_space_size();
+    static_assert(y_in_element_space_size == y_out_element_space_size,
+                  "the element space size is not the same!");
+    static_assert(y_in_lengths[NDimYIn - 1] == y_out_lengths[NDimYOut - 1],
+                  "the vector length is not the same!");
+    constexpr index_t vecLoadSize = y_in_lengths[NDimYIn - 1];
+    constexpr index_t num_of_access =
+        reduce_on_sequence(y_in_lengths, multiplies{}, number<1>{}) / vecLoadSize;
+
+    // constexpr auto lds_distr_y_indx_zeros = uniform_sequence_gen_t<decltype(Policy::template
+    // MakeLdsLoadTileDistribution<Problem>())::NDimY, 0>{};
+
+    using DataVec = array<DataType, vecLoadSize>;
+    static_for<0, num_of_access, 1>{}([&](auto iAccess) {
+        out_tensor.get_thread_buffer().template set_as<DataVec>(
+            number<iAccess>{}, y.get_thread_buffer().template get_as<DataVec>(number<iAccess>{}));
+    });
+
+    return out_tensor;
 }
 
 } // namespace ck_tile
