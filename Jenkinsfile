@@ -701,8 +701,7 @@ def process_results(Map conf=[:]){
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
                         unstash "ckprofiler_0.2.0_amd64.deb"
-                        //sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
-                        sh "sshpass -p ${env.ck_deb_pw} sudo scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         unstash "perf_log"
                         try{
                             unstash "perf_log_gfx11"
