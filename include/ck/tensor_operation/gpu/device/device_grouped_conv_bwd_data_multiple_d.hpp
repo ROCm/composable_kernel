@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -59,7 +59,8 @@ struct DeviceGroupedConvBwdDataMultipleD : public BaseOperator
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op) = 0;
+        const CDEElementwiseOperation& cde_element_op,
+        const ck::index_t split_k = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
