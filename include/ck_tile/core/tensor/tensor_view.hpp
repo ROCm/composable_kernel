@@ -231,7 +231,6 @@ struct tensor_view
     }
 
     template <typename X,
-              bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
@@ -244,12 +243,10 @@ struct tensor_view
         return buf_.template transpose_get<X>(
             coord.get_offset(),
             linear_offset,
-            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
-            bool_constant<oob_conditional_check>{});
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord));
     }
 
     template <typename X,
-              bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
@@ -257,13 +254,10 @@ struct tensor_view
     CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
     get_transpose_vectorized_elements(const TensorCoord& coord,
                                       index_t linear_offset,
-                                      bool is_valid_element, // flag
-                                      bool_constant<oob_conditional_check> = {}) const
+                                      bool is_valid_element // flag
+    ) const
     {
-        return buf_.template transpose_get<X>(coord.get_offset(),
-                                              linear_offset,
-                                              is_valid_element,
-                                              bool_constant<oob_conditional_check>{});
+        return buf_.template transpose_get<X>(coord.get_offset(), linear_offset, is_valid_element);
     }
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X

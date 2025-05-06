@@ -609,23 +609,16 @@ struct tile_window_with_static_distribution
         });
     }
 
-    template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
-    CK_TILE_DEVICE auto load_transpose(number<i_access_unsupport_>          = {},
-                                       bool_constant<oob_conditional_check> = {}) const
+    CK_TILE_DEVICE auto load_transpose() const
     {
         constexpr auto tile_dstr = TileDstr{};
         auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
-        load_transpose(
-            dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
+        load_transpose(dst_tensor);
         return dst_tensor;
     }
 
-    template <typename DistributedTensor,
-              index_t i_access_unsupport_ = -1,
-              bool oob_conditional_check  = true>
-    CK_TILE_DEVICE auto load_transpose(DistributedTensor& dst_tensor,
-                                       number<i_access_unsupport_>          = {},
-                                       bool_constant<oob_conditional_check> = {}) const
+    template <typename DistributedTensor>
+    CK_TILE_DEVICE auto load_transpose(DistributedTensor& dst_tensor) const
     {
         using Traits   = load_store_traits;
         using vector_t = typename Traits::vector_t;
@@ -648,7 +641,7 @@ struct tile_window_with_static_distribution
                 // read from bottom tensor
                 const vector_t vec_value =
                     get_bottom_tensor_view().template get_transpose_vectorized_elements<vector_t>(
-                        bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
+                        bottom_tensor_thread_coord, 0);
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
                     constexpr auto idx_ys = generate_tuple(
