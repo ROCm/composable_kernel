@@ -190,6 +190,7 @@ struct GridwiseMoeGemm
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
 
     static constexpr index_t KGroup  = mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
+    // static_assert(KGroup == 2, "");
     static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
@@ -1349,7 +1350,7 @@ struct GridwiseMoeGemm
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
@@ -2064,7 +2065,7 @@ struct GridwiseMoeGemm
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
