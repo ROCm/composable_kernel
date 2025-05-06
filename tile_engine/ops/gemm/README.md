@@ -20,25 +20,24 @@ make tile_engine_gemm -j
 ## tile_engine_gemm inputs
 ```
 
-          -m    m dimension (default:3840)
-          -n    n dimension (default:4096)
-          -k    k dimension (default:2048)
-   -stride_a    Tensor A stride (default:0)
-   -stride_b    Tensor B stride (default:0)
-   -stride_c    Tensor C stride (default:0)
-    -split_k    SplitK value (default:1)
-          -v    No validation: 0, Validation on CPU: 1, Validation on GPU: 2 (default:2)
-     -metric    The metric value of kernel performance - latency: 0, tflops: 1, bandwidth: 2 (default:0)
-     -warmup    Number of iterations before benchmark the kernel (default:50)
-     -repeat    Number of iterations to benchmark the kernel (default:100)
-      -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
-       -init    Value for initializing tensor - random: 0, linear: 1, constant(1): 2 (default:0)
-   -pipeline    possible values are: compv3, compv4, mem (default:compv3)
-  -scheduler    possible values are: intrawave, interwave (default:intrawave)
-   -epilogue    possible values are: cshuffle, default (default:cshuffle)
-      -pad_m    Pad in m direction - true/false (default:false)
-      -pad_n    Pad in n direction - true/false (default:false)
-      -pad_k    Pad in k direction - true/false (default:false)
+          -m    The value for m dimension. Default is 3840.
+          -n    The value for n dimension. Default is 4096.
+          -k    The value for k dimension. Default is 2048.
+   -stride_a    The stride value for tensor A. Default is 0.
+   -stride_b    The stride value for tensor B. Default is 0.
+   -stride_c    The stride value for tensor C  Default is 0.
+    -split_k    The split value for k dimension. Default is 1.
+          -v    The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 for validation on GPU. Default is 2, validation on GPU.
+     -warmup    The number of iterations before benchmark the kernel. Default is 50.
+     -repeat    The number of iterations to benchmark the kernel. Default is 100.
+      -timer    The type of timer. Possible values are gpu timer or cpu timer. Default is gpu timer.
+       -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
+     -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
+   -pipeline    The type of pipeline. Possible values are compv3, compv4 or mem. Default is compv3.     
+   -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is csshuffle.
+      -pad_m    Whether pad or not in m direction. Possible values are true or false. Default is false. 
+      -pad_n    Whether pad or not in n direction. Possible values are true or false. Default is false. 
+      -pad_k    Whether pad or not in k direction. Possible values are true or false. Default is false. 
 
 Note: pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be one of the options specified in instance_combination.json 
 ```

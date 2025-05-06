@@ -225,25 +225,56 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 inline auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "3840", "m dimension")
-        .insert("n", "4096", "n dimension")
-        .insert("k", "2048", "k dimension")
-        .insert("stride_a", "0", "Tensor A stride")
-        .insert("stride_b", "0", "Tensor B stride")
-        .insert("stride_c", "0", "Tensor C stride")
-        .insert("split_k", "1", "splitK value")
-        .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("warmup", "50", "number of iterations before benchmark the kernel")
-        .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("metric", "0", "0:latency, 1:tflops, 2:bandwidth")
-        .insert("pipeline", "compv3", "compv3, compv4, mem")
-        .insert("scheduler", "intrawave", "intrawave, interwave")
-        .insert("epilogue", "cshuffle", "cshuffle, default")
-        .insert("pad_m", "false", "true, false")
-        .insert("pad_n", "false", "true, false")
-        .insert("pad_k", "false", "true, false");
+    arg_parser.insert("m", "3840", "The value for m dimension. Default is 3840.")
+        .insert("n", "4096", "The value for n dimension. Default is 4096.")
+        .insert("k", "2048", "The value for k dimension. Default is 2048.")
+        .insert("stride_a", "0", "The stride value for tensor A. Default is 0.")
+        .insert("stride_b", "0", "The stride value for tensor B. Default is 0.")
+        .insert("stride_c", "0", "The stride value for tensor C  Default is 0.")
+        .insert("split_k", "1", "The split value for k dimension. Default is 1.")
+        .insert("v",
+                "2",
+                "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
+                "for validation on GPU. Default is 2, validation on GPU.")
+        .insert(
+            "warmup", "50", "The number of iterations before benchmark the kernel. Default is 50.")
+        .insert(
+            "repeat", "100", "The number of iterations to benchmark the kernel. Default is 100.")
+        .insert(
+            "timer",
+            "gpu",
+            "The type of timer. Possible values are gpu timer or cpu timer. Default is gpu timer.")
+        .insert("init",
+                "0",
+                "The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 "
+                "for constant(1). Default is 0, random.")
+        .insert("metric",
+                "0",
+                "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "
+                "tflops, or 2 for bandwidth. Default is 0, latency.")
+        .insert(
+            "pipeline",
+            "compv3",
+            "The type of pipeline. Possible values are compv3, compv4 or mem. Default is compv3.")
+        .insert("scheduler",
+                "The type of pipeline. Possible values are compv3, compv4 or mem. Default is "
+                "compv3.")
+        .insert(
+            "epilogue",
+            "cshuffle",
+            "The type of epilogue. Possible values are cshuffle or default. Default is csshuffle.")
+        .insert("pad_m",
+                "false",
+                "Whether pad or not in m direction. Possible values are true or false. Default is "
+                "false.")
+        .insert("pad_n",
+                "false",
+                "Whether pad or not in n direction. Possible values are true or false. Default is "
+                "false.")
+        .insert("pad_k",
+                "false",
+                "Whether pad or not in k direction. Possible values are true or false. Default is "
+                "false.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
