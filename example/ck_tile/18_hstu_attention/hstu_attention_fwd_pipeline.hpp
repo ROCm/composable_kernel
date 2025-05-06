@@ -446,14 +446,8 @@ struct HstuAttentionFwdPipelineQRKSVS
                         randval_lds_ptr, seqlen_k_curr, pcomp_tiles[i_k1], null_randval_window);
                 }
 
-                auto p = [&]() {
-                    if constexpr(std::is_same_v<PDataType, fp16_t>)
-                        return impl::cast_tile_pk_fp16_fp32<PDataType>(
-                            tile_elementwise_in(p_compute_element_func, pcomp_tiles[i_k1]));
-                    else
-                        return cast_tile<PDataType>(
-                            tile_elementwise_in(p_compute_element_func, pcomp_tiles[i_k1]));
-                }();
+                auto p = cast_tile<PDataType>(
+                    tile_elementwise_in(p_compute_element_func, pcomp_tiles[i_k1]));
 
                 block_sync_lds();
 
