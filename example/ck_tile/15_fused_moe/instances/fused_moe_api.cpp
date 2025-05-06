@@ -2,6 +2,12 @@
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "fused_moe.hpp"
+#include "ck_tile/ops/fused_moe.hpp"
+
+int fused_moe_get_workspace_size(int tokens, int num_experts, int topk)
+{
+    return ck_tile::moe_sorting_get_workspace_size(tokens, num_experts, topk);
+}
 
 float fused_moe(fused_moe_traits t, fused_moe_args a, const ck_tile::stream_config& s)
 {
