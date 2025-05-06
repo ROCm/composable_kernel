@@ -236,9 +236,7 @@ struct tensor_view
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
                   bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
-    get_transpose_vectorized_elements(const TensorCoord& coord,
-                                      index_t linear_offset,
-                                      bool_constant<oob_conditional_check> = {}) const
+    get_transpose_vectorized_elements(const TensorCoord& coord, index_t linear_offset) const
     {
         return buf_.template transpose_get<X>(
             coord.get_offset(),
