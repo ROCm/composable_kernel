@@ -70,7 +70,8 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
                                          M_Warp_Tile,
                                          N_Warp_Tile,
                                          K_Warp_Tile,
-                                         CodegenPipelineProblem::TransposeC>>;
+                                         CodegenPipelineProblem::TransposeC,
+                                         ck_tile::memory_operation_enum::set>>;
 
     using CodegenFlatmmPolicy = ck_tile::UniversalFlatmmPipelineAgBgCrPolicy;
     using CodegenFlatmmPipeline =
