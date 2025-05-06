@@ -141,6 +141,8 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
         ck_tile::index_t batch_stride_o;
+
+        ck_tile::index_t max_seqlen;
     };
 
     struct HstuAttentionFwdJaggModeKargs : HstuAttentionFwdCommonKargs,
@@ -155,6 +157,7 @@ struct HstuAttentionFwdKernel
                                                               HstuAttentionFwdEmptyKargs<2>>
     {
         const int32_t* seq_offsets_ptr;
+        ck_tile::index_t max_seqlen;
     };
 
     using Kargs = std::
@@ -219,7 +222,8 @@ struct HstuAttentionFwdKernel
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
-                    batch_stride_o};
+                    batch_stride_o,
+                    seqlen}; // max_seqlen
 
         if constexpr(kHasBias)
         {
@@ -319,6 +323,7 @@ struct HstuAttentionFwdKernel
                   const void* bias_ptr,
                   void* o_ptr,
                   const void* seq_offsets_ptr,
+                  ck_tile::index_t max_seqlen,
                   ck_tile::index_t hdim_qk,
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head,
@@ -362,7 +367,8 @@ struct HstuAttentionFwdKernel
                     {},                  // placeholder for bias
                     {},                  // placeholder for mask
                     {},                  // placeholder for dropout
-                    reinterpret_cast<const int32_t*>(seq_offsets_ptr)};
+                    reinterpret_cast<const int32_t*>(seq_offsets_ptr),
+                    max_seqlen};
 
         if constexpr(kHasBias)
         {
@@ -393,6 +399,7 @@ struct HstuAttentionFwdKernel
               const void* bias_ptr,
               void* o_ptr,
               const void* seq_offsets_ptr,
+              ck_tile::index_t max_seqlen,
               ck_tile::index_t hdim_qk,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head,
@@ -421,6 +428,7 @@ struct HstuAttentionFwdKernel
                              bias_ptr,
                              o_ptr,
                              seq_offsets_ptr,
+                             max_seqlen,
                              hdim_qk,
                              hdim_v,
                              num_head,
@@ -732,6 +740,7 @@ struct HstuAttentionFwdKernel
                                            bias_dram_window,
                                            mask,
                                            kargs.scale_s,
+                                           kargs.max_seqlen,
                                            smem_ptr,
                                            dropout);
         }();
