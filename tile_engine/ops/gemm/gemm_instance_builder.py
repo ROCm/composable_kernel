@@ -55,22 +55,23 @@ CSHUFFLE_EPILOGUE = """
                                                              WarpTileM,
                                                              WarpTileN,
                                                              WarpTileK,
-                                                             UniversalGemmProblem::TransposeC>>;
+                                                             UniversalGemmProblem::TransposeC,
+                                                             memory_operation>>;
 """
 HOT_LOOP_FALSE = """
             if(tail_num == ck_tile::TailNumber::Full)
             {
-                Run(ck_tile::bool_constant<false>{},
+                RunSplitk(ck_tile::bool_constant<false>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
             else if(tail_num == ck_tile::TailNumber::Odd)
             {
-                Run(ck_tile::bool_constant<false>{},
+                RunSplitk(ck_tile::bool_constant<false>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
             else if(tail_num == ck_tile::TailNumber::Even)
             {
-                Run(ck_tile::bool_constant<false>{},
+                RunSplitk(ck_tile::bool_constant<false>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
             else
@@ -81,10 +82,10 @@ HOT_LOOP_FALSE = """
 RUN_MEM = """
             // Handle One and Full cases directly
             if (tail_num == ck_tile::TailNumber::One) {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
             } else if (tail_num == ck_tile::TailNumber::Full) {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
             // Variadic call using fold expression
@@ -105,17 +106,17 @@ RUN_MEM = """
 RUN_COMPV3 = """
             if(tail_num == ck_tile::TailNumber::Full)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
             else if(tail_num == ck_tile::TailNumber::Odd)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
             else if(tail_num == ck_tile::TailNumber::Even)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
             else
@@ -127,12 +128,12 @@ RUN_COMPV3 = """
 RUN_COMPV4 = """
             if(tail_num == ck_tile::TailNumber::Three)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
             }
             else
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
             }
 """
@@ -326,7 +327,7 @@ template <typename Pipeline, ck_tile::TailNumber TN>
 void try_run(ck_tile::TailNumber tn) {{
     if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN)) {{
         if (tn == TN) {{
-            Run(ck_tile::bool_constant<true>{{}},
+            RunSplitk(ck_tile::bool_constant<true>{{}},
                 ck_tile::integral_constant<ck_tile::TailNumber, TN>{{}});
         }}
     }}
@@ -383,10 +384,11 @@ struct GemmKernel {{
 
         float ave_time{{0}};
 
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {{
+        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {{
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
             constexpr auto scheduler      = {SCHEDULER_MAP[scheduler]};
+            constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem = 
                 ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -424,6 +426,20 @@ struct GemmKernel {{
                                               Kernel{{}}, grids, blocks, 0, kargs));
             return ave_time;
 
+        }};
+
+        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
+            if(args.k_batch == 1) {{
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                            ck_tile::memory_operation_enum::set>{{}});
+            }} else {{
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                            ck_tile::memory_operation_enum::atomic_add>{{}});
+            }}
         }};
 
         if(has_hot_loop) {{
