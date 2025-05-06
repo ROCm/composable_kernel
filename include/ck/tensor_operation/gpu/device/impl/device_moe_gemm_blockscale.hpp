@@ -491,30 +491,30 @@ struct DeviceMoeGemmBlockScale
                         RunKernel(kernel);
                     }
                 }
-                // else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
-                //                   BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-                // {
-                //     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                //     {
-                //         const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
-                //                                                  false,
-                //                                                  MemoryDataOp,
-                //                                                  minimum_occupancy,
-                //                                                  IsInputGemm,
-                //                                                  TailNumber::Odd>;
-                //         RunKernel(kernel);
-                //     }
-                //     else
-                //     {
-                //         const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
-                //                                                  false,
-                //                                                  MemoryDataOp,
-                //                                                  minimum_occupancy,
-                //                                                  IsInputGemm,
-                //                                                  TailNumber::Even>;
-                //         RunKernel(kernel);
-                //     }
-                // }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 IsInputGemm,
+                                                                 TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 IsInputGemm,
+                                                                 TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
+                }
             }
 #endif
 #endif
