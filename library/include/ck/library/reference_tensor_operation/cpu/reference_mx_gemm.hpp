@@ -84,6 +84,7 @@ struct ReferenceMXGemm : public device::BaseOperator
             const auto N           = arg.b_k_n_.mDesc.GetLengths()[1];
             const auto K           = arg.a_m_k_.mDesc.GetLengths()[1];
             const auto SCALE_BLOCK = K / arg.a_m_kblock_scales_.mDesc.GetLengths()[1];
+            printf("K: %d\n", K);
 
             for(size_t m = 0; m < M; m++)
             {
@@ -95,15 +96,29 @@ struct ReferenceMXGemm : public device::BaseOperator
                         if(k % 2 == 1)
                             a_m_k_scaled(m, k) =
                                 type_convert<ComputeTypeA>(
-                                    f4_t(arg.a_m_k_(m, k).template unpack<>(Number<1>{}))) *
+                                    f4_t(arg.a_m_k_(m, k / 2).template unpack<>(Number<1>{}))) *
                                 type_convert<ComputeTypeA>(
                                     arg.a_m_kblock_scales_(m, k / SCALE_BLOCK));
                         else
                             a_m_k_scaled(m, k) =
                                 type_convert<ComputeTypeA>(
-                                    f4_t(arg.a_m_k_(m, k).template unpack<>(Number<0>{}))) *
+                                    f4_t(arg.a_m_k_(m, k / 2).template unpack<>(Number<0>{}))) *
                                 type_convert<ComputeTypeA>(
                                     arg.a_m_kblock_scales_(m, k / SCALE_BLOCK));
+                        if(m == 0)
+                        {
+                            printf("a_m_k_scaled(%zu, %zu): %f = %f * %f\n",
+                                   m,
+                                   k,
+                                   a_m_k_scaled(m, k),
+                                   k % 2 == 1
+                                       ? type_convert<ComputeTypeA>(f4_t(
+                                             arg.a_m_k_(m, k / 2).template unpack<>(Number<1>{})))
+                                       : type_convert<ComputeTypeA>(f4_t(
+                                             arg.a_m_k_(m, k / 2).template unpack<>(Number<0>{}))),
+                                   type_convert<ComputeTypeA>(
+                                       arg.a_m_kblock_scales_(m, k / SCALE_BLOCK)));
+                        }
                     }
                     else
                     {
@@ -124,13 +139,13 @@ struct ReferenceMXGemm : public device::BaseOperator
                         if(k % 2 == 1)
                             b_k_n_scaled(k, n) =
                                 type_convert<ComputeTypeB>(
-                                    f4_t(arg.b_k_n_(k, n).template unpack<>(Number<1>{}))) *
+                                    f4_t(arg.b_k_n_(k / 2, n).template unpack<>(Number<1>{}))) *
                                 type_convert<ComputeTypeB>(
                                     arg.b_kblock_n_scales_(k / SCALE_BLOCK, n));
                         else
                             b_k_n_scaled(k, n) =
                                 type_convert<ComputeTypeB>(
-                                    f4_t(arg.b_k_n_(k, n).template unpack<>(Number<0>{}))) *
+                                    f4_t(arg.b_k_n_(k / 2, n).template unpack<>(Number<0>{}))) *
                                 type_convert<ComputeTypeB>(
                                     arg.b_kblock_n_scales_(k / SCALE_BLOCK, n));
                     }

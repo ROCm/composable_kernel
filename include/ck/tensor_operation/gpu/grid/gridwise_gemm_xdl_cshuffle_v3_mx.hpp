@@ -167,15 +167,16 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     //
     // Should be a multiple of k_per_blk.
     // TODO: Move this to blockwise pipeline base
-    static constexpr index_t KPack = // = num of pk_f4
-        math::max(lcm_AK1_BK1,       // num of pk_f4
+    // KPack in packed data types for pk A/B
+    static constexpr index_t KPack =
+        math::max(lcm_AK1_BK1,
                   MfmaSelector<ComputeTypeA,
                                MPerXdl,
                                NPerXdl,
                                ComputeTypeB,
                                is_single_rate_mfma,
                                is_scale_mfma>::selected_mfma.k_per_blk /
-                      2); // num of f4
+                      2);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -1567,6 +1568,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         // shuffle C and write out
         {
+            // printf("c_thread_buf %f %f\n", c_thread_buf[I0], c_thread_buf[I1]);
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");

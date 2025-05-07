@@ -344,13 +344,13 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 constexpr auto a_k_step_chunk =
                                     k_step +
                                     chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                                // a_thread_copy_.Run(
-                                //     a_block_desc_m0_m1_m2_k,
-                                //     make_tuple(m0, I0, I0, Number<a_k_step_chunk>{}),
-                                //     a_block_buf,
-                                //     a_thread_desc_,
-                                //     make_tuple(m0, I0, k, Number<chunk * KThreadChunk>{}),
-                                //     a_thread_buf);
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k,
+                                    make_tuple(m0, I0, I0, Number<a_k_step_chunk>{}),
+                                    a_block_buf,
+                                    a_thread_desc_,
+                                    make_tuple(m0, I0, k, Number<chunk * KThreadChunk>{}),
+                                    a_thread_buf);
                             });
                     });
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -406,13 +406,13 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 b_scale_thread_vec.template AsType<BScaleDataType>()(s) =
                                     b_scale_thread_buf[Number<b_scale_offset + s>{}];
                             });
-                            CK_TILE_PRINT<xdlops_gemm.K1PerXdlops>();
-                            CK_TILE_PRINT<decltype(xdlops_gemm)>();
+                            // CK_TILE_PRINT<xdlops_gemm.K1PerXdlops>();
+                            // CK_TILE_PRINT<decltype(xdlops_gemm)>();
                             using mfma_input_type_a =
                                 typename vector_type<ComputeTypeA,
                                                      xdlops_gemm.K1PerXdlops / 2>::type;
                             // mfma input type = pk_f4_t, 32
-                            CK_TILE_PRINT<mfma_input_type_a>();
+                            // CK_TILE_PRINT<mfma_input_type_a>();
                             using mfma_input_type_b =
                                 typename vector_type<ComputeTypeB,
                                                      xdlops_gemm.K1PerXdlops / 2>::type;
@@ -538,6 +538,9 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
+            printf("a_thread_buf: %x %x\n",
+                   *reinterpret_cast<const uint8_t*>(&a_scale_thread_buf[I0]),
+                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_buf[I0]));
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {

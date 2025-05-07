@@ -1140,6 +1140,11 @@ struct MfmaSelector
     {
         return MfmaInstr::mfma_scale_f32_32x32x64f8f6f4;
     }
+    template <>
+    constexpr auto GetMfma<f4_t, 16, 16, f4_t, false, true>()
+    {
+        return MfmaInstr::mfma_scale_f32_16x16x128f8f6f4;
+    }
 
     template <>
     constexpr auto GetMfma<f8_t, 16, 16>()
@@ -1443,7 +1448,7 @@ struct XdlopsGemm
                         const ScaleB& b_scale_thread,
                         FloatC& p_c_thread) const
     {
-        static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
+        static_for<0, KPack * 2 / mfma_instr.k_per_blk, 1>{}([&](auto k) {
             if constexpr(!TransposeC)
             {
                 mfma_instr.template run<MPerXdlops, NPerXdlops>(

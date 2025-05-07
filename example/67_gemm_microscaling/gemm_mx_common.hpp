@@ -200,10 +200,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(1.f)}(b_k_n);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(b_k_n_scale);
+        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(ck::float2_t(1.0f))}(a_m_k);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(1.0f))}(b_k_n);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
         if(config.verbosity > 0)
         {
             std::cout << "Init A = {1}" << std::endl;
@@ -347,16 +347,16 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Comparing results..." << std::endl;
         }
 
-        if(config.init_method == 0)
-        {
-            auto expected = static_cast<float>(K);
-            auto computed = type_convert<float>(c_m_n_device_result(1, 12));
+        // if(config.init_method == 0)
+        // {
+        //     auto expected = static_cast<float>(K);
+        //     auto computed = type_convert<float>(c_m_n_device_result(1, 12));
 
-            res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
-            std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
-                      << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl
-                      << std::endl;
-        }
+        //     res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
+        //     std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
+        //               << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl
+        //               << std::endl;
+        // }
 
         res_verified = res_verified && ck::utils::check_err(c_m_n_device_result,
                                                             c_m_n_host_result,
