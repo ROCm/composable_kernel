@@ -12,7 +12,13 @@
 #include "ck_tile/host.hpp"
 #include "flatmm_basic.hpp"
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
@@ -23,18 +29,32 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
     constexpr int kBlockPerCu = 2;
 
     // This part comes from the Codegen
+#if defined(USING_MFMA_16x16x32) || defined(ENABLE_FP16)
     constexpr ck_tile::index_t M_Tile = 128;
     constexpr ck_tile::index_t N_Tile = 128;
-    constexpr ck_tile::index_t K_Tile = 64;
+    constexpr ck_tile::index_t K_Tile = 128;
 
     constexpr ck_tile::index_t M_Warp = 1;
     constexpr ck_tile::index_t N_Warp = 4;
     constexpr ck_tile::index_t K_Warp = 1;
 
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
+    constexpr ck_tile::index_t M_Warp_Tile = is_8bit_type<ADataType>::value ? 16 : 32;
+    constexpr ck_tile::index_t N_Warp_Tile = is_8bit_type<ADataType>::value ? 16 : 32;
+    constexpr ck_tile::index_t K_Warp_Tile = is_8bit_type<ADataType>::value ? 64 : 16;
 
+#elif defined(USING_MFMA_32x32x16) && defined(ENABLE_FP8)
+    constexpr ck_tile::index_t M_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 256;
+    constexpr ck_tile::index_t K_Tile = 128;
+
+    constexpr ck_tile::index_t M_Warp = 1;
+    constexpr ck_tile::index_t N_Warp = 8;
+    constexpr ck_tile::index_t K_Warp = 1;
+
+    constexpr ck_tile::index_t M_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 32;
+    constexpr ck_tile::index_t N_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 32;
+    constexpr ck_tile::index_t K_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 16;
+#endif
     using CodegenFlatmmShape =
         ck_tile::TileFlatmmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                  ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
@@ -113,5 +133,48 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
 }
 
 #include "run_flatmm_example.inc"
+
+int run_flatmm_example(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    std::string data_type = arg_parser.get_str("prec");
+    std::string a_layout  = arg_parser.get_str("a_layout");
+    std::string b_layout  = arg_parser.get_str("b_layout");
+
+    if(a_layout == "R" && b_layout == "C")
+    {
+        if(data_type == "fp16")
+        {
+            run_flatmm_example_with_layouts<ck_tile::half_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(data_type == "bf16")
+        {
+            run_flatmm_example_with_layouts<ck_tile::bf16_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(data_type == "fp8")
+        {
+            run_flatmm_example_with_layouts<ck_tile::fp8_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(data_type == "bf8")
+        {
+            run_flatmm_example_with_layouts<ck_tile::bf8_t>(argc, argv, Row{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data_type!");
+        }
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+    }
+    return -1;
+}
 
 int main(int argc, char* argv[]) { return !run_flatmm_example(argc, argv); }
