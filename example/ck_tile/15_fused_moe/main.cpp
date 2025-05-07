@@ -372,7 +372,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             num_sorted_tiles_host.get_element_space_size_in_bytes());
 
         // if return zero, means no need workspace, can set moe_sorting_args.p_ws to nullptr
-        ck_tile::index_t workspace_size = ck_tile::moe_sorting_get_workspace_size(tokens, experts);
+        ck_tile::index_t workspace_size =
+            ck_tile::moe_sorting_get_workspace_size(tokens, experts, topk);
         ck_tile::DeviceMem moe_sorting_ws(workspace_size != 0 ? workspace_size : 0);
         if(workspace_size != 0)
             moe_sorting_ws.SetZero(); // note, clear here!!!!

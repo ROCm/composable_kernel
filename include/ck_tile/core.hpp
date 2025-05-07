@@ -13,6 +13,7 @@
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/core/arch/utility.hpp"
+#include "ck_tile/core/arch/workgroup_barrier.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
