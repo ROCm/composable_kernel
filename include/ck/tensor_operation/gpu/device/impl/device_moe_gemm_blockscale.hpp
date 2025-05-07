@@ -200,38 +200,125 @@ struct DeviceMoeGemmBlockScale
                     reinterpret_cast<void*>(0x2),
                     &arg_size,
                     reinterpret_cast<void*>(0x3)};
-
                 if(stream_config.time_kernel_)
                 {
-                    // time kernel
-                    hipEvent_t start, stop;
-                    hip_check_error(hipEventCreate(&start));
-                    hip_check_error(hipEventCreate(&stop));
+                               // warm up
+                    for(int i = 0; i < stream_config.cold_niters_; ++i)
+                    {
+                        hip_check_error(hipModuleLaunchKernel(kernel_func,
+                            gdx,
+                            gdy,
+                            1,
+                            256,
+                            1,
+                            1,
+                            0,
+                            stream_config.stream_id_,
+                            nullptr,
+                            reinterpret_cast<void**>(&config)));
+                        hip_check_error(hipGetLastError());
+                    }
+                    const int nrepeat = stream_config.nrepeat_;
+                    if(stream_config.flush_cache)
+                    {
 
-                    hip_check_error(hipDeviceSynchronize());
-                    hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+                        std::array<std::size_t, NumDTensor> DsSize;
 
-                    hip_check_error(hipModuleLaunchKernel(kernel_func,
-                                            gdx,
-                                            gdy,
-                                            1,
-                                            256,
-                                            1,
-                                            1,
-                                            0,
-                                            stream_config.stream_id_,
-                                            nullptr,
-                                            reinterpret_cast<void**>(&config)));
-                    hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-                    hip_check_error(hipEventSynchronize(stop));
+                        Argument arg_ = arg;
 
-                    float total_time = 0;
+                        const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
+                            arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
+                        const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
+                            arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
 
-                    hip_check_error(hipEventElapsedTime(&total_time, start, stop));
+                        auto size_a_buffer =
+                            a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
+                        auto size_b_buffer =
+                            b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
 
-                    hip_check_error(hipEventDestroy(start));
-                    hip_check_error(hipEventDestroy(stop));
-                    ave_time = total_time;
+                        const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
+                            arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
+
+                        static_for<0, NumDTensor, 1>{}([&](auto i) {
+                            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                            DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
+                        });
+                        ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
+                            arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer, DsSize);
+                        rotating_mem.Print();
+
+                        auto run_flush_cache = [&]() {
+                            // flush icache
+                            ck::utility::flush_icache();
+                            // rotating mem
+                            rotating_mem.Next();
+                            // clear c mem
+                            if(arg_.KBatch > 1)
+                                hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
+                                                                0,
+                                                                arg_.M * arg_.N * sizeof(CDataType),
+                                                                stream_config.stream_id_));
+                        };
+                                                // time kernel
+                        hipEvent_t start, stop;
+                        hip_check_error(hipEventCreate(&start));
+                        hip_check_error(hipEventCreate(&stop));
+
+                        hip_check_error(hipDeviceSynchronize());
+                        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+                        for(int i = 0; i < nrepeat; ++i)
+                        {
+                            run_flush_cache();
+                            hip_check_error(hipModuleLaunchKernel(kernel_func,
+                                                gdx,
+                                                gdy,
+                                                1,
+                                                256,
+                                                1,
+                                                1,
+                                                0,
+                                                stream_config.stream_id_,
+                                                nullptr,
+                                                reinterpret_cast<void**>(&config)));
+                        }
+                        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
+                        hip_check_error(hipEventSynchronize(stop));
+                        float total_time = 0;
+                        hip_check_error(hipEventElapsedTime(&total_time, start, stop));  
+                        hip_check_error(hipEventDestroy(start));
+                        hip_check_error(hipEventDestroy(stop));
+                        ave_time = total_time / nrepeat;
+                    }
+                    else{                        
+                        // time kernel
+                        hipEvent_t start, stop;
+                        hip_check_error(hipEventCreate(&start));
+                        hip_check_error(hipEventCreate(&stop));
+
+                        hip_check_error(hipDeviceSynchronize());
+                        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+                        for(int i = 0; i < nrepeat; ++i)
+                        {
+                        hip_check_error(hipModuleLaunchKernel(kernel_func,
+                                                gdx,
+                                                gdy,
+                                                1,
+                                                256,
+                                                1,
+                                                1,
+                                                0,
+                                                stream_config.stream_id_,
+                                                nullptr,
+                                                reinterpret_cast<void**>(&config)));
+                        }
+                        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
+                        hip_check_error(hipEventSynchronize(stop));
+                        float total_time = 0;
+                        hip_check_error(hipEventElapsedTime(&total_time, start, stop));  
+                        hip_check_error(hipEventDestroy(start));
+                        hip_check_error(hipEventDestroy(stop));
+                        ave_time = total_time / nrepeat;
+                    }
                 }
                 else{
                     hip_check_error(hipModuleLaunchKernel(kernel_func,
