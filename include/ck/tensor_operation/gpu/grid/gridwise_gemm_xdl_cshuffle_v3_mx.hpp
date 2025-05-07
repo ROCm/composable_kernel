@@ -167,26 +167,29 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     //
     // Should be a multiple of k_per_blk.
     // TODO: Move this to blockwise pipeline base
-    static constexpr index_t KPack =
-        math::max(lcm_AK1_BK1,
+    static constexpr index_t KPack = // = num of pk_f4
+        math::max(lcm_AK1_BK1,       // num of pk_f4
                   MfmaSelector<ComputeTypeA,
                                MPerXdl,
                                NPerXdl,
                                ComputeTypeB,
                                is_single_rate_mfma,
-                               is_scale_mfma>::selected_mfma.k_per_blk);
+                               is_scale_mfma>::selected_mfma.k_per_blk /
+                      2); // num of f4
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
             return 2;
         else
             return 1;
     }();
 
     static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<BDataType>, f4x2_pk_t>)
             return 2;
         else
             return 1;
@@ -363,6 +366,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         static_assert(!(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> &&
                         GemmSpec != GemmSpecialization::Default),
                       "pk_i4_t does not support padding");
+        static_assert(!(is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t> &&
+                        GemmSpec != GemmSpecialization::Default),
+                      "f4x2_pk_t does not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)

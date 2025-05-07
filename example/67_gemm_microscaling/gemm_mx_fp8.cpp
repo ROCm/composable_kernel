@@ -3,8 +3,10 @@
 
 #include "gemm_mx_common.hpp"
 
-using ADataType = ck::f8_t;
-using BDataType = ck::f8_t;
+using ADataType = ck::f4x2_pk_t;
+using BDataType = ck::f4x2_pk_t;
+// using ADataType = ck::f4_t;
+// using BDataType = ck::f4_t;
 
 using XDataType = ck::e8m0_bexp_t;
 

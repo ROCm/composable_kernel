@@ -69,7 +69,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     static constexpr auto I16 = Number<16>{};
 
     static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
             return 2;
         else
             return 1;
@@ -90,7 +91,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
           src_element_op_(src_element_op),
           dst_element_op_(dst_element_op)
     {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
         {
             static_assert(is_same_v<remove_cvref_t<SrcData>, remove_cvref_t<DstData>>,
                           "SrcData != DstData");
@@ -444,6 +446,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         {
             static_assert(!is_same_v<remove_cvref_t<SrcData>, pk_i4_t>,
                           "in-register transpose is not supported for pk_i4_t");
+            static_assert(!is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>,
+                          "in-register transpose is not supported for f4x2_pk_t");
             // each transpose does
             // DstScalarPerVector # of src vectors in src_thread_scratch_
             // SrcScalarPerVector # of dst vectors in dst_thread_scratch_

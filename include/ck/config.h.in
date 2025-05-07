@@ -26,6 +26,13 @@
 #ifndef CK_CONFIG_H_IN
 #define CK_CONFIG_H_IN
 
+template <auto ...val>
+[[deprecated("Help function to print value")]]
+inline constexpr void CK_TILE_PRINT() {}
+template <typename ...type>
+[[deprecated("Help function to print value")]]
+inline constexpr void CK_TILE_PRINT() {}
+
 // clang-format off
 //
 // DataType supports in the current CK build

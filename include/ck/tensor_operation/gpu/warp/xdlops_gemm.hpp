@@ -858,6 +858,7 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
                         const ScaleB& scale_b,
                         FloatC& reg_c) const
     {
+        // CK_TILE_PRINT<FloatA>();
         static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this point.");
         static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at this point.");
 
@@ -1134,6 +1135,11 @@ struct MfmaSelector
     {
         return MfmaInstr::mfma_scale_f32_32x32x64f8f6f4;
     }
+    template <>
+    constexpr auto GetMfma<f4_t, 32, 32, f4_t, false, true>()
+    {
+        return MfmaInstr::mfma_scale_f32_32x32x64f8f6f4;
+    }
 
     template <>
     constexpr auto GetMfma<f8_t, 16, 16>()
@@ -1201,10 +1207,10 @@ struct MfmaSelector
         return MfmaInstr::mfma_f32_16x16x32bf8f8;
     }
 
-    static constexpr auto selected_mfma = mfma_type<GetMfma<base_type,
+    static constexpr auto selected_mfma = mfma_type<GetMfma<element_type_t<base_type>,
                                                             MPerXdlops,
                                                             NPerXdlops,
-                                                            additional_type,
+                                                            element_type_t<additional_type>,
                                                             is_single_rate_mfma,
                                                             is_scale_mfma>()>{};
 
@@ -1286,7 +1292,8 @@ struct XdlopsGemm
                           MPerXdlops == 64,
                       "Only support GemmMPerXdlops == 4, 8, 16, 32 or 64 for xdlops");
 
-        static_assert(KPack % mfma_instr.k_per_blk == 0, "KPack should be a multiple of k_per_blk");
+        static_assert(KPack * 2 % mfma_instr.k_per_blk == 0,
+                      "KPack should be a multiple of k_per_blk");
     }
 
     // XDL output supporting C = A * B
