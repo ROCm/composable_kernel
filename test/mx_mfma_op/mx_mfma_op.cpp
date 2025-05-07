@@ -17,13 +17,15 @@ using ck::type_convert;
  *
  * @param init - selects initialization algorithm for A and B tensors
  */
-template <typename AType, typename BType, typename CType, ck::MFMA_F8F6F4 mfma>
-bool run_mfma_km_kn_nm_test(ck::index_t init)
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename AType,
+          typename BType,
+          typename CType,
+          ck::MFMA_F8F6F4 mfma>
+bool run_mfma_test(ck::index_t init)
 {
-    using ALayout = ck::tensor_layout::gemm::ColumnMajor;
-    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
-    using CLayout = ck::tensor_layout::gemm::ColumnMajor;
-
     using AccType    = float; // only MFMA_F32 instructions supported
     using CPUAccType = AccType;
 
@@ -55,72 +57,62 @@ bool run_mfma_km_kn_nm_test(ck::index_t init)
 
 TEST(MFMA, FP8MFMA16x16x128)
 {
-    auto AB_init = 5;
-    auto pass = run_mfma_km_kn_nm_test<f8_t, f8_t, half_t, ck::MFMA_F8F6F4::F32_16x16x128>(AB_init);
+    using ALayout = ck::tensor_layout::gemm::ColumnMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::ColumnMajor;
+    auto AB_init  = 5;
+    auto pass     = run_mfma_test<ALayout,
+                              BLayout,
+                              CLayout,
+                              f8_t,
+                              f8_t,
+                              half_t,
+                              ck::MFMA_F8F6F4::F32_16x16x128>(AB_init);
     EXPECT_TRUE(pass);
 }
 
 TEST(MFMA, FP8MFMA32x32x64)
 {
-    auto AB_init = 5;
-    auto pass = run_mfma_km_kn_nm_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::F32_32x32x64>(AB_init);
+    using ALayout = ck::tensor_layout::gemm::ColumnMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::ColumnMajor;
+    auto AB_init  = 5;
+    auto pass =
+        run_mfma_test<ALayout, BLayout, CLayout, f8_t, f8_t, float, ck::MFMA_F8F6F4::F32_32x32x64>(
+            AB_init);
     EXPECT_TRUE(pass);
 }
 
-/**
- * @brief Run the test for the given MFMA instruction
- *
- * @param init - selects initialization algorithm for A and B tensors
- */
-template <typename AType, typename BType, typename CType, ck::MFMA_F8F6F4 mfma>
-bool run_mfma_mk_kn_mn_test(ck::index_t init)
+TEST(MFMA, FP4MFMA16x16x128)
 {
     using ALayout = ck::tensor_layout::gemm::RowMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-    using AccType    = float; // only MFMA_F32 instructions supported
-    using CPUAccType = AccType;
-
-    ck::mfma_type<static_cast<ck::MfmaInstr>(mfma)> mfma_instr;
-    constexpr auto BLOCK_M = mfma_instr.m_per_blk;
-    constexpr auto BLOCK_N = mfma_instr.n_per_blk;
-    constexpr auto BLOCK_K = mfma_instr.num_input_blks * mfma_instr.k_per_blk;
-
-    const auto mfma_kernel = ck::
-        matmul<AType, BType, CType, AccType, BLOCK_M, BLOCK_N, BLOCK_K, ALayout, BLayout, CLayout>;
-
-    bool pass = true;
-
-    pass = ck::mfma_test::TestMFMA<decltype(mfma_kernel),
-                                   AType,
-                                   BType,
-                                   CType,
-                                   AccType,
-                                   CPUAccType,
-                                   ALayout,
-                                   BLayout,
-                                   CLayout,
-                                   BLOCK_M,
-                                   BLOCK_N,
-                                   BLOCK_K>{}(mfma_kernel, init);
-
-    return pass;
-}
-
-TEST(MFMA, FP4MFMA16x16x128)
-{
     auto AB_init = 4;
-    auto pass = run_mfma_mk_kn_mn_test<f4x2_pk_t, f4x2_pk_t, float, ck::MFMA_F8F6F4::F32_16x16x128>(
-        AB_init);
+    auto pass    = run_mfma_test<ALayout,
+                              BLayout,
+                              CLayout,
+                              f4x2_pk_t,
+                              f4x2_pk_t,
+                              float,
+                              ck::MFMA_F8F6F4::F32_16x16x128>(AB_init);
     EXPECT_TRUE(pass);
 }
 
 TEST(MFMA, FP4MFMA32x32x64)
 {
-    auto AB_init = 4;
-    auto pass = run_mfma_mk_kn_mn_test<f4x2_pk_t, f4x2_pk_t, half_t, ck::MFMA_F8F6F4::F32_32x32x64>(
-        AB_init);
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+    auto AB_init  = 4;
+    auto pass     = run_mfma_test<ALayout,
+                              BLayout,
+                              CLayout,
+                              f4x2_pk_t,
+                              f4x2_pk_t,
+                              half_t,
+                              ck::MFMA_F8F6F4::F32_32x32x64>(AB_init);
     EXPECT_TRUE(pass);
 }
 
@@ -129,15 +121,18 @@ TEST(MFMA, FP4MFMA32x32x64)
  *
  * @param init - selects initialization algorithm for A and B tensors
  */
-template <typename AType, typename BType, typename CType, ck::MFMA_F8F6F4 mfma>
-bool run_mxmfma_mk_kn_mn_test(ck::index_t init)
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename AType,
+          typename BType,
+          typename CType,
+          ck::MFMA_F8F6F4 mfma>
+bool run_mxmfma_test(ck::index_t init)
 {
     static_assert(mfma == ck::MFMA_F8F6F4::SCALE_F32_16x16x128 ||
                       mfma == ck::MFMA_F8F6F4::SCALE_F32_32x32x64,
                   "Only SCALE_F32_16x16x128 and SCALE_F32_32x32x64 are supported");
-    using ALayout = ck::tensor_layout::gemm::RowMajor;
-    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
-    using CLayout = ck::tensor_layout::gemm::RowMajor;
 
     using AccType   = float;           // only MFMA_F32 instructions supported
     using ScaleType = ck::e8m0_bexp_t; // biased exponent type
@@ -181,34 +176,64 @@ bool run_mxmfma_mk_kn_mn_test(ck::index_t init)
 
 TEST(MXMFMA, MXFP8MFMA16x16x128)
 {
-    auto AB_init = 5;
-    auto pass =
-        run_mxmfma_mk_kn_mn_test<f8_t, f8_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+    auto AB_init  = 5;
+    auto pass     = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                f8_t,
+                                f8_t,
+                                float,
+                                ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
     EXPECT_TRUE(pass);
 }
 
 TEST(MXMFMA, MXFP8MFMA32x32x64)
 {
-    auto AB_init = 5;
-    auto pass =
-        run_mxmfma_mk_kn_mn_test<f8_t, f8_t, half_t, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+    auto AB_init  = 5;
+    auto pass     = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                f8_t,
+                                f8_t,
+                                half_t,
+                                ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
     EXPECT_TRUE(pass);
 }
 
 TEST(MXMFMA, MXFP4MFMA16x16x128)
 {
-    auto AB_init = 4;
-    auto pass =
-        run_mxmfma_mk_kn_mn_test<f4x2_pk_t, f4x2_pk_t, float, ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(
-            AB_init);
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+    auto AB_init  = 4;
+    auto pass     = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                f4x2_pk_t,
+                                f4x2_pk_t,
+                                float,
+                                ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
     EXPECT_TRUE(pass);
 }
 
 TEST(MXMFMA, MXFP4MFMA32x32x64)
 {
-    auto AB_init = 4;
-    auto pass =
-        run_mxmfma_mk_kn_mn_test<f4x2_pk_t, f4x2_pk_t, half_t, ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(
-            AB_init);
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+    auto AB_init  = 4;
+    auto pass     = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                f4x2_pk_t,
+                                f4x2_pk_t,
+                                half_t,
+                                ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
     EXPECT_TRUE(pass);
 }
