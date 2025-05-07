@@ -654,7 +654,8 @@ def Build_CK_and_Reboot(Map conf=[:]){
 def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
-    def image = getDockerImageName() 
+    def image = "rocm/composable_kernel:ck_ub22.04_rocm6.3"
+    //getDockerImageName()
     def prefixpath = "/opt/rocm"
 
     // Jenkins is complaining about the render group 
