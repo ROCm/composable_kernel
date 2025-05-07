@@ -37,7 +37,9 @@ DEFAULT_EPILOGUE = """
                                                                       WarpTileM,
                                                                       WarpTileN,
                                                                       WarpTileK,
-                                                                      UniversalGemmProblem::TransposeC>>;
+                                                                      UniversalGemmProblem::TransposeC,
+                                                                      true,
+                                                                      memory_operation>>;
 """
 
 CSHUFFLE_EPILOGUE = """
