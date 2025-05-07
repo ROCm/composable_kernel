@@ -71,7 +71,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return group_count * sizeof(GemmTransKernelArg);
     }
 
-    __host__ static constexpr auto BlockSize() -> dim3 { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() -> dim3 { return dim3(KernelBlockSize); }
 
     /**
      * @brief Get the maximum occupancy grid size for the persistent kernel on the current device.
@@ -95,7 +95,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return dim3(grid_size, 1, 1);
     }
 
-    __host__ static constexpr auto GridSize(const std::vector<GemmHostArgs>& gemm_descs)
+    CK_TILE_HOST static constexpr auto GridSize(const std::vector<GemmHostArgs>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -171,8 +171,9 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        const index_t i_z = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
-        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, blockIdx.z);
+        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, i_z);
 
         const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr);
         const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr);
