@@ -45,7 +45,7 @@ struct TileCopyShape
 
     static constexpr index_t WaveNum = reduce_on_sequence(BlockWaves{}, multiplies{}, number<1>{});
 
-    static constexpr index_t BlockSize = get_warp_size() * WaveNum;
+    static constexpr index_t BlockSize     = get_warp_size() * WaveNum;
     static constexpr index_t WaveGroupSize = WaveNum / WaveGroups;
     static_assert(WaveGroupSize == WarpPerBlock_M * WarpPerBlock_N, "Inconsisten wave group size!");
 };
