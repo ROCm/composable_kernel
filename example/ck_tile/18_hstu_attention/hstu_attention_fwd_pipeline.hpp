@@ -239,11 +239,11 @@ struct HstuAttentionFwdPipelineQRKSVS
             if constexpr(std::is_same_v<CompDataType, float>)
             {
                 x = x * __builtin_amdgcn_rcpf(neg_one - __expf(x)) *
-                    __builtin_amdgcn_rcpf(static_cast<CompDataType>(max_seqlen));
+                    __builtin_amdgcn_rcpf(type_convert<CompDataType>(max_seqlen));
             }
             else
             {
-                x = x / (neg_one - exp(x)) / static_cast<CompDataType>(max_seqlen);
+                x = x / (neg_one - exp(x)) / type_convert<CompDataType>(max_seqlen);
             }
         };
 
