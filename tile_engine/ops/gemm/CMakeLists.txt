@@ -23,7 +23,6 @@ endif()
 
 file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BLOBS)
 
-message("test--------------------------------------------------")
 add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py

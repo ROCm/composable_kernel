@@ -11,8 +11,7 @@
     },
     "tile_k": {
         "values": [
-            64,
-            32
+            64
         ]
     },
     "warp_m": {
@@ -42,7 +41,7 @@
     },
     "warp_tile_k": {
         "values": [
-            16
+            8
         ]
     },
     "kPadM": {
@@ -62,20 +61,17 @@
     },
     "pipeline": {
         "values": [
-            "compv3",
             "mem"
         ]
     },
     "scheduler": {
         "values": [
-            "intrawave",
-            "interwave"
+            "intrawave"
         ]
     },
     "epilogue": {
         "values": [
-            "default",
-            "cshuffle"
+            "default"
         ]
     }
 }

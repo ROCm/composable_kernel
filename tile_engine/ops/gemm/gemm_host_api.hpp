@@ -3,13 +3,14 @@
 
 #pragma once
 
-#include <hip/hip_runtime.h>
-
 #include <cstring>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <tuple>
+
+#include <hip/hip_runtime.h>
+
 #include "ck_tile/ops/gemm.hpp"
 
 enum class Metric
