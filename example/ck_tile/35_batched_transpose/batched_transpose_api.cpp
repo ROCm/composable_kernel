@@ -53,10 +53,13 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 }
 
 // Param Comb: type_size, block_x & y, warp_x & y, thread_x & y
-#define FOREACH_TRANSPOSE_PARAM(F)                             \
-    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8, true, true)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8, true, true) \
-    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8, true, true)
+#define FOREACH_TRANSPOSE_PARAM(F)                               \
+    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8, true, true)     \
+    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8, false, false)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8, true, true)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8, false, false) \
+    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8, true, true)   \
+    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8, false, false)
 
 // Macro that defines one static function per line
 #define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY, TX, TY, PADM, PADN)             \
@@ -75,15 +78,36 @@ float batched_transpose(batched_transpose_trait t,
 {
     if(t.type == "fp8")
     {
-        return transpose_fn_fp8_64_64_64_64_8_8_true_true(a, s);
+        if(a.height % 64 == 0 && a.width % 64 == 0)
+        {
+            return transpose_fn_fp8_64_64_64_64_8_8_false_false(a, s);
+        }
+        else
+        {
+            return transpose_fn_fp8_64_64_64_64_8_8_true_true(a, s);
+        }
     }
     else if(t.type == "fp16")
     {
-        return transpose_fn_fp16_64_64_64_64_8_8_true_true(a, s);
+        if(a.height % 64 == 0 && a.width % 64 == 0)
+        {
+            return transpose_fn_fp16_64_64_64_64_8_8_false_false(a, s);
+        }
+        else
+        {
+            return transpose_fn_fp16_64_64_64_64_8_8_true_true(a, s);
+        }
     }
     else if(t.type == "bf16")
     {
-        return transpose_fn_bf16_64_64_64_64_8_8_true_true(a, s);
+        if(a.height % 64 == 0 && a.width % 64 == 0)
+        {
+            return transpose_fn_bf16_64_64_64_64_8_8_false_false(a, s);
+        }
+        else
+        {
+            return transpose_fn_bf16_64_64_64_64_8_8_true_true(a, s);
+        }
     }
     return -1;
 }
