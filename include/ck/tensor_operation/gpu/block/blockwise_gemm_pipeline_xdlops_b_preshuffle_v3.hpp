@@ -203,7 +203,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
 
-    template <typename Stage>
     __device__ static constexpr auto HotLoopScheduler()
     {
         constexpr auto num_ds_read_inst_a =
@@ -232,8 +231,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         constexpr auto total_buffer_loads = num_buffer_load_inst_a + num_buffer_load_inst_b;
         constexpr auto stages_available   = MRepeat - DS_READ_A_PREFETCH_STAGES;
 
-        auto [loads_per_heavy_stage, loads_per_light_stage] =
-            compute_stage_loads(total_buffer_loads, stages_available);
+        constexpr auto stage_loads = compute_stage_loads(total_buffer_loads, stages_available);
+
+        constexpr auto loads_per_heavy_stage = stage_loads.first;
+        constexpr auto loads_per_light_stage = stage_loads.second;
 
         constexpr auto buffer_load_stages_more = total_buffer_loads % stages_available;
 
@@ -241,7 +242,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         constexpr auto buffer_b_remaining   = num_buffer_load_inst_b - buffer_b_heavy_loads;
 
         constexpr auto buffer_load_b_stages =
-            (buffer_b_heavy_loads >= num_buffer_load_inst_b)
+            (buffer_b_heavy_loads > num_buffer_load_inst_b)
                 ? (num_buffer_load_inst_b / loads_per_heavy_stage)
                 : (buffer_load_stages_more + (buffer_b_remaining / loads_per_light_stage));
 
@@ -251,9 +252,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         constexpr auto issue_interval_high =
             math::integer_divide_ceil(num_mfma_perstage, loads_per_heavy_stage);
 
-        constexpr auto issue_interval_low = loads_per_light_stage == 0
-            ? INT32_MAX // Disable if no loads in low stages
-            : math::integer_divide_ceil(num_mfma_perstage, loads_per_light_stage);
+        constexpr auto issue_interval_low =
+            loads_per_light_stage == 0
+                ? INT32_MAX // Disable if no loads in low stages
+                : math::integer_divide_ceil(num_mfma_perstage, loads_per_light_stage);
 
         // B global read
         static_for<0, buffer_load_b_stages, 1>{}([&](auto i) {
@@ -261,15 +263,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                 __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
 
                 if constexpr(((i < buffer_load_stages_more) &&
-                              (imfma %  issue_interval_high == 0)) ||
-                             ((i >= buffer_load_stages_more) &&
-                              (imfma % issue_interval_low == 0)))
+                              (imfma % issue_interval_high == 0)) ||
+                             ((i >= buffer_load_stages_more) && (imfma % issue_interval_low == 0)))
                 {
                     __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0); // VMEM read
                 }
                 if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                 {
-                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_READ, ds_read_a_mfma_rate, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(
+                        SCHED_GROUP_LDS_READ, ds_read_a_mfma_rate, 0); // DS read
                 }
             });
         });
@@ -279,20 +281,16 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
                 if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
-                              (imfma % issue_interval_high ==
-                               0)) ||
+                              (imfma % issue_interval_high == 0)) ||
                              (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
-                              (imfma % issue_interval_low ==
-                               0)))
+                              (imfma % issue_interval_low == 0)))
                 {
                     __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_WRITE, 1, 0); // DS write
                 }
                 if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
-                              (imfma % issue_interval_high ==
-                               0)) ||
+                              (imfma % issue_interval_high == 0)) ||
                              (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
-                              (imfma %  issue_interval_low ==
-                               0)))
+                              (imfma % issue_interval_low == 0)))
                 {
                     __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0); // VMEM read
                 }
@@ -315,7 +313,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
             });
         });
     }
-
 
     template <bool HasMainLoop,
               TailNumber TailNum,
@@ -376,15 +373,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
 
         // Local prefetch A1
         block_sync_lds();
-        static_for<0, 2, 1>{}([&](auto m0){
+        static_for<0, 2, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
                     a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                    make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                    a_block_buf.At(I0),
-                                    a_thread_desc_,
-                                    make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                    a_thread_buf);
+                                       make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                                       a_block_buf.At(I0),
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                       a_thread_buf);
                 });
             });
         });
@@ -401,10 +398,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
             {
                 auto LoopFunc = [&](auto mfma_reg_buf, auto local_read_buf) {
                     b_blockwise_copy.Run(b_grid_desc,
-                        b_grid_buf,
-                        b_block_desc_n0_n1_k0_k1,
-                        b_block_origin_idx,
-                        b_thread_bufs(local_read_buf));
+                                         b_grid_buf,
+                                         b_block_desc_n0_n1_k0_k1,
+                                         b_block_origin_idx,
+                                         b_thread_bufs(local_read_buf));
                     b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                     a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(local_read_buf));
@@ -456,16 +453,16 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                     a_thread_copy_.Run(
                                         a_block_desc_m0_m1_m2_k0_k1_k2,
                                         make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                I0,
-                                                I0,
-                                                Number<k0 * KGroup+ kg0>{},
-                                                I0,
-                                                I0),
+                                                   I0,
+                                                   I0,
+                                                   Number<k0 * KGroup + kg0>{},
+                                                   I0,
+                                                   I0),
                                         a_block_buf.At(local_read_buf),
                                         a_thread_desc_,
                                         make_tuple(
                                             Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                2>{},
+                                                   2>{},
                                             I0,
                                             I0,
                                             k0,
@@ -484,7 +481,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                         make_tuple(Number<(m0 + 2) % MRepeat>{},
                                                    I0,
                                                    I0,
-                                                   Number<k0 * KGroup+ kg0>{},
+                                                   Number<k0 * KGroup + kg0>{},
                                                    I0,
                                                    I0),
                                         a_block_buf.At(local_read_buf),
@@ -510,7 +507,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                         make_tuple(Number<(m0 + 2) % MRepeat>{},
                                                    I0,
                                                    I0,
-                                                   Number<k0 * KGroup+ kg0>{},
+                                                   Number<k0 * KGroup + kg0>{},
                                                    I0,
                                                    I0),
                                         a_block_buf.At(mfma_reg_buf),
@@ -541,10 +538,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         if constexpr(TailNum == TailNumber::Even)
         {
             b_blockwise_copy.Run(b_grid_desc,
-                b_grid_buf,
-                b_block_desc_n0_n1_k0_k1,
-                b_block_origin_idx,
-                b_thread_bufs(I1));
+                                 b_grid_buf,
+                                 b_block_desc_n0_n1_k0_k1,
+                                 b_block_origin_idx,
+                                 b_thread_bufs(I1));
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
@@ -584,7 +581,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 make_tuple(Number<(m0 + 2) % MRepeat>{},
                                            I0,
                                            I0,
-                                           Number<k0 * KGroup+ kg0>{},
+                                           Number<k0 * KGroup + kg0>{},
                                            I0,
                                            I0),
                                 a_block_buf.At(I1),
@@ -604,7 +601,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 make_tuple(Number<(m0 + 2) % MRepeat>{},
                                            I0,
                                            I0,
-                                           Number<k0 * KGroup+ kg0>{},
+                                           Number<k0 * KGroup + kg0>{},
                                            I0,
                                            I0),
                                 a_block_buf.At(I1),
@@ -624,7 +621,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 make_tuple(Number<(m0 + 2) % MRepeat>{},
                                            I0,
                                            I0,
-                                           Number<k0 * KGroup+ kg0>{},
+                                           Number<k0 * KGroup + kg0>{},
                                            I0,
                                            I0),
                                 a_block_buf.At(I0),
@@ -672,16 +669,16 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                             a_thread_copy_.Run(
                                 a_block_desc_m0_m1_m2_k0_k1_k2,
                                 make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup+ kg0>{}, I0, I0),
+                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                 a_block_buf.At(I1),
                                 a_thread_desc_,
                                 make_tuple(Number<(m0 + 2 + HotloopLocalBufSwitch) % 2>{},
-                                        I0,
-                                        I0,
-                                        k0,
-                                        I0,
-                                        Number<kg0 * A_K1>{}),
-                                    a_thread_buf);
+                                           I0,
+                                           I0,
+                                           k0,
+                                           I0,
+                                           Number<kg0 * A_K1>{}),
+                                a_thread_buf);
                         });
                     });
                 }
@@ -727,7 +724,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                             a_thread_copy_.Run(
                                 a_block_desc_m0_m1_m2_k0_k1_k2,
                                 make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup+ kg0>{}, I0, I0),
+                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                 a_block_buf.At(I0),
                                 a_thread_desc_,
                                 make_tuple(

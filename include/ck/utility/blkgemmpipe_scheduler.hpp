@@ -90,6 +90,17 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t C_MFMA_Inst_Num =
         MPerBlock * NPerBlock * KPerBlock / (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
 
+    static constexpr index_t C_MFMA_Inst_Cycle = []() {
+        if constexpr(NPerXDL == 16)
+        {
+            return KPerXDL == 128 ? 32 : 16;
+        }
+        else if constexpr(NPerXDL == 32)
+        {
+            return KPerXDL == 64 ? 64 : 32;
+        }
+    }();
+
     static constexpr auto Print()
     {
         printf(" Blk/Wave Size: %d, %d, M/N/K PerBlk: %d, %d, %d, M/N/K PerXdl: %d, %d, %d\n",
