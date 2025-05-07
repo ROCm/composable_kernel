@@ -650,7 +650,7 @@ template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdFp16,   
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      0,     true,    true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd128_bf16_swa_a32_rtne_psskddv; }};
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      1,     true,    true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd128_bf16_swa_a32_rtna_psskddv; }};
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      2,     true,    true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd128_bf16_swa_a32_rtz_psskddv; }};
-// #######################################################|HDim|    DataType|kIsCausal|kIsAtomic32|BF16Cvt|kIsSEQPad|kIsHDPad|kIsGroupMode|
+// #######################################################|HDim|    DataType| MaskType|kIsAtomic32|BF16Cvt|kIsSEQPad|kIsHDPad|kIsGroupMode|
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdBf16,        0,       true,      0,     true,   false,        true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd64_bf16_a32_rtne_pssk_group; }};
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdBf16,        0,       true,      1,     true,   false,        true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd64_bf16_a32_rtna_pssk_group; }};
 template<> struct FmhaBwdV3Buf<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdBf16,        0,       true,      2,     true,   false,        true>> {{ static constexpr unsigned char * bwd_v3_buf = bwd_hd64_bf16_a32_rtz_pssk_group; }};
@@ -738,7 +738,7 @@ template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdFp16,    
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      0,     true,    true>> {{ static constexpr int ts_qo = 16; static constexpr int ts_kv = 192; }};
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      1,     true,    true>> {{ static constexpr int ts_qo = 16; static constexpr int ts_kv = 192; }};
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_<128, FmhaBwdBf16,        2,       true,      2,     true,    true>> {{ static constexpr int ts_qo = 16; static constexpr int ts_kv = 192; }};
-// ######################################################|HDim|    DataType|kIsCausal|kIsAtomic32|BF16Cvt|kIsSEQPad|kIsHDPad|kIsGroupMode|
+// ######################################################|HDim|    DataType| MaskType|kIsAtomic32|BF16Cvt|kIsSEQPad|kIsHDPad|kIsGroupMode|
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdBf16,        0,       true,      0,     true,   false,        true>> {{ static constexpr int ts_qo = 32; static constexpr int ts_kv = 192; }};
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdBf16,        0,       true,      1,     true,   false,        true>> {{ static constexpr int ts_qo = 32; static constexpr int ts_kv = 192; }};
 template<> struct FmhaBwdV3Ts<fmha_bwd_dq_dk_dv_v3_traits_< 64, FmhaBwdBf16,        0,       true,      2,     true,   false,        true>> {{ static constexpr int ts_qo = 32; static constexpr int ts_kv = 192; }};
@@ -1228,6 +1228,13 @@ float fmha_bwd_v3_group_(const ck_tile::stream_config& s, fmha_bwd_args a)
     );
 }}
 
+// SWA supposes to include following circumstances:
+// 1. FA style SWA: t/b: mask_left > 0 or mask_right > 0
+// 2. xformer style SWA: xt / xb: window_size > 0
+// 3. generic style SWA: g: x, y
+// after preprocessing, 1 & 2 can be unioned into:
+// mask_type == mask_top_left or mask_bottom_right
+// left > 0 or right > 0 
 template <typename dot_do_o_trait_, typename dq_dk_dv_v3_traits_, typename convert_dq_trait_>
 float fmha_bwd_v3_swa_genl_(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
@@ -1269,17 +1276,10 @@ float fmha_bwd_v3_swa_genl_(const ck_tile::stream_config& s, fmha_bwd_args a)
     args.BAs_dv   = a.batch_stride_dv * 2;
     args.Seqs_dv  = a.stride_dv * 2;
 
-    // TODO: convert l/r to x/y HERE
+    // convert l/r to x/y HERE
     auto generic_mask = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(a.window_size_left, a.window_size_right, a.seqlen_q, a.seqlen_k, (a.mask_type == static_cast<ck_tile::index_t>(mask_enum::mask_top_left) || a.mask_type == static_cast<ck_tile::index_t>(mask_enum::window_generic)));
     args.mask_y = generic_mask.at(ck_tile::number<0>{{}});
     args.mask_x = generic_mask.at(ck_tile::number<1>{{}});
-
-    //std::cout << "\nmask.left: " << a.window_size_left << ", mask.right: " << a.window_size_right << ", seqlen_q: " << a.seqlen_q << ", seqlen_k: " << a.seqlen_k << std::endl;
-    //std::cout << "\ncondition: " << ((a.mask_type == static_cast<ck_tile::index_t>(mask_enum::mask_top_left)) || (a.mask_type == static_cast<ck_tile::index_t>(mask_enum::window_generic))) << std::endl;
-    //std::cout << "a.mask_type: " << a.mask_type << std::endl;
-    //std::cout << "static_cast<ck_tile::index_t>(mask_enum::mask_top_left): " << static_cast<ck_tile::index_t>(mask_enum::mask_top_left) << std::endl;
-    //std::cout << "static_cast<ck_tile::index_t>(mask_enum::window_generic): " << static_cast<ck_tile::index_t>(mask_enum::window_generic) << std::endl;
-    //std::cout << "mask_y: " << args.mask_y << ", mask_x: " << args.mask_x << std::endl;
 
     auto traits = fmha_bwd_v3_traits{{a.batch,
                                       a.nhead_q,
@@ -1295,14 +1295,6 @@ float fmha_bwd_v3_swa_genl_(const ck_tile::stream_config& s, fmha_bwd_args a)
         [=](const ck_tile::stream_config& s_){{ fmha_bwd_convert_dq_oneshot_<convert_dq_trait_>(s_, a); }}
     );
 }}
-
-// TODO: SWA supposes to include following circumstances:
-// 1. FA style SWA: t / b: mask_left > 0 or mask_right > 0
-// 2. xformer style SWA: xt / xb: window_size > 0
-// 3. generic style SWA: g: x, y
-// after preprocessing, 1 & 2 can be unioned into:
-// mask_type == mask_top_left / mask_bottom_right
-// left > 0 or right > 0 
 
 template <>
 float fmha_bwd<2>(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config& s){{
