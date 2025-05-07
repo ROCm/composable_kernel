@@ -190,18 +190,8 @@ struct DeviceMoeGemmBlockScale
                 #endif
                 hipModule_t module;
                 hipFunction_t kernel_func;
-                auto status = hipModuleLoad(&module, (std::string(MOE_STAGE2_ASM_DIR) + hsa).c_str());
-                if(status != hipSuccess)
-                {
-                    printf("Failed to load module (%s): %s.\n", hsa.c_str(), hipGetErrorString(status));
-                    return;
-                }
-                status  = hipModuleGetFunction(&kernel_func, module, kernel_name.c_str());
-                if(hipSuccess != status)
-                {
-                    printf("Failed to get function (%s): %s.\n", kernel_name.c_str(), hipGetErrorString(status));
-                    return;
-                }
+                hip_check_error(hipModuleLoad(&module, (std::string(MOE_STAGE2_ASM_DIR) + hsa).c_str()));
+                hip_check_error(hipModuleGetFunction(&kernel_func, module, kernel_name.c_str()));
                 auto arg_size = sizeof(arg);
                 auto arg_ptr = arg;
                 // // RunKernel(impl_ptr);
@@ -221,7 +211,7 @@ struct DeviceMoeGemmBlockScale
                     hip_check_error(hipDeviceSynchronize());
                     hip_check_error(hipEventRecord(start, stream_config.stream_id_));
 
-                    status = hipModuleLaunchKernel(kernel_func,
+                    hip_check_error(hipModuleLaunchKernel(kernel_func,
                                             gdx,
                                             gdy,
                                             1,
@@ -231,12 +221,7 @@ struct DeviceMoeGemmBlockScale
                                             0,
                                             stream_config.stream_id_,
                                             nullptr,
-                                            reinterpret_cast<void**>(&config));
-                        if(hipSuccess != status)
-                        {
-                            printf("Failed to Luach Kernel: %s\n", hipGetErrorString(status));
-                            return;
-                        }
+                                            reinterpret_cast<void**>(&config)));
                     hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
                     hip_check_error(hipEventSynchronize(stop));
 
@@ -249,7 +234,7 @@ struct DeviceMoeGemmBlockScale
                     ave_time = total_time;
                 }
                 else{
-                    status = hipModuleLaunchKernel(kernel_func,
+                    hip_check_error(hipModuleLaunchKernel(kernel_func,
                                             gdx,
                                             gdy,
                                             1,
@@ -259,12 +244,7 @@ struct DeviceMoeGemmBlockScale
                                             0,
                                             stream_config.stream_id_,
                                             nullptr,
-                                            reinterpret_cast<void**>(&config));
-                        if(hipSuccess != status)
-                        {
-                            printf("Failed to Luach Kernel: %s\n", hipGetErrorString(status));
-                            return;
-                        }
+                                            reinterpret_cast<void**>(&config)));
                 }
 
                 };
