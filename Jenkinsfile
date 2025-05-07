@@ -658,7 +658,7 @@ def process_results(Map conf=[:]){
     def prefixpath = "/opt/rocm"
 
     // Jenkins is complaining about the render group 
-    def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    def dockerOpts="--user 1002:1002 --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     if (conf.get("enforce_xnack_on", false)) {
         dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
     }
