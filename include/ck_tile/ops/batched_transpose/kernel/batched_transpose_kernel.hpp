@@ -92,7 +92,7 @@ struct BatchedTransposeKernel
 
             return pad_tensor_view(x_dram_naive,
                                    make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                                   sequence<kPadM, kPadN>{});
+                                   sequence<kPadN, kPadM>{});
         }();
 
         const auto y_n_m = [&]() {
