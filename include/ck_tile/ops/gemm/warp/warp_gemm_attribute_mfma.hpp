@@ -421,6 +421,7 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
         tuple<sequence<0, 0, 2, 1, 3>>,
         sequence<2>,
         sequence<1>>;
+
     using CWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
         tuple<sequence<Impl::kCNLane>,
