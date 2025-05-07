@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -227,8 +227,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                  const std::array<index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOp& a_element_op,
                  const BElementwiseOp& b_element_op,
-                 const CDEElementwiseOp& cde_element_op,
-                 const ck::index_t split_k = 1)
+                 const CDEElementwiseOp& cde_element_op)
             : p_a_grid_{static_cast<const ADataType*>(p_a)},
               p_b_grid_{static_cast<const BDataType*>(p_b)},
               p_ds_grid_{},
@@ -241,8 +240,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
               b_g_k_c_xs_lengths_{b_g_k_c_xs_lengths},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
-              input_right_pads_{input_right_pads},
-              k_batch_{split_k}
+              input_right_pads_{input_right_pads}
         {
             // populate Ds pointer
             static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -447,8 +445,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         std::array<index_t, NDimSpatial> conv_filter_strides_;
         std::array<index_t, NDimSpatial> input_left_pads_;
         std::array<index_t, NDimSpatial> input_right_pads_;
-
-        const index_t k_batch_;
     };
 
     // Invoker
@@ -538,11 +534,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(arg.k_batch_ != 1)
-        {
-            return false;
-        }
-
         // check device
         if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
@@ -700,8 +691,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                  const std::array<index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOp& a_element_op,
                  const BElementwiseOp& b_element_op,
-                 const CDEElementwiseOp& cde_element_op,
-                 const ck::index_t split_k = 1)
+                 const CDEElementwiseOp& cde_element_op)
     {
         return Argument{p_a,
                         p_b,
@@ -721,8 +711,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                         input_right_pads,
                         a_element_op,
                         b_element_op,
-                        cde_element_op,
-                        split_k};
+                        cde_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -748,8 +737,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOp& a_element_op,
         const BElementwiseOp& b_element_op,
-        const CDEElementwiseOp& cde_element_op,
-        const ck::index_t split_k = 1) override
+        const CDEElementwiseOp& cde_element_op) override
     {
         return std::make_unique<Argument>(p_a,
                                           p_b,
@@ -769,8 +757,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                                           input_right_pads,
                                           a_element_op,
                                           b_element_op,
-                                          cde_element_op,
-                                          split_k);
+                                          cde_element_op);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
