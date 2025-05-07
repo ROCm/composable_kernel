@@ -624,6 +624,165 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M64N4K4
 
 // FP8
 template <typename AType_, typename BType_, WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+struct WarpGemmAttributeMfmaImpl_f32_16x16x32_f8_base
+{
+    static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
+    using ADataType                     = AType_;
+    using BDataType                     = BType_;
+    using CDataType                     = float;
+
+    using AVecType = ext_vector_t<ADataType, 8>;
+    using BVecType = ext_vector_t<BDataType, 8>;
+    using CVecType = ext_vector_t<CDataType, 4>;
+
+    static constexpr index_t kM = 16;
+    static constexpr index_t kN = 16;
+    static constexpr index_t kK = 32;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
+    static constexpr index_t kAMLane     = 16;
+    static constexpr index_t kBNLane     = 16;
+    static constexpr index_t kABKLane    = 4;
+    static constexpr index_t kABKPerLane = 8;
+
+    static constexpr index_t kCMLane     = 4;
+    static constexpr index_t kCNLane     = 16;
+    static constexpr index_t kCM0PerLane = 1;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        if constexpr(Ctrl == WGAttrCtlEnum::Raw_vvv)
+        {
+            if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_fp8_fp8", "+v", "v", "v", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_116x16x32_fp8_bf8", "+v", "v", "v", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, fp8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_bf8_fp8", "+v", "v", "v", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_bf8_bf8", "+v", "v", "v", "v")
+            }
+        }
+        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vaa)
+        {
+            if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_fp8_fp8", "+v", "a", "a", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_fp8_bf8", "+v", "a", "a", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, fp8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_bf8_fp8", "+v", "a", "a", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_bf8_bf8", "+v", "a", "a", "v")
+            }
+        }
+        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vav)
+        {
+            if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_fp8_fp8", "+v", "a", "v", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_fp8_bf8", "+v", "a", "v", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, fp8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_bf8_fp8", "+v", "a", "v", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_bf8_bf8", "+v", "a", "v", "v")
+            }
+        }
+        else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vva)
+        {
+            if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_fp8_fp8", "+v", "v", "a", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_fp8_bf8", "+v", "v", "a", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, fp8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_bf8_fp8", "+v", "v", "a", "v")
+            }
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
+            {
+                DISPATCH_MFMA_("mfma_f32_16x16x32_bf8_bf8", "+v", "v", "a", "v")
+            }
+        }
+        else
+        {
+#if defined(__gfx94__)
+            if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
+                c_vec = __builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8(
+                    bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
+            else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
+                c_vec = __builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8(
+                    bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, fp8_t>)
+                c_vec = __builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8(
+                    bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
+            else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
+                c_vec = __builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8(
+                    bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
+#else
+            ck_tile::ignore = c_vec;
+            ck_tile::ignore = a_vec;
+            ck_tile::ignore = b_vec;
+#endif
+        }
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+#if defined(__gfx94__)
+        if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8(
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
+        else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8(
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
+        else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, fp8_t>)
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8(
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
+        else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_316x16x32_bf8_bf8(
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+        return CVecType{0.f};
+#endif
+    }
+};
+
+template <typename AType_, typename BType_, WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 struct WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base
 {
     static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
@@ -809,10 +968,16 @@ struct WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, fp8_t, Ctrl_>;
-
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+using WarpGemmAttributeMfmaImpl_f32_16x16x32_fp8_fp8 =
+    WarpGemmAttributeMfmaImpl_f32_16x16x32_f8_base<fp8_t, fp8_t, Ctrl_>;
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_bf8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, bf8_t, Ctrl_>;
+
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+using WarpGemmAttributeMfmaImpl_f32_16x16x32_bf8_bf8 =
+    WarpGemmAttributeMfmaImpl_f32_16x16x32_f8_base<bf8_t, bf8_t, Ctrl_>;
 
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_fp8 =

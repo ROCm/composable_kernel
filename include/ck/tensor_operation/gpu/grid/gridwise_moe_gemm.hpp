@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,6 +31,7 @@ template <typename GridwiseGemm,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           bool IsInputGemm         = false,
+          bool MulRoutedWeight     = true,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -44,19 +45,22 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, IsInputGemm, TailNum>(
-        karg.p_sorted_token_ids,
-        karg.p_sorted_expert_ids,
-        karg.p_max_token_id,
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_ds_grid,
-        karg.p_c_grid,
-        p_shared,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
+    GridwiseGemm::template Run<HasMainKBlockLoop,
+                               CGlobalMemoryDataOperation,
+                               IsInputGemm,
+                               MulRoutedWeight,
+                               TailNum>(karg.p_sorted_token_ids,
+                                        karg.p_sorted_expert_ids,
+                                        karg.p_max_token_id,
+                                        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+                                        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+                                        karg.p_ds_grid,
+                                        karg.p_c_grid,
+                                        p_shared,
+                                        karg,
+                                        karg.a_element_op,
+                                        karg.b_element_op,
+                                        karg.c_element_op);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -67,6 +71,7 @@ template <typename GridwiseGemm,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           bool IsInputGemm         = false,
+          bool MulRoutedWeight     = true,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -81,21 +86,23 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::
-        template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, IsInputGemm, TailNum>(
-            karg.p_sorted_token_ids,
-            karg.p_sorted_expert_ids,
-            karg.p_max_token_id,
-            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-            karg.p_ds_grid,
-            karg.p_c_grid,
-            p_shared,
-            p_shared1,
-            karg,
-            karg.a_element_op,
-            karg.b_element_op,
-            karg.c_element_op);
+    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop,
+                                    CGlobalMemoryDataOperation,
+                                    IsInputGemm,
+                                    MulRoutedWeight,
+                                    TailNum>(karg.p_sorted_token_ids,
+                                             karg.p_sorted_expert_ids,
+                                             karg.p_max_token_id,
+                                             karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+                                             karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+                                             karg.p_ds_grid,
+                                             karg.p_c_grid,
+                                             p_shared,
+                                             p_shared1,
+                                             karg,
+                                             karg.a_element_op,
+                                             karg.b_element_op,
+                                             karg.c_element_op);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -179,7 +186,9 @@ struct GridwiseMoeGemm
         math::max(math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk);
     static constexpr index_t KLane =
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
-    static constexpr index_t KRepeat = KPerBlock / KLane / KPack;
+
+    static constexpr index_t KGroup  = mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
+    static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
     // static constexpr index_t NumTokens = 1;
@@ -239,7 +248,7 @@ struct GridwiseMoeGemm
     }
     __host__ __device__ static auto CalculateBK0Shuffled(index_t K)
     {
-        return math::integer_divide_ceil(K, KLane * KPack);
+        return math::integer_divide_ceil(K, KLane * KPack / KGroup);
     }
 
     __host__ __device__ static auto CalculateKPadded(index_t K)
@@ -381,7 +390,7 @@ struct GridwiseMoeGemm
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
+        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack / KGroup>{};
         return make_naive_tensor_descriptor(
             make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
             make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
@@ -1134,8 +1143,9 @@ struct GridwiseMoeGemm
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-              bool IsInputGemm   = true,
-              TailNumber TailNum = TailNumber::Odd>
+              bool IsInputGemm     = true,
+              bool MulRoutedWeight = true,
+              TailNumber TailNum   = TailNumber::Odd>
     __device__ static void Run(const index_t* p_sorted_token_ids,
                                const index_t* p_sorted_expert_ids,
                                const index_t* p_max_token_id,
@@ -1289,7 +1299,7 @@ struct GridwiseMoeGemm
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1492,7 +1502,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -1579,10 +1589,13 @@ struct GridwiseMoeGemm
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    else
+                    if constexpr(MulRoutedWeight)
                     {
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
-                        weight = weight * p_sorted_weights_2[c_token_pos + m0];
+                        if constexpr(sizeof(ADataType) < 2)
+                            weight = p_sorted_weights_2[c_token_pos + m0] * weight;
+                        else
+                            weight = p_sorted_weights_2[c_token_pos + m0];
                     }
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;
@@ -1632,8 +1645,9 @@ struct GridwiseMoeGemm
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-              bool IsInputGemm   = true,
-              TailNumber TailNum = TailNumber::Odd>
+              bool IsInputGemm     = true,
+              bool MulRoutedWeight = true,
+              TailNumber TailNum   = TailNumber::Odd>
     __device__ static void Run_2Lds(const index_t* p_sorted_token_ids,
                                     const index_t* p_sorted_expert_ids,
                                     const index_t* p_max_token_id,
@@ -1667,7 +1681,8 @@ struct GridwiseMoeGemm
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
-        const index_t max_token_id    = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);
+        const index_t max_token_id = __builtin_amdgcn_readfirstlane(p_max_token_id[0]);
+        // static_assert(NSwizzle == false, "to do fix: need another pr in sorting merged");
         const index_t expert_block_id = NSwizzle ? blockIdx.x / problem.NBlock : blockIdx.y;
         if(expert_block_id * MPerBlock >= max_token_id)
             return;
@@ -1676,12 +1691,13 @@ struct GridwiseMoeGemm
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr(NSwizzle)
             {
-                const index_t ecnt_prefix    = p_max_token_id[1 + expert_id];
-                const index_t prefix_block   = ecnt_prefix * problem.NBlock;
-                const index_t ecnt           = p_max_token_id[2 + expert_id] - ecnt_prefix;
-                const index_t expert_swizzle = ecnt > 0 ? ecnt : 1;
-                const index_t bid_new        = blockIdx.x - prefix_block;
-                const index_t nid            = __builtin_amdgcn_readfirstlane(
+                const index_t ecnt_prefix  = p_max_token_id[1 + expert_id];
+                const index_t prefix_block = ecnt_prefix * problem.NBlock;
+                const index_t ecnt         = p_max_token_id[2 + expert_id] - ecnt_prefix;
+                const index_t expert_swizzle =
+                    ecnt > 0 ? ecnt : 1; // p_max_token_id[expert_id + 1]; // 2
+                const index_t bid_new = blockIdx.x - prefix_block;
+                const index_t nid     = __builtin_amdgcn_readfirstlane(
                     bid_new % 8 + bid_new / (8 * expert_swizzle) * 8);
                 const index_t mid =
                     __builtin_amdgcn_readfirstlane(ecnt_prefix + bid_new / 8 % expert_swizzle);
@@ -1694,7 +1710,6 @@ struct GridwiseMoeGemm
         }();
         const index_t block_n_id = block_mn.first;
         const index_t block_m_id = block_mn.second;
-
         const index_t token0 =
             __builtin_amdgcn_readfirstlane(p_sorted_token_ids[block_m_id * MPerBlock] & 0xffffff);
 
@@ -1706,11 +1721,9 @@ struct GridwiseMoeGemm
         constexpr auto AMRepeats  = MPerBlock / AMThreads;
         const index_t token_pos   = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
 
-        if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id ||
-           token0 >= problem.NumTokens)
+        if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
-        StaticallyIndexedArray<index_t, AMRepeats>
-            gather_offsets; //= p_sorted_token_ids[token_pos];
+        StaticallyIndexedArray<index_t, AMRepeats> gather_offsets;
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
             const index_t fused_token = p_sorted_token_ids[token_pos + m0];
             index_t token_offset      = fused_token & 0xffffff;
@@ -1792,7 +1805,7 @@ struct GridwiseMoeGemm
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1998,7 +2011,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = IsInputGemm ? 1 : 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -2069,8 +2082,7 @@ struct GridwiseMoeGemm
             const float* p_sorted_weights_0 = p_ds_grid[I0];
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
-                StaticallyIndexedArray<index_t, EMRepeats>
-                    scatter_offsets; //= p_sorted_token_ids[c_token_pos];
+                StaticallyIndexedArray<index_t, EMRepeats> scatter_offsets;
                 StaticallyIndexedArray<float, EMRepeats> scatter_weights; //= for topk
 
                 auto dstidx = sfc_cde_block.GetIndex(access_id);
@@ -2086,10 +2098,13 @@ struct GridwiseMoeGemm
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
-                    else
+                    if constexpr(MulRoutedWeight)
                     {
                         const float* p_sorted_weights_2 = p_ds_grid[I2];
-                        weight = weight * p_sorted_weights_2[c_token_pos + m0];
+                        if constexpr(sizeof(ADataType) < 2)
+                            weight = p_sorted_weights_2[c_token_pos + m0] * weight;
+                        else
+                            weight = p_sorted_weights_2[c_token_pos + m0];
                     }
                     scatter_offsets(m0) = token_offset * problem.N;
                     scatter_weights(m0) = weight;

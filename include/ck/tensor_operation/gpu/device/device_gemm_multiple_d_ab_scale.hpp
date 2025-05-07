@@ -94,7 +94,6 @@ struct DeviceGemmMultipleD_BlockScale_BPreshuffle : public BaseOperator
                         const ck::index_t StrideE,
                         const void* p_a_scale,
                         const void* p_b_scale,
-                        index_t KBatch,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CDEElementwiseOperation cde_element_op) = 0;

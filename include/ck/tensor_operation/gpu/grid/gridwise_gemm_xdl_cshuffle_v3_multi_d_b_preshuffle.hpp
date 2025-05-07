@@ -167,9 +167,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     using mfma_selector = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>;
     static constexpr index_t KPack =
         math::max(math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk);
+    static constexpr index_t KGroup = mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
     static constexpr index_t KLane =
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
-    static constexpr index_t KRepeat = KPerBlock / KLane / KPack;
+    static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
 
@@ -209,7 +210,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     }
     __host__ __device__ static auto CalculateBK0Shuffled(index_t K)
     {
-        return math::integer_divide_ceil(K, KLane * KPack);
+        return math::integer_divide_ceil(K, KLane * KPack / KGroup);
     }
 
     __host__ __device__ static auto CalculateKPadded(index_t K)
@@ -351,7 +352,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
+        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack / KGroup>{};
         return make_naive_tensor_descriptor(
             make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
             make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
@@ -1167,7 +1168,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
-        // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
 
@@ -1175,7 +1175,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
         // B matrix in LDS memory, dst of blockwise copy
-        // dummy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // A matrix blockwise copy
@@ -1228,7 +1227,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1604,7 +1603,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
-        // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
 
@@ -1612,7 +1610,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
         // B matrix in LDS memory, dst of blockwise copy
-        // dummy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // A matrix blockwise copy
@@ -1668,7 +1665,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
