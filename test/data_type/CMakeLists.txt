@@ -27,6 +27,12 @@ if (CK_USE_OCP_FP8)
   add_dependencies(test_fp8 test_bf8_ocp)
 endif()
 
+add_gtest_executable(test_fp8_bf8_repro test_fp8_bf8_repro.cpp)
+if(result EQUAL 0)
+  target_link_libraries(test_fp8_bf8_repro PRIVATE utility)
+endif()
+add_dependencies(test_fp8 test_fp8_bf8_repro)
+
 if (CK_USE_FNUZ_FP8)
   add_gtest_executable(test_fp8_fnuz test_fp8_fnuz.cpp)
   if(result EQUAL 0)
