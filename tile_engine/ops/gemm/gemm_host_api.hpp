@@ -39,26 +39,25 @@ struct GemmProblem
     std::string dtype_a, dtype_b, dtype_acc, dtype_c;
     std::string layout_a, layout_b, layout_c;
 
-    std::string serialize() const
+    friend std::ostream& operator<<(std::ostream& os, const GemmProblem& problem)
     {
-        std::ostringstream oss;
-        oss << "{"
-            << "\"split_k\":" << split_k << ","
-            << "\"m\":" << m << ","
-            << "\"n\":" << n << ","
-            << "\"k\":" << k << ","
-            << "\"stride_a\":" << stride_a << ","
-            << "\"stride_b\":" << stride_b << ","
-            << "\"stride_c\":" << stride_c << ","
-            << "\"dtype_a\":\"" << dtype_a << "\","
-            << "\"dtype_b\":\"" << dtype_b << "\","
-            << "\"dtype_acc\":\"" << dtype_acc << "\","
-            << "\"dtype_c\":\"" << dtype_c << "\","
-            << "\"layout_a\":\"" << layout_a << "\","
-            << "\"layout_b\":\"" << layout_b << "\","
-            << "\"layout_c\":\"" << layout_c << "\""
-            << "}";
-        return oss.str();
+        os << "{\n"
+           << "   \"split_k\":" << problem.split_k << ",\n"
+           << "   \"m\":" << problem.m << ",\n"
+           << "   \"n\":" << problem.n << ",\n"
+           << "   \"k\":" << problem.k << ",\n"
+           << "   \"stride_a\":" << problem.stride_a << ",\n"
+           << "   \"stride_b\":" << problem.stride_b << ",\n"
+           << "   \"stride_c\":" << problem.stride_c << ",\n"
+           << "   \"dtype_a\":\"" << problem.dtype_a << "\",\n"
+           << "   \"dtype_b\":\"" << problem.dtype_b << "\",\n"
+           << "   \"dtype_acc\":\"" << problem.dtype_acc << "\",\n"
+           << "   \"dtype_c\":\"" << problem.dtype_c << "\",\n"
+           << "   \"layout_a\":\"" << problem.layout_a << "\",\n"
+           << "   \"layout_b\":\"" << problem.layout_b << "\",\n"
+           << "   \"layout_c\":\"" << problem.layout_c << "\"\n"
+           << "}";
+        return os;
     }
 };
 
@@ -80,14 +79,15 @@ struct PerformanceResult
         return false;
     }
 
-    std::string serialize() const
+    friend std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
     {
-        std::ostringstream oss;
-        oss << "{"
-            << "\"latency(ms)\":" << latency << ","
-            << "\"tflops(TFlops)\":" << tflops << ","
-            << "\"bandwidth(GB/s)\":" << bandwidth << "}";
-        return oss.str();
+        os << "{\n"
+           << "   \"latency(ms)\": " << std::fixed << std::setprecision(2) << result.latency
+           << ",\n"
+           << "   \"tflops(TFlops)\": " << result.tflops << ",\n"
+           << "   \"bandwidth(GB/s)\": " << result.bandwidth << "\n"
+           << "}";
+        return os;
     }
 };
 
@@ -96,20 +96,18 @@ struct Environment
     std::string rocm_version;
     std::string device_name;
 
-    std::string serialize() const
+    friend std::ostream& operator<<(std::ostream& os, const Environment& env)
     {
-        std::ostringstream oss;
-        oss << "{"
-            << "\"rocm_version\":\"" << rocm_version << "\","
-            << "\"device_name\":\"" << device_name << "\""
-            << "}";
-        return oss.str();
+        os << "{\n"
+           << "   \"rocm_version\": \"" << env.rocm_version << "\",\n"
+           << "   \"device_name\": \"" << env.device_name << "\"\n"
+           << "}";
+        return os;
     }
 };
 
 struct KernelInstance
 {
-    Environment env;
     std::string name;
     GemmProblem problem;
     PerformanceResult perf_result;
@@ -122,11 +120,12 @@ struct KernelInstance
 
     friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
     {
-        os << "{"
-           << "\"env\":" << obj.env.serialize() << ","
-           << "\"name\":\"" << obj.name << "\","
-           << "\"problem\":" << obj.problem.serialize() << ","
-           << "\"perf_result\":" << obj.perf_result.serialize() << "}";
+        os << "{\n"
+           << " \"name\": \"" << "{\n"
+           << obj.name << "\n}" << "\",\n"
+           << " \"problem\": \"" << obj.problem << "\",\n"
+           << " \"perf_result\": " << obj.perf_result << "\n"
+           << "}";
         return os;
     }
 };
@@ -257,6 +256,7 @@ inline auto create_args(int argc, char* argv[])
             "compv3",
             "The type of pipeline. Possible values are compv3, compv4 or mem. Default is compv3.")
         .insert("scheduler",
+                "intrawave",
                 "The type of pipeline. Possible values are compv3, compv4 or mem. Default is "
                 "compv3.")
         .insert(

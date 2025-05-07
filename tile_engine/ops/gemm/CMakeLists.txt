@@ -4,30 +4,39 @@
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            --json ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
+            --problem_json ${CMAKE_CURRENT_LIST_DIR}/configs/gemm_problem.json
+            --use_default_config
+            --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provide_config.json
             --list_blobs
             RESULT_VARIABLE ret
 )
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
-  ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
+  ${CMAKE_CURRENT_LIST_DIR}/configs/gemm_problem.json
+  ${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json
+  ${CMAKE_CURRENT_LIST_DIR}/configs/user_provide_config.json
 )
 
 if(ret AND NOT ret EQUAL 0)
-  message( FATAL_ERROR "Fail to generate kernels via Python. ${ret}")
+  message( FATAL_ERROR "Fail to list kernels via Python. ${ret}")
 endif()
 
 file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BLOBS)
 
+message("test--------------------------------------------------")
 add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            --json ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
+            --problem_json ${CMAKE_CURRENT_LIST_DIR}/configs/gemm_problem.json
+            --use_default_config
+            --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provide_config.json
             --gen_blobs
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt
-            ${CMAKE_CURRENT_LIST_DIR}/configs/instance_combination.json
+            ${CMAKE_CURRENT_LIST_DIR}/configs/gemm_problem.json
+            ${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json
+            ${CMAKE_CURRENT_LIST_DIR}/configs/user_provide_config.json
 )
 
 set(EXECUTABLE_GEMM_INSTANCE "tile_engine_gemm")

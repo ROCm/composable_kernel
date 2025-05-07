@@ -1,10 +1,16 @@
 # GEMM Matrix Multiplication
 
-Use the files in this folder to generate and build applications that run Matrix multiplications using ck_tile programming based on the kernel parameters mentioned in the config file `./configs/instance_combination.json`.
+Use the files in this folder to generate and build applications that run Matrix multiplications using ck_tile programming based on the kernel parameters mentioned in the config file.
+
+# Gemm Problem
+
+User needs to provide gemm problem such as datatype, layout in the config file. For reference please see `./configs/gemm_problem.json`.
+
 
 # Kernel Configurations
 
-User needs to provide kernel configuration such as datatype, layout, tile size, warp size, padding, pipeline, scheduler and epilogue in the config file. For reference please see `./configs/instance_combination.json`
+User can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file. For reference please see `./configs/user_provide_config.json`. The Tile engine also has default kernel configuration to expand the range of kernel configuration which is saved in `./configs/default.json`.
+
 
 ## Build
 ```

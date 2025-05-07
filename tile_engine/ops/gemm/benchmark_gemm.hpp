@@ -57,7 +57,7 @@ class Profiler
                             BLayout::name,
                             CLayout::name};
 
-        KernelInstance kernel_instance{environment_, description, problem, {-1.0f, -1.0f, -1.0f}};
+        KernelInstance kernel_instance{description, problem, {-1.0f, -1.0f, -1.0f}};
 
         float avg_time = Kernel::launch(args, s);
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
