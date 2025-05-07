@@ -162,8 +162,6 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     x_dev.ToDevice(x_host.data());
 
-    // x_dev.FromDevice(x_host.data());
-
     auto trait = batched_transpose_trait{prec, layout_in};
 
     uint32_t height = nchw2nhwc ? C : H * W;
