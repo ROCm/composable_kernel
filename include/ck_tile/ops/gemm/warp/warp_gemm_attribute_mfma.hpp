@@ -388,26 +388,16 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
         sequence<2>,
         sequence<1>>;
 #if 0
-        //for 32x32x16, parameters values are:
-        // static constexpr index_t kAMLane     = 32;
-        // static constexpr index_t kBNLane     = 32;
-        // static constexpr index_t kABKLane    = 2;
-        // static constexpr index_t kABKPerLane = 8;
-
-        // static constexpr index_t kCMLane     = 2;
-        // static constexpr index_t kCNLane     = 32;
-        // static constexpr index_t kCM0PerLane = 4;
-        // static constexpr index_t kCM1PerLane = 4;
     using BWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
-        tuple<sequence<Impl::kAMLane / (Impl::kABKPerLane * Impl::kABKLane * 2),// => 32/(8* 2* 2) = 1
-                       Impl::kABKLane,                                          // => 2
-                       2,                                                       // => 2           
-                       Impl::kABKPerLane>,                                      // => 8
-              sequence<Impl::kABKLane, Impl::kABKPerLane>>,                     // => 2, 8            
-        tuple<sequence<2, 1, 1, 1, 1>>,                                         // => so the parallel sequence is: <2, 1, 2, 2, 8> 
-        tuple<sequence<0, 0, 2, 1, 3>>,                
-        sequence<2>,                                                            // => yield is : <8>
+        tuple<sequence<Impl::kAMLane / (Impl::kABKPerLane * Impl::kABKLane * 2),
+                       Impl::kABKLane,
+                       2,
+                       Impl::kABKPerLane>,
+              sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+        tuple<sequence<2, 1, 1, 1, 1>>,
+        tuple<sequence<0, 0, 2, 1, 3>>,
+        sequence<2>,
         sequence<1>>;
 
     using CWarpDstrEncoding = tile_distribution_encoding<
@@ -420,41 +410,17 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
         sequence<0, 2>>;
 #else
     // TODO: more test not only 32x32
-    // These are new changes, carlus did
     using BWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
-        tuple<sequence<Impl::kAMLane / (Impl::kCMLane * SFactor * Impl::kCM1PerLane),// => 32/(2* 2* 4) = 2                  //for 16x16 this value becomes 16/(4*2*4) = 0.5
-                       Impl::kCMLane,                                                // => 2                              
-                       SFactor,                                                      // => 2                                        
-                       Impl::kCM1PerLane>,                                           // => 4
-              sequence<Impl::kABKLane, Impl::kABKPerLane>>,                          // => 2, 8
-        tuple<sequence<2, 1, 1, 1, 1>>,                                              // => so the parallel sequence is: <2,2,2,2,4> 
-        tuple<sequence<0, 0, 2, 1, 3>>,  
-        sequence<2>,                                                                 // => yield is : <8>     
+        tuple<sequence<Impl::kAMLane / (Impl::kCMLane * SFactor * Impl::kCM1PerLane),
+                       Impl::kCMLane,
+                       SFactor,
+                       Impl::kCM1PerLane>,
+              sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+        tuple<sequence<2, 1, 1, 1, 1>>,
+        tuple<sequence<0, 0, 2, 1, 3>>,
+        sequence<2>,
         sequence<1>>;
-
-    //This is what i am proposing, for 16x16x32 parameters values are:
-    // static constexpr index_t kAMLane     = 16;
-    // static constexpr index_t kBNLane     = 16;
-    // static constexpr index_t kABKLane    = 4;
-    // static constexpr index_t kABKPerLane = 8;
-
-    // static constexpr index_t kCMLane     = 4;
-    // static constexpr index_t kCNLane     = 16;
-    // static constexpr index_t kCM0PerLane = 1;
-    // static constexpr index_t kCM1PerLane = 4;
-    // using BWarpDstrEncoding = tile_distribution_encoding<
-    //     sequence<>,
-    //     tuple<sequence<Impl::kAMLane / (Impl::kCMLane * SFactor * Impl::kCM0PerLane),// => 16/(4* 2* 1) = 2 and in case of 32x32, kCM0PerLane and kCM1PerLane both are 4 so this sequence will remain same as before. 
-    //                    Impl::kCMLane,                                                // => 4                              
-    //                    SFactor,                                                      // => 2                                        
-    //                    Impl::kCM0PerLane>,                                           // => 1
-    //           sequence<Impl::kABKLane, Impl::kABKPerLane>>,                          // => 4, 8
-    //     tuple<sequence<2, 1, 1, 1, 1>>,                                              // => so the parallel sequence is: <4,2,2,4,1> 
-    //     tuple<sequence<0, 0, 2, 1, 3>>, 
-    //     sequence<2>,                                                                 // => yield is : <8>     
-    //     sequence<1>>;
-    // similarly for  CWarpDstrEncoding is i swap kCM0PerLane and kCM1PerLane; this should give me correct encoding.
     using CWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
         tuple<sequence<Impl::kCNLane>,
