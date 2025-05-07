@@ -654,8 +654,8 @@ def Build_CK_and_Reboot(Map conf=[:]){
 def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
+    //use older image that has user jenkins
     def image = "rocm/composable_kernel:ck_ub22.04_rocm6.3"
-    //getDockerImageName()
     def prefixpath = "/opt/rocm"
 
     // Jenkins is complaining about the render group 
@@ -708,7 +708,12 @@ def process_results(Map conf=[:]){
                         // unstash perf files to master
                         unstash "ckprofiler_0.2.0_amd64.deb"
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
-                        unstash "perf_log"
+                        try{
+                            unstash "perf_log"
+                        }
+                        catch(Exception err){
+                            echo "could not locate perf_log: ${err.getMessage()}."
+                        }
                         try{
                             unstash "perf_log_gfx11"
                             unstash "perf_log_gfx12"
