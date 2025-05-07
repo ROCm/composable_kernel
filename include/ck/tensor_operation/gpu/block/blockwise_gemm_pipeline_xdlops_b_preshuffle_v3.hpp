@@ -158,10 +158,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
     using Base::GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4;
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
-
-    using Base::AMmaKStride;
-    using Base::BMmaKStride;
-
     using Base::MWaves;
 
     static constexpr index_t PrefetchStages        = 2;
@@ -209,9 +205,11 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
             HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16
                 ? HotLoopInstList::A_LDS_Read_Inst_Num
                 : HotLoopInstList::A_LDS_Read_Inst_Num / 2;
-        constexpr auto num_ds_write_inst_a    = HotLoopInstList::A_LDS_Write_Inst_Num;
+
+        constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
+
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = MWaves * HotLoopInstList::B_Buffer_Load_Inst_Num;
+        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
 
         static_assert(num_buffer_load_inst_a == num_ds_write_inst_a);
 
@@ -223,39 +221,47 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         constexpr auto ds_read_a_mfma_rate =
             math::integer_divide_ceil(mfma_cycle - 4, 2 * ds_read_a_issue_cycle);
 
+        constexpr auto num_total_stages = MRepeat;
+
+        // Group num_mfma_perstage num_ds_read_a_perstage
+        // since we want to reuse a local register buffer
         constexpr auto num_mfma_perstage      = num_mfma_inst / MRepeat;
         constexpr auto num_ds_read_a_perstage = num_ds_read_inst_a / MRepeat;
+
         constexpr auto num_ds_read_a_mfma_perstage =
             math::integer_divide_ceil(num_ds_read_a_perstage, ds_read_a_mfma_rate);
+
+        constexpr auto num_ds_read_a_prefetch_stages = 2;
 
         constexpr auto total_buffer_loads = num_buffer_load_inst_a + num_buffer_load_inst_b;
         constexpr auto stages_available   = MRepeat - DS_READ_A_PREFETCH_STAGES;
 
         constexpr auto stage_loads = compute_stage_loads(total_buffer_loads, stages_available);
 
-        constexpr auto loads_per_heavy_stage = stage_loads.first;
-        constexpr auto loads_per_light_stage = stage_loads.second;
+        constexpr auto buffer_load_perstage_more = stage_loads.first;
+        constexpr auto buffer_load_perstage_less = stage_loads.second;
 
         constexpr auto buffer_load_stages_more = total_buffer_loads % stages_available;
 
-        constexpr auto buffer_b_heavy_loads = loads_per_heavy_stage * buffer_load_stages_more;
-        constexpr auto buffer_b_remaining   = num_buffer_load_inst_b - buffer_b_heavy_loads;
+        constexpr auto buffer_b_heavy_loads = buffer_load_perstage_more * buffer_load_stages_more;
+        constexpr auto buffer_b_remaining =
+            num_buffer_load_inst_b - buffer_load_perstage_more * buffer_load_stages_more;
 
         constexpr auto buffer_load_b_stages =
-            (buffer_b_heavy_loads > num_buffer_load_inst_b)
-                ? (num_buffer_load_inst_b / loads_per_heavy_stage)
-                : (buffer_load_stages_more + (buffer_b_remaining / loads_per_light_stage));
+            buffer_b_heavy_loads > num_buffer_load_inst_b
+                ? num_buffer_load_inst_b / buffer_load_perstage_more
+                : (buffer_load_stages_more + buffer_b_remaining / buffer_load_perstage_less);
 
         constexpr auto buffer_load_a_stages =
-            MRepeat - num_ds_read_a_perstage - buffer_load_b_stages;
+            num_total_stages - DS_READ_A_PREFETCH_STAGES - buffer_load_b_stages;
 
-        constexpr auto issue_interval_high =
-            math::integer_divide_ceil(num_mfma_perstage, loads_per_heavy_stage);
-
-        constexpr auto issue_interval_low =
-            loads_per_light_stage == 0
-                ? INT32_MAX // Disable if no loads in low stages
-                : math::integer_divide_ceil(num_mfma_perstage, loads_per_light_stage);
+        constexpr auto buffer_load_issue_point_interval_more =
+            math::integer_divide_ceil(num_mfma_perstage, buffer_load_perstage_more);
+        constexpr auto buffer_load_issue_point_interval_less =
+            buffer_load_perstage_less == 0
+                ? INT32_MAX
+                : math::integer_divide_ceil(num_mfma_perstage, buffer_load_perstage_less);
+        constexpr auto buffer_load_issue_point_a = num_mfma_perstage >= 3 ? 1 : 0;
 
         // B global read
         static_for<0, buffer_load_b_stages, 1>{}([&](auto i) {
@@ -263,15 +269,17 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                 __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
 
                 if constexpr(((i < buffer_load_stages_more) &&
-                              (imfma % issue_interval_high == 0)) ||
-                             ((i >= buffer_load_stages_more) && (imfma % issue_interval_low == 0)))
+                              (imfma % buffer_load_issue_point_interval_more == 0)) ||
+                             ((i >= buffer_load_stages_more) &&
+                              (imfma % buffer_load_issue_point_interval_less == 0)))
                 {
-                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0); // VMEM read
+                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
                 }
+
                 if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                 {
                     __builtin_amdgcn_sched_group_barrier(
-                        SCHED_GROUP_LDS_READ, ds_read_a_mfma_rate, 0); // DS read
+                        SCHED_GROUP_LDS_READ, ds_read_a_mfma_rate, 0);
                 }
             });
         });
@@ -281,34 +289,38 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
                 if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
-                              (imfma % issue_interval_high == 0)) ||
+                              (imfma % buffer_load_issue_point_interval_more == 0)) ||
                              (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
-                              (imfma % issue_interval_low == 0)))
+                              (imfma % buffer_load_issue_point_interval_less == 0)))
                 {
-                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_WRITE, 1, 0); // DS write
+                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_WRITE, 1, 0);
                 }
                 if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
-                              (imfma % issue_interval_high == 0)) ||
+                              (imfma % buffer_load_issue_point_interval_more ==
+                               buffer_load_issue_point_a)) ||
                              (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
-                              (imfma % issue_interval_low == 0)))
+                              (imfma % buffer_load_issue_point_interval_less ==
+                               buffer_load_issue_point_a)))
                 {
-                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0); // VMEM read
+                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
                 }
                 if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                 {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(
+                        SCHED_GROUP_LDS_READ, ds_read_a_mfma_rate, 0);
                 }
             });
         });
 
         // lds synchronization, prefetch next loop local A
-        static_for<0, num_ds_read_a_perstage, 1>{}([&](auto i) {
+        static_for<0, num_ds_read_a_prefetch_stages, 1>{}([&](auto i) {
             ignore = i;
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
                 if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                 {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(
+                        SCHED_GROUP_LDS_READ, ds_read_a_mfma_rate, 0);
                 }
             });
         });
@@ -364,10 +376,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         __builtin_amdgcn_sched_barrier(0);
 
-        // // Local prefill A1
+        // Local prefill A1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I0));
 
-        // // Global prefetch A2
+        // Global prefetch A2
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
@@ -385,6 +397,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                 });
             });
         });
+
         // Initialize C
         c_thread_buf.Clear();
 
@@ -444,7 +457,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                             });
                         });
 
-                        if constexpr(m0.value == MRepeat - 2)
+                        if constexpr(m0.value == (MRepeat - 2))
                         {
                             block_sync_lds();
 
@@ -543,6 +556,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                  b_block_origin_idx,
                                  b_thread_bufs(I1));
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
+
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -570,7 +584,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                     });
                 });
 
-                if constexpr(m0.value == MRepeat - 2)
+                if constexpr(m0.value == (MRepeat - 2))
                 {
                     block_sync_lds();
 
@@ -633,6 +647,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                     });
                 }
             });
+
             HotLoopScheduler();
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -683,10 +698,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                     });
                 }
             });
+
             HotLoopScheduler();
-            // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
-            // latency
-            // __builtin_amdgcn_sched_barrier(0);
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {
