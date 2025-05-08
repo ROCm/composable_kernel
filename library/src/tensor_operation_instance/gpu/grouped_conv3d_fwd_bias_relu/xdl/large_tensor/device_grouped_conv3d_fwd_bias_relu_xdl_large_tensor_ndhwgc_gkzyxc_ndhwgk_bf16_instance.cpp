@@ -13,11 +13,11 @@ void add_device_grouped_conv3d_fwd_bias_relu_xdl_large_tensor_ndhwgc_gkzyxc_ndhw
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                Empty_Tuple,
+                                                                Tuple<NDHWGK>,
                                                                 NDHWGK,
                                                                 BF16,
                                                                 BF16,
-                                                                Empty_Tuple,
+                                                                Tuple<BF16>,
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
@@ -28,9 +28,10 @@ void add_device_grouped_conv3d_fwd_bias_relu_xdl_large_tensor_ndhwgc_gkzyxc_ndhw
         device_grouped_conv_fwd_xdl_large_tensor_bf16_instances<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                Empty_Tuple,
+                                                                Tuple<NDHWGK>,
                                                                 NDHWGK,
                                                                 ConvFwdDefault,
+                                                                Tuple<BF16>,
                                                                 AddRelu>{});
 }
 

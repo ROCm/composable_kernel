@@ -13,11 +13,11 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_16x16_in
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
-                                                                Empty_Tuple,
+                                                                Tuple<NHWGK>,
                                                                 NHWGK,
                                                                 BF16,
                                                                 BF16,
-                                                                Empty_Tuple,
+                                                                Tuple<BF16>,
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
@@ -27,27 +27,30 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_16x16_in
                                    device_grouped_conv_fwd_xdl_bf16_16x16_instances<2,
                                                                                     NHWGC,
                                                                                     GKYXC,
-                                                                                    Empty_Tuple,
+                                                                                    Tuple<NHWGK>,
                                                                                     NHWGK,
                                                                                     ConvFwdDefault,
+                                                                                    Tuple<BF16>,
                                                                                     AddRelu>{});
 
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_bf16_16x16_instances<2,
                                                                                     NHWGC,
                                                                                     GKYXC,
-                                                                                    Empty_Tuple,
+                                                                                    Tuple<NHWGK>,
                                                                                     NHWGK,
                                                                                     ConvFwd1x1P0,
+                                                                                    Tuple<BF16>,
                                                                                     AddRelu>{});
 
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_bf16_16x16_instances<2,
                                                                                     NHWGC,
                                                                                     GKYXC,
-                                                                                    Empty_Tuple,
+                                                                                    Tuple<NHWGK>,
                                                                                     NHWGK,
                                                                                     ConvFwd1x1S1P0,
+                                                                                    Tuple<BF16>,
                                                                                     AddRelu>{});
 }
 

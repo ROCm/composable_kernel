@@ -57,6 +57,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_bf16_comp_instances_2x = std::tuple<
     // clang-format off
@@ -74,6 +75,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_bf16_comp_instances = std::tuple<
     // clang-format off
@@ -103,6 +105,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_bf16_comp_instances_part2 = std::tuple<
     // clang-format off
@@ -122,6 +125,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_f16_comp_instances_2x = std::tuple<
     // clang-format off
@@ -139,6 +143,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_f16_comp_instances = std::tuple<
     // clang-format off
@@ -157,6 +162,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_f16_comp_instances_part2 = std::tuple<
     // clang-format off
@@ -182,6 +188,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_f32_comp_instances = std::tuple<
     // clang-format off
@@ -203,6 +210,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_int8_comp_instances_2x = std::tuple<
     // clang-format off
@@ -220,6 +228,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_int8_comp_instances = std::tuple<
     // clang-format off
@@ -238,6 +247,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_int8_comp_instances_part2 = std::tuple<
     // clang-format off

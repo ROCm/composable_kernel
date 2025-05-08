@@ -40,6 +40,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_merged_groups_bf16_instances = std::tuple<
     // clang-format off
@@ -61,6 +62,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_merged_groups_bf16_instances_2x = std::tuple<
     // clang-format off
@@ -80,6 +82,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_merged_groups_f16_instances = std::tuple<
     // clang-format off
@@ -101,6 +104,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_merged_groups_f16_instances_2x = std::tuple<
     // clang-format off
@@ -121,6 +125,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_merged_groups_f32_instances = std::tuple<
     // clang-format off
@@ -141,6 +146,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_merged_groups_int8_instances = std::tuple<
     // clang-format off

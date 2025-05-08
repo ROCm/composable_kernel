@@ -14,11 +14,11 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_merged_groups_nhwgc_gkyxc_nhwgk
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
-                                                                Empty_Tuple,
+                                                                Tuple<NHWGK>,
                                                                 NHWGK,
                                                                 BF16,
                                                                 BF16,
-                                                                Empty_Tuple,
+                                                                Tuple<BF16>,
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
@@ -31,9 +31,10 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_merged_groups_nhwgc_gkyxc_nhwgk
             device_grouped_conv_fwd_xdl_merged_groups_bf16_instances_2x<2,
                                                                         NHWGC,
                                                                         GKYXC,
-                                                                        Empty_Tuple,
+                                                                        Tuple<NHWGK>,
                                                                         NHWGK,
                                                                         ConvFwdDefault,
+                                                                        Tuple<BF16>,
                                                                         AddRelu>{});
 
         add_device_operation_instances(
@@ -41,9 +42,10 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_merged_groups_nhwgc_gkyxc_nhwgk
             device_grouped_conv_fwd_xdl_merged_groups_bf16_instances_2x<2,
                                                                         NHWGC,
                                                                         GKYXC,
-                                                                        Empty_Tuple,
+                                                                        Tuple<NHWGK>,
                                                                         NHWGK,
                                                                         ConvFwd3x3,
+                                                                        Tuple<BF16>,
                                                                         AddRelu>{});
     }
     else
@@ -53,9 +55,10 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_merged_groups_nhwgc_gkyxc_nhwgk
             device_grouped_conv_fwd_xdl_merged_groups_bf16_instances<2,
                                                                      NHWGC,
                                                                      GKYXC,
-                                                                     Empty_Tuple,
+                                                                     Tuple<NHWGK>,
                                                                      NHWGK,
                                                                      ConvFwdDefault,
+                                                                     Tuple<BF16>,
                                                                      AddRelu>{});
 
         add_device_operation_instances(
@@ -63,9 +66,10 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_merged_groups_nhwgc_gkyxc_nhwgk
             device_grouped_conv_fwd_xdl_merged_groups_bf16_instances<2,
                                                                      NHWGC,
                                                                      GKYXC,
-                                                                     Empty_Tuple,
+                                                                     Tuple<NHWGK>,
                                                                      NHWGK,
                                                                      ConvFwd3x3,
+                                                                     Tuple<BF16>,
                                                                      AddRelu>{});
     }
 }

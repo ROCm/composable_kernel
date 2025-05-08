@@ -54,6 +54,7 @@ template <index_t NDimSpatial,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_bf16_mem_instances = std::tuple<
     // clang-format off
@@ -93,6 +94,7 @@ template <index_t NDimSpatial,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_f16_mem_instances = std::tuple<
     // clang-format off
@@ -131,6 +133,7 @@ template <index_t NDimSpatial,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_f32_mem_instances = std::tuple<
     // clang-format off
@@ -165,6 +168,7 @@ template <index_t NDimSpatial,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
+          typename DsDataTypes  = Tuple<>,
           typename OutElementOp = PassThrough>
 using device_grouped_conv_fwd_xdl_int8_mem_instances = std::tuple<
     // clang-format off
