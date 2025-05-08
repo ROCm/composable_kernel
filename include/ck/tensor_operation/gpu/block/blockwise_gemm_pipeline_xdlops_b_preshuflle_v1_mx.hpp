@@ -58,27 +58,27 @@ template <index_t ThreadBlockSize,
           index_t MRepeat, // MXdlPerWave
           index_t NRepeat, // NXdlPerWave
           index_t KPack>
-struct BlockwiseGemmXdlops_pipeline_bpreshufflev1_mx<BlockGemmPipelineScheduler::Intrawave,
-                                                     ThreadBlockSize,
-                                                     ScaleBlockSize,
-                                                     ADataType,
-                                                     AScaleDataType,
-                                                     BDataType,
-                                                     BScaleDataType,
-                                                     ATileDesc,
-                                                     BTileDesc,
-                                                     AMmaTileDesc,
-                                                     BMmaTileDesc,
-                                                     ABlockTransferSrcScalarPerVector,
-                                                     BBlockTransferSrcScalarPerVector,
-                                                     MPerBlock,
-                                                     NPerBlock,
-                                                     KPerBlock,
-                                                     MPerXDL,
-                                                     NPerXDL,
-                                                     MRepeat,
-                                                     NRepeat,
-                                                     KPack>
+struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler::Intrawave,
+                                                      ThreadBlockSize,
+                                                      ScaleBlockSize,
+                                                      ADataType,
+                                                      AScaleDataType,
+                                                      BDataType,
+                                                      BScaleDataType,
+                                                      ATileDesc,
+                                                      BTileDesc,
+                                                      AMmaTileDesc,
+                                                      BMmaTileDesc,
+                                                      ABlockTransferSrcScalarPerVector,
+                                                      BBlockTransferSrcScalarPerVector,
+                                                      MPerBlock,
+                                                      NPerBlock,
+                                                      KPerBlock,
+                                                      MPerXDL,
+                                                      NPerXDL,
+                                                      MRepeat,
+                                                      NRepeat,
+                                                      KPack>
     : BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
                                            ADataType,
                                            BDataType,
@@ -243,6 +243,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshufflev1_mx<BlockGemmPipelineScheduler:
         const BScaleGridBuffer& b_scale_grid_buf,
         index_t num_loop) const
     {
+        ignore = b_block_desc;
+        ignore = b_block_buf;
+
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeB>(

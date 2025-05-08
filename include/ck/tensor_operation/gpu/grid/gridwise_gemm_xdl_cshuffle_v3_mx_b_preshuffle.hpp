@@ -480,17 +480,15 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     __host__ __device__ static constexpr auto
     MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
     {
-
-        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWave, MPerXdl>(ABlockDesc_AK0_M_AK1{});
+        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
+        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWaves, MPerXdl>(ABlockDesc_AK0_M_AK1{});
     }
 
     template <typename BBlockDesc_BK0_N_BK1>
     __host__ __device__ static constexpr auto
     MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
     {
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-
-        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWaves, NPerXdl>(BBlockDesc_BK0_N_BK1{});
+        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWave, NPerXdl>(BBlockDesc_BK0_N_BK1{});
     }
 
     __host__ __device__ static auto
@@ -583,7 +581,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)},
               BN0Shuffled{CalculateBN0Shuffled(N_)},
-              BK0Shuffled{CalculateBK0Shuffled(K_)},
+              BK0Shuffled{CalculateBK0Shuffled(K_)}
         {
         }
 
@@ -716,12 +714,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             {
                 if constexpr(!PermuteB)
                 {
-                    b_k_split_offset = k_id * karg.KRead / BPackedSize;
+                    b_k_split_offset = k_id * karg.KRead * NLane / BPackedSize;
                 }
                 else
                 {
                     const int k0_offset = karg.KRead * karg.N;
-                    b_k_split_offset    = k_id * karg.KRead * NLane;
+                    b_k_split_offset    = k_id * k0_offset / BPackedSize;
                 }
             }
 
@@ -1397,7 +1395,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                                                          a_grid_buf,
                                                                          a_block_buf,
                                                                          a_block_slice_copy_step,
-                                                                         b_grid_desc_bk0_n_bk1,
+                                                                         b_grid_desc_bpreshuffled,
                                                                          b_block_desc_bk0_n_bk1,
                                                                          b_blockwise_copy,
                                                                          b_grid_buf,

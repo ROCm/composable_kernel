@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#pragma once
-
 #include <iostream>
+#include <numeric>
+#include <initializer_list>
+#include <cstdlib>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
