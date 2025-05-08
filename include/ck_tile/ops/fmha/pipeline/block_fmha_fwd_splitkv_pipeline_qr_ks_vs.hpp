@@ -516,7 +516,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                [[maybe_unused]] auto row_max = scale_s * get_validated_m(m[i_idx]);
+                auto row_max = scale_s * get_validated_m(m[i_idx]);
 #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
