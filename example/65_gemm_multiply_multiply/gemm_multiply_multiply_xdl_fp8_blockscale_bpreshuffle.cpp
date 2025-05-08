@@ -41,6 +41,7 @@ using DsDataType       = ck::Tuple<>;
 using EDataType        = BF16;
 
 using A0Layout = Row;
+using A1Layout = Col;
 using B0Layout = Col;
 using D0Layout = Row;
 using D1Layout = Col;
@@ -158,7 +159,8 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    ck::index_t Scale_Stride_AM = (K + Scale_Block_K - 1) / Scale_Block_K;
+    // Transpose the AScale tensor for better performance
+    ck::index_t Scale_Stride_AK = (M + Scale_Block_M - 1) / Scale_Block_M;
     ck::index_t Scale_Stride_BN = (K + Scale_Block_K - 1) / Scale_Block_K;
 
     auto f_host_tensor_descriptor =
@@ -178,8 +180,8 @@ int main(int argc, char* argv[])
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
     Tensor<A1DataType> a1_m_k(f_host_tensor_descriptor((M + Scale_Block_M - 1) / Scale_Block_M,
                                                        (K + Scale_Block_K - 1) / Scale_Block_K,
-                                                       Scale_Stride_AM,
-                                                       A0Layout{}));
+                                                       Scale_Stride_AK,
+                                                       A1Layout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
     Tensor<B0DataType> b0_preshuffled(
         f_host_tensor_descriptor(K, N, StrideB, B0Layout{})); // use laout only for size
@@ -196,7 +198,6 @@ int main(int argc, char* argv[])
     std::cout << "b1_k_n: " << b1_k_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
 
-#if 1
     switch(init_method)
     {
     case 0: break;
@@ -236,17 +237,6 @@ int main(int argc, char* argv[])
         a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
     }
-#endif
-#if 0
-    for(int im =0; im< (M + Scale_Block_M - 1) / Scale_Block_M; im++){
-        float row_sum = .0;
-        for(int ik =0; ik< (K + Scale_Block_K - 1) / Scale_Block_K; ik++){
-            printf("%lf ",a1_m_k(im, ik));
-            row_sum += a1_m_k(im, ik);
-        }
-        printf("sum: %lf\n", row_sum * 128);
-    }
-#endif
 
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem a1_device_buf(sizeof(A1DataType) * a1_m_k.mDesc.GetElementSpaceSize());
