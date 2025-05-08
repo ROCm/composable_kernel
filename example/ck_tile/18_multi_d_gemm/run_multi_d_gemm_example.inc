@@ -16,14 +16,14 @@ template <typename ADataType,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_multi_d_gemm(const void* a_m_k_dev_buf,
                           const void* b_k_n_dev_buf,
-                          const void* ds_m_n_dev_buf,
+                          const std::array<const void*, DsDataType::size()>& ds_m_n_dev_buf,
                           void* c_m_n_dev_buf,
                           ck_tile::index_t M,
                           ck_tile::index_t N,
                           ck_tile::index_t K,
                           ck_tile::index_t StrideA,
                           ck_tile::index_t StrideB,
-                          const ck_tile::index_t* StrideDs,
+                          const std::array<ck_tile::index_t, DsDataType::size()>& StrideDs,
                           ck_tile::index_t StrideC,
                           int n_warmup,
                           int n_repeat)
@@ -62,6 +62,7 @@ float invoke_multi_d_gemm(const void* a_m_k_dev_buf,
 
     ck_tile::static_for<0, NumDTensor, 1>{}([&](auto i) {
         num_btype += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) * M * N;
+        flop += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) * M * N;
     });
 
     num_btype += sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
@@ -97,8 +98,8 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
     {
         return -1;
     }
-    using CDEElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
-    using DsLayout         = ck_tile::tuple<D0Layout, D1Layout>;
+    using CDElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
+    using DsLayout        = ck_tile::tuple<D0Layout, D1Layout>;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -163,19 +164,19 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
                         BLayout,
                         DsLayout,
                         CLayout,
-                        CDEElementWiseFn>(a_m_k_dev_buf.GetDeviceBuffer(),
-                                          b_k_n_dev_buf.GetDeviceBuffer(),
-                                          ds_ptr_buf.data(),
-                                          c_m_n_dev_buf.GetDeviceBuffer(),
-                                          M,
-                                          N,
-                                          K,
-                                          StrideA,
-                                          StrideB,
-                                          stridesDs.data(),
-                                          StrideC,
-                                          n_warmup,
-                                          n_repeat);
+                        CDElementWiseFn>(a_m_k_dev_buf.GetDeviceBuffer(),
+                                         b_k_n_dev_buf.GetDeviceBuffer(),
+                                         ds_ptr_buf,
+                                         c_m_n_dev_buf.GetDeviceBuffer(),
+                                         M,
+                                         N,
+                                         K,
+                                         StrideA,
+                                         StrideB,
+                                         stridesDs,
+                                         StrideC,
+                                         n_warmup,
+                                         n_repeat);
 
     c_m_n_dev_buf.FromDevice(c_m_n_device_result.data());
 
@@ -189,7 +190,7 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
         std::tuple<ck_tile::HostTensor<D0DataType>, ck_tile::HostTensor<D1DataType>>,
         AccDataType,
         CDataType,
-        CDEElementWiseFn>(
+        CDElementWiseFn>(
         a_m_k_tesnor, b_k_n_tensors, std::tie(d0_m_n_tensors, d1_m_n_tensors), c_m_n_host_ref);
 
     bool pass{true};

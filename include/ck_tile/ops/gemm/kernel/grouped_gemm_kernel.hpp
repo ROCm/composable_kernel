@@ -13,12 +13,12 @@ namespace ck_tile {
 
 struct GemmTransKernelArg
 {
-    GemmKernelArgs group_karg;
+    GemmKernelArgs<> group_karg;
     ck_tile::index_t block_start;
     ck_tile::index_t block_end;
 
     GemmTransKernelArg() = delete;
-    GemmTransKernelArg(GemmKernelArgs&& karg, index_t bl_start, index_t bl_end)
+    GemmTransKernelArg(GemmKernelArgs<>&& karg, index_t bl_start, index_t bl_end)
         : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
     {
     }
@@ -55,15 +55,16 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // clang-format on
     }
 
-    __host__ static auto GetWorkSpaceSize(const std::vector<GemmHostArgs>& gemm_descs)
-        -> std::size_t
+    __host__ static auto
+    GetWorkSpaceSize(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs) -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
     }
 
     __host__ static constexpr auto BlockSize() -> dim3 { return dim3(KernelBlockSize); }
 
-    __host__ static constexpr auto GridSize(const std::vector<GemmHostArgs>& gemm_descs)
+    __host__ static constexpr auto
+    GridSize(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -74,7 +75,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto MakeKargs(const std::vector<GemmHostArgs>& gemm_descs)
+    CK_TILE_HOST static auto
+    MakeKargs(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs)
         -> std::vector<GemmTransKernelArg>
     {
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
@@ -104,18 +106,18 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
             grid_size += grid_size_grp;
 
-            auto karg = GemmKernelArgs{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
-                                       type_convert<const BDataType*>(gemm_descs[i].b_ptr),
-                                       {},
-                                       type_convert<CDataType*>(gemm_descs[i].c_ptr),
-                                       M,
-                                       N,
-                                       K,
-                                       stride_a,
-                                       stride_b,
-                                       {},
-                                       stride_c,
-                                       gemm_descs[i].k_batch};
+            auto karg = GemmKernelArgs<>{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
+                                         type_convert<const BDataType*>(gemm_descs[i].b_ptr),
+                                         {},
+                                         type_convert<CDataType*>(gemm_descs[i].c_ptr),
+                                         M,
+                                         N,
+                                         K,
+                                         stride_a,
+                                         stride_b,
+                                         {},
+                                         stride_c,
+                                         gemm_descs[i].k_batch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }

@@ -47,7 +47,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         static const ck_tile::index_t K_Warp_Tile = 8;
     };
 
-    using grouped_gemm_kargs = ck_tile::GemmHostArgs;
+    using grouped_gemm_kargs = ck_tile::GemmHostArgs</*NumDTensor = 0*/>;
     std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
     {
         return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);

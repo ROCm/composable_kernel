@@ -15,8 +15,8 @@ template <typename ADataType_,
           typename AccDataType_,
           typename ODataType_,
           typename DsLayout_,
-          typename CLayout_,
-          typename ABDELementWise_,
+          typename ELayout_,
+          typename CDElementwise_,
           index_t kBlockSize_,
           index_t kM_,
           index_t kN_,
@@ -34,8 +34,8 @@ struct CShuffleEpilogueProblem
     using ODataType                        = remove_cvref_t<ODataType_>;
     using DsDataType                       = remove_cvref_t<DsDataType_>;
     using DsLayout                         = remove_cvref_t<DsLayout_>;
-    using CLayout                          = remove_cvref_t<CLayout_>;
-    using ABDELementWise                   = remove_cvref_t<ABDELementWise_>;
+    using ELayout                          = remove_cvref_t<ELayout_>;
+    using CDElementwise                    = remove_cvref_t<CDElementwise_>;
     static constexpr index_t kBlockSize    = kBlockSize_;
     static constexpr index_t kMPerBlock    = kM_;
     static constexpr index_t kNPerBlock    = kN_;
@@ -46,6 +46,9 @@ struct CShuffleEpilogueProblem
     static constexpr index_t kKPerXdl      = kKPerXdl_;
     static constexpr index_t isCTransposed = isCTransposed_;
     static constexpr index_t NumDTensor    = DsDataType::size();
+
+    static_assert(NumDTensor == DsDataType::size(),
+                  "The size of DsDataType and DsLayout should be the same");
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -60,8 +63,8 @@ struct CShuffleEpilogue
     using DsLayout    = remove_cvref_t<typename Problem::DsLayout>;
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ODataType, BDataType>;
-    using CLayout                           = remove_cvref_t<typename Problem::CLayout>;
-    using ABDELementWise                    = remove_cvref_t<typename Problem::ABDELementWise>;
+    using ELayout                           = remove_cvref_t<typename Problem::ELayout>;
+    using CDElementwise                     = remove_cvref_t<typename Problem::CDElementwise>;
     static constexpr index_t kBlockSize     = Problem::kBlockSize;
     static constexpr index_t kMPerBlock     = Problem::kMPerBlock;
     static constexpr index_t kNPerBlock     = Problem::kNPerBlock;
@@ -74,6 +77,8 @@ struct CShuffleEpilogue
     static constexpr index_t kMPerIteration = kMPerXdl * kMWave;
     static constexpr index_t kNPerIteration = kNPerXdl * kNWave;
     static constexpr index_t NumDTensor     = Problem::NumDTensor;
+
+    static constexpr index_t MaxVectorStoreSize = 16;
 
     using WG = WarpGemmMfmaDispatcher<ADataType,
                                       BTypeToUse,
@@ -98,7 +103,6 @@ struct CShuffleEpilogue
      */
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
-        constexpr index_t MaxVectorStoreSize = 16;
         return MaxVectorStoreSize / sizeof(ODataType);
     }
 
@@ -111,7 +115,6 @@ struct CShuffleEpilogue
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeD(number<I> index)
     {
         using DiDataType = remove_cvref_t<std::tuple_element_t<index.value, DsDataType>>;
-        constexpr index_t MaxVectorStoreSize = 16;
         return MaxVectorStoreSize / sizeof(DiDataType);
     }
 
@@ -119,14 +122,14 @@ struct CShuffleEpilogue
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
         // N is contiguous dimension
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             return make_naive_tensor_descriptor(
                 make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
                 make_tuple(number<kNWave * kNPerXdl>{}, number<1>{}));
         }
         // M is contiguous dimension
-        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
+        else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
         {
             return make_naive_tensor_descriptor(
                 make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
@@ -134,7 +137,7 @@ struct CShuffleEpilogue
         }
         else
         {
-            static_assert(false, "Unsupported CLayout!");
+            static_assert(false, "Unsupported ELayout!");
         }
     }
 
@@ -145,11 +148,11 @@ struct CShuffleEpilogue
 
     template <typename ODramWindow,
               typename OAccTile,
-              typename DDramWindow,
+              typename DsDramWindows,
               memory_operation_enum out_memory_data_op = memory_operation_enum::set>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
-                                   const DDramWindow& ds_dram_window,
+                                   const DsDramWindows& ds_dram_window,
                                    void* p_smem)
     {
 
@@ -181,7 +184,7 @@ struct CShuffleEpilogue
                                               tile_distribution_pattern::thread_raked>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
-        auto d_dram_small_window = generate_tuple(
+        auto d_dram_windows = generate_tuple(
             [&](auto idx) { return make_tile_window(ds_dram_window[idx], dram_tile_distribution); },
             number<NumDTensor>{});
 
@@ -213,16 +216,15 @@ struct CShuffleEpilogue
             const auto c_out_tensor =
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
-            const auto ds_tensor =
-                generate_tuple([&](auto idx) { return load_tile(d_dram_small_window[idx]); },
-                               number<NumDTensor>{});
+            const auto ds_tensor = generate_tuple(
+                [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
 
             const auto c_ds_tiles = concat_tuple_of_reference(
                 tie(elemenet_wise_output, c_out_tensor),
                 generate_tie(
                     [&](auto i) -> const auto& { return ds_tensor[i]; }, number<NumDTensor>{}));
 
-            tile_elementwise_in_out_unpack_tuple(typename Problem::ABDELementWise{}, c_ds_tiles);
+            tile_elementwise_in_out_unpack_tuple(typename Problem::CDElementwise{}, c_ds_tiles);
 
             if constexpr(out_memory_data_op == memory_operation_enum::set)
             {
@@ -239,7 +241,7 @@ struct CShuffleEpilogue
                 move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
 
                 static_for<0, NumDTensor, 1>{}([&](auto idx) {
-                    move_tile_window(d_dram_small_window[idx],
+                    move_tile_window(d_dram_windows[idx],
                                      {step.at(number<0>{}), step.at(number<1>{})});
                 });
             }

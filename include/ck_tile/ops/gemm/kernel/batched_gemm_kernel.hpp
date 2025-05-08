@@ -9,7 +9,7 @@
 
 namespace ck_tile {
 
-struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
+struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs</*NumDTensor = 0*/>
 {
     CK_TILE_HOST BatchedGemmHostArgs() = default;
     CK_TILE_HOST BatchedGemmHostArgs(const void* a_ptr_,
@@ -56,7 +56,7 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 {
     using Base = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
 
-    using GemmKernelArgs = typename ck_tile::GemmKernelArgs;
+    using GemmKernelArgs = typename ck_tile::GemmKernelArgs<>;
 
     using ADataType = typename Base::ADataType;
     using BDataType = typename Base::BDataType;

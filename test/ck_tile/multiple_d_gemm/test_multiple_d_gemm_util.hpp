@@ -52,7 +52,7 @@ class TestCkTileMultipleDGemm : public ::testing::Test
     using DsLayout    = ck_tile::tuple<D0Layout, D1Layout>;
     using DsDataType  = ck_tile::tuple<D0DataType, D1DataType>;
 
-    using CDEElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
+    using CDElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
 
     template <typename ADataType,
               typename BDataType,
@@ -64,7 +64,8 @@ class TestCkTileMultipleDGemm : public ::testing::Test
               typename DsLayout,
               typename CLayout,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    void invoke_multi_d_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+    void invoke_multi_d_gemm(const ck_tile::GemmHostArgs<DsDataType::size()>& args,
+                             const ck_tile::stream_config& s)
     {
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
@@ -290,18 +291,18 @@ class TestCkTileMultipleDGemm : public ::testing::Test
                                                                   d1_m_n_dev_buf.GetDeviceBuffer()};
         std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
 
-        ck_tile::GemmHostArgs args({a_m_k_dev_buf.GetDeviceBuffer(),
-                                    b_k_n_dev_buf.GetDeviceBuffer(),
-                                    ds_ptr_buf.data(),
-                                    c_m_n_dev_buf.GetDeviceBuffer(),
-                                    /* kBatch */ 1,
-                                    M,
-                                    N,
-                                    K,
-                                    StrideA,
-                                    StrideB,
-                                    stridesDs.data(),
-                                    StrideC});
+        ck_tile::GemmHostArgs<DsDataType::size()> args({a_m_k_dev_buf.GetDeviceBuffer(),
+                                                        b_k_n_dev_buf.GetDeviceBuffer(),
+                                                        ds_ptr_buf,
+                                                        c_m_n_dev_buf.GetDeviceBuffer(),
+                                                        /* kBatch */ 1,
+                                                        M,
+                                                        N,
+                                                        K,
+                                                        StrideA,
+                                                        StrideB,
+                                                        stridesDs,
+                                                        StrideC});
 
         invoke_multi_d_gemm<ADataType,
                             BDataType,
@@ -312,7 +313,7 @@ class TestCkTileMultipleDGemm : public ::testing::Test
                             BLayout,
                             DsLayout,
                             CLayout,
-                            CDEElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
+                            CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
 
         std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
                   << " StrideA =" << StrideA << " StrideB =" << StrideB << " StrideC =" << StrideC
@@ -331,7 +332,7 @@ class TestCkTileMultipleDGemm : public ::testing::Test
             std::tuple<ck_tile::HostTensor<D0DataType>, ck_tile::HostTensor<D1DataType>>,
             AccDataType,
             CDataType,
-            CDEElementWiseFn>(
+            CDElementWiseFn>(
             a_m_k_tesnor, b_k_n_tensors, std::tie(d0_m_n_tensors, d1_m_n_tensors), c_m_n_host_ref);
 
         const float max_accumulated_value =
