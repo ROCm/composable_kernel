@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/container/sequence.hpp"
+#include "ck_tile/core/tensor/tile_distribution_encoding.hpp"
 
 namespace ck_tile {
 
@@ -29,6 +31,23 @@ struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
                                    sequence<1, 1, 3>>;
 };
 
+template <typename T>
+struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 1>>
+{
+    template <index_t kOuterDistDim0,
+              index_t kOuterDistDim1,
+              index_t kInnerDistDim0,
+              index_t kInnerDistDim1>
+    using TileDistribution =
+        tile_distribution_encoding<sequence<>,
+                                   tuple<sequence<kOuterDistDim0, kOuterDistDim1, 8>,
+                                         sequence<kInnerDistDim0, kInnerDistDim1, 2, 8>>,
+                                   tuple<sequence<1, 2, 1, 2>>,
+                                   tuple<sequence<0, 0, 2, 2>>,
+                                   sequence<2, 1, 2>,
+                                   sequence<1, 1, 3>>;
+};
+
 template <typename T,
           index_t kOuterDistDim0,
           index_t kOuterDistDim1,
@@ -36,8 +55,9 @@ template <typename T,
           index_t kInnerDistDim1>
 CK_TILE_DEVICE constexpr auto make_transposed_distr_encode()
 {
-    return LaneGroupTransposeTraits<
-        T>::TileDistribution<kOuterDistDim0, kOuterDistDim1, kInnerDistDim0, kInnerDistDim1>{};
+    using xdllevel_dstr_encoding = typename LaneGroupTransposeTraits<T>::
+        template TileDistribution<kOuterDistDim0, kOuterDistDim1, kInnerDistDim0, kInnerDistDim1>;
+    return xdllevel_dstr_encoding{};
 }
 
 #endif

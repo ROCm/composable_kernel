@@ -62,6 +62,24 @@ struct valid_quad_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) =
                                                                  sequence<0>>;
 };
 
+template <typename T>
+struct valid_quad_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) == 1>>
+{
+    using TileDistrEncode = tile_distribution_encoding<sequence<>,
+                                                       tuple<sequence<8>, sequence<2, 8>>,
+                                                       tuple<sequence<1, 2>>,
+                                                       tuple<sequence<0, 0>>,
+                                                       sequence<2>,
+                                                       sequence<1>>;
+
+    using TransposedTileDistrEncode = tile_distribution_encoding<sequence<>,
+                                                                 tuple<sequence<16>, sequence<8>>,
+                                                                 tuple<sequence<1>>,
+                                                                 tuple<sequence<0>>,
+                                                                 sequence<2>,
+                                                                 sequence<0>>;
+};
+
 template <typename TileDistribution_, typename DataType_>
 struct TransposeTileDistrChecker
 {
