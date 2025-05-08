@@ -335,7 +335,7 @@ def cmake_build(Map conf=[:]){
         }
     }
 
-    // Only archive from master or develop
+    // Only archive from develop
     if (package_build == true && env.BRANCH_NAME == "develop") {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
@@ -543,9 +543,12 @@ def Build_CK(Map conf=[:]){
                             // build deb packages for all gfx9 targets on gfx90a system and prepare to export
                             echo "Build ckProfiler package"
                             sh 'make -j package'
-                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
-                            sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
-                            stash includes: "ckprofiler_0.2.0_amd64.deb", name: "ckprofiler_0.2.0_amd64.deb"
+                            archiveArtifacts artifacts: 'composablekernel*.deb'
+                            sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-examples_*.deb composablekernel-examples_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-tests_*.deb composablekernel-tests_1.1.0_amd64.deb'
+                            stash includes: "composablekernel-**.deb", name: "packages"
                         }
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
@@ -706,8 +709,8 @@ def process_results(Map conf=[:]){
                     }
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
-                        unstash "ckprofiler_0.2.0_amd64.deb"
-                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
+                        unstash "packages"
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         try{
                             unstash "perf_log"
                         }
