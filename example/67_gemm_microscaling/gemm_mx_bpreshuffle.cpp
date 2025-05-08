@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+#include "gemm_mx_bpreshuffle.hpp"
 
-#include "gemm_mx_common.hpp"
+// f4_t is defined in "ck/utility/mxf4_utils.hpp" and "ck/utility/data_type.hpp"
+using ADataType = ck::f4x2_pk_t; // ck::f4_t;
+using BDataType = ck::f4x2_pk_t; // ck::f4_t;
 
-using ADataType = ck::f4x2_pk_t;
-using BDataType = ck::f4x2_pk_t;
-// using ADataType = ck::f4_t;
-// using BDataType = ck::f4_t;
-
-using XDataType = ck::e8m0_bexp_t;
+using XDataType = ck::e8m0_bexp_t; // scale
 
 using CDataType        = ck::half_t;
 using AccDataType      = float;
@@ -29,7 +27,7 @@ constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization:
 constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
 constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v1;
 
-using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
+using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle_BPreShuffle_V3<
     ALayout,          // ALayout
     BLayout,          // BLayout
     CLayout,          // CLayout
@@ -45,24 +43,24 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     CElementOp,       // CElementwiseOperation
     GemmSpec,         // GemmSpec
     ScaleBlockSize,   // ScaleBlockSize: Scaling block size
-    64,               // BlockSize: Thread block size
-    16,               // MPerBlock
-    16,               // NPerBlock
+    256,              // BlockSize: Thread block size
+    128,              // MPerBlock
+    128,              // NPerBlock
     KPerBlock,        // KPerBlock
     16,               // AK1
     16,               // BK1
-    16,               // MPerXDL
-    16,               // NPerXDL
-    1,                // MXdlPerWave
-    1,                // NXdlPerWave
-    S<4, 16, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
+    32,               // MPerXDL
+    32,               // NPerXDL
+    2,                // MXdlPerWave
+    2,                // NXdlPerWave
+    S<4, 64, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
     2,                // ABlockTransferSrcVectorDim
     16,               // ABlockTransferSrcScalarPerVector
     16,               // ABlockTransferDstScalarPerVector_AK1
     false,            // ABlockLdsExtraM
-    S<4, 16, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
+    S<4, 64, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
     S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
     2,                // BBlockTransferSrcVectorDim
@@ -71,8 +69,8 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     false,            // BBlockLdsExtraN
     1,                // CShuffleMXdlPerWavePerShuffle
     1,                // CShuffleNXdlPerWavePerShuffle
-    S<1, 16, 1, 4>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    4,                // CShuffleBlockTransferScalarPerVector_NPerBlock
+    S<1, 32, 1, 8>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+    8,                // CShuffleBlockTransferScalarPerVector_NPerBlock
     BlkGemmPSched,    // BlkGemmPipeSched
     BlkGemmPVer,      // BlkGemmPipelineVer
     ADataType,        // ComputeTypeA

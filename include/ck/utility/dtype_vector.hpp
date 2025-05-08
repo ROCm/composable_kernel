@@ -1248,6 +1248,12 @@ struct nnvb_data_t_selector<pk_i4_t>
     using type = pk_i4_t::type;
 };
 
+template <>
+struct nnvb_data_t_selector<f4x2_pk_t>
+{
+    using type = f4x2_pk_t::type;
+};
+
 template <typename T, index_t N>
 struct non_native_vector_base<
     T,

@@ -36,8 +36,8 @@ struct f4x2_pk_t
 {
     using type = uint8_t;
     type data;
-    __host__ __device__ f4x2_pk_t() : data{type{}} {}
-    __host__ __device__ f4x2_pk_t(type init) : data{init} {}
+    __host__ __device__ constexpr f4x2_pk_t() : data{type{}} {}
+    __host__ __device__ constexpr f4x2_pk_t(const type init) : data{init} {}
 
     template <index_t I>
     __host__ __device__ inline type unpack(Number<I>) const
@@ -346,6 +346,18 @@ inline constexpr bool is_native_type()
            is_same<T, f6_t>::value || is_same<T, bf6_t>::value;
 }
 
+template <typename T>
+struct is_f8f6f4
+{
+    static constexpr bool value =
+        std::is_same_v<T, f8_t> || std::is_same_v<T, bf8_t> || std::is_same_v<T, f6_t> ||
+        std::is_same_v<T, bf6_t> || std::is_same_v<T, f6x16_pk_t> ||
+        std::is_same_v<T, f6x32_pk_t> || std::is_same_v<T, bf6x16_pk_t> ||
+        std::is_same_v<T, bf6x32_pk_t> || std::is_same_v<T, f4_t> || std::is_same_v<T, f4x2_pk_t>;
+};
+template <typename T>
+inline constexpr bool is_f8f6f4_v = is_f8f6f4<T>::value;
+
 // scalar_type
 template <typename TV>
 struct scalar_type;
@@ -470,12 +482,49 @@ struct scalar_type<e8m0_bexp_t>
     static constexpr index_t vector_size = 1;
 };
 
+// feifei: rebase 8a0d659
+template <>
+struct scalar_type<f4x2_pk_t>
+{
+    using type                           = f4x2_pk_t::type;
+    static constexpr index_t vector_size = 1;
+};
+
 template <>
 struct scalar_type<bool>
 {
     using type                           = bool;
     static constexpr index_t vector_size = 1;
 };
+
+template <typename T>
+struct element_type
+{
+    private:
+    static constexpr auto get_element_type()
+    {
+        using U = remove_cvref_t<T>;
+        if constexpr(std::is_same_v<U, pk_i4_t>)
+            return int4_t{};
+        else if constexpr(std::is_same_v<U, f4x2_pk_t>)
+            return f4_t{};
+        else if constexpr(std::is_same_v<U, f6x16_pk_t>)
+            return f6_t{};
+        else if constexpr(std::is_same_v<U, bf6x16_pk_t>)
+            return bf6_t{};
+        else if constexpr(std::is_same_v<U, f6x32_pk_t>)
+            return f6_t{};
+        else if constexpr(std::is_same_v<U, bf6x32_pk_t>)
+            return bf6_t{};
+        else
+            return T{};
+    }
+
+    public:
+    using type = decltype(get_element_type());
+};
+template <typename T>
+using element_type_t = typename element_type<T>::type;
 
 #if defined(_WIN32)
 using int64_t = long long;

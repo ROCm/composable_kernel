@@ -337,8 +337,9 @@ struct ThreadwiseTensorSliceTransfer_v2
                 }
                 else
                 {
-                    dst_buf(Number<dst_offset>{}) =
-                        type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
+                    dst_buf(Number<dst_offset>{}) = 
+                        //type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
+                        (src_vector.template AsType<SrcData>()[i]); // TODO: impl type_convert
                 }
             });
 

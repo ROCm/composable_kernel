@@ -316,6 +316,13 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<f4x2_pk_t, f4x2_pk_t>(f4x2_pk_t& y,
+                                                              const f4x2_pk_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
     __host__ __device__ void operator()<double, double>(double& y, const double& x) const
     {
         y = x;
