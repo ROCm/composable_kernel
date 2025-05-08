@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_bias_relu.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -34,7 +35,8 @@ template <ck::index_t NDimSpatial,
           typename OutDataType,
           typename AComputeType = InDataType,
           typename BComputeType = AComputeType,
-          typename IndexType    = ck::index_t>
+          typename IndexType    = ck::index_t,
+          typename OutElementOp = ck::tensor_operation::element_wise::PassThrough>
 bool profile_grouped_conv_fwd_impl(int do_verification,
                                    int init_method,
                                    bool do_log,
@@ -43,7 +45,6 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
