@@ -3,7 +3,7 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma_cshuffle_v3.hpp.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma_cshuffle_v3.hpp"
 
 using F8   = f8_t;
 using BF16 = bhalf_t;

@@ -3,7 +3,7 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma_cshuffle_v3.hpp.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma_cshuffle_v3.hpp"
 
 using F16 = half_t;
 using F32 = float;
