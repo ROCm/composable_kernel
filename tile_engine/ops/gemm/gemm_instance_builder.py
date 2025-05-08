@@ -37,7 +37,9 @@ DEFAULT_EPILOGUE = """
                                                                       WarpTileM,
                                                                       WarpTileN,
                                                                       WarpTileK,
-                                                                      UniversalGemmProblem::TransposeC>>;
+                                                                      UniversalGemmProblem::TransposeC,
+                                                                      true,
+                                                                      memory_operation>>;
 """
 
 CSHUFFLE_EPILOGUE = """
@@ -55,22 +57,23 @@ CSHUFFLE_EPILOGUE = """
                                                              WarpTileM,
                                                              WarpTileN,
                                                              WarpTileK,
-                                                             UniversalGemmProblem::TransposeC>>;
+                                                             UniversalGemmProblem::TransposeC,
+                                                             memory_operation>>;
 """
 HOT_LOOP_FALSE = """
             if(tail_num == ck_tile::TailNumber::Full)
             {
-                Run(ck_tile::bool_constant<false>{},
+                RunSplitk(ck_tile::bool_constant<false>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
             else if(tail_num == ck_tile::TailNumber::Odd)
             {
-                Run(ck_tile::bool_constant<false>{},
+                RunSplitk(ck_tile::bool_constant<false>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
             else if(tail_num == ck_tile::TailNumber::Even)
             {
-                Run(ck_tile::bool_constant<false>{},
+                RunSplitk(ck_tile::bool_constant<false>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
             else
@@ -79,68 +82,43 @@ HOT_LOOP_FALSE = """
             }  
 """
 RUN_MEM = """
-            if(tail_num == ck_tile::TailNumber::One)
-            {
-                Run(ck_tile::bool_constant<true>{},
+            // Handle One and Full cases directly
+            if (tail_num == ck_tile::TailNumber::One) {
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
-            }
-            else if(tail_num == ck_tile::TailNumber::Full)
-            {
-                Run(ck_tile::bool_constant<true>{},
+            } else if (tail_num == ck_tile::TailNumber::Full) {
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
+            // Variadic call using fold expression
+            auto check_tail = [&](auto... TNs) {
+                (try_run< BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
+            };
 
-            if constexpr(BaseGemmPipeline::PrefetchStages > 2)
-            {
-                if(tail_num == ck_tile::TailNumber::Two)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
-                }
-        
-                if(tail_num == ck_tile::TailNumber::Three)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Four)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Five)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Six)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Seven)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
-                }
-                throw std::runtime_error("The tile number is wrong! It should not exceed the prefetch stage numbers");
-            }
+            check_tail(
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{}
+            );
 """
 
 RUN_COMPV3 = """
             if(tail_num == ck_tile::TailNumber::Full)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
             else if(tail_num == ck_tile::TailNumber::Odd)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
             else if(tail_num == ck_tile::TailNumber::Even)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
             else
@@ -152,12 +130,12 @@ RUN_COMPV3 = """
 RUN_COMPV4 = """
             if(tail_num == ck_tile::TailNumber::Three)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
             }
             else
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
             }
 """
@@ -282,14 +260,14 @@ class GemmCodeGenerator:
 
     def _generate_common_header(self):
         """Generate common header with datatypes and layout"""
-        ctype = self.config.datatype
-        atype = self.config.datatype
-        btype = self.config.datatype
+        self.ctype = self.config.datatype
+        self.atype = self.config.datatype
+        self.btype = self.config.datatype
         if self.config.datatype in ['fp8', 'bf8']:
-            ctype = 'fp16'
+            self.ctype = 'fp16'
         elif self.config.datatype in ['int4']:
-            atype = 'fp16'
-            ctype = 'fp16'
+            self.atype = 'fp16'
+            self.ctype = 'fp16'
 
         content = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
@@ -298,10 +276,10 @@ class GemmCodeGenerator:
 #include "ck_tile/core.hpp"
 
 // Data types
-using ADataType = {DATA_TYPE_MAP[atype]};
-using BDataType = {DATA_TYPE_MAP[btype]};
+using ADataType = {DATA_TYPE_MAP[self.atype]};
+using BDataType = {DATA_TYPE_MAP[self.btype]};
 using AccDataType = float;
-using CDataType = {DATA_TYPE_MAP[ctype]};
+using CDataType = {DATA_TYPE_MAP[self.ctype]};
 
 // Layout configurations
 using ALayout = {LAYOUT_MAP[self.config.layouts[0]]};
@@ -347,6 +325,15 @@ namespace {group_name} {{
                                kPadM: bool, kPadN: bool, kPadK: bool) -> str:
         """Generate kernel struct template"""
         return f"""
+template <typename Pipeline, ck_tile::TailNumber TN>
+void try_run(ck_tile::TailNumber tn) {{
+    if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN)) {{
+        if (tn == TN) {{
+            RunSplitk(ck_tile::bool_constant<true>{{}},
+                ck_tile::integral_constant<ck_tile::TailNumber, TN>{{}});
+        }}
+    }}
+}}
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
           int WarpTileM, int WarpTileN, int WarpTileK,
@@ -355,7 +342,7 @@ struct GemmKernel {{
     static constexpr bool kPadM = {BOOL_MAP(kPadM)};
     static constexpr bool kPadN = {BOOL_MAP(kPadN)};
     static constexpr bool kPadK = {BOOL_MAP(kPadK)};
-
+   
     static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s) {{
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;
@@ -399,10 +386,11 @@ struct GemmKernel {{
 
         float ave_time{{0}};
 
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {{
+        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {{
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
             constexpr auto scheduler      = {SCHEDULER_MAP[scheduler]};
+            constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem = 
                 ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -442,6 +430,20 @@ struct GemmKernel {{
 
         }};
 
+        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
+            if(args.k_batch == 1) {{
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                            ck_tile::memory_operation_enum::set>{{}});
+            }} else {{
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                            ck_tile::memory_operation_enum::atomic_add>{{}});
+            }}
+        }};
+
         if(has_hot_loop) {{
             {HOT_LOOP_TRUE[pipeline]}
         }} else {{
@@ -450,6 +452,7 @@ struct GemmKernel {{
 
         return ave_time;
     }}
+    
     static std::string get_name() {{
         return std::string("GemmKernel<Bllktile: ") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) + ", " +
                 "WaveMap: " + std::to_string(WarpM) + "x" + std::to_string(WarpN) + "x" + std::to_string(WarpK) + ", " +
@@ -499,7 +502,7 @@ struct GemmDispatcher {
 
     static void init(bool structured_sparsity) {
         auto& kernel_map = get_kernel_map();    
-        if(!kernel_map.empty()) return;
+        if(!kernel_map.empty()) return;            
         \n"""
          # Add tile/warp instantiations
         tile_params = set(itertools.product(
@@ -516,12 +519,25 @@ struct GemmDispatcher {
 
         
         for group in self.all_kernels:
-            content += f"""            kernel_map["{group}"] = [=](ck_tile::DeviceMem& c_m_n_dev_buf,
-                                                                  ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                                                                  ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                                                                  int verify, ck_tile::GemmHostArgs& args,
-                                                                  const ck_tile::stream_config& stream) {{
-                        """
+            content += f"""        kernel_map["{group}"] = [=](ck_tile::DeviceMem& c_m_n_dev_buf,
+                                                               ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                                                               ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+                                                               int verify, ck_tile::GemmHostArgs& args,
+                                                               const ck_tile::stream_config& stream) {{
+            if(structured_sparsity){{  // SMFMA"""
+            for tile in tile_params:
+                # Check if we have valid tile/warp combinations 
+                # (tile_m/(warp_m*warp_tile_m)) * warp_m * warp_tile_m == tile_m
+                if ((tile[0]/(tile[3] * tile[7]) * tile[3] * tile[7]) != tile[0]) or \
+                   ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
+                    continue
+                sparse = self.atype == 'fp16' and \
+                    ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
+                     (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
+                content += f"""
+                run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
+            content += f"""
+            }} else {{"""
             for tile in tile_params:
                 # Check if we have valid tile/warp combinations 
                 # (tile_m/(warp_m*warp_tile_m)) * warp_m * warp_tile_m == tile_m
@@ -529,13 +545,10 @@ struct GemmDispatcher {
                    ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
                     continue
                 content += f"""
-                if(structured_sparsity) {{
-                    run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {1}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);
-                }} else {{
-                    run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {0}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);
-                }}"""
+                run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
             content += f"""
-            }};\n"""
+            }}
+        }};\n"""
 
         content += """    }
     
