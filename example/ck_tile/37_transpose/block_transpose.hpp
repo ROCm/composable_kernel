@@ -8,9 +8,6 @@
 
 namespace ck_tile {
 
-template <typename T>
-struct Debug;
-
 template <typename Layout_, index_t kRow, index_t kCol>
 struct TransposeTraits
 {
