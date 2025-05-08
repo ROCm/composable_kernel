@@ -950,6 +950,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     }
 
     template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               GemmSpecialization GemmSpec,
               typename ALayout,
               typename BLayout,
@@ -1033,6 +1034,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     }
 
     template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               typename AGridDesc_MK,
               typename BGridDesc_NK,
               typename DsGridDesc_MN,
