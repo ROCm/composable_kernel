@@ -1134,6 +1134,12 @@ struct MfmaSelector
     }
 
     template <>
+    constexpr auto GetMfma<bf8_t, 32, 32, f8_t, false, true>()
+    {
+        return MfmaInstr::mfma_scale_f32_32x32x64f8f6f4;
+    }
+
+    template <>
     constexpr auto GetMfma<f8_t, 16, 16>()
     {
 #if defined(__gfx950__)
@@ -1151,6 +1157,18 @@ struct MfmaSelector
 
     template <>
     constexpr auto GetMfma<bf8_t, 16, 16, bf8_t, false, true>()
+    {
+        return MfmaInstr::mfma_scale_f32_16x16x128f8f6f4;
+    }
+
+    template <>
+    constexpr auto GetMfma<f8_t, 16, 16, bf8_t, false, true>()
+    {
+        return MfmaInstr::mfma_scale_f32_16x16x128f8f6f4;
+    }
+
+    template <>
+    constexpr auto GetMfma<bf8_t, 16, 16, f8_t, false, true>()
     {
         return MfmaInstr::mfma_scale_f32_16x16x128f8f6f4;
     }

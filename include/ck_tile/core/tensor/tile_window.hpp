@@ -1164,4 +1164,82 @@ CK_TILE_DEVICE void move_tile_window(
     window.move(step);
 }
 
+/**
+ * @brief Type trait to determine if a type is a tile window with static distribution.
+ *
+ * Defaults to `false_type`. Specializations define when the trait evaluates to `true`.
+ *
+ * @tparam T The type to check.
+ */
+template <typename T>
+struct is_tile_window_with_static_distribution : std::false_type
+{
+};
+
+/**
+ * @brief Specialization for `tile_window_with_static_distribution` to evaluate to `true_type`.
+ *
+ * @tparam BottomTensorView_ Bottom tensor view type of the tile window.
+ * @tparam WindowLengths_ Static window lengths.
+ * @tparam StaticTileDistribution_ Tile distribution policy.
+ * @tparam NumCoord Number of coordinate dimensions.
+ */
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          index_t NumCoord>
+struct is_tile_window_with_static_distribution<
+    tile_window_with_static_distribution<BottomTensorView_,
+                                         WindowLengths_,
+                                         StaticTileDistribution_,
+                                         NumCoord>> : std::true_type
+{
+};
+
+/**
+ * @brief Helper variable template to check if a type is a tile window with static distribution.
+ *
+ * Equivalent to `is_tile_window_with_static_distribution<T>::value`.
+ *
+ * @tparam T The type to check.
+ */
+template <typename T>
+inline constexpr bool is_tile_window_with_static_distribution_v =
+    is_tile_window_with_static_distribution<T>::value;
+
+/**
+ * @brief Type trait to determine if a type is a tile window with static lengths.
+ *
+ * Defaults to `false_type`. Specializations define when the trait evaluates to `true`.
+ *
+ * @tparam T The type to check.
+ */
+template <typename T>
+struct is_tile_window_with_static_lengths : std::false_type
+{
+};
+
+/**
+ * @brief Specialization for `tile_window_with_static_lengths` to evaluate to `true_type`.
+ *
+ * @tparam BottomTensorView_ Bottom tensor view type of the tile window.
+ * @tparam WindowLengths_ Static window lengths.
+ */
+template <typename BottomTensorView_, typename WindowLengths_>
+struct is_tile_window_with_static_lengths<
+    tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>> : std::true_type
+{
+};
+
+/**
+ * @brief Helper variable template to check if a type is a tile window with static lengths.
+ *
+ * Equivalent to `is_tile_window_with_static_lengths<T>::value`.
+ *
+ * @tparam T The type to check.
+ */
+template <typename T>
+inline constexpr bool is_tile_window_with_static_lengths_v =
+    is_tile_window_with_static_lengths<T>::value;
+
 } // namespace ck_tile
