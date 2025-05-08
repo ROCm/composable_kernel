@@ -9,7 +9,6 @@
 
 namespace ck_tile {
 
-#if defined(__gfx950__)
 // this generate wave level tile distribution
 template <typename T, typename = void>
 struct LaneGroupTransposeTraits;
@@ -60,5 +59,4 @@ CK_TILE_DEVICE constexpr auto make_transposed_distr_encode()
     return xdllevel_dstr_encoding{};
 }
 
-#endif
 } // namespace ck_tile
