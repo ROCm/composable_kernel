@@ -482,6 +482,23 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
     gen = list()
     api_pool = FmhaBwdApiPool(mask_impl)
 
+    def can_impl_v3(hdim, mode, mask, bias, dbias, dropout, deterministic):
+        # common
+        cond = hdim > 64 and hdim <= 128
+        cond &= bias == "no"
+        cond &= dbias == "f"
+        cond &= dropout == "no"
+        cond &= deterministic == "f"
+
+        # batch mode
+        batch_cond = mode == "batch" and cond
+
+        # group mode
+        cond &= mask == "no" or mask == "causal"
+        group_cond = mode == "group" and cond
+
+        return batch_cond or group_cond
+
     for dtype in BWD_DTYPE_MAP.keys():
         d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d == None:
@@ -549,6 +566,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
             elif receipt == 600:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= dpad == dvpad
+                    cond &= not can_impl_v3(hdim, mode, mask, bias, dbias, dropout, deterministic)
                     if not cond:
                         continue
             api_pool.register_dq_dk_dv_traits(k.api_trait())
