@@ -401,16 +401,16 @@ struct DeviceMoeGemmBlockScale
             };
             #endif
 
-            constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) / BlockSize /
-                                             4 * (1 + GridwiseGemm::NWave);
-            constexpr auto estimated_reg_b =
-                NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2);
-            constexpr auto estimated_reg_c =
-                MPerBlock * NPerBlock * sizeof(GemmAccDataType) / BlockSize / 4;
-            constexpr auto estimated_reg_total =
-                estimated_reg_a + estimated_reg_b + estimated_reg_c;
+            // constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) / BlockSize /
+            //                                  4 * (1 + GridwiseGemm::NWave);
+            // constexpr auto estimated_reg_b =
+            //     NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2);
+            // constexpr auto estimated_reg_c =
+            //     MPerBlock * NPerBlock * sizeof(GemmAccDataType) / BlockSize / 4;
+            // constexpr auto estimated_reg_total =
+            //     estimated_reg_a + estimated_reg_b + estimated_reg_c;
 
-            constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
+            constexpr index_t minimum_occupancy = 2;
 
             constexpr auto MemoryDataOp =
                 IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
@@ -704,7 +704,7 @@ struct DeviceMoeGemmBlockScale
                                                       index_t StrideC,
                                                       const void* p_a_scale,
                                                       const void* p_b_scale,
-                                                      index_t KBatch,
+                                                    //   index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
@@ -727,7 +727,7 @@ struct DeviceMoeGemmBlockScale
                                           StrideC,
                                           static_cast<const AScaleDataType*>(p_a_scale),
                                           static_cast<const BScaleDataType*>(p_b_scale),
-                                          KBatch,
+                                          1, //KBatch,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op);
@@ -749,7 +749,9 @@ struct DeviceMoeGemmBlockScale
             {BlockGemmPipelineScheduler::Interwave, "Interwave"}};
 
         std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
-            {BlockGemmPipelineVersion::v1, "v1"}, {BlockGemmPipelineVersion::v2, "v2"}};
+            {BlockGemmPipelineVersion::v1, "v1"},
+            {BlockGemmPipelineVersion::v2, "v2"},
+            {BlockGemmPipelineVersion::v3, "v3"}};
 
         // clang-format off
         str << "DeviceMoeGEmm"

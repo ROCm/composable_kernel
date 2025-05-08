@@ -187,9 +187,10 @@ struct GridwiseMoeGemmBlockScale
     using mfma_selector = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>;
     static constexpr index_t KPack =
         math::max(math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk);
+    static constexpr index_t KGroup = mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
     static constexpr index_t KLane =
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
-    static constexpr index_t KRepeat = KPerBlock / KLane / KPack;
+    static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
     // static constexpr index_t NumTokens = 1;
@@ -249,7 +250,7 @@ struct GridwiseMoeGemmBlockScale
     }
     __host__ __device__ static auto CalculateBK0Shuffled(index_t K)
     {
-        return math::integer_divide_ceil(K, KLane * KPack);
+        return math::integer_divide_ceil(K, KLane * KPack / KGroup);
     }
 
     __host__ __device__ static auto CalculateKPadded(index_t K)
@@ -391,7 +392,7 @@ struct GridwiseMoeGemmBlockScale
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
+        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack / KGroup>{};
         return make_naive_tensor_descriptor(
             make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
             make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
@@ -1334,7 +1335,7 @@ struct GridwiseMoeGemmBlockScale
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1946,7 +1947,7 @@ struct GridwiseMoeGemmBlockScale
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -2076,6 +2077,7 @@ struct GridwiseMoeGemmBlockScale
 
         // shuffle C and write out
         {
+
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
@@ -2371,6 +2373,45 @@ struct GridwiseMoeGemmBlockScale
                         I0,
                         cde_lds_and_global_step);
                 }
+                
+            // // print C
+            // printf("tid: %d, blkid: %d, "
+            //         "c_thread_buf = <%1.f, %1.f, %1.f>\n "
+            //         // "%1.f, %1.f, %1.f, %1.f, %1.f, %1.f, %1.f,"
+            //         // "%1.f, %1.f, %1.f, %1.f, %1.f, %1.f\n"
+            //         , get_thread_local_1d_id(), block_m_id,
+            //         c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+            //         AsType<AccDataType>()[Number<0>{}],
+            //         c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+            //         AsType<AccDataType>()[Number<1>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<2>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<3>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<4>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<5>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<6>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<7>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<8>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<9>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<10>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<11>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<12>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<13>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<14>{}],
+                    // c_thread_buf.GetVectorTypeReference(Number<0>{}) .template
+                    // AsType<AccDataType>()[Number<3>{}]);
             });
         }
     }

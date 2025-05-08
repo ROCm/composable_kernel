@@ -134,6 +134,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
     using Base::I0;
     using Base::I1;
     using Base::I2;
+    using Base::KGroup;
     using Base::KRepeat;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
@@ -163,9 +164,9 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
         constexpr index_t M0 = TileDesc_M0_M1_M2_K{}.GetLength(Number<0>{});
         constexpr index_t M1 = TileDesc_M0_M1_M2_K{}.GetLength(Number<1>{});
         constexpr index_t M2 = TileDesc_M0_M1_M2_K{}.GetLength(Number<2>{});
-        constexpr index_t K2 = KPack;
+        constexpr index_t K2 = KPack / KGroup;
         constexpr index_t K1 = 64 / NPerXDL;
-        constexpr index_t K0 = KRepeat;
+        constexpr index_t K0 = KRepeat * KGroup;
 
         return transform_tensor_descriptor(
             TileDesc_M0_M1_M2_K{},
@@ -191,466 +192,156 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
         return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
 
-    template <typename Stage>
-    __device__ static constexpr auto HotLoopScheduler(Stage stage)
+    __device__ static constexpr auto HotLoopScheduler()
     {
-        constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
-        constexpr auto num_ds_write_inst_a    = HotLoopInstList::A_LDS_Write_Inst_Num;
+        // A/B split schedule
+        // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
+        constexpr auto num_ds_read_inst_a =
+            HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16
+                ? HotLoopInstList::A_LDS_Read_Inst_Num
+                : HotLoopInstList::A_LDS_Read_Inst_Num / 2;
+
+        constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
+
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = MWaves * HotLoopInstList::B_Buffer_Load_Inst_Num;
+        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
 
-        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
+        static_assert(num_buffer_load_inst_a == num_ds_write_inst_a);
 
-        constexpr auto staged_num_ds_read_inst_a = num_ds_read_inst_a / MRepeat;
-        constexpr auto staged_num_mfma           = num_mfma / MRepeat;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto mfma_cycle    = HotLoopInstList::C_MFMA_Inst_Cycle;
 
-        constexpr auto staged_num_mfma_per_ds_read_a = staged_num_mfma / staged_num_ds_read_inst_a;
+        constexpr auto ds_read_a_issue_cycle =
+            HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
+        constexpr auto ds_read_a_mfma_rate =
+            math::integer_divide_ceil(mfma_cycle - 4, 2 * ds_read_a_issue_cycle);
 
-        constexpr auto num_pk_fma_per_kscaleblock = MPerXDL == 16 ? 2 : 8;
-        constexpr auto num_mfma_per_kscaleblock   = MPerXDL == 16 ? KPerBlock / 32 : KPerBlock / 16;
+        // constexpr auto num_dsread_a_mfma =
+        //     (num_ds_read_inst_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
 
-        if constexpr(stage.value == 0)
-        {
-            // B VMEM access.
-            constexpr auto staged_num_buffer_load_b_per_ds_read_a =
-                num_buffer_load_inst_b / staged_num_ds_read_inst_a;
-            constexpr auto staged_num_mfma_per_buffer_load_b =
-                staged_num_mfma / num_buffer_load_inst_b;
-            // B global
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                static_for<0, staged_num_buffer_load_b_per_ds_read_a - 1, 1>{}([&](auto ibuf_inst) {
-                    static_for<0, staged_num_mfma_per_buffer_load_b, 1>{}([&](auto imfma) {
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        constexpr auto num_total_stages = MRepeat;
 
-                        /* Judging issue v_pk_fma */
-                        if constexpr((i_inst * staged_num_mfma_per_buffer_load_b *
-                                          staged_num_buffer_load_b_per_ds_read_a +
-                                      ibuf_inst * staged_num_mfma_per_buffer_load_b + imfma + 1) %
-                                         num_mfma_per_kscaleblock ==
-                                     0)
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                        }
-                    });
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                });
+        // Group num_mfma_perstage num_ds_read_a_perstage
+        // since we want to reuse a local register buffer
+        constexpr auto num_mfma_perstage      = num_mfma_inst / num_total_stages;
+        constexpr auto num_ds_read_a_perstage = num_ds_read_inst_a / num_total_stages;
 
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        constexpr auto num_ds_read_a_mfma_perstage =
+            math::integer_divide_ceil(num_ds_read_a_perstage, ds_read_a_mfma_rate);
 
-                /* Judging issue v_pk_fma */
-                if constexpr((i_inst * staged_num_mfma_per_buffer_load_b *
-                                  staged_num_buffer_load_b_per_ds_read_a +
-                              (staged_num_buffer_load_b_per_ds_read_a - 1) *
-                                  staged_num_mfma_per_buffer_load_b +
-                              1) %
-                                 num_mfma_per_kscaleblock ==
-                             0)
-                {
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                }
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        constexpr auto num_ds_read_a_prefetch_stages = 2;
 
-                static_for<0, staged_num_mfma_per_buffer_load_b - 1, 1>{}([&](auto imfma) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        constexpr auto buffer_load_perstage_more = math::integer_divide_ceil(
+            (num_buffer_load_inst_a + num_buffer_load_inst_b), (num_total_stages - 2));
+        constexpr auto buffer_load_perstage_less = math::integer_divide_floor(
+            (num_buffer_load_inst_a + num_buffer_load_inst_b), (num_total_stages - 2));
 
-                    /* Judging issue v_pk_fma */
-                    if constexpr((i_inst * staged_num_mfma_per_buffer_load_b *
-                                      staged_num_buffer_load_b_per_ds_read_a +
-                                  (staged_num_buffer_load_b_per_ds_read_a - 1) *
-                                      staged_num_mfma_per_buffer_load_b +
-                                  imfma + 2) %
-                                     num_mfma_per_kscaleblock ==
-                                 0)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                    }
-                });
+        constexpr auto buffer_load_stages_more =
+            (num_buffer_load_inst_a + num_buffer_load_inst_b) -
+            math::integer_divide_floor((num_buffer_load_inst_a + num_buffer_load_inst_b),
+                                       (num_total_stages - 2)) *
+                ((num_total_stages - 2));
+
+        constexpr auto buffer_load_b_stages =
+            buffer_load_perstage_more * buffer_load_stages_more > num_buffer_load_inst_b
+                ? num_buffer_load_inst_b / buffer_load_perstage_more
+                : (buffer_load_stages_more +
+                   (num_buffer_load_inst_b - buffer_load_perstage_more * buffer_load_stages_more) /
+                       buffer_load_perstage_less);
+
+        constexpr auto buffer_load_a_stages =
+            num_total_stages - num_ds_read_a_prefetch_stages - buffer_load_b_stages;
+
+        constexpr auto buffer_load_issue_point_b = 0;
+        constexpr auto buffer_load_issue_point_interval_more =
+            num_mfma_perstage / buffer_load_perstage_more;
+        constexpr auto buffer_load_issue_point_interval_less =
+            num_mfma_perstage / buffer_load_perstage_less;
+        constexpr auto ds_write_issue_point      = 0;
+        constexpr auto buffer_load_issue_point_a = num_mfma_perstage >= 3 ? 1 : 0;
+
+        // B global read
+        static_for<0, buffer_load_b_stages, 1>{}([&](auto i) {
+            // Scale load, 1B
+            if constexpr (i.value==0){
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            });
+            }
+            // Scale load, 1A
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
 
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else if constexpr(stage.value == 1)
-        {
-            // A LDS write access.
-            constexpr auto staged_num_mfma_per_ds_write_a =
-                math::integer_divide_ceil(staged_num_mfma, num_ds_write_inst_a);
-
-            constexpr auto stage_more_mfma =
-                staged_num_mfma - (staged_num_mfma_per_ds_write_a - 1) * num_ds_write_inst_a;
-
-            // A local write
-            static_for<0, num_ds_write_inst_a, 1>{}([&](auto i_inst) {
-                if constexpr(i_inst.value < stage_more_mfma)
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        static_for<0, staged_num_mfma_per_ds_write_a - 1, 1>{}([&](auto i_mfma) {
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                            /* Judging issue v_pk_fma */
-                            if constexpr((i_inst * staged_num_mfma_per_ds_write_a + i_mfma + 1) %
-                                             num_mfma_per_kscaleblock ==
-                                         0)
-                            {
-                                __builtin_amdgcn_sched_group_barrier(
-                                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                            }
-                        });
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                        /* Judging issue v_pk_fma */
-                        if constexpr(((i_inst + 1) * staged_num_mfma_per_ds_write_a) %
-                                         num_mfma_per_kscaleblock ==
-                                     0)
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                        }
-
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        static_for<0, staged_num_mfma_per_ds_write_a, 1>{}([&](auto i_mfma) {
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                            /* Judging issue v_pk_fma */
-                            if constexpr((i_inst * staged_num_mfma_per_ds_write_a + i_mfma + 1) %
-                                             num_mfma_per_kscaleblock ==
-                                         0)
-                            {
-                                __builtin_amdgcn_sched_group_barrier(
-                                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                            }
-                        });
-
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    }
-                }
-                else
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        static_for<0, staged_num_mfma_per_ds_write_a - 2, 1>{}([&](auto i_mfma) {
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                            /* Judging issue v_pk_fma */
-                            if constexpr((stage_more_mfma * staged_num_mfma_per_ds_write_a +
-                                          (i_inst - stage_more_mfma) *
-                                              (staged_num_mfma_per_ds_write_a - 1) +
-                                          i_mfma + 1) %
-                                             num_mfma_per_kscaleblock ==
-                                         0)
-                            {
-                                __builtin_amdgcn_sched_group_barrier(
-                                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                            }
-                        });
-
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                        /* Judging issue v_pk_fma */
-                        if constexpr((stage_more_mfma * staged_num_mfma_per_ds_write_a +
-                                      (i_inst - stage_more_mfma + 1) *
-                                          (staged_num_mfma_per_ds_write_a - 1)) %
-                                         num_mfma_per_kscaleblock ==
-                                     0)
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                        }
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        static_for<0, staged_num_mfma_per_ds_write_a - 1, 1>{}([&](auto i_mfma) {
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                            /* Judging issue v_pk_fma */
-                            if constexpr((stage_more_mfma * staged_num_mfma_per_ds_write_a +
-                                          (i_inst - stage_more_mfma) *
-                                              (staged_num_mfma_per_ds_write_a - 1) +
-                                          i_mfma + 1) %
-                                             num_mfma_per_kscaleblock ==
-                                         0)
-                            {
-                                __builtin_amdgcn_sched_group_barrier(
-                                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                            }
-                        });
-
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    }
-                }
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else if constexpr(stage.value == 2)
-        {
-            // A VMEM access.
-            constexpr auto staged_num_mfma_per_buffer_load_a =
-                math::integer_divide_ceil(staged_num_mfma, num_buffer_load_inst_a);
-
-            constexpr auto stage_more_mfma =
-                staged_num_mfma - (staged_num_mfma_per_buffer_load_a - 1) * num_buffer_load_inst_a;
-
-            // A global
-            static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i_inst) {
-                if constexpr(i_inst.value < stage_more_mfma)
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        static_for<0, staged_num_mfma_per_buffer_load_a - 1, 1>{}([&](auto i_mfma) {
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                            /* Judging issue v_pk_fma */
-                            if constexpr((i_inst * staged_num_mfma_per_buffer_load_a + i_mfma + 1) %
-                                             num_mfma_per_kscaleblock ==
-                                         0)
-                            {
-                                __builtin_amdgcn_sched_group_barrier(
-                                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                            }
-                        });
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                        /* Judging issue v_pk_fma */
-                        if constexpr(((i_inst + 1) * staged_num_mfma_per_buffer_load_a) %
-                                         num_mfma_per_kscaleblock ==
-                                     0)
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                        }
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        static_for<0, staged_num_mfma_per_buffer_load_a, 1>{}([&](auto i_mfma) {
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                            /* Judging issue v_pk_fma */
-                            if constexpr((i_inst * staged_num_mfma_per_buffer_load_a + i_mfma + 1) %
-                                             num_mfma_per_kscaleblock ==
-                                         0)
-                            {
-                                __builtin_amdgcn_sched_group_barrier(
-                                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                            }
-                        });
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    }
-                }
-                else
-                {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        static_for<0, staged_num_mfma_per_buffer_load_a - 2, 1>{}([&](auto i_mfma) {
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                            /* Judging issue v_pk_fma */
-                            if constexpr((stage_more_mfma * staged_num_mfma_per_buffer_load_a +
-                                          (i_inst - stage_more_mfma) *
-                                              (staged_num_mfma_per_buffer_load_a - 1) +
-                                          i_mfma + 1) %
-                                             num_mfma_per_kscaleblock ==
-                                         0)
-                            {
-                                __builtin_amdgcn_sched_group_barrier(
-                                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                            }
-                        });
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                        /* Judging issue v_pk_fma */
-                        if constexpr((stage_more_mfma * staged_num_mfma_per_buffer_load_a +
-                                      (i_inst - stage_more_mfma + 1) *
-                                          (staged_num_mfma_per_buffer_load_a - 1)) %
-                                         num_mfma_per_kscaleblock ==
-                                     0)
-                        {
-                            __builtin_amdgcn_sched_group_barrier(
-                                0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                        }
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        static_for<0, staged_num_mfma_per_buffer_load_a - 1, 1>{}([&](auto i_mfma) {
-                            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                            /* Judging issue v_pk_fma */
-                            if constexpr((stage_more_mfma * staged_num_mfma_per_buffer_load_a +
-                                          (i_inst - stage_more_mfma) *
-                                              (staged_num_mfma_per_buffer_load_a - 1) +
-                                          i_mfma + 1) %
-                                             num_mfma_per_kscaleblock ==
-                                         0)
-                            {
-                                __builtin_amdgcn_sched_group_barrier(
-                                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                            }
-                        });
-
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    }
-                }
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else
-        {
-            // A local Read
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                static_for<0, staged_num_mfma_per_ds_read_a, 1>{}([&](auto i_mfma) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-                    /* Judging issue v_pk_fma */
-                    if constexpr((i_inst * staged_num_mfma_per_ds_read_a + i_mfma + 1) %
-                                     num_mfma_per_kscaleblock ==
-                                 0)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-                    }
-                });
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-    }
-
-    template <typename Stage>
-    __device__ static constexpr auto EpilogueScheduler_1(Stage stage)
-    {
-        constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
-        constexpr auto num_ds_write_inst_a    = HotLoopInstList::A_LDS_Write_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = MWaves * HotLoopInstList::B_Buffer_Load_Inst_Num;
-
-        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
-
-        constexpr auto staged_num_ds_read_inst_a = num_ds_read_inst_a / MRepeat;
-        constexpr auto staged_num_mfma           = num_mfma / MRepeat;
-
-        constexpr auto staged_num_mfma_per_ds_read_a = staged_num_mfma / staged_num_ds_read_inst_a;
-
-        if constexpr(stage.value == 0)
-        {
-            constexpr auto staged_num_buffer_load_b_per_ds_read_a =
-                num_buffer_load_inst_b / staged_num_ds_read_inst_a;
-            constexpr auto staged_num_mfma_per_buffer_load_b =
-                staged_num_mfma / num_buffer_load_inst_b;
-            // B global
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                ignore = i_inst;
-
-                static_for<0, staged_num_buffer_load_b_per_ds_read_a, 1>{}([&](auto ibuf_inst) {
-                    ignore = ibuf_inst;
-                    __builtin_amdgcn_sched_group_barrier(
-                        0x008, staged_num_mfma_per_buffer_load_b, 0);  // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                });
-
+            static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(
-                    0x008, staged_num_mfma_per_buffer_load_b - 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0);    // VMEM read
-            });
 
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else if constexpr(stage.value == 1)
-        {
-            constexpr auto staged_num_mfma_per_ds_write_a =
-                math::integer_divide_ceil(staged_num_mfma, num_ds_write_inst_a);
-
-            constexpr auto stage_more_mfma =
-                staged_num_mfma - (staged_num_mfma_per_ds_write_a - 1) * num_ds_write_inst_a;
-
-            // A local write
-            static_for<0, num_ds_write_inst_a, 1>{}([&](auto i_inst) {
-                if constexpr(i_inst.value < stage_more_mfma)
+                if constexpr(((i < buffer_load_stages_more) &&
+                              (imfma % buffer_load_issue_point_interval_more ==
+                               buffer_load_issue_point_b)) ||
+                             ((i >= buffer_load_stages_more) &&
+                              (imfma % buffer_load_issue_point_interval_less ==
+                               buffer_load_issue_point_b)))
                 {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x008, staged_num_mfma_per_ds_write_a - 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x008, staged_num_mfma_per_ds_write_a, 0);     // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    }
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
                 }
-                else
+
+                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                 {
-                    if(i_inst.value < staged_num_ds_read_inst_a)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x008, staged_num_mfma_per_ds_write_a - 2, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                        __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                    }
-                    else
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x008, staged_num_mfma_per_ds_write_a - 1, 0); // MFMA
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS Write
-                    }
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
                 }
+                __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
             });
-            __builtin_amdgcn_sched_barrier(0);
-        }
-        else
-        {
-            // A local Read
-            static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-                ignore = i_inst;
-                __builtin_amdgcn_sched_group_barrier(
-                    0x008, staged_num_mfma_per_ds_read_a, 0);      // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            });
-
-            __builtin_amdgcn_sched_barrier(0);
-        }
-    }
-
-    __device__ static constexpr auto EpilogueScheduler_2()
-    {
-        constexpr auto num_ds_read_inst_a = HotLoopInstList::A_LDS_Read_Inst_Num;
-
-        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
-
-        constexpr auto staged_num_ds_read_inst_a = num_ds_read_inst_a / MRepeat;
-        constexpr auto staged_num_mfma           = num_mfma / MRepeat;
-
-        constexpr auto staged_num_mfma_per_ds_read_a = staged_num_mfma / staged_num_ds_read_inst_a;
-
-        // A local Read
-        static_for<0, staged_num_ds_read_inst_a, 1>{}([&](auto i_inst) {
-            ignore = i_inst;
-            __builtin_amdgcn_sched_group_barrier(0x008, staged_num_mfma_per_ds_read_a, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            // __builtin_amdgcn_sched_barrier(0);
         });
 
-        __builtin_amdgcn_sched_barrier(0);
+        // A global read + A local write
+        static_for<0, buffer_load_a_stages, 1>{}([&](auto i) {
+            // Scale load, 1A
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
+                              (imfma % buffer_load_issue_point_interval_more ==
+                               ds_write_issue_point)) ||
+                             (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
+                              (imfma % buffer_load_issue_point_interval_less ==
+                               ds_write_issue_point)))
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                }
+                if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
+                              (imfma % buffer_load_issue_point_interval_more ==
+                               buffer_load_issue_point_a)) ||
+                             (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
+                              (imfma % buffer_load_issue_point_interval_less ==
+                               buffer_load_issue_point_a)))
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                }
+                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                }
+                __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
+            });
+            // __builtin_amdgcn_sched_barrier(0);
+        });
+
+        // lds synchronization, prefetch next loop local A
+        static_for<0, num_ds_read_a_prefetch_stages, 1>{}([&](auto i) {
+            ignore = i;
+            static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                // Scale load, 1A
+                if constexpr(imfma == 0){
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                }
+
+                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                }
+                __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
+            });
+            // __builtin_amdgcn_sched_barrier(0);
+        });
     }
 
     template <bool HasMainLoop,
@@ -725,14 +416,20 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             b_thread_desc_.GetElementSpaceSize());
+
         StaticallyIndexedArray<decltype(b_thread_buf), Number<2>{}> b_thread_bufs;
         constexpr auto b_block_origin_idx = make_tuple(I0, I0, I0, I0);
+
         auto a_scale_thread_buf           = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
             a_scale_thread_desc.GetElementSpaceSize());
         auto b_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
             b_scale_thread_desc.GetElementSpaceSize());
         auto c_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
             c_scale_thread_desc.GetElementSpaceSize());
+
+        StaticallyIndexedArray<decltype(a_scale_thread_buf), Number<2>{}> a_scale_thread_bufs;
+        StaticallyIndexedArray<decltype(b_scale_thread_buf), Number<2>{}> b_scale_thread_bufs;
+        // StaticallyIndexedArray<decltype(c_scale_thread_buf), Number<2>{}> c_scale_thread_bufs;
 
         // Global prefetch A1 B1, AScale1 BScale1
         b_blockwise_copy.Run(b_grid_desc,
@@ -750,7 +447,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                                 a_scale_grid_buf,
                                 a_scale_thread_desc,
                                 make_tuple(I0, I0),
-                                a_scale_thread_buf);
+                                a_scale_thread_bufs(I0));
 
         if constexpr(NumKBlockPerScale == 1)
         {
@@ -767,12 +464,12 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                                 b_scale_grid_buf,
                                 b_scale_thread_desc,
                                 make_tuple(I0, I0),
-                                b_scale_thread_buf);
+                                b_scale_thread_bufs(I0));
 
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
-            c_scale_thread_buf(m0) = a_scale_thread_buf[m0] * b_scale_thread_buf[I0];
+            c_scale_thread_buf(m0) = a_scale_thread_bufs[I0][m0] * b_scale_thread_bufs[I0][I0];
         });
 
         // Local prefill A1
@@ -786,7 +483,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                                 a_scale_grid_buf,
                                 a_scale_thread_desc,
                                 make_tuple(I0, I0),
-                                a_scale_thread_buf);
+                                a_scale_thread_bufs(I0));
 
         if constexpr(NumKBlockPerScale == 1)
         {
@@ -803,13 +500,16 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                                 b_scale_grid_buf,
                                 b_scale_thread_desc,
                                 make_tuple(I0, I0),
-                                b_scale_thread_buf);
+                                b_scale_thread_bufs(I0));
 
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
         // Initialize C
         c_thread_buf.Clear();
 
+        // Double register buffer for non-scaled gemm computation
+        // 1. Reduce register pressure
+        // 2. Decouple the dependency between mfma instruction and scale-fma instruction following.
         StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                                   AccDataType,
                                   1,
@@ -819,15 +519,45 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
 
         // Local prefetch A1
         block_sync_lds();
-        static_for<0, KRepeat, 1>{}([&](auto k0) {
-            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                               make_tuple(I0, I0, I0, k0, I0, I0),
-                               a_block_buf.At(I0),
-                               a_thread_desc_,
-                               make_tuple(I0, I0, I0, k0, I0, I0),
-                               a_thread_buf);
+        static_for<0, 2, 1>{}([&](auto m0) {
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, KGroup, 1>{}([&](auto kg0) {
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                       make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                                       a_block_buf.At(I0),
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                       a_thread_buf);
+                });
+            });
         });
 
+#if 0
+        static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+            c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
+                .template AsType<AccDataType>()(Number<t>{}) = 0;
+        });
+
+        // Fill first mfma buffer
+        static_for<0, KRepeat, 1>{}([&](auto k0) {
+            vector_type<ComputeDataType, KPack> a_thread_vec;
+            vector_type<ComputeDataType, KPack> b_thread_vec;
+
+            static_for<0, KPack, 1>{}([&](auto ik) {
+                a_thread_vec.template AsType<ComputeDataType>()(ik) = a_thread_buf
+                    [Number<a_thread_desc_.CalculateOffset(make_tuple(I0, I0, I0, k0, I0, ik))>{}];
+                b_thread_vec.template AsType<ComputeDataType>()(ik) = b_thread_bufs
+                    [I0][Number<b_thread_desc_.CalculateOffset(make_tuple(I0, I0, k0, ik))>{}];
+            });
+
+            using mfma_input_type =
+                typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+            xdlops_gemm.template Run<>(a_thread_vec.template AsType<mfma_input_type>(),
+                                       b_thread_vec.template AsType<mfma_input_type>(),
+                                       c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
+        });
+#endif
         __builtin_amdgcn_sched_barrier(0);
 
         // main body
@@ -837,26 +567,43 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
             do
             {
                 auto LoopFunc = [&](auto mfma_reg_buf, auto local_read_buf) {
-                    static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        if constexpr(m0.value == 0)
-                        {
-                            b_blockwise_copy.Run(b_grid_desc,
-                                                 b_grid_buf,
-                                                 b_block_desc_n0_n1_k0_k1,
-                                                 b_block_origin_idx,
-                                                 b_thread_bufs(local_read_buf));
-                            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-                        }
-                        else if constexpr(m0.value == 1)
-                        {
-                            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(local_read_buf));
-                        }
-                        else if constexpr(m0.value == 2)
-                        {
-                            a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-                            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-                        }
+                    b_blockwise_copy.Run(b_grid_desc,
+                                         b_grid_buf,
+                                         b_block_desc_n0_n1_k0_k1,
+                                         b_block_origin_idx,
+                                         b_thread_bufs(local_read_buf));
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
+                    a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(local_read_buf));
+                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+
+                    a_scale_thread_copy.Run(a_scale_grid_desc,
+                                            a_scale_grid_buf,
+                                            a_scale_thread_desc,
+                                            make_tuple(I0, I0),
+                                            a_scale_thread_bufs(local_read_buf));
+
+                    if constexpr(NumKBlockPerScale == 1)
+                    {
+                        a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
+                                                            a_scale_thread_copy_step.At(Number<1>{}));
+                    }
+                    else
+                    {
+                        a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
+                                                            a_scale_thread_copy_step.At(Number<0>{}));
+                    }
+                    b_scale_thread_copy.Run(b_scale_grid_desc,
+                                            b_scale_grid_buf,
+                                            b_scale_thread_desc,
+                                            make_tuple(I0, I0),
+                                            b_scale_thread_bufs(local_read_buf));
+
+                    b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
+                                                           b_scale_thread_copy_step);
+
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
                         vector_type<AccDataType, 2> c_scale_thread_vec;
                         c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
                             c_scale_thread_buf[m0];
@@ -914,82 +661,93 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                             });
                         });
 
-                        if constexpr(m0.value == MRepeat - 1)
+                        if constexpr(m0.value == (MRepeat - 2))
                         {
                             block_sync_lds();
 
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                a_thread_copy_.Run(
-                                    a_block_desc_m0_m1_m2_k0_k1_k2,
-                                    make_tuple(Number<(m0 + 1) % MRepeat>{}, I0, I0, k0, I0, I0),
-                                    a_block_buf.At(local_read_buf),
-                                    a_thread_desc_,
-                                    make_tuple(
-                                        Number<(m0 + 1 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                               2>{},
-                                        I0,
-                                        I0,
-                                        k0,
-                                        I0,
-                                        I0),
-                                    a_thread_buf);
+                                static_for<0, KGroup, 1>{}([&](auto kg0) {
+                                    a_thread_copy_.Run(
+                                        a_block_desc_m0_m1_m2_k0_k1_k2,
+                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                                   I0,
+                                                   I0,
+                                                   Number<k0 * KGroup + kg0>{},
+                                                   I0,
+                                                   I0),
+                                        a_block_buf.At(local_read_buf),
+                                        a_thread_desc_,
+                                        make_tuple(
+                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                                   2>{},
+                                            I0,
+                                            I0,
+                                            k0,
+                                            I0,
+                                            Number<kg0 * A_K1>{}),
+                                        a_thread_buf);
+                                });
+                            });
+                        }
+                        else if constexpr(m0.value == (MRepeat - 1))
+                        {
+                            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                                static_for<0, KGroup, 1>{}([&](auto kg0) {
+                                    a_thread_copy_.Run(
+                                        a_block_desc_m0_m1_m2_k0_k1_k2,
+                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                                   I0,
+                                                   I0,
+                                                   Number<k0 * KGroup + kg0>{},
+                                                   I0,
+                                                   I0),
+                                        a_block_buf.At(local_read_buf),
+                                        a_thread_desc_,
+                                        make_tuple(
+                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                                   2>{},
+                                            I0,
+                                            I0,
+                                            k0,
+                                            I0,
+                                            Number<kg0 * A_K1>{}),
+                                        a_thread_buf);
+                                });
                             });
                         }
                         else
                         {
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                a_thread_copy_.Run(
-                                    a_block_desc_m0_m1_m2_k0_k1_k2,
-                                    make_tuple(Number<(m0 + 1) % MRepeat>{}, I0, I0, k0, I0, I0),
-                                    a_block_buf.At(mfma_reg_buf),
-                                    a_thread_desc_,
-                                    make_tuple(
-                                        Number<(m0 + 1 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                               2>{},
-                                        I0,
-                                        I0,
-                                        k0,
-                                        I0,
-                                        I0),
-                                    a_thread_buf);
+                                static_for<0, KGroup, 1>{}([&](auto kg0) {
+                                    a_thread_copy_.Run(
+                                        a_block_desc_m0_m1_m2_k0_k1_k2,
+                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                                   I0,
+                                                   I0,
+                                                   Number<k0 * KGroup + kg0>{},
+                                                   I0,
+                                                   I0),
+                                        a_block_buf.At(mfma_reg_buf),
+                                        a_thread_desc_,
+                                        make_tuple(
+                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                                   2>{},
+                                            I0,
+                                            I0,
+                                            k0,
+                                            I0,
+                                            Number<kg0 * A_K1>{}),
+                                        a_thread_buf);
+                                });
                             });
                         }
-
-                        HotLoopScheduler(m0);
                     });
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        c_scale_thread_buf(m0) = a_scale_thread_buf[m0] * b_scale_thread_buf[I0];
+                        c_scale_thread_buf(m0) = a_scale_thread_bufs[mfma_reg_buf][m0] * b_scale_thread_bufs[mfma_reg_buf][I0];
                     });
 
-
-                    a_scale_thread_copy.Run(a_scale_grid_desc,
-                                            a_scale_grid_buf,
-                                            a_scale_thread_desc,
-                                            make_tuple(I0, I0),
-                                            a_scale_thread_buf);
-
-                    if constexpr(NumKBlockPerScale == 1)
-                    {
-                        a_scale_thread_copy.MoveSrcSliceWindow(
-                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<1>{}));
-                    }
-                    else
-                    {
-                        a_scale_thread_copy.MoveSrcSliceWindow(
-                            a_scale_grid_desc, a_scale_thread_copy_step.At(Number<0>{}));
-                    }
-
-                    b_scale_thread_copy.Run(b_scale_grid_desc,
-                                            b_scale_grid_buf,
-                                            b_scale_thread_desc,
-                                            make_tuple(I0, I0),
-                                            b_scale_thread_buf);
-
-                    b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                                           b_scale_thread_copy_step);
-
-                    __builtin_amdgcn_sched_group_barrier(0x020, MRepeat + 1, 0); // VMEM read
+                    HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
                 };
 
@@ -1003,20 +761,14 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
         // tail
         if constexpr(TailNum == TailNumber::Even)
         {
-            static_for<0, MRepeat, 1>{}([&](auto m0) {
-                if constexpr(m0.value == 0)
-                {
-                    b_blockwise_copy.Run(b_grid_desc,
-                                         b_grid_buf,
-                                         b_block_desc_n0_n1_k0_k1,
-                                         b_block_origin_idx,
-                                         b_thread_bufs(I1));
-                }
-                else if constexpr(m0.value == MRepeat - 1)
-                {
-                    a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
-                }
+            b_blockwise_copy.Run(b_grid_desc,
+                                 b_grid_buf,
+                                 b_block_desc_n0_n1_k0_k1,
+                                 b_block_origin_idx,
+                                 b_thread_bufs(I1));
+            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
 
+            static_for<0, MRepeat, 1>{}([&](auto m0) {                                                       
                 vector_type<AccDataType, 2> c_scale_thread_vec;
                 c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
                     c_scale_thread_buf[m0];
@@ -1066,38 +818,74 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                     });
                 });
 
-                if constexpr(m0.value == MRepeat - 1)
+                if constexpr(m0.value == (MRepeat - 2))
                 {
                     block_sync_lds();
 
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        a_thread_copy_.Run(
-                            a_block_desc_m0_m1_m2_k0_k1_k2,
-                            make_tuple(Number<(m0 + 1) % MRepeat>{}, I0, I0, k0, I0, I0),
-                            a_block_buf.At(I1),
-                            a_thread_desc_,
-                            make_tuple(Number<(m0 + 1) % 2>{}, I0, I0, k0, I0, I0),
-                            a_thread_buf);
+                        static_for<0, KGroup, 1>{}([&](auto kg0) {
+                            a_thread_copy_.Run(
+                                a_block_desc_m0_m1_m2_k0_k1_k2,
+                                make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                           I0,
+                                           I0,
+                                           Number<k0 * KGroup + kg0>{},
+                                           I0,
+                                           I0),
+                                a_block_buf.At(I1),
+                                a_thread_desc_,
+                                make_tuple(
+                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                a_thread_buf);
+                        });
+                    });
+                }
+                else if constexpr(m0.value == (MRepeat - 1))
+                {
+                    static_for<0, KRepeat, 1>{}([&](auto k0) {
+                        static_for<0, KGroup, 1>{}([&](auto kg0) {
+                            a_thread_copy_.Run(
+                                a_block_desc_m0_m1_m2_k0_k1_k2,
+                                make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                           I0,
+                                           I0,
+                                           Number<k0 * KGroup + kg0>{},
+                                           I0,
+                                           I0),
+                                a_block_buf.At(I1),
+                                a_thread_desc_,
+                                make_tuple(
+                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                a_thread_buf);
+                        });
                     });
                 }
                 else
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        a_thread_copy_.Run(
-                            a_block_desc_m0_m1_m2_k0_k1_k2,
-                            make_tuple(Number<(m0 + 1) % MRepeat>{}, I0, I0, k0, I0, I0),
-                            a_block_buf.At(I0),
-                            a_thread_desc_,
-                            make_tuple(Number<(m0 + 1) % 2>{}, I0, I0, k0, I0, I0),
-                            a_thread_buf);
+                        static_for<0, KGroup, 1>{}([&](auto kg0) {
+                            a_thread_copy_.Run(
+                                a_block_desc_m0_m1_m2_k0_k1_k2,
+                                make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                           I0,
+                                           I0,
+                                           Number<k0 * KGroup + kg0>{},
+                                           I0,
+                                           I0),
+                                a_block_buf.At(I0),
+                                a_thread_desc_,
+                                make_tuple(
+                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                a_thread_buf);
+                        });
                     });
                 }
-
-                HotLoopScheduler(m0);
             });
 
+            HotLoopScheduler();
+
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                c_scale_thread_buf(m0) = a_scale_thread_buf[m0] * b_scale_thread_buf[I0];
+                c_scale_thread_buf(m0) = a_scale_thread_bufs[I0][m0] * b_scale_thread_bufs[I0][I0];
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -1149,20 +937,25 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                     });
                 });
 
-                if constexpr(m0.value != (MRepeat - 1))
+                if constexpr(m0.value < (MRepeat - 2))
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        a_thread_copy_.Run(
-                            a_block_desc_m0_m1_m2_k0_k1_k2,
-                            make_tuple(Number<m0 + 1>{}, I0, I0, k0, I0, I0),
-                            a_block_buf.At(I1),
-                            a_thread_desc_,
-                            make_tuple(
-                                Number<(m0 + 1 + HotloopLocalBufSwitch) % 2>{}, I0, I0, k0, I0, I0),
-                            a_thread_buf);
+                        static_for<0, KGroup, 1>{}([&](auto kg0) {
+                            a_thread_copy_.Run(
+                                a_block_desc_m0_m1_m2_k0_k1_k2,
+                                make_tuple(
+                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                                a_block_buf.At(I1),
+                                a_thread_desc_,
+                                make_tuple(Number<(m0 + 2 + HotloopLocalBufSwitch) % 2>{},
+                                           I0,
+                                           I0,
+                                           k0,
+                                           I0,
+                                           Number<kg0 * A_K1>{}),
+                                a_thread_buf);
+                        });
                     });
-
-                    EpilogueScheduler_2();
                 }
             });
             // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
@@ -1220,18 +1013,21 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                     });
                 });
 
-                if constexpr(m0.value != (MRepeat - 1))
+                if constexpr(m0.value < (MRepeat - 2))
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                           make_tuple(Number<m0 + 1>{}, I0, I0, k0, I0, I0),
-                                           a_block_buf.At(I0),
-                                           a_thread_desc_,
-                                           make_tuple(Number<(m0 + 1) % 2>{}, I0, I0, k0, I0, I0),
-                                           a_thread_buf);
+                        static_for<0, KGroup, 1>{}([&](auto kg0) {
+                            a_thread_copy_.Run(
+                                a_block_desc_m0_m1_m2_k0_k1_k2,
+                                make_tuple(
+                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                                a_block_buf.At(I0),
+                                a_thread_desc_,
+                                make_tuple(
+                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                a_thread_buf);
+                        });
                     });
-
-                    EpilogueScheduler_2();
                 }
             });
         }
@@ -1248,7 +1044,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                                                          ComputeDataType,
                                                          decltype(a_block_desc_m0_m1_m2_k0_k1_k2),
                                                          decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, 1, 1, KPack>,
+                                                         Sequence<1, 1, 1, 1, 1, KPack / KGroup>,
                                                          Sequence<0, 1, 2, 3, 4, 5>,
                                                          5,
                                                          A_K1,
@@ -1260,6 +1056,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
         make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
 
     static constexpr BTileDesc b_block_desc_n0_n1_k0_k1;
+
     using Base::c_thread_desc_;
 };
 

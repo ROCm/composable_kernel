@@ -197,96 +197,28 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves;
 
-        constexpr auto num_pk_fma_per_kscaleblock = MPerXDL == 16 ? 2 : 8;
-        constexpr auto num_mfma_per_kscaleblock =
-            MPerXDL == 16 ? KScaleBlock / 32 : KScaleBlock / 16;
-#if 0
         // B global
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
+            ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            /* Judging issue v_pk_fma */
-            if constexpr((i + 1) % num_mfma_per_kscaleblock == 0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         });
 
         // A global
         static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
+            ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            if constexpr((num_buffer_load_inst_b + 2 * i + 1) % num_mfma_per_kscaleblock == 0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
             __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            if constexpr((num_buffer_load_inst_b + 2 * i + 2) % num_mfma_per_kscaleblock == 0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         });
 
         // A local
         static_for<0, num_ds_read_inst_a / 2, 1>{}([&](auto i) {
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            if constexpr((num_buffer_load_inst_b + 2 * num_buffer_load_inst_a + i + 1) %
-                             num_mfma_per_kscaleblock ==
-                         0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
-            __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-        });
-#elif 1 // v_mul occured too early causing vmcnt stall
-        // B global
-        static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            /* Judging issue v_pk_fma */
-            if constexpr((i + 1) % num_mfma_per_kscaleblock == 0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
-        });
-
-        // A global
-        static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-            if constexpr((num_buffer_load_inst_b + 2 * i + 1) % num_mfma_per_kscaleblock == 0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            if constexpr((num_buffer_load_inst_b + 2 * i + 2) % num_mfma_per_kscaleblock == 0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
-        });
-
-        // A local
-        static_for<0, num_ds_read_inst_a / 2, 1>{}([&](auto i) {
+            ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
             __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-            if constexpr((num_buffer_load_inst_b + 2 * num_buffer_load_inst_a + i + 1) %
-                             num_mfma_per_kscaleblock ==
-                         0)
-            {
-                __builtin_amdgcn_sched_group_barrier(
-                    0x800, num_pk_fma_per_kscaleblock, 0); // PK_FMA
-            }
         });
-#endif
     }
 
     template <bool HasMainLoop,
@@ -425,12 +357,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
                 });
             });
         });
-
-        // printf("blockIdx.y = %d, blockIdx.x = %d, threadIdx.x = %d, c_scale_thread_buf = <%f>\n",
-        //        blockIdx.y,
-        //        blockIdx.x,
-        //        threadIdx.x,
-        //        c_scale_thread_buf[Number<0>{}]);
 
         // Local prefill A1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I0);
@@ -583,6 +509,22 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
                         });
                     });
 
+                    block_sync_lds();
+
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        static_for<0, KRepeat, 1>{}([&](auto k0) {
+                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                               make_tuple(m0, I0, I0, k0, I0, I0),
+                                               a_block_buf,
+                                               a_thread_desc_,
+                                               make_tuple(m0, I0, I0, k0, I0, I0),
+                                               a_thread_buf);
+                        });
+                    });
+
+                    HotLoopScheduler();
+                    __builtin_amdgcn_sched_barrier(0);
+
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, num_scale_n_block, 1>{}([&](auto n0) {
                             static_for<0, num_scale_k_block, 1>{}([&](auto k0) {
@@ -597,19 +539,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
                                     a_scale_thread_buf[Number<a_offset>{}] *
                                     b_scale_thread_buf[Number<b_offset>{}];
                             });
-                        });
-                    });
-
-                    block_sync_lds();
-
-                    static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        static_for<0, KRepeat, 1>{}([&](auto k0) {
-                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                               make_tuple(m0, I0, I0, k0, I0, I0),
-                                               a_block_buf,
-                                               a_thread_desc_,
-                                               make_tuple(m0, I0, I0, k0, I0, I0),
-                                               a_thread_buf);
                         });
                     });
 
@@ -638,8 +567,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
 
                     b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                            b_scale_thread_copy_step);
-                    HotLoopScheduler();
-                    __builtin_amdgcn_sched_barrier(0);
                 };
 
                 LoopFunc(I0, I1);
