@@ -38,7 +38,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffl
         128, 128, 
         32, 8, 8,
         16,   16,
-        4,    2, 
+        4,    2,  
         S<4, 64, 1>,  S<0, 2, 1>, S<0, 2, 1>, 
         1, 1, 8, 1, 
         S<4, 64, 1>,  S<0, 2, 1>, S<0, 2, 1>,       
