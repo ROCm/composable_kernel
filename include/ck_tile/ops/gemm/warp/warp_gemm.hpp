@@ -97,12 +97,13 @@ using WarpGemmMfmaF16F16F32M64N4K16 = WarpGemmImpl<WarpGemmAtrributeMfmaIterateK
     4>>;
 
 // fp16 2:4 structured sparsity
-
+#if defined(__gfx94__) || defined(__gfx950__)
 using WarpGemmSmfmacF16F16F32M32N32K16 = WarpGemmSmfmacImpl<WarpGemmAttributeSmfmac<
     WarpGemmAttributeSmfmacImplF16F16F32M32N32K16<WGAttrCtlEnum::Default_>>>;
 
 using WarpGemmSmfmacF16F16F32M16N16K32 = WarpGemmSmfmacImpl<WarpGemmAttributeSmfmac<
     WarpGemmAttributeSmfmacImplF16F16F32M16N16K32<WGAttrCtlEnum::Default_>>>;
+#endif
 
 // bf16
 using WarpGemmMfmaBf16Bf16F32M32N32K8 = WarpGemmImpl<
