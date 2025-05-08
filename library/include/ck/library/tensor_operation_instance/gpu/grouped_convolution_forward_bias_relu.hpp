@@ -13,7 +13,7 @@
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
 #ifdef CK_USE_XDL
-#include "grouped_convolution_forward_xdl.inc"
+#include "grouped_convolution_forward_bias_relu_xdl.inc"
 #endif
 
 namespace ck {

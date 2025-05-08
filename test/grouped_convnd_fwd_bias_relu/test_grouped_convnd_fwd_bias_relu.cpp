@@ -7,7 +7,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-#include "profiler/profile_grouped_conv_fwd_impl.hpp"
+#include "profiler/profile_grouped_conv_fwd_bias_relu_impl.hpp"
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -32,17 +32,16 @@ class TestGroupedConvndFwd : public ::testing::Test
         bool pass = true;
         for(auto& param : conv_params)
         {
-            pass = pass && ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
-                                                                       InLayout,
-                                                                       WeiLayout,
-                                                                       OutLayout,
-                                                                       DataType,
-                                                                       DataType,
-                                                                       DataType,
-                                                                       DataType,
-                                                                       DataType,
-                                                                       IndexType,
-                                                                       AddRelu>(
+            pass = pass && ck::profiler::profile_grouped_conv_fwd_bias_relu_impl<NDimSpatial,
+                                                                                 InLayout,
+                                                                                 WeiLayout,
+                                                                                 OutLayout,
+                                                                                 DataType,
+                                                                                 DataType,
+                                                                                 DataType,
+                                                                                 DataType,
+                                                                                 DataType,
+                                                                                 IndexType>(
                                true,  // do_verification
                                1,     // init_method: integer value
                                false, // do_log

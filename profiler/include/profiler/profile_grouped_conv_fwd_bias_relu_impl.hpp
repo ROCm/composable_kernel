@@ -35,11 +35,11 @@ template <ck::index_t NDimSpatial,
           typename AComputeType = InDataType,
           typename BComputeType = AComputeType,
           typename IndexType    = ck::index_t>
-bool profile_grouped_conv_fwd_impl(int do_verification,
-                                   int init_method,
-                                   bool do_log,
-                                   bool time_kernel,
-                                   const ck::utils::conv::ConvParam& conv_param)
+bool profile_grouped_conv_fwd_bias_relu_impl(int do_verification,
+                                             int init_method,
+                                             bool do_log,
+                                             bool time_kernel,
+                                             const ck::utils::conv::ConvParam& conv_param)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -110,11 +110,11 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
-    DeviceMem bias_buf(sizeof(OutDataType) * bias.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(OutDataType) * bias.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(input.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());
-    bias_buf.ToDevice(bias.mData.data());
+    bias_device_buf.ToDevice(bias.mData.data());
 
     // run reference op
     if(do_verification)
@@ -130,8 +130,9 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                                                      0,
                                                                      1>{};
 
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(input,
+        std::array<Tensor<OutDataType>, 1> d_tensors = {bias};
+        auto ref_invoker                             = ref_conv.MakeInvoker();
+        auto ref_argument                            = ref_conv.MakeArgument(input,
                                                   weight,
                                                   host_output,
                                                   conv_param.conv_filter_strides_,
@@ -143,7 +144,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                                   out_element_op,
                                                   {},
                                                   {},
-                                                  {bias});
+                                                  d_tensors);
 
         // init host output to zero
         host_output.SetZero();

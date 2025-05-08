@@ -22,7 +22,7 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_instance
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_16x16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
@@ -36,7 +36,7 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_16x16_in
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv2d_fwd_bias_relu_xdl_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
@@ -50,7 +50,7 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_large_tensor_nhwgc_gkyxc_nhwgk_
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv2d_fwd_bias_relu_xdl_merged_groups_nhwgc_gkyxc_nhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
@@ -64,7 +64,7 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_merged_groups_nhwgc_gkyxc_nhwgk
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
@@ -78,7 +78,7 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_ins
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_2x_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
@@ -92,7 +92,7 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_2x_
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_part2_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
@@ -106,7 +106,7 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_par
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_intra_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
@@ -120,7 +120,7 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_intr
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
@@ -134,13 +134,13 @@ void add_device_grouped_conv2d_fwd_bias_relu_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_inte
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                Tuple<NHWGK>,
+                                                                Tuple<NDHWGK>,
                                                                 NDHWGK,
                                                                 BF16,
                                                                 BF16,
@@ -148,13 +148,13 @@ void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_insta
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_16x16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                Tuple<NHWGK>,
+                                                                Tuple<NDHWGK>,
                                                                 NDHWGK,
                                                                 BF16,
                                                                 BF16,
@@ -162,13 +162,13 @@ void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_16x16
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_relu_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                Tuple<NHWGK>,
+                                                                Tuple<NDHWGK>,
                                                                 NDHWGK,
                                                                 BF16,
                                                                 BF16,
@@ -176,13 +176,13 @@ void add_device_grouped_conv3d_fwd_bias_relu_xdl_large_tensor_ndhwgc_gkzyxc_ndhw
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_relu_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                Tuple<NHWGK>,
+                                                                Tuple<NDHWGK>,
                                                                 NDHWGK,
                                                                 BF16,
                                                                 BF16,
@@ -190,13 +190,13 @@ void add_device_grouped_conv3d_fwd_bias_relu_xdl_merged_groups_ndhwgc_gkzyxc_ndh
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                Tuple<NHWGK>,
+                                                                Tuple<NDHWGK>,
                                                                 NDHWGK,
                                                                 BF16,
                                                                 BF16,
@@ -204,13 +204,13 @@ void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_comp_
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                Tuple<NHWGK>,
+                                                                Tuple<NDHWGK>,
                                                                 NDHWGK,
                                                                 BF16,
                                                                 BF16,
@@ -218,13 +218,13 @@ void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_i
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_inter_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                Tuple<NHWGK>,
+                                                                Tuple<NDHWGK>,
                                                                 NDHWGK,
                                                                 BF16,
                                                                 BF16,
@@ -232,7 +232,7 @@ void add_device_grouped_conv3d_fwd_bias_relu_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_i
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>& instances);
+                                                                AddRelu>>>& instances);
 
 #endif
 
