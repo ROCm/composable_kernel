@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -131,7 +131,7 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
         static_for<0, NumBTensor, 1>{}(
             [&](auto i) { p_bs_grid_grp(i) = p_bs_grid[i] + bs_batch_offset[i]; });
 
-        GridwiseGemm::template Run<HasMainKBlockLoop>(
+        GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
             p_as_grid_grp,
             p_bs_grid_grp,
             p_ds_grid_grp,
@@ -153,7 +153,7 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
         const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
             static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
 
-        GridwiseGemm::template Run<HasMainKBlockLoop>(
+        GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
             p_as_grid + a_batch_offset,
             p_bs_grid + b_batch_offset,
             p_ds_grid_grp,
@@ -439,20 +439,19 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     using GemmADataType = ck::conditional_t<!isMultiA && isMultiB, Tuple<ADataType>, ADataType>;
     using GemmBDataType = ck::conditional_t<!isMultiB && isMultiA, Tuple<BDataType>, BDataType>;
 
-#define GridwiseGemmTemplateParameters                                                          \
-    GemmADataType, GemmBDataType, ComputeDataType, AccDataType, CShuffleDataType, DsDataType,   \
-        EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,       \
-        InMemoryDataOperationEnum::Set, NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, \
-        KPerBlock, AK1, BK1, MPerXDL, NPerXDL, MXdlPerWave, NXdlPerWave,                        \
-        ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder,  \
-        ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                               \
-        ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,          \
-        ABlockLdsExtraM, BBlockTransferThreadClusterLengths_BK0_N_BK1,                          \
-        BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                  \
-        BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                           \
-        BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                           \
-        CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,                           \
-        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                       \
+#define GridwiseGemmTemplateParameters                                                         \
+    GemmADataType, GemmBDataType, ComputeDataType, AccDataType, CShuffleDataType, DsDataType,  \
+        EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,      \
+        NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL,  \
+        NPerXDL, MXdlPerWave, NXdlPerWave, ABlockTransferThreadClusterLengths_AK0_M_AK1,       \
+        ABlockTransferThreadClusterArrangeOrder, ABlockTransferSrcAccessOrder,                 \
+        ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector,                          \
+        ABlockTransferDstScalarPerVector_AK1, false, ABlockLdsExtraM,                          \
+        BBlockTransferThreadClusterLengths_BK0_N_BK1, BBlockTransferThreadClusterArrangeOrder, \
+        BBlockTransferSrcAccessOrder, BBlockTransferSrcVectorDim,                              \
+        BBlockTransferSrcScalarPerVector, BBlockTransferDstScalarPerVector_BK1, false,         \
+        BBlockLdsExtraN, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,         \
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                      \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched
     // Use appropriate gridwise gemm
     using GridwiseGemm =
