@@ -13,7 +13,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using F8   = f8_t;
+using F8  = f8_t;
 using F16 = half_t;
 using F32 = float;
 

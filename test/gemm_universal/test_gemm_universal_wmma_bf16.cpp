@@ -7,7 +7,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_gemm_universal_util.hpp"
 
-using I4 = pk_i4_t;
+using I4   = pk_i4_t;
 using BF16 = ck::bhalf_t;
 using F32  = float;
 
