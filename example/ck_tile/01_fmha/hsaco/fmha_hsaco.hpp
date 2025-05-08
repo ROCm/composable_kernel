@@ -83,3 +83,7 @@ extern unsigned char bwd_hd192_bf16_causal_a32_rtne_psskddv[];
 extern unsigned char bwd_hd192_bf16_causal_a32_rtz_psskddv[];
 extern unsigned char bwd_hd192_fp16_a32_psskddv[];
 extern unsigned char bwd_hd192_fp16_causal_a32_psskddv[];
+extern unsigned char bwd_hd128_fp16_swa_a32_psskddv[];
+extern unsigned char bwd_hd128_bf16_swa_a32_rtna_psskddv[];
+extern unsigned char bwd_hd128_bf16_swa_a32_rtne_psskddv[];
+extern unsigned char bwd_hd128_bf16_swa_a32_rtz_psskddv[];
