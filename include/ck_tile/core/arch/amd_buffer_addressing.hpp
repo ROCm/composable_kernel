@@ -2702,6 +2702,14 @@ __device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
                     reinterpret_cast<uintptr_t>(in_ptr));
             return bit_cast<vector_t>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
         }
+        else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::fp8_t>)
+        {
+            typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_fp8x8_t;
+            __attribute__((address_space(3))) llvm_fp8x8_t* lds_ptr =
+                reinterpret_cast<__attribute__((address_space(3))) llvm_fp8x8_t*>(
+                    reinterpret_cast<uintptr_t>(in_ptr));
+            return bit_cast<vector_t>(__builtin_amdgcn_ds_read_tr8_b64_v2i32(lds_ptr));
+        }
     }
     else
     {

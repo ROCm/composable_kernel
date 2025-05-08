@@ -94,9 +94,9 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("v", "1", "whether do CPU validation or not")
         .insert("pr", "fp16", "input data type. fp16/fp32 (representing 8/16/32 bit data)")
         .insert("N", "2", "input batch size. ")
-        .insert("C", "16", "input channel size.")
+        .insert("C", "64", "input channel size.")
         .insert("H", "1", "input height size.")
-        .insert("W", "16", "input width size. ")
+        .insert("W", "64", "input width size. ")
         .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
         .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
@@ -243,6 +243,10 @@ int main(int argc, char** argv)
     if(prec.compare("fp16") == 0)
     {
         r &= run_batched_transpose<ck_tile::fp16_t>(args);
+    }
+    else if(prec.compare("fp8") == 0)
+    {
+        r &= run_batched_transpose<ck_tile::fp8_t>(args);
     }
     else
     {
