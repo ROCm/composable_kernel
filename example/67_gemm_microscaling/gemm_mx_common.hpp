@@ -202,8 +202,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     case 0: // Initializations for development and debugging
         ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(ck::float2_t(1.0f))}(a_m_k);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(1.0f))}(b_k_n);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(2.0f))}(b_k_n);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(.5f)}(b_k_n_scale);
         if(config.verbosity > 0)
         {
             std::cout << "Init A = {1}" << std::endl;
@@ -251,11 +251,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     if(config.verbosity > 0)
         std::cout << "Device memory allocation..." << std::endl;
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem a_scale_device_buf(sizeof(XDataType) * a_m_k_scale.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem b_scale_device_buf(sizeof(XDataType) * b_k_n_scale.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.GetElementSpaceSize());
+    DeviceMem a_scale_device_buf(sizeof(XDataType) * a_m_k_scale.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.GetElementSpaceSize());
+    DeviceMem b_scale_device_buf(sizeof(XDataType) * b_k_n_scale.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.GetElementSpaceSize());
 
     if(config.verbosity > 0)
         std::cout << "Upload data to device..." << std::endl;

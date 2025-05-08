@@ -858,7 +858,7 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
                         const ScaleB& scale_b,
                         FloatC& reg_c) const
     {
-        // CK_TILE_PRINT<FloatA>();
+        // CK_PRINT<FloatA>();
         static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this point.");
         static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at this point.");
 

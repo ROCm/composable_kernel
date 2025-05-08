@@ -60,7 +60,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     //> e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
     static constexpr index_t KThreadChunk = 16;
 
-    static constexpr index_t KPerThread    = KPerBlock / 2 / xdlops_gemm.K0PerXdlops;
+    static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
     static constexpr index_t KPerInnerLoop = KPack;
 
@@ -340,7 +340,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                          ComputeTypeA,
                                                          decltype(a_block_desc_m0_m1_m2_k),
                                                          decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, KThreadChunk>,
+                                                         Sequence<1, 1, 1, KThreadChunk * 2>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
                                                          A_K1,
@@ -350,7 +350,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                          ComputeTypeB,
                                                          decltype(b_block_desc_n0_n1_n2_k),
                                                          decltype(b_thread_desc_),
-                                                         Sequence<1, 1, 1, KThreadChunk>,
+                                                         Sequence<1, 1, 1, KThreadChunk * 2>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
                                                          B_K1,

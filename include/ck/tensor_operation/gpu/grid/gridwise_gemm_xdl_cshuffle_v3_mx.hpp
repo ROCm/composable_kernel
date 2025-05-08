@@ -154,10 +154,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
-    static constexpr auto AK0Number = Number<KPerBlock / AK1Value>{};
-    static constexpr auto BK0Number = Number<KPerBlock / BK1Value>{};
-    static constexpr auto AK1Number = Number<AK1Value>{};
-    static constexpr auto BK1Number = Number<BK1Value>{};
+    static constexpr auto AK0Number = Number<KPerBlock / AK1Value / 2>{};
+    static constexpr auto BK0Number = Number<KPerBlock / BK1Value / 2>{};
+    static constexpr auto AK1Number = Number<AK1Value * 2>{};
+    static constexpr auto BK1Number = Number<BK1Value * 2>{};
 
     static constexpr auto lcm_AK1_BK1         = math::lcm(AK1Number, BK1Number);
     static constexpr bool is_single_rate_mfma = false;
@@ -765,8 +765,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr index_t LdsSize       = 32 * 4 / KPerBlock / sizeof(ADataType) / APackedSize;
-            constexpr auto MLdsLayer        = LdsSize < 1 ? 1 : LdsSize;
+            constexpr index_t LdsSize = 32 * 4 / (KPerBlock / APackedSize) / sizeof(ADataType);
+            constexpr auto MLdsLayer  = LdsSize < 1 ? 1 : LdsSize;
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     AK0Number * Number<MLdsLayer>{}, Number<MPerBlock / MLdsLayer>{}, AK1Number),
@@ -901,8 +901,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
-            constexpr index_t LdsSize       = 32 * 4 / KPerBlock / sizeof(BDataType) / BPackedSize;
-            constexpr index_t NLdsLayer     = LdsSize < 1 ? 1 : LdsSize;
+            constexpr index_t LdsSize   = 32 * 4 / (KPerBlock / BPackedSize) / sizeof(BDataType);
+            constexpr index_t NLdsLayer = LdsSize < 1 ? 1 : LdsSize;
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
@@ -1416,8 +1416,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                                 Sequence<0, 1, 2>,
                                                 ABlockTransferSrcVectorDim,
                                                 2,
-                                                ABlockTransferSrcScalarPerVector,
-                                                ABlockTransferDstScalarPerVector_AK1,
+                                                ABlockTransferSrcScalarPerVector * 2,
+                                                ABlockTransferDstScalarPerVector_AK1 * 2,
                                                 1,
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
@@ -1447,8 +1447,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                                 Sequence<0, 1, 2>,
                                                 BBlockTransferSrcVectorDim,
                                                 2,
-                                                BBlockTransferSrcScalarPerVector,
-                                                BBlockTransferDstScalarPerVector_BK1,
+                                                BBlockTransferSrcScalarPerVector * 2,
+                                                BBlockTransferDstScalarPerVector_BK1 * 2,
                                                 1,
                                                 1,
                                                 BThreadTransferSrcResetCoordinateAfterRun,
@@ -1468,6 +1468,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+        CK_PRINT<ck::Number<a_block_desc_ak0_m_ak1.GetElementSpaceSize()>>();
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) + a_block_space_size_aligned *
@@ -1911,8 +1912,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                                 Sequence<0, 1, 2>,
                                                 ABlockTransferSrcVectorDim,
                                                 2,
-                                                ABlockTransferSrcScalarPerVector,
-                                                ABlockTransferDstScalarPerVector_AK1,
+                                                ABlockTransferSrcScalarPerVector * 2,
+                                                ABlockTransferDstScalarPerVector_AK1 * 2,
                                                 1,
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
@@ -1942,8 +1943,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                                 Sequence<0, 1, 2>,
                                                 BBlockTransferSrcVectorDim,
                                                 2,
-                                                BBlockTransferSrcScalarPerVector,
-                                                BBlockTransferDstScalarPerVector_BK1,
+                                                BBlockTransferSrcScalarPerVector * 2,
+                                                BBlockTransferDstScalarPerVector_BK1 * 2,
                                                 1,
                                                 1,
                                                 BThreadTransferSrcResetCoordinateAfterRun,

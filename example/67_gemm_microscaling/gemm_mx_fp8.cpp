@@ -23,7 +23,7 @@ using BElementOp = PassThrough; // elementwise transformation for B matrix
 using CElementOp = PassThrough; // elementwise transformation for C matrix
 
 constexpr ck::index_t ScaleBlockSize = 32; // scaling block size
-constexpr ck::index_t KPerBlock      = 256;
+constexpr ck::index_t KPerBlock      = 128;
 
 constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
 constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;

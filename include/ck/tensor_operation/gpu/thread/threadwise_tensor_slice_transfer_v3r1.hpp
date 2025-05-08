@@ -169,6 +169,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             },
             Number<nDim>{});
 
+        CK_PRINT<SliceLengths, decltype(src_scalar_per_access)>();
         // loop over tensor and copy
         static_ford<decltype(ordered_src_access_lengths)>{}([&](auto ordered_src_access_idx) {
             // judge move forward or move backward
@@ -281,6 +282,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                                                    Sequence<I0, I8, I12, I14>,
                                                    Sequence<I0>>;
 
+            CK_PRINT<tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>>();
             static_for<0, tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>::Size(), 1>{}(
                 [&](auto v_idx) {
                     constexpr auto VectorLoadSize =
@@ -290,10 +292,14 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
                     using src_vector_container   = vector_type_maker_t<SrcData, VectorLoadSize>;
                     using src_vector_container_t = typename src_vector_container::type;
+                    CK_PRINT<decltype(VectorLoadSize)>();
 
                     src_vector_container src_vector =
                         src_vector_container{src_buf.template Get<src_vector_container_t>(
                             src_coord_.GetOffset() / PackedSize + LoadOffset, true)};
+                    printf("TID%03d src_coord_.GetOffset() / PackedSize + LoadOffset = %d\n",
+                           get_thread_local_1d_id(),
+                           src_coord_.GetOffset() / PackedSize + LoadOffset);
 
                     static_for<0, VectorLoadSize / elem_op_vec_len, 1>{}([&](auto idx) {
                         // apply the src elementwise op and convert to DstData under the hood if
@@ -308,6 +314,76 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
+            CK_PRINT<decltype(src_thread_scratch_tuple_(thread_scratch_id))>();
+            // using a = ck::StaticTensorTupleOfVectorBuffer<
+            //     ck::AddressSpaceEnum::Vgpr,
+            //     ck::f4x2_pk_t,
+            //     8,
+            //     const ck::TensorDescriptor<
+            //         ck::Tuple<ck::UnMerge<ck::Tuple<ck::integral_constant<int, 2>,
+            //                                         ck::integral_constant<int, 1>,
+            //                                         ck::integral_constant<int, 1>,
+            //                                         ck::integral_constant<int, 8>>,
+            //                               false>,
+            //                   ck::PassThrough<ck::integral_constant<int, 2>>,
+            //                   ck::PassThrough<ck::integral_constant<int, 1>>,
+            //                   ck::Merge_v3_division_mod<ck::Tuple<ck::integral_constant<int, 1>,
+            //                                                       ck::integral_constant<int,
+            //                                                       8>>>>,
+            //         ck::Tuple<ck::Sequence<0>,
+            //                   ck::Sequence<1>,
+            //                   ck::Sequence<2>,
+            //                   ck::Sequence<3, 4>>,
+            //         ck::Tuple<ck::Sequence<1, 2, 3, 4>,
+            //                   ck::Sequence<5>,
+            //                   ck::Sequence<6>,
+            //                   ck::Sequence<7>>,
+            //         ck::Sequence<5, 6, 7>,
+            //         ck::integral_constant<long, 16>>,
+            //     true>;
+            auto data_print = src_thread_scratch_tuple_(thread_scratch_id).data_;
+            printf("TID%03d src_thread_scratch_tuple_(thread_scratch_id).data_ (%dx%d): "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   //    "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   //    "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "\n",
+                   get_thread_local_1d_id(),
+                   static_cast<int>(data_print.s_per_v),
+                   static_cast<int>(data_print.num_of_v_),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<0>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<1>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<2>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<3>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<4>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<5>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<6>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<7>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<8>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<9>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<10>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<11>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<12>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<13>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<14>{}]),
+                   *reinterpret_cast<const uint8_t*>(&data_print[Number<15>{}])
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<16>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<17>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<18>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<19>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<20>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<21>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<22>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<23>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<24>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<25>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<26>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<27>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<28>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<29>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<30>{}]),
+                   // *reinterpret_cast<const uint8_t*>(&data_print[Number<31>{}])
+            );
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -547,6 +623,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
         constexpr auto dst_dim_access_order = DstDimAccessOrder{};
 
+        CK_PRINT<SliceLengths, decltype(dst_scalar_per_access)>();
         constexpr auto ordered_dst_access_lengths =
             container_reorder_given_new2old(dst_access_lengths, dst_dim_access_order);
 
@@ -577,6 +654,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             Number<nDim>{});
 
         // loop over tensor and copy
+        CK_PRINT<decltype(ordered_dst_access_lengths)>();
         static_ford<decltype(ordered_dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
             // judge move forward or move backward
             constexpr auto forward_sweep = [&]() {
