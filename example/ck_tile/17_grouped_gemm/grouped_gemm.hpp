@@ -71,6 +71,7 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "10", "number of iterations before benchmark the kernel.")
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
+        .insert("kbatch", "1", "kbatch for SplitK")
         .insert("persistent", "false", "Use persistent kernel.");
 
     bool result = arg_parser.parse(argc, argv);

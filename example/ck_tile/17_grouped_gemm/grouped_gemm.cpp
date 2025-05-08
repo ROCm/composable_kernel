@@ -158,6 +158,10 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
             // case. The contents of the memory pointed to by `p_workspace` pointer could be
             // written by e.g. another kernel.
             auto kargs = Kernel::MakeKargs(gemm_descs);
+            if(!Kernel::IsSupportedArgument(kargs))
+            {
+                throw std::runtime_error("Kernel arguments not supported!")
+            }
 
             constexpr dim3 blocks = Kernel::BlockSize();
             dim3 grids;
@@ -204,6 +208,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
     const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
         if(gemm_descs[0].k_batch == 1)
         {
+            std::cout << "Run without SplitK" << std::endl;
             Run(has_hot_loop_,
                 tail_number_,
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
@@ -211,6 +216,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
         }
         else
         {
+            std::cout << "Run using SplitK with KBatch=" << gemm_descs[0].k_batch << std::endl;
             Run(has_hot_loop_,
                 tail_number_,
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,

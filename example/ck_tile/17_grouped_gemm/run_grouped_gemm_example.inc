@@ -87,6 +87,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     const int group_count = arg_parser.get_int("group_count");
     const int repeat      = arg_parser.get_int("repeat");
     const int warmup      = arg_parser.get_int("warmup");
+    const int kbatch      = arg_parser.get_int("kbatch");
 
     std::vector<ck_tile::index_t> Ms        = arg_parser.get_int_vec("Ms");
     std::vector<ck_tile::index_t> Ns        = arg_parser.get_int_vec("Ns");
@@ -169,10 +170,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
-        // TODO Add support for kbatch > 1 in grouped gemm
-        static constexpr ck_tile::index_t k_batch = 1;
         gemm_descs.push_back(
-            {p_a, p_b, p_c, k_batch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+            {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
     }
 
     invoke_gemm<ALayout, BLayout, CLayout, Persistent>(warmup, repeat, group_count, gemm_descs);
@@ -194,7 +193,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-            const auto rtol_atol = calculate_rtol_atol(Ks[i], 1 /*kbatch*/, max_accumulated_value);
+            const auto rtol_atol = calculate_rtol_atol(Ks[i], kbatch, max_accumulated_value);
             pass &= ck_tile::check_err(c_m_n_tensors[i],
                                        c_m_n_host_ref,
                                        "Error: Incorrect results!",
@@ -234,10 +233,14 @@ int run_grouped_gemm_example(int argc, char* argv[])
     {
         return run_grouped_gemm_example_with_layouts<false>(argc, argv, Row{}, Col{}, Row{});
     }
-    // else if(a_layout == "R" && b_layout == "R" && persistent)
-    // {
-    //     return run_grouped_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
-    // }
+    else if(a_layout == "R" && b_layout == "R" && persistent)
+    {
+        return run_grouped_gemm_example_with_layouts<true>(argc, argv, Row{}, Row{}, Row{});
+    }
+    else if(a_layout == "R" && b_layout == "R" && !persistent)
+    {
+        return run_grouped_gemm_example_with_layouts<false>(argc, argv, Row{}, Row{}, Row{});
+    }
     else
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");

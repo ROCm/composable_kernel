@@ -153,31 +153,46 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return gemm_kernel_args_;
     }
 
+    CK_TILE_HOST static bool IsSupportedArgument(const std::vector<GemmTransKernelArg>& kargs)
+    {
+        for(const auto& karg : kargs)
+        {
+            if(!Base::IsSupportedArgument(karg.group_karg))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemSize() -> index_t
     {
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
     CK_TILE_DEVICE void Run(const GemmTransKernelArg& kargs,
-                            const tuple<index_t, index_t>& block_idx_2d) const
+                            const tuple<index_t, index_t>& block_idx_2d,
+                            const index_t block_idx_z) const
     {
-        Run(kargs.group_karg, block_idx_2d);
+        Run(kargs.group_karg, block_idx_2d, block_idx_z);
     }
 
     CK_TILE_DEVICE void Run(const GemmKernelArgs& kargs,
-                            const tuple<index_t, index_t>& block_idx_2d) const
+                            const tuple<index_t, index_t>& block_idx_2d,
+                            const index_t block_idx_z) const
     {
         const auto [iM, iN] = block_idx_2d;
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
-        const index_t i_z = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
-        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, i_z);
+        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, block_idx_z);
 
-        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr);
-        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr);
-        CDataType* c_ptr       = static_cast<CDataType*>(kargs.c_ptr);
+        const ADataType* a_ptr =
+            static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+        const BDataType* b_ptr =
+            static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
+        CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
@@ -222,9 +237,13 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
         const index_t group_id  = FindGroupId(gemm_desc_ptr, block_id, group_count);
         const auto& kargs       = gemm_desc_ptr[group_id];
+        const auto grid_size_2d = TilePartitioner::GridSize(kargs.group_karg.M, kargs.group_karg.N);
         const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
-            kargs.block_start, kargs.group_karg.M, kargs.group_karg.N);
-        Run(kargs, block_idx_2d);
+            0,
+            kargs.group_karg.M,
+            kargs.group_karg.N,
+            (block_id - kargs.block_start) % grid_size_2d);
+        Run(kargs, block_idx_2d, (block_id - kargs.block_start) / grid_size_2d);
     }
 
     // For persistent kernels
@@ -242,13 +261,15 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         for(index_t group_id = 0; group_id < group_count; ++group_id)
         {
             const auto& kargs      = gemm_desc_ptr[group_id].group_karg;
+            const auto& k_batch    = kargs.k_batch;
             const auto block_start = cum_grid_size;
-            cum_grid_size += TilePartitioner::GridSize(kargs.M, kargs.N) * kargs.k_batch;
+            cum_grid_size += TilePartitioner::GridSize(kargs.M, kargs.N) * k_batch;
             while(block_id < cum_grid_size)
             {
+                const auto grid_size_2d = TilePartitioner::GridSize(kargs.M, kargs.N);
                 const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
-                    block_start, kargs.M, kargs.N, block_id);
-                Run(kargs, block_idx_2d);
+                    0, kargs.M, kargs.N, (block_id - block_start) % grid_size_2d);
+                Run(kargs, block_idx_2d, (block_id - block_start) / grid_size_2d);
                 block_id = block_id + grid_size; // advance to next block
                 // NOTE: this check is redundant but helps the compiler avoid spilling some VGPR
                 if(block_id >= cum_grid_size)

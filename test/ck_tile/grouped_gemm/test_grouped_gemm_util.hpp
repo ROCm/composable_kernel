@@ -234,6 +234,26 @@ class TestCkTileGroupedGemm : public ::testing::Test
         }
     }
 
+    auto calculate_rtol_atol(const ck_tile::index_t K,
+                             const ck_tile::index_t kbatch,
+                             const float max_accumulated_value)
+    {
+        using ComputeType =
+            std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+        // Calculate thresholds
+        const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+            ck_tile::integer_divide_ceil(K, kbatch));
+        const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+            max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+        // Calculate error due to split_k accumulation
+        const auto rtol_split_k =
+            ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
+        const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
+            max_accumulated_value, kbatch);
+        // Use higher threshold
+        return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+    }
+
     public:
     void Run(const std::vector<int>& Ms,
              const std::vector<int>& Ns,
@@ -315,8 +335,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             std::cout << "gemm[" << i << "]"
                       << " a_m_k: " << a_m_k_tensors[i].mDesc
                       << " b_k_n: " << b_k_n_tensors[i].mDesc
-                      << " c_m_n: " << c_m_n_tensors[i].mDesc
-                      << " KBatch: " << KBatch << std::endl;
+                      << " c_m_n: " << c_m_n_tensors[i].mDesc << " KBatch: " << KBatch << std::endl;
 
             ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tensors[i]);
             ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors[i]);
@@ -360,7 +379,14 @@ class TestCkTileGroupedGemm : public ::testing::Test
             c_m_n_host_ref.SetZero();
             ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
-            pass &= ck_tile::check_err(c_m_n_tensors[i], c_m_n_host_ref);
+            const float max_accumulated_value =
+                *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+            const auto rtol_atol = calculate_rtol_atol(Ks[i], KBatch, max_accumulated_value);
+            pass &= ck_tile::check_err(c_m_n_tensors[i],
+                                       c_m_n_host_ref,
+                                       "Error: Incorrect results!",
+                                       rtol_atol.at(ck_tile::number<0>{}),
+                                       rtol_atol.at(ck_tile::number<1>{}));
         }
         EXPECT_TRUE(pass);
     }
