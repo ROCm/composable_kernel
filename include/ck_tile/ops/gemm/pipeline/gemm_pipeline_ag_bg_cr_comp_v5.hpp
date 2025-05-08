@@ -14,9 +14,10 @@ namespace ck_tile {
 template <typename Problem>
 struct BaseGemmPipelineAgBgCrCompV5
 {
-    static constexpr index_t PrefetchStages  = 2;
+    static constexpr index_t PrefetchStages  = 3;
     static constexpr index_t PrefillStages   = 1;
-    static constexpr index_t GlobalBufferNum = 1;
+    static constexpr index_t GlobalBufferNum = 2;
+    static constexpr index_t HotloopUnroll   = 2;
 
     CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -25,13 +26,13 @@ struct BaseGemmPipelineAgBgCrCompV5
 
     CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
-        if(num_loop % PrefetchStages == 1)
+        if(num_loop % HotloopUnroll == 1)
         {
-            return TailNumber::Three;
+            return TailNumber::Odd;
         }
         else
         {
-            return TailNumber::Two;
+            return TailNumber::Even;
         }
     }
 };
@@ -39,15 +40,9 @@ struct BaseGemmPipelineAgBgCrCompV5
 /**
  * @brief Compute optimized pipeline version 5
  *
- * This version introduces a dual LDS window mechanism using a ping-pong buffer approach
- * for more efficient data handling from global memory. Unlike compute version 3, this method
- * allows one LDS to fetch data from global memory while the other LDS executes warps for MFMA
- * matrix multiplication. This dual operation helps in keeping the Warp unit continuously busy,
- * thereby significantly reducing memory load times and enhancing overall performance.
+ * TODO
  *
- * @note This version shows improved performance over Compute Version 3 with the same block tile.
- * It is particularly more efficient for large matrices where M, N, and K are greater than 8K,
- * even when Compute Version 3's block size is twice that of Compute Version 5.
+ * @note TODO
  */
 template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV5DefaultPolicy>
 struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
@@ -161,19 +156,135 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             constexpr auto num_buffer_load_inst = A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num;
             constexpr auto num_issue            = num_buffer_load_inst;
 
-            static_for<0, num_buffer_load_inst, 1>{}([&](auto i) {
+            // <<< ============================================= >>>
+            constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
+            constexpr auto ds_read_a_issue_cycle =
+                A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
+            constexpr auto ds_read_b_issue_cycle =
+                B_LDS_Read_Width * sizeof(BDataType) == 16 ? 8 : 4;
+            constexpr auto ds_read_a_mfma_rate =
+                (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
+            constexpr auto ds_read_b_mfma_rate =
+                (mfma_cycle - 4 + 2 * ds_read_b_issue_cycle - 1) / (2 * ds_read_b_issue_cycle);
+
+            // TODO check KRepeat
+            constexpr index_t KRepeat          = 2;
+            constexpr auto num_dsread_stage1_a = num_ds_read_inst_a / KRepeat * (KRepeat - 1);
+            constexpr auto num_dsread_stage1_b = num_ds_read_inst_b / KRepeat * (KRepeat - 1);
+            constexpr auto num_dsread_stage3_a = num_ds_read_inst_a / KRepeat;
+            constexpr auto num_dsread_stage3_b = num_ds_read_inst_b / KRepeat;
+
+            constexpr auto num_dsread_stage1_a_mfma =
+                (num_dsread_stage1_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
+            constexpr auto num_dsread_stage1_b_mfma =
+                (num_dsread_stage1_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
+            constexpr auto num_dsread_stage3_a_mfma =
+                (num_dsread_stage3_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
+            constexpr auto num_dsread_stage3_b_mfma =
+                (num_dsread_stage3_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
+
+            constexpr auto num_mfma_stage2 = C_MFMA_Inst_Num -
+                                             num_ds_read_inst_a / ds_read_a_mfma_rate -
+                                             num_ds_read_inst_b / ds_read_b_mfma_rate;
+            constexpr auto num_mfma_per_issue =
+                num_mfma_stage2 / (A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num);
+            constexpr auto num_dswrite_per_issue_a = A_LDS_Write_Inst_Num / A_Buffer_Load_Inst_Num;
+            constexpr auto num_dswrite_per_issue_b = B_LDS_Write_Inst_Num / B_Buffer_Load_Inst_Num;
+
+            // stage 1
+            static_for<0, num_dsread_stage1_a_mfma, 1>{}([&](auto i) {
                 ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA : 1
-                __builtin_amdgcn_sched_group_barrier(
-                    0x100, num_ds_read_inst / num_issue, 0);       // DS read : 2
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA: 1
-                __builtin_amdgcn_sched_group_barrier(
-                    0x200, num_ds_write_inst / num_issue, 0);      // DS write : 1
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA : 1
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read :1
-                __builtin_amdgcn_sched_group_barrier(
-                    0x008, C_MFMA_Inst_Num / num_issue - 3, 0); // MFMA : 5
+                if constexpr((num_dsread_stage1_a - (i + 1) * ds_read_a_mfma_rate) >=
+                             ds_read_a_mfma_rate)
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                }
+                else
+                {
+                    __builtin_amdgcn_sched_group_barrier(
+                        0x100,
+                        num_dsread_stage1_a - (num_dsread_stage1_a_mfma - 1) * ds_read_a_mfma_rate,
+                        0); // DS read
+                }
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
             });
+            static_for<0, num_dsread_stage1_b_mfma, 1>{}([&](auto i) {
+                ignore = i;
+                if constexpr((num_dsread_stage1_b - (i + 1) * ds_read_b_mfma_rate) >=
+                             ds_read_b_mfma_rate)
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
+                }
+                else
+                {
+                    __builtin_amdgcn_sched_group_barrier(
+                        0x100,
+                        num_dsread_stage1_b - (num_dsread_stage1_b_mfma - 1) * ds_read_b_mfma_rate,
+                        0); // DS read
+                }
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            });
+
+            // stage 2
+            static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
+                ignore = i;
+                static_for<0, num_dswrite_per_issue_a, 1>{}([&](auto idswrite) {
+                    ignore = idswrite;
+                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                });
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(
+                    0x008, num_mfma_per_issue - num_dswrite_per_issue_a, 0); // MFMA
+            });
+            static_for<0, B_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
+                ignore = i;
+                static_for<0, num_dswrite_per_issue_b, 1>{}([&](auto idswrite) {
+                    ignore = idswrite;
+                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                });
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(
+                    0x008, num_mfma_per_issue - num_dswrite_per_issue_b, 0); // MFMA
+            });
+
+            // stage 3
+            static_for<0, num_dsread_stage3_a_mfma, 1>{}([&](auto i) {
+                ignore = i;
+                if constexpr((num_dsread_stage3_a - (i + 1) * ds_read_a_mfma_rate) >=
+                             ds_read_a_mfma_rate)
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                }
+                else
+                {
+                    __builtin_amdgcn_sched_group_barrier(
+                        0x100,
+                        num_dsread_stage3_a - (num_dsread_stage3_a_mfma - 1) * ds_read_a_mfma_rate,
+                        0); // DS read
+                }
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            });
+            static_for<0, num_dsread_stage3_b_mfma, 1>{}([&](auto i) {
+                ignore = i;
+                if constexpr((num_dsread_stage3_b - (i + 1) * ds_read_b_mfma_rate) >=
+                             ds_read_b_mfma_rate)
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
+                }
+                else
+                {
+                    __builtin_amdgcn_sched_group_barrier(
+                        0x100,
+                        num_dsread_stage3_b - (num_dsread_stage3_b_mfma - 1) * ds_read_b_mfma_rate,
+                        0); // DS read
+                }
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            });
+
+            // IGLP COMPILER BUG:
+            // If comment out following scheduler barrier would cause sanity fail.
             __builtin_amdgcn_sched_barrier(0);
         }
 
