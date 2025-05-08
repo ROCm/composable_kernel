@@ -47,6 +47,12 @@ class TestGemmUniversal_FP16_KM_KN
 {
 };
 
+template <typename Tuple>
+class TestGemmUniversal_FP16_KM_NK
+    : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
+{
+};
+
 // clang-format off
 using KernelTypes_MK_KN = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
