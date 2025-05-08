@@ -5,6 +5,8 @@
 
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/literals.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
 #include "ck_tile/host.hpp"
@@ -197,7 +199,101 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        if constexpr(!UsePersistentKernel)
+        {
+            this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        }
+        else
+        {
+            RunGemmWithPipelineSelection(
+                a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        }
+    }
+
+    /**
+     * @brief Runs single GEMM problem cooperatively by whole workgroup.
+     *
+     * @note The GEMM pipeline is selected in-kernel based on the number of K-loops
+     *       and the tail-number. This is needed for the persistent tile-loop when
+     *       we didn't have access to the K dimension on the host.
+     *
+     * @param a_ptr input A pointer
+     * @param b_ptr input B pointer
+     * @param c_ptr output C pointer
+     * @param smem_ptr_0 The start memory pointer of the shared memory block.
+     * @param kargs GEMM kernel arguments
+     * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k batch.
+     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
+     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
+     *
+     */
+    CK_TILE_DEVICE static void RunGemmWithPipelineSelection(
+        const ADataType* a_ptr,
+        const BDataType* b_ptr,
+        CDataType* c_ptr,
+        void* smem_ptr_0,
+        const GemmKernelArgs& kargs,
+        const typename Base::SplitKBatchOffset& splitk_batch_offset,
+        const index_t block_idx_m,
+        const index_t block_idx_n)
+    {
+        // Create Gemm tensor views, pad views and tile windows
+        const auto& gemm_tensor_views_tuple = Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+            a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+
+        const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
+        auto gemm_tile_windows     = Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        const auto& a_block_window = gemm_tile_windows.at(Base::I0);
+        const auto& b_block_window = gemm_tile_windows.at(Base::I1);
+
+        // Get hot-loop and tail configuration
+        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        const bool has_hot_loop            = GemmPipeline::BlockHasHotloop(num_loop);
+        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
+
+        // const auto& c_block_tile = GemmPipeline{}.template operator()(
+        // a_block_window, b_block_window, num_loop, smem_ptr_0);
+
+        const auto RunEpilogue = [&](auto& c_block_tile) {
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(Base::I2);
+            EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, c_block_tile, smem_ptr_0);
+        };
+
+        if constexpr(is_specialization_of<GemmPipeline, GemmPipelineAgBgCrCompV3>::value)
+        {
+            // Run the specific implementation with hotloop+tailnum config
+            using PipelineImpl = typename GemmPipeline::template PipelineImpl<GemmPipeline::Scheduler>;
+            const auto PassThrough = [](const auto& a) { return a; };
+            if (has_hot_loop && tail_num == TailNumber::Full)
+            {
+                const auto& c_block_tile = PipelineImpl{}.template operator()<true, TailNumber::Full>(
+                    a_block_window, PassThrough, b_block_window, PassThrough, num_loop, smem_ptr_0);
+                RunEpilogue(c_block_tile);
+            }
+            else if (has_hot_loop && tail_num == TailNumber::Odd)
+            {
+                const auto& c_block_tile = PipelineImpl{}.template operator()<true, TailNumber::Odd>(
+                    a_block_window, PassThrough, b_block_window, PassThrough, num_loop, smem_ptr_0);
+                RunEpilogue(c_block_tile);
+            }
+            else if (has_hot_loop && tail_num == TailNumber::Even)
+            {
+                const auto& c_block_tile = PipelineImpl{}.template operator()<true, TailNumber::Even>(
+                    a_block_window, PassThrough, b_block_window, PassThrough, num_loop, smem_ptr_0);
+                RunEpilogue(c_block_tile);
+            }
+        }
+        else
+        {
+            ignore = a_block_window;
+            ignore = b_block_window;
+            static_assert(
+                false,
+                "GemmPipeline specialization not supported!");
+        }
     }
 
     CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg* gemm_desc_ptr,
