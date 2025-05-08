@@ -45,24 +45,24 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     CElementOp,       // CElementwiseOperation
     GemmSpec,         // GemmSpec
     ScaleBlockSize,   // ScaleBlockSize: Scaling block size
-    64,               // BlockSize: Thread block size
-    16,               // MPerBlock
-    16,               // NPerBlock
+    256,               // BlockSize: Thread block size
+    64,               // MPerBlock
+    64,               // NPerBlock
     KPerBlock,        // KPerBlock
     16,               // AK1
     16,               // BK1
     16,               // MPerXDL
     16,               // NPerXDL
-    1,                // MXdlPerWave
-    1,                // NXdlPerWave
-    S<4, 16, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
+    2,                // MXdlPerWave
+    2,                // NXdlPerWave
+    S<4, 64, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
     2,                // ABlockTransferSrcVectorDim
     16,               // ABlockTransferSrcScalarPerVector
     16,               // ABlockTransferDstScalarPerVector_AK1
     false,            // ABlockLdsExtraM
-    S<4, 16, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
+    S<4, 64, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
     S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
     2,                // BBlockTransferSrcVectorDim
@@ -70,9 +70,9 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     16,               // BBlockTransferDstScalarPerVector_BK1
     false,            // BBlockLdsExtraN
     1,                // CShuffleMXdlPerWavePerShuffle
-    1,                // CShuffleNXdlPerWavePerShuffle
-    S<1, 16, 1, 4>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    4,                // CShuffleBlockTransferScalarPerVector_NPerBlock
+    2,                // CShuffleNXdlPerWavePerShuffle
+    S<1, 32, 1, 8>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+    8,                // CShuffleBlockTransferScalarPerVector_NPerBlock
     BlkGemmPSched,    // BlkGemmPipeSched
     BlkGemmPVer,      // BlkGemmPipelineVer
     ADataType,        // ComputeTypeA

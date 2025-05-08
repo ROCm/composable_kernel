@@ -378,7 +378,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             vector_type<ComputeTypeA, KPack> a_thread_vec; // = vec: pk_i4_t, 32
                             vector_type<ComputeTypeB, KPack> b_thread_vec;
 
-                            static_for<0, KPack, 1>{}([&](auto ik) {
+                            static_for<0, KPack/2, 1>{}([&](auto ik) {
                                 a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                         make_tuple(m0, I0, k0, ik))>{}];
@@ -622,7 +622,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
                         vector_type<ComputeTypeB, KPack> b_thread_vec;
 
-                        static_for<0, KPack, 1>{}([&](auto ik) {
+                        static_for<0, KPack/2, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, k0, ik))>{}];

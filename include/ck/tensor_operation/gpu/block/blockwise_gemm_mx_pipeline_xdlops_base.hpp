@@ -116,7 +116,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KThreadChunk * xdlops_a_idx[I0]);
+        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KThreadChunk*2 * xdlops_a_idx[I0]);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -127,7 +127,8 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KThreadChunk * xdlops_b_idx[I0]);
+        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KThreadChunk*2 * xdlops_b_idx[I0]);
+        //                              [0-15]                          [0-3]
     }
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
@@ -322,15 +323,15 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     // Read buffer + Compute buffer
     // A[M0, M1, M2, KPack]
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
+        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack/2>{}),
         make_tuple(
-            Number<KPack>{}, Number<KRepeat * MRepeat * KPack>{}, Number<MRepeat * KPack>{}, I1));
+            Number<KPack/2>{}, Number<KRepeat * MRepeat * KPack/2>{}, Number<MRepeat * KPack/2>{}, I1));
 
     // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
+        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack/2>{}),
         make_tuple(
-            Number<KPack>{}, Number<KRepeat * NRepeat * KPack>{}, Number<NRepeat * KPack>{}, I1));
+            Number<KPack/2>{}, Number<KRepeat * NRepeat * KPack/2>{}, Number<NRepeat * KPack/2>{}, I1));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(

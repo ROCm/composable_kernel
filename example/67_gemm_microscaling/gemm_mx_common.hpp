@@ -242,12 +242,48 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
         break;
 
+    case 3:
+
+        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(ck::float2_t(1.0f))}(a_m_k);
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+
+        if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
+        {
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+        }
+        else
+        {
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+        }
+
+        break;
+    case 4: //A random
+
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(1.0f))}(b_k_n);
+
+        if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
+        {
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+        }
+        else
+        {
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+        }
+
+        break;
+
     default:
         if(config.verbosity > 0)
         {
             std::cout << "NOTE: No input data initialization." << std::endl;
         }
     }
+    
 
     if(config.verbosity > 0)
         std::cout << "Device memory allocation..." << std::endl;

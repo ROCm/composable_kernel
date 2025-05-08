@@ -295,7 +295,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
                 a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(AK0, AK1Value)),
+                make_tuple(make_unmerge_transform(make_tuple(AK0/2, AK1Value*2)),
                            make_pass_through_transform(MPad)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -308,7 +308,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             // pad M, but not K
             const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
                 a_grid_desc_mraw_kraw,
-                make_tuple(make_unmerge_transform(make_tuple(AK0, AK1Value)),
+                make_tuple(make_unmerge_transform(make_tuple(AK0/2, AK1Value*2)),
                            make_right_pad_transform(M, MPad - M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -327,7 +327,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
                 a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(AK0, AK1Value)),
+                make_tuple(make_unmerge_transform(make_tuple(AK0/2, AK1Value*2)),
                            make_pass_through_transform(M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -339,7 +339,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             // not pad M or K
             const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
                 a_grid_desc_mraw_kraw,
-                make_tuple(make_unmerge_transform(make_tuple(AK0, AK1Value)),
+                make_tuple(make_unmerge_transform(make_tuple(AK0/2, AK1Value*2)),
                            make_pass_through_transform(M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -384,7 +384,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
                 b_grid_desc_n_k,
-                make_tuple(make_unmerge_transform(make_tuple(BK0, BK1Value)),
+                make_tuple(make_unmerge_transform(make_tuple(BK0/2, BK1Value*2)),
                            make_pass_through_transform(NPad)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -397,7 +397,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             // pad N, but not K
             const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
                 b_grid_desc_nraw_kraw,
-                make_tuple(make_unmerge_transform(make_tuple(BK0, BK1Value)),
+                make_tuple(make_unmerge_transform(make_tuple(BK0/2, BK1Value*2)),
                            make_right_pad_transform(N, NPad - N)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -416,7 +416,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
                 b_grid_desc_n_k,
-                make_tuple(make_unmerge_transform(make_tuple(BK0, BK1Value)),
+                make_tuple(make_unmerge_transform(make_tuple(BK0/2, BK1Value*2)),
                            make_pass_through_transform(N)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
@@ -430,7 +430,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 // not pad N or K
                 const auto b_grid_desc_bk0_n_bk1 = transform_tensor_descriptor(
                     b_grid_desc_nraw_kraw,
-                    make_tuple(make_unmerge_transform(make_tuple(BK0, BK1Value)),
+                    make_tuple(make_unmerge_transform(make_tuple(BK0/2, BK1Value*2)),
                                make_pass_through_transform(N)),
                     make_tuple(Sequence<1>{}, Sequence<0>{}),
                     make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
