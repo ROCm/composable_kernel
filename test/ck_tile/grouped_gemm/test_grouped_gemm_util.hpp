@@ -24,9 +24,13 @@ class TestCkTileGroupedGemm : public ::testing::Test
     using AccDataType = std::tuple_element_t<5, Tuple>;
     using CDataType   = std::tuple_element_t<6, Tuple>;
 
-    // Get the persistent value from bool_constant
+    // Get the persistent value from ck_tile::bool_constant
     using PersistentType             = std::tuple_element_t<7, Tuple>;
     static constexpr bool Persistent = PersistentType::value;
+
+    // Get the kbatch value from ck_tile::number
+    using KBatchType             = std::tuple_element_t<8, Tuple>;
+    static constexpr auto KBatch = KBatchType::value;
 
     struct GroupedGemKernelParam
     {
@@ -144,6 +148,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                  memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKargs(gemm_descs);
+            EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
 
             dim3 grids;
             if constexpr(Persistent)
@@ -185,6 +190,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(gemm_descs[0].k_batch == 1)
             {
+                std::cout << "Run without SplitK" << std::endl;
                 Run(has_hot_loop_,
                     tail_number_,
                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
@@ -192,6 +198,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             }
             else
             {
+                std::cout << "Run using SplitK" << std::endl;
                 Run(has_hot_loop_,
                     tail_number_,
                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
@@ -308,7 +315,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
             std::cout << "gemm[" << i << "]"
                       << " a_m_k: " << a_m_k_tensors[i].mDesc
                       << " b_k_n: " << b_k_n_tensors[i].mDesc
-                      << " c_m_n: " << c_m_n_tensors[i].mDesc << std::endl;
+                      << " c_m_n: " << c_m_n_tensors[i].mDesc
+                      << " KBatch: " << KBatch << std::endl;
 
             ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tensors[i]);
             ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors[i]);
@@ -329,10 +337,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
             const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
             void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
-            // TODO add support for kbatch > 1
-            static constexpr ck_tile::index_t k_batch = 1;
             gemm_descs.push_back(
-                {p_a, p_b, p_c, k_batch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+                {p_a, p_b, p_c, KBatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
         }
 
         ck_tile::DeviceMem gemm_workspace;
