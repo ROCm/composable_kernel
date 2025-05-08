@@ -435,7 +435,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     using GemmBDataType = std::conditional_t<!isMultiB && isMultiA, Tuple<BDataType>, BDataType>;
 
 #define GridwiseGemmMultiABDTemplateParameters                                                  \
-    GemmADataType, GemmBDataType, ComputeDataType, AccDataType, CShuffleDataType, DsDataType,   \
+    GemmADataType, GemmBDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType,  \
         EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,       \
         InMemoryDataOperationEnum::Set, NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, \
         KPerBlock, AK1, BK1, MPerXDL, NPerXDL, MXdlPerWave, NXdlPerWave,                        \
@@ -448,7 +448,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                           \
         CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,                           \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                       \
-        CDEBlockTransferScalarPerVector_NPerBlock, LoopSched
+        CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,              \
+        BComputeDataType
 
 #define GridwiseGemmTemplateParameters                                                         \
     GemmADataType, GemmBDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType, \
