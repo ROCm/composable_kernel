@@ -116,7 +116,7 @@ def getDockerImage(Map conf=[:]){
     def retimage
     try 
     {
-        echo "Pulling down image: ${image}"
+        echo "Pulling image: ${image}"
         retimage = docker.image("${image}")
         withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
             retimage.pull()
@@ -335,8 +335,8 @@ def cmake_build(Map conf=[:]){
         }
     }
 
-    // Only archive from master or develop
-    if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
+    // Only archive from develop
+    if (package_build == true && env.BRANCH_NAME == "develop") {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
     //check the node gpu architecture
@@ -539,13 +539,16 @@ def Build_CK(Map conf=[:]){
                             """
                     }
                     dir("build"){
-                        if (params.RUN_FULL_QA && arch_type == 1 ){
+                        if (params.RUN_FULL_QA && arch_type == 2 ){
                             // build deb packages for all gfx9 targets on gfx90a system and prepare to export
                             echo "Build ckProfiler package"
                             sh 'make -j package'
-                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
-                            sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
-                            stash includes: "ckprofiler_0.2.0_amd64.deb", name: "ckprofiler_0.2.0_amd64.deb"
+                            archiveArtifacts artifacts: 'composablekernel*.deb'
+                            sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-examples_*.deb composablekernel-examples_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-tests_*.deb composablekernel-tests_1.1.0_amd64.deb'
+                            stash includes: "composablekernel-**.deb", name: "packages"
                         }
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
@@ -654,7 +657,8 @@ def Build_CK_and_Reboot(Map conf=[:]){
 def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
-    def image = getDockerImageName() 
+    //use older image that has user jenkins
+    def image = "rocm/composable_kernel:ck_ub22.04_rocm6.3"
     def prefixpath = "/opt/rocm"
 
     // Jenkins is complaining about the render group 
@@ -667,12 +671,17 @@ def process_results(Map conf=[:]){
     def retimage
 
     gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
-        try {
-            (retimage, image) = getDockerImage(conf)
+        try
+        {
+            echo "Pulling image: ${image}"
+            retimage = docker.image("${image}")
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+                retimage.pull()
+            }
         }
-        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-            echo "The job was cancelled or aborted"
-            throw e
+        catch(Exception ex)
+        {
+            error "Unable to locate image: ${image}"
         }
     }
 
@@ -700,9 +709,14 @@ def process_results(Map conf=[:]){
                     }
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
-                        unstash "ckprofiler_0.2.0_amd64.deb"
-                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
-                        unstash "perf_log"
+                        unstash "packages"
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
+                        try{
+                            unstash "perf_log"
+                        }
+                        catch(Exception err){
+                            echo "could not locate perf_log: ${err.getMessage()}."
+                        }
                         try{
                             unstash "perf_log_gfx11"
                             unstash "perf_log_gfx12"
@@ -1114,11 +1128,11 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install \
-                                         -DGPU_TARGETS="gfx90a;gfx942" \
+                                         -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx90a;gfx942" \
+                                           -DGPU_TARGETS="gfx942" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
