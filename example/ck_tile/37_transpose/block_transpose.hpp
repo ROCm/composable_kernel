@@ -54,8 +54,8 @@ struct TransposePipelineProblem
     static constexpr index_t kSecondSizePerXdl =
         TransposeTraits<Layout, kRowPerXdl_, kColPerXdl_>::kSecondDim;
 
-    static constexpr index_t kQuadrantLeadDim   = QuartTransposeTraits<DataType>::kleadDim;
-    static constexpr index_t kQuadrantSecondDim = QuartTransposeTraits<DataType>::ksecondDim;
+    static constexpr index_t kQuadrantLeadDim   = LaneGroupTransposeTraits<DataType>::kleadDim;
+    static constexpr index_t kQuadrantSecondDim = LaneGroupTransposeTraits<DataType>::ksecondDim;
 
     static_assert(kLeadSizePerBlock % kLeadNumWarps == 0,
                   "block dim should be divided by warp dim!");

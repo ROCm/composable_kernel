@@ -8,10 +8,10 @@
 namespace ck_tile {
 
 template <typename T, typename = void>
-struct QuartTransposeTraits;
+struct LaneGroupTransposeTraits;
 
 template <typename T>
-struct QuartTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
+struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
 {
     // before transpose, 4x16
     static constexpr index_t ksecondDim = 4;
@@ -22,7 +22,7 @@ struct QuartTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
 };
 
 template <typename T>
-struct QuartTransposeTraits<T, std::enable_if_t<sizeof(T) == 1>>
+struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 1>>
 {
     static constexpr index_t ksecondDim = 8;
     static constexpr index_t kleadDim   = 16;
@@ -139,9 +139,9 @@ struct TransposePolicy
         constexpr index_t kLead   = Problem::kLeadSizePerXdl;
         constexpr index_t kSecond = Problem::kSecondSizePerXdl;
         constexpr index_t kLeadDimstr =
-            kLead / QuartTransposeTraits<typename Problem::DataType>::kleadDim;
+            kLead / LaneGroupTransposeTraits<typename Problem::DataType>::kleadDim;
         constexpr index_t kSecondDimstr =
-            kSecond / QuartTransposeTraits<typename Problem::DataType>::ksecondDim;
+            kSecond / LaneGroupTransposeTraits<typename Problem::DataType>::ksecondDim;
         constexpr index_t kSecondDimIterations = Problem::kIterationsInSecondDim;
         constexpr index_t kSecondDimStrSub     = kSecondDimstr / kSecondDimIterations;
         constexpr auto xdllevel_dstr_encoding =

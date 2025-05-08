@@ -42,10 +42,10 @@ constexpr bool is_sequence_suffix_v = is_sequence_suffix<Suffix, Sequence>::valu
 } // namespace util
 
 template <typename T, typename = void>
-struct valid_quad_tile_dstr_encode_for_transpose;
+struct valid_lanegroup_tile_dstr_encode_for_transpose;
 
 template <typename T>
-struct valid_quad_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) == 2>>
+struct valid_lanegroup_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) == 2>>
 {
     using TileDistrEncode = tile_distribution_encoding<sequence<>,
                                                        tuple<sequence<4>, sequence<4, 4>>,
@@ -63,7 +63,7 @@ struct valid_quad_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) =
 };
 
 template <typename T>
-struct valid_quad_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) == 1>>
+struct valid_lanegroup_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) == 1>>
 {
     using TileDistrEncode = tile_distribution_encoding<sequence<>,
                                                        tuple<sequence<8>, sequence<2, 8>>,
@@ -88,7 +88,7 @@ struct TransposeTileDistrChecker
     static constexpr auto input_hs_lengthss = InDstrEncode::hs_lengthss_;
 
     using ValidQuadDstrEncode =
-        typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
+        typename valid_lanegroup_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
 
     static constexpr auto quad_hs_lengthss = ValidQuadDstrEncode::hs_lengthss_;
 
@@ -158,9 +158,9 @@ struct OutputTileDistributionTraits
     using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
     static constexpr auto input_hs_lengthss = InDstrEncode::hs_lengthss_;
     using ValidQuadDstrEncode =
-        typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
-    using ValidOutQuadDstrEncode =
-        typename valid_quad_tile_dstr_encode_for_transpose<DataType_>::TransposedTileDistrEncode;
+        typename valid_lanegroup_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
+    using ValidOutQuadDstrEncode = typename valid_lanegroup_tile_dstr_encode_for_transpose<
+        DataType_>::TransposedTileDistrEncode;
 
     static constexpr auto quad_input_hs_lengthss  = ValidQuadDstrEncode::hs_lengthss_;
     static constexpr auto quad_output_hs_lengthss = ValidOutQuadDstrEncode::hs_lengthss_;
