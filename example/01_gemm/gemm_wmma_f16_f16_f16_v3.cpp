@@ -5,22 +5,21 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma_cshuffle_v3.hpp.hpp"
 
-using F8   = f8_t;
-using BF16 = bhalf_t;
-using F32  = float;
+using F16 = half_t;
+using F32 = float;
 
 using Row = tensor_layout::gemm::RowMajor;
 using Col = tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = element_wise::PassThrough;
 
-using ADataType        = F8;
-using BDataType        = F8;
+using ADataType        = F16;
+using BDataType        = F16;
 using AccDataType      = F32;
-using CShuffleDataType = BF16;
-using CDataType        = BF16;
+using CShuffleDataType = F16;
+using CDataType        = F16;
 
-using ALayout = Row;
+using ALayout = Col;
 using BLayout = Row;
 using CLayout = Row;
 
@@ -35,16 +34,16 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffl
         ALayout,   BLayout,  CLayout,   
         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmSpec, 
-        32,
-        16, 16, 
+        128,
+        128, 64, 
         64, 8, 8,
         16,   16,
-        1,    1, 
-        S<2, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
-        2, 8, 8, 1, 
-        S<2, 16, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
-        1,  1,  4,  0,  1,  1,
-        S<1, 16, 1, 2>,   8,
+        4,    2, 
+        S<4, 32, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
+        1, 1, 8, 1, 
+        S<4, 32, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
+        1,  1,  8,  1,  1,  1,
+        S<1, 32, 1, 4>,   8,
         ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
 // clang-format on
 
