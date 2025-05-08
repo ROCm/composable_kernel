@@ -157,7 +157,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
     //> How many mx-vectors in each row/col is processed in one call to xdlops_gemm.Run()
     static constexpr auto ScalesPerXdlopsRun =
-        (KPack * 2 * xdlops_gemm.K0PerXdlops) / ScaleBlockSize;
+        (KPack * xdlops_gemm.K0PerXdlops) / ScaleBlockSize;
 
     //> How many scales a thread must read to accommodate one call to xdlops_gemm.Run()
     static constexpr auto ScalesPerXdlopsRunPerThread =
@@ -545,8 +545,11 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
+#if 0
             auto tmp_offset = get_thread_local_1d_id() * 16;
             printf("b_block_buf +%d "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
                    "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
                    "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
                    "\n",
@@ -566,12 +569,28 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                    reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 12],
                    reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 13],
                    reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 14],
-                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 15]);
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 15],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+0],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+1],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+2],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+3],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+4],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+5],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+6],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+7],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+8],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+9],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+10],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+11],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+12],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+13],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+14],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+15]);
             printf("TID%03d b_thread_buf (%d): "
                    "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
                    "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
-                   //    "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
-                   //    "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
                    "\n",
                    get_thread_local_1d_id(),
                    static_cast<int>(b_thread_buf.Size()),
@@ -590,32 +609,33 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<12>{}]),
                    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<13>{}]),
                    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<14>{}]),
-                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<15>{}])
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<16>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<17>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<18>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<19>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<20>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<21>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<22>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<23>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<24>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<25>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<26>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<27>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<28>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<29>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<30>{}]),
-                   //    *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<31>{}])
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<15>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<16>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<17>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<18>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<19>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<20>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<21>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<22>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<23>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<24>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<25>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<26>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<27>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<28>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<29>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<30>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<31>{}])
             );
 
             printf("TID%03d b_scale_thread_buf (%d): "
-                   "0x%02x"
+                   "0x%02x 0x%02x"
                    "\n",
                    get_thread_local_1d_id(),
                    static_cast<int>(b_scale_thread_buf.Size()),
-                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_buf[Number<0>{}]));
-
+                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_buf[Number<0>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_buf[Number<1>{}]));
+#endif
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
@@ -666,16 +686,21 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
-
+#if 0
             printf("TID%03d c_thread_buf (%d): "
-                   "%08.4f %08.4f %08.4f %08.4f "
+                   "%08.4f %08.4f %08.4f %08.4f %08.4f %08.4f %08.4f %08.4f "
                    "\n",
                    get_thread_local_1d_id(),
                    static_cast<int>(c_thread_buf.Size()),
                    *reinterpret_cast<const float*>(&c_thread_buf[Number<0>{}]),
                    *reinterpret_cast<const float*>(&c_thread_buf[Number<1>{}]),
                    *reinterpret_cast<const float*>(&c_thread_buf[Number<2>{}]),
-                   *reinterpret_cast<const float*>(&c_thread_buf[Number<3>{}]));
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<3>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<4>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<5>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<6>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<7>{}]));
+#endif
         }
     }
 

@@ -297,9 +297,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     src_vector_container src_vector =
                         src_vector_container{src_buf.template Get<src_vector_container_t>(
                             src_coord_.GetOffset() / PackedSize + LoadOffset, true)};
-                    printf("TID%03d src_coord_.GetOffset() / PackedSize + LoadOffset = %d\n",
-                           get_thread_local_1d_id(),
-                           src_coord_.GetOffset() / PackedSize + LoadOffset);
+                    // printf("TID%03d src_coord_.GetOffset() / PackedSize + LoadOffset = %d\n",
+                    //        get_thread_local_1d_id(),
+                    //        src_coord_.GetOffset() / PackedSize + LoadOffset);
 
                     static_for<0, VectorLoadSize / elem_op_vec_len, 1>{}([&](auto idx) {
                         // apply the src elementwise op and convert to DstData under the hood if
@@ -341,6 +341,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             //         ck::Sequence<5, 6, 7>,
             //         ck::integral_constant<long, 16>>,
             //     true>;
+#if 0
             auto data_print = src_thread_scratch_tuple_(thread_scratch_id).data_;
             printf("TID%03d src_thread_scratch_tuple_(thread_scratch_id).data_ (%dx%d): "
                    "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
@@ -384,6 +385,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                    // *reinterpret_cast<const uint8_t*>(&data_print[Number<30>{}]),
                    // *reinterpret_cast<const uint8_t*>(&data_print[Number<31>{}])
             );
+#endif
 
             constexpr auto move_on_dim = [&]() constexpr
             {

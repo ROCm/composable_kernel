@@ -84,7 +84,7 @@ struct ReferenceMXGemm : public device::BaseOperator
             const ck::index_t SCALE_BLOCK = K / arg.a_m_kblock_scales_.mDesc.GetLengths()[1];
             Tensor<ComputeTypeA> a_m_k_scaled(HostTensorDescriptor({M, K}, {K, 1}));
             Tensor<ComputeTypeB> b_k_n_scaled(HostTensorDescriptor({K, N}, {1, K}));
-            printf("K: %d\n", K);
+            // printf("K: %d\n", K);
 
             for(size_t m = 0; m < M; m++)
             {
@@ -102,7 +102,7 @@ struct ReferenceMXGemm : public device::BaseOperator
 
                         a_m_k_scaled(m, k) = type_convert<ComputeTypeA>(a_f4_lo) * a_scale;
                         a_m_k_scaled(m, k+1) = type_convert<ComputeTypeA>(a_f4_hi) * a_scale;
-                        if(m==0)
+                        if(m==0 && 0)
                         {
                             printf("a_m_k_scaled(%zu, %zu): %f, %f\n",
                                    m,
@@ -136,7 +136,7 @@ struct ReferenceMXGemm : public device::BaseOperator
                         auto b_f4_hi = f4_t(b_pack.template unpack<>(Number<1>{}));
                         b_k_n_scaled(k, n) = type_convert<ComputeTypeB>(b_f4_lo) * b_scale;
                         b_k_n_scaled(k+1, n) = type_convert<ComputeTypeB>(b_f4_hi) * b_scale;
-                        if(n==0)
+                        if(n==0 && 0)
                         {
                             printf("b_k_n(%zu, %zu): %2x\n",
                                    n,

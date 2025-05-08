@@ -1077,8 +1077,8 @@ struct ThreadwiseTensorSliceTransfer_v4
                         const DstOriginIdx&,
                         DstBuffer& dst_buf) const
     {
-        if(get_thread_local_1d_id() < 4)
-            printf("TID%03d %s:%d\n", get_thread_local_1d_id(), __FILE__, __LINE__);
+        // if(get_thread_local_1d_id() < 4)
+        //     printf("TID%03d %s:%d\n", get_thread_local_1d_id(), __FILE__, __LINE__);
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
 
@@ -1175,9 +1175,9 @@ struct ThreadwiseTensorSliceTransfer_v4
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
                                                        is_src_valid);
-                printf("TID%03d GetOffset() / PackedSize = %d\n",
-                       get_thread_local_1d_id(),
-                       src_data_coord.GetOffset() / PackedSize);
+                // printf("TID%03d GetOffset() / PackedSize = %d\n",
+                //        get_thread_local_1d_id(),
+                //        src_data_coord.GetOffset() / PackedSize);
             }
             else if constexpr(SrcBuffer::IsStaticBuffer())
             {

@@ -1448,7 +1448,7 @@ struct XdlopsGemm
                         const ScaleB& b_scale_thread,
                         FloatC& p_c_thread) const
     {
-        static_for<0, KPack * 2 / mfma_instr.k_per_blk, 1>{}([&](auto k) {
+        static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
             if constexpr(!TransposeC)
             {
                 mfma_instr.template run<MPerXdlops, NPerXdlops>(
