@@ -16,6 +16,12 @@ struct LaneGroupTransposeTraits;
 template <typename T>
 struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
 {
+    // before transpose, 4x16
+    static constexpr index_t ksecondDim = 4;
+    static constexpr index_t kleadDim   = 16;
+    // after transpose, 16x4
+    static constexpr index_t ksecondDimT = 16;
+    static constexpr index_t kleadDimT   = 4;
     template <index_t kOuterDistDim0,
               index_t kOuterDistDim1,
               index_t kInnerDistDim0,
@@ -33,6 +39,11 @@ struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
 template <typename T>
 struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 1>>
 {
+    static constexpr index_t ksecondDim = 8;
+    static constexpr index_t kleadDim   = 16;
+
+    static constexpr index_t ksecondDimT = 16;
+    static constexpr index_t kleadDimT   = 8;
     template <index_t kOuterDistDim0,
               index_t kOuterDistDim1,
               index_t kInnerDistDim0,

@@ -7,30 +7,6 @@
 
 namespace ck_tile {
 
-template <typename T, typename = void>
-struct LaneGroupTransposeTraits;
-
-template <typename T>
-struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
-{
-    // before transpose, 4x16
-    static constexpr index_t ksecondDim = 4;
-    static constexpr index_t kleadDim   = 16;
-    // after transpose, 16x4
-    static constexpr index_t ksecondDimT = 16;
-    static constexpr index_t kleadDimT   = 4;
-};
-
-template <typename T>
-struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 1>>
-{
-    static constexpr index_t ksecondDim = 8;
-    static constexpr index_t kleadDim   = 16;
-
-    static constexpr index_t ksecondDimT = 16;
-    static constexpr index_t kleadDimT   = 8;
-};
-
 struct TransposePolicy
 {
     static constexpr auto TileAccessPattern = tile_distribution_pattern::thread_raked;
