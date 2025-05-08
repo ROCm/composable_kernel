@@ -9,3 +9,5 @@ add_example_dependencies(example_gemm_mx example_gemm_mx_bf8)
 add_example_executable(example_gemm_mx_fp8_bf8 gemm_mx_fp8_bf8.cpp)
 add_example_dependencies(example_gemm_mx example_gemm_mx_fp8_bf8)
 
+add_example_executable(example_gemm_mx_fp8_bpreshuffle gemm_mx_fp8_bpreshuffle.cpp)
+add_example_dependencies(example_gemm_mx example_gemm_mx_fp8_bpreshuffle)
