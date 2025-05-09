@@ -197,8 +197,6 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 else
                 {
 
-                    // if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
-                    //              StreamKReductionStrategy::Atomic)
                     if(arg.reduction_strategy == StreamKReductionStrategy::Atomic)
                     {
                         ave_time = launch_and_time_kernel(
