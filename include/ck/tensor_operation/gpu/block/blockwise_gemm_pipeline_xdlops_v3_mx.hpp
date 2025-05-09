@@ -170,8 +170,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
     __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
-        ignore = num_loop;
-        return TailNumber::Full;
+        return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
 
     __device__ static constexpr auto HotLoopScheduler()
