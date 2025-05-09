@@ -58,6 +58,18 @@ struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 1>>
                                    sequence<1, 1, 3>>;
 };
 
+/*
+ * @brief This function is used to generate the transposed distribution encoding
+ *        for the given data type and distribution dimensions.
+ *
+ * @tparam T The data type of the elements in the tensor.
+ * @tparam kOuterDistDim0 The outer distribution dimension 0, which is outer dimension for stride.
+ * @tparam kOuterDistDim1 The outer distribution dimension 1, which is inner dimension for stride.
+ * @tparam kInnerDistDim0 The inner distribution dimension 0, which is outer dimension for
+ * consecutive.
+ * @tparam kInnerDistDim1 The inner distribution dimension 1, which is inner dimension for
+ * consecutive.
+ */
 template <typename T,
           index_t kOuterDistDim0,
           index_t kOuterDistDim1,
