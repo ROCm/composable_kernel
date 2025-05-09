@@ -562,7 +562,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         index_t StrideC;
         index_t Streamk_sel;
         mutable index_t Grid_size;
-        StreamKReductionStrategy reduction_strategy; // Added member variable
+        StreamKReductionStrategy reduction_strategy;
         index_t MPadded;
         index_t NPadded;
         index_t KRead;
