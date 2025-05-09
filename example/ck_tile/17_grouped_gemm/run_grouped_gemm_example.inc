@@ -40,10 +40,53 @@ float invoke_gemm(int n_warmup,
     ck_tile::DeviceMem gemm_workspace;
     gemm_workspace.Realloc(get_workspace_size(args));
 
-    float ave_time = grouped_gemm<ALayout, BLayout, CLayout, Persistent>(
-        args,
-        ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
-        gemm_workspace.GetDeviceBuffer());
+    float ave_time = 0;
+    if constexpr(!Persistent)
+    {
+        // Regular version of grouped gemm
+        ave_time = grouped_gemm<ALayout, BLayout, CLayout>(
+            args,
+            ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
+            gemm_workspace.GetDeviceBuffer());
+    }
+    else
+    {
+        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
+        // the gemm problems known on the host. Instead, we can just pass the pointer 
+        // to the kernel and let the workgroups figure out which tiles to work on.
+        // This is useful when the gemm problems are generated dynamically.
+        // In this example however, we generate the `kargs` using the known gemm_descs,
+        // and copy the gemm descriptions to the device memory.
+        // The contents of the memory pointed to by `kargs_ptr` pointer could be
+        // written by e.g. another kernel from earlier stage.
+        std::vector<ck_tile::GemmTransKernelArg> kargs;
+        void* kargs_ptr      = gemm_workspace.GetDeviceBuffer();
+        const bool splitk    = args[0].k_batch > 1;
+        for (const auto& arg : args)
+        {
+            kargs.emplace_back(ck_tile::GemmKernelArgs{arg.a_ptr, 
+                    arg.b_ptr, 
+                    arg.c_ptr, 
+                    arg.M, 
+                    arg.N, 
+                    arg.K, 
+                    arg.stride_A, 
+                    arg.stride_B, 
+                    arg.stride_C, 
+                    arg.k_batch});
+        }
+        const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
+        ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
+            kargs.data(),
+            kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
+            hipMemcpyHostToDevice,
+            stream.stream_id_));
+        ave_time = grouped_gemm_tileloop<ALayout, BLayout, CLayout>(
+            stream,
+            group_count,
+            kargs_ptr,
+            splitk);
+    }
 
     std::string op_name{"Grouped Gemm"};
 
@@ -151,8 +194,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
                   << " a_m_k: " << a_m_k_tensors[i].mDesc << " b_k_n: " << b_k_n_tensors[i].mDesc
                   << " c_m_n: " << c_m_n_tensors[i].mDesc << std::endl;
 
-        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tensors[i]);
-        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors[i]);
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
+        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
 
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
             a_m_k_tensors[i].get_element_space_size_in_bytes()));
@@ -210,6 +253,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     return pass;
 }
 
+template <bool Persistent>
 int run_grouped_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -220,26 +264,25 @@ int run_grouped_gemm_example(int argc, char* argv[])
 
     const std::string a_layout = arg_parser.get_str("a_layout");
     const std::string b_layout = arg_parser.get_str("b_layout");
-    const bool persistent      = arg_parser.get_bool("persistent");
 
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if(a_layout == "R" && b_layout == "C" && persistent)
+    if(a_layout == "R" && b_layout == "C")
     {
-        return run_grouped_gemm_example_with_layouts<true>(argc, argv, Row{}, Col{}, Row{});
+        return run_grouped_gemm_example_with_layouts<Persistent>(argc, argv, Row{}, Col{}, Row{});
     }
-    else if(a_layout == "R" && b_layout == "C" && !persistent)
+    else if(a_layout == "R" && b_layout == "R")
     {
-        return run_grouped_gemm_example_with_layouts<false>(argc, argv, Row{}, Col{}, Row{});
+        return run_grouped_gemm_example_with_layouts<Persistent>(argc, argv, Row{}, Row{}, Row{});
     }
-    else if(a_layout == "R" && b_layout == "R" && persistent)
+    else if(a_layout == "C" && b_layout == "R")
     {
-        return run_grouped_gemm_example_with_layouts<true>(argc, argv, Row{}, Row{}, Row{});
+        return run_grouped_gemm_example_with_layouts<Persistent>(argc, argv, Col{}, Row{}, Row{});
     }
-    else if(a_layout == "R" && b_layout == "R" && !persistent)
+    else if(a_layout == "C" && b_layout == "C")
     {
-        return run_grouped_gemm_example_with_layouts<false>(argc, argv, Row{}, Row{}, Row{});
+        return run_grouped_gemm_example_with_layouts<Persistent>(argc, argv, Col{}, Col{}, Row{});
     }
     else
     {

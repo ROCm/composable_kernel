@@ -16,12 +16,8 @@
 #include "ck_tile/host.hpp"
 #include "grouped_gemm.hpp"
 
-std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
-{
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
-}
 
-template <typename ALayout, typename BLayout, typename CLayout, bool PersistentKernel>
+template <typename ALayout, typename BLayout, typename CLayout>
 float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
                    void* p_workspace_)
@@ -100,9 +96,7 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                                  ALayout,
                                                                  BLayout,
                                                                  CLayout,
-                                                                 TransposeC,
-                                                                 false,
-                                                                 PersistentKernel>;
+                                                                 TransposeC>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -150,33 +144,14 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            // NOTE: With the persistent kernel, we do not necessarily need to have `gemm_descs`
-            // known on the host. Instead, we can just pass the workspace pointer to the kernel and
-            // let the workgroups figure out which tiles to work on from the workspace.
-            // In this example however, we generate the `kargs` using the known gemm_descs,
-            // and copy the gemm descriptions to the device memory similarly to non-persistent
-            // case. The contents of the memory pointed to by `p_workspace` pointer could be
-            // written by e.g. another kernel.
             auto kargs = Kernel::MakeKargs(gemm_descs);
             if(!Kernel::IsSupportedArgument(kargs))
             {
-                throw std::runtime_error("Kernel arguments not supported!")
+                throw std::runtime_error("Kernel arguments not supported!");
             }
 
             constexpr dim3 blocks = Kernel::BlockSize();
-            dim3 grids;
-            if constexpr(PersistentKernel)
-            {
-                // With persistent kernel, we do not necessarily know how many workgroups should be
-                // launched, so we launch as many as needed to fully occupy the GPU.
-                grids = Kernel::MaxOccupancyGridSize();
-            }
-            else
-            {
-                // Non-persistent kernel, in which each tile is assigned its own workgroup. We need
-                // to know `gemm_descs` on the host.
-                grids = Kernel::GridSize(gemm_descs);
-            }
+            const dim3 grids = Kernel::GridSize(gemm_descs);
 
             ck_tile::hip_check_error(hipMemcpyWithStream(p_workspace_,
                                                          kargs.data(),
@@ -345,4 +320,5 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
 #include "run_grouped_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_grouped_gemm_example(argc, argv); }
+constexpr bool Persistent = false;
+int main(int argc, char* argv[]) { return !run_grouped_gemm_example<Persistent>(argc, argv); }
