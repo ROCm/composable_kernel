@@ -84,7 +84,7 @@ TEST(MFMA, FP4MFMA16x16x128)
             AB_init);
     EXPECT_TRUE(pass);
 }
-
+#if 1
 TEST(MFMA, FP6MFMA16x16x128)
 {
     using ALayout = ck::tensor_layout::gemm::RowMajor;
@@ -97,6 +97,7 @@ TEST(MFMA, FP6MFMA16x16x128)
             AB_init);
     EXPECT_TRUE(pass);
 }
+#endif
 
 #if 0
 TEST(MFMA, FP8MFMA32x32x64)

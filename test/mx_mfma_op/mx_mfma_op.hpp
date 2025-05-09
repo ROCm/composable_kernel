@@ -270,12 +270,28 @@ __device__ AFragT load_A_row_major(AType const* input_ptr)
     // Reg 3 [8:15]      |     K26K27 |     K58K59  |     K90K91 |    K122K123 |  v[13]    ||    Reg 3 [8:15]      |     K26K27 |     K58K59  |  v[13] |
     // Reg 3 [16:23]     |     K28K29 |     K60K61  |     K92K93 |    K124K125 |  v[14]    ||    Reg 3 [16:23]     |     K28K29 |     K60K61  |  v[14] |
     // Reg 3 [24:31]     |     K30K31 |     K62K63  |     K94K95 |    K126K127 |  v[15]    ||    Reg 3 [24:31]     |     K30K31 |     K62K63  |  v[15] |
+
+
+    // Register Mapping for 16x128 for FP6:                                                ||    Register Mapping for 32x64 for FP6:
+    // Size              |   BLOCK_M  |   BLOCK_M   |   BLOCK_M  |   BLOCK_M   |           ||    Size              |   BLOCK_M  |   BLOCK_M   |        |
+    // M                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    M                 | 0  ...  31 |  0  ...  31 | Vector |
+    // Thread Id         | 0  ...  15 | 16  ...  31 | 32  ... 47 | 48  ...  63 | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|
+    // Register Element  |------------|-------------|------------|-------------|-----------||    Register Element  |------------|-------------|--------|
+    // Reg 0-2 [0:95]    | K =  0-15  |  K = 32-47  |  K = 64-79 | K = 96-111  |  v[0]     ||    Reg 0-2 [0:95]    | K =  0-15  |  K = 32-47  |  v[0]  |
+    // Reg 3-5 [0:95]    | K = 16-31  |  K = 48-63  |  K = 80-95 | K = 112-127 |  v[0]     ||    Reg 3-5 [0:95]    | K = 16-31  |  K = 48-63  |  v[0]  |
+
     // clang-format on
 
     static constexpr int32_t WAVE_SIZE = 64;
 
+    // FP8 chunk_size = 16, num_chunks = 2, packed_size = 1
+    // FP4 chunk_size = 32, num_chunks = 1, packed_size = 2
+    // FP6 chunk_size = 32, num_chunks = 1, packed_size = 32
+
+    constexpr index_t num_chunks = is_packed_type_v<AType> ? 1 : 2;
+
     // Here we want to load from rows of A in chunks of 16 elements each.
-    static constexpr uint32_t chunk_size = 16;
+    constexpr uint32_t chunk_size = is_packed_type_v<AType> ? 32 : 16;
 
     // each chunk is separated by offset
     static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_M;
@@ -283,9 +299,10 @@ __device__ AFragT load_A_row_major(AType const* input_ptr)
     // To start the loading process, let's visualize in 2D coords.
     // Each thread will load 32 elements.
     // We need to know where they start, and where the next elements are.
-    auto startCoord2D =
-        std::make_pair(threadIdx.x % BLOCK_M,                 // Row {0-31}  |  {0-15}
-                       (threadIdx.x / BLOCK_M) * chunk_size); // Col {0, 16} |  {0, 16, 32, 48}
+    // FP8/6/4 Row {0-31}  |  {0-15}
+    // FP8     Col {0, 16} |  {0, 16, 32, 48}
+    // FP6/4   Col {0, 32} |  {0, 32, 64, 96}
+    auto startCoord2D = std::make_pair(threadIdx.x % BLOCK_M, (threadIdx.x / BLOCK_M) * chunk_size);
 
     // auto minorStepCoord2D = std::make_pair(0u, 1u);          // read rows
     auto majorStepCoord2D = std::make_pair(0, chunk_offset); // read a chunk from a row
@@ -293,20 +310,11 @@ __device__ AFragT load_A_row_major(AType const* input_ptr)
     // Flatten to 1D row_major offsets.
     auto row_major = [](auto const& coord, auto ld) { return coord.first * ld + coord.second; };
 
-    // BLOCK_K is a stride in A matrix
-    auto startOffset = row_major(
-        startCoord2D, BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1));
-    // auto kMinorOffset = row_major(minorStepCoord2D, BLOCK_K /
-    // (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1));
-    auto kMajorOffset =
-        row_major(majorStepCoord2D,
-                  BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1));
+    using ARawT = typename scalar_type<AFragT>::type;
+    CK_PRINT<AFragT, ARawT>();
 
-    using ARawT        = typename scalar_type<AFragT>::type;
-    using AScalarFragT = vector_type<ARawT, chunk_size>::type;
-
-    constexpr index_t num_chunks =
-        (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 1 : 2);
+    using AScalarFragT = vector_type<ARawT, chunk_size / packed_size_v<AType>>::type;
+    CK_PRINT<AScalarFragT>();
 
     union
     {
@@ -315,6 +323,10 @@ __device__ AFragT load_A_row_major(AType const* input_ptr)
     } fragA{};
 
     const AScalarFragT* fragPtr;
+
+    // BLOCK_K is a stride in A matrix
+    auto startOffset  = row_major(startCoord2D, BLOCK_K) / packed_size_v<AType>;
+    auto kMajorOffset = row_major(majorStepCoord2D, BLOCK_K) / packed_size_v<AType>;
 
     for(index_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++)
     {
