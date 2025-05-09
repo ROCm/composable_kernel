@@ -149,8 +149,6 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
 
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
-            // if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
-            //              StreamKReductionStrategy::Atomic)
             if(arg.reduction_strategy == StreamKReductionStrategy::Atomic)
             {
 
