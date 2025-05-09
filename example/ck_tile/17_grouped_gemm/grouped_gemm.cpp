@@ -16,7 +16,6 @@
 #include "ck_tile/host.hpp"
 #include "grouped_gemm.hpp"
 
-
 template <typename ALayout, typename BLayout, typename CLayout>
 float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
@@ -144,14 +143,14 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs = Kernel::MakeKargs(gemm_descs);
+            auto kargs   = Kernel::MakeKargs(gemm_descs);
             if(!Kernel::IsSupportedArgument(kargs))
             {
                 throw std::runtime_error("Kernel arguments not supported!");
             }
 
             constexpr dim3 blocks = Kernel::BlockSize();
-            const dim3 grids = Kernel::GridSize(gemm_descs);
+            const dim3 grids      = Kernel::GridSize(gemm_descs);
 
             ck_tile::hip_check_error(hipMemcpyWithStream(p_workspace_,
                                                          kargs.data(),

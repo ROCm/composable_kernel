@@ -91,4 +91,4 @@ template <typename ALayout, typename BLayout, typename CLayout>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* p_workspace_,
-                            bool splitk=false);
+                            bool splitk = false);

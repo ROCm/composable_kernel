@@ -52,7 +52,7 @@ float invoke_gemm(int n_warmup,
     else
     {
         // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
-        // the gemm problems known on the host. Instead, we can just pass the pointer 
+        // the gemm problems known on the host. Instead, we can just pass the pointer
         // to the kernel and let the workgroups figure out which tiles to work on.
         // This is useful when the gemm problems are generated dynamically.
         // In this example however, we generate the `kargs` using the known gemm_descs,
@@ -60,32 +60,30 @@ float invoke_gemm(int n_warmup,
         // The contents of the memory pointed to by `kargs_ptr` pointer could be
         // written by e.g. another kernel from earlier stage.
         std::vector<ck_tile::GemmTransKernelArg> kargs;
-        void* kargs_ptr      = gemm_workspace.GetDeviceBuffer();
-        const bool splitk    = args[0].k_batch > 1;
-        for (const auto& arg : args)
+        void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
+        const bool splitk = args[0].k_batch > 1;
+        for(const auto& arg : args)
         {
-            kargs.emplace_back(ck_tile::GemmKernelArgs{arg.a_ptr, 
-                    arg.b_ptr, 
-                    arg.c_ptr, 
-                    arg.M, 
-                    arg.N, 
-                    arg.K, 
-                    arg.stride_A, 
-                    arg.stride_B, 
-                    arg.stride_C, 
-                    arg.k_batch});
+            kargs.emplace_back(ck_tile::GemmKernelArgs{arg.a_ptr,
+                                                       arg.b_ptr,
+                                                       arg.c_ptr,
+                                                       arg.M,
+                                                       arg.N,
+                                                       arg.K,
+                                                       arg.stride_A,
+                                                       arg.stride_B,
+                                                       arg.stride_C,
+                                                       arg.k_batch});
         }
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
-        ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
-            kargs.data(),
-            kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
-            hipMemcpyHostToDevice,
-            stream.stream_id_));
+        ck_tile::hip_check_error(
+            hipMemcpyWithStream(kargs_ptr,
+                                kargs.data(),
+                                kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
+                                hipMemcpyHostToDevice,
+                                stream.stream_id_));
         ave_time = grouped_gemm_tileloop<ALayout, BLayout, CLayout>(
-            stream,
-            group_count,
-            kargs_ptr,
-            splitk);
+            stream, group_count, kargs_ptr, splitk);
     }
 
     std::string op_name{"Grouped Gemm"};

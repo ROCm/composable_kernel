@@ -26,6 +26,8 @@ struct GemmTransKernelArg
         : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
     {
     }
+
+    GemmTransKernelArg(GemmKernelArgs&& karg) : group_karg{karg}, block_start{0}, block_end{0} {}
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
@@ -227,29 +229,31 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
      */
-    CK_TILE_DEVICE static void RunGemmWithPipelineSelection(
-        const ADataType* a_ptr,
-        const BDataType* b_ptr,
-        CDataType* c_ptr,
-        void* smem_ptr_0,
-        const GemmKernelArgs& kargs,
-        const typename Base::SplitKBatchOffset& splitk_batch_offset,
-        const index_t block_idx_m,
-        const index_t block_idx_n)
+    CK_TILE_DEVICE static void
+    RunGemmWithPipelineSelection(const ADataType* a_ptr,
+                                 const BDataType* b_ptr,
+                                 CDataType* c_ptr,
+                                 void* smem_ptr_0,
+                                 const GemmKernelArgs& kargs,
+                                 const typename Base::SplitKBatchOffset& splitk_batch_offset,
+                                 const index_t block_idx_m,
+                                 const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple = Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-            a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+        const auto& gemm_tensor_views_tuple =
+            Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows     = Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        auto gemm_tile_windows =
+            Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
         const auto& a_block_window = gemm_tile_windows.at(Base::I0);
         const auto& b_block_window = gemm_tile_windows.at(Base::I1);
 
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
-        const bool has_hot_loop            = GemmPipeline::BlockHasHotloop(num_loop);
+        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
         // const auto& c_block_tile = GemmPipeline{}.template operator()(
@@ -258,31 +262,48 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         const auto RunEpilogue = [&](auto& c_block_tile) {
             // Run Epilogue Pipeline
             auto& c_block_window = gemm_tile_windows.at(Base::I2);
-            EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-                c_block_window, c_block_tile, smem_ptr_0);
+            EpiloguePipeline{}
+                .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                    c_block_window, c_block_tile, smem_ptr_0);
         };
 
         if constexpr(is_specialization_of<GemmPipeline, GemmPipelineAgBgCrCompV3>::value)
         {
             // Run the specific implementation with hotloop+tailnum config
-            using PipelineImpl = typename GemmPipeline::template PipelineImpl<GemmPipeline::Scheduler>;
+            using PipelineImpl =
+                typename GemmPipeline::template PipelineImpl<GemmPipeline::Scheduler>;
             const auto PassThrough = [](const auto& a) { return a; };
-            if (has_hot_loop && tail_num == TailNumber::Full)
+            if(has_hot_loop && tail_num == TailNumber::Full)
             {
-                const auto& c_block_tile = PipelineImpl{}.template operator()<true, TailNumber::Full>(
-                    a_block_window, PassThrough, b_block_window, PassThrough, num_loop, smem_ptr_0);
+                const auto& c_block_tile =
+                    PipelineImpl{}.template operator()<true, TailNumber::Full>(a_block_window,
+                                                                               PassThrough,
+                                                                               b_block_window,
+                                                                               PassThrough,
+                                                                               num_loop,
+                                                                               smem_ptr_0);
                 RunEpilogue(c_block_tile);
             }
-            else if (has_hot_loop && tail_num == TailNumber::Odd)
+            else if(has_hot_loop && tail_num == TailNumber::Odd)
             {
-                const auto& c_block_tile = PipelineImpl{}.template operator()<true, TailNumber::Odd>(
-                    a_block_window, PassThrough, b_block_window, PassThrough, num_loop, smem_ptr_0);
+                const auto& c_block_tile =
+                    PipelineImpl{}.template operator()<true, TailNumber::Odd>(a_block_window,
+                                                                              PassThrough,
+                                                                              b_block_window,
+                                                                              PassThrough,
+                                                                              num_loop,
+                                                                              smem_ptr_0);
                 RunEpilogue(c_block_tile);
             }
-            else if (has_hot_loop && tail_num == TailNumber::Even)
+            else if(has_hot_loop && tail_num == TailNumber::Even)
             {
-                const auto& c_block_tile = PipelineImpl{}.template operator()<true, TailNumber::Even>(
-                    a_block_window, PassThrough, b_block_window, PassThrough, num_loop, smem_ptr_0);
+                const auto& c_block_tile =
+                    PipelineImpl{}.template operator()<true, TailNumber::Even>(a_block_window,
+                                                                               PassThrough,
+                                                                               b_block_window,
+                                                                               PassThrough,
+                                                                               num_loop,
+                                                                               smem_ptr_0);
                 RunEpilogue(c_block_tile);
             }
         }
@@ -290,9 +311,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         {
             ignore = a_block_window;
             ignore = b_block_window;
-            static_assert(
-                false,
-                "GemmPipeline specialization not supported!");
+            static_assert(false, "GemmPipeline specialization not supported!");
         }
     }
 

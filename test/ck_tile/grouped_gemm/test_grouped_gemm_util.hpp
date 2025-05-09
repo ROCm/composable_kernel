@@ -150,15 +150,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             auto kargs   = Kernel::MakeKargs(gemm_descs);
             EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
 
-            dim3 grids;
-            if constexpr(Persistent)
-            {
-                grids = Kernel::MaxOccupancyGridSize();
-            }
-            else
-            {
-                grids = Kernel::GridSize(gemm_descs);
-            }
+            const dim3 grids      = Kernel::GridSize(gemm_descs);
             constexpr dim3 blocks = Kernel::BlockSize();
 
             ck_tile::hip_check_error(hipMemcpyWithStream(p_workspace_,
@@ -337,8 +329,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
                       << " b_k_n: " << b_k_n_tensors[i].mDesc
                       << " c_m_n: " << c_m_n_tensors[i].mDesc << " KBatch: " << KBatch << std::endl;
 
-            ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tensors[i]);
-            ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors[i]);
+            ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
+            ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
 
             a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
                 a_m_k_tensors[i].get_element_space_size_in_bytes()));
@@ -364,7 +356,9 @@ class TestCkTileGroupedGemm : public ::testing::Test
         gemm_workspace.Realloc(get_workspace_size(gemm_descs));
 
         invoke_grouped_gemm<ALayout, BLayout, CLayout, Persistent>(
-            gemm_descs, ck_tile::stream_config{nullptr, false}, gemm_workspace.GetDeviceBuffer());
+            gemm_descs,
+            ck_tile::stream_config{nullptr, false, 1},
+            gemm_workspace.GetDeviceBuffer());
 
         for(int i = 0; i < group_count; i++)
         {
