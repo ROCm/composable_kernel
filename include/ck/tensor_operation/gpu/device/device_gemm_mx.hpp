@@ -79,6 +79,8 @@ struct DeviceGemmMX_BPreshuffle : public BaseOperator
                         CElementwiseOperation c_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+
+    virtual int GetPreShuffleParameters() = 0;
 };
 
 } // namespace device

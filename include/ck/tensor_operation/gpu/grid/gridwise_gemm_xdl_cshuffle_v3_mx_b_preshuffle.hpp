@@ -141,7 +141,7 @@ template <typename ALayout,
               BDataType, // TODO: Hardcode them and remove from the list of template parameters
           bool PermuteA = false,
           bool PermuteB = false>
-struct GridwiseGemmMX_xdl_cshuffle_v3
+struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -172,7 +172,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                                   ComputeTypeB,
                                                   is_single_rate_mfma,
                                                   is_scale_mfma>;
-    static constexpr index_t KPack = math::max(lcm_AK1_BK1, mfma_selector::k_per_blk);
+    static constexpr index_t KPack = math::max(lcm_AK1_BK1, mfma_selector::selected_mfma.k_per_blk);
 
     static constexpr index_t KGroup = mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
     static constexpr index_t KLane =
@@ -1227,7 +1227,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             p_b_scale_grid, b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
         const AElementwiseOperation a_element_op{};
-        const BElementwiseOperation b_element_op{};
+        // const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
@@ -1417,7 +1417,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                           "wrong!");
 
             constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-            constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
@@ -1906,7 +1905,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                           "wrong!");
 
             constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-            constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =

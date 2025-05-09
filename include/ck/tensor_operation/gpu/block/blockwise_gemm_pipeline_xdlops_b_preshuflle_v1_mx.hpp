@@ -288,7 +288,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                                             make_tuple(I0, I0),
                                             a_scale_thread_buf_copy);
 
-                    a_scale_thread_bufs[I0](Number<a_scale_offset>{}) =
+                    a_scale_thread_bufs(I0)(Number<a_scale_offset>{}) =
                         a_scale_thread_buf_copy[Number<0>{}];
                     a_scale_thread_copy.MoveSrcSliceWindow(
                         a_scale_grid_desc,
@@ -318,7 +318,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                                             make_tuple(I0, I0),
                                             b_scale_thread_buf_copy);
 
-                    b_scale_thread_bufs[I0](Number<b_scale_offset>{}) =
+                    b_scale_thread_bufs(I0)(Number<b_scale_offset>{}) =
                         b_scale_thread_buf_copy[Number<0>{}];
                     b_scale_thread_copy.MoveSrcSliceWindow(
                         b_scale_grid_desc,
@@ -358,7 +358,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                                             make_tuple(I0, I0),
                                             a_scale_thread_buf_copy);
 
-                    a_scale_thread_bufs[I1](Number<a_scale_offset>{}) =
+                    a_scale_thread_bufs(I1)(Number<a_scale_offset>{}) =
                         a_scale_thread_buf_copy[Number<0>{}];
                     a_scale_thread_copy.MoveSrcSliceWindow(
                         a_scale_grid_desc,
@@ -388,7 +388,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                                             make_tuple(I0, I0),
                                             b_scale_thread_buf_copy);
 
-                    b_scale_thread_bufs[I1](Number<b_scale_offset>{}) =
+                    b_scale_thread_bufs(I1)(Number<b_scale_offset>{}) =
                         b_scale_thread_buf_copy[Number<0>{}];
                     b_scale_thread_copy.MoveSrcSliceWindow(
                         b_scale_grid_desc,
@@ -542,7 +542,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                                                         make_tuple(I0, I0),
                                                         a_scale_thread_buf_copy);
 
-                                a_scale_thread_bufs[mfma_reg_buf](Number<a_scale_offset>{}) =
+                                a_scale_thread_bufs(mfma_reg_buf)(Number<a_scale_offset>{}) =
                                     a_scale_thread_buf_copy[Number<0>{}];
                                 a_scale_thread_copy.MoveSrcSliceWindow(
                                     a_scale_grid_desc,
@@ -573,7 +573,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                                                         make_tuple(I0, I0),
                                                         b_scale_thread_buf_copy);
 
-                                b_scale_thread_bufs[mfma_reg_buf](Number<b_scale_offset>{}) =
+                                b_scale_thread_bufs(mfma_reg_buf)(Number<b_scale_offset>{}) =
                                     b_scale_thread_buf_copy[Number<0>{}];
                                 b_scale_thread_copy.MoveSrcSliceWindow(
                                     b_scale_grid_desc,
