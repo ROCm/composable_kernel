@@ -94,7 +94,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     A0DataType,  A1DataType,  B0DataType,   B1DataType,   CDataType,    AccDataType,  CShuffleDataType, 
     AElementOp, BElementOp, CElementOp,  GemmSpec,         
     ScaleBlockSize,   256,   
-    128,  128,   256,        
+    128,  128,   128,        
     16,    16,               
     16,    16,               
     8,     2,                
@@ -204,6 +204,30 @@ int main(int argc, char* argv[])
         a_m_k_scale.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         b_k_n_scale.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
+    case 3:
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a_m_k_scale.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
+        b_k_n_scale.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        break;
+    case 4:
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        break;
+    case 5:
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a_m_k_scale.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
+        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        break;
+    case 6:
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b_k_n_scale.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
@@ -221,13 +245,13 @@ int main(int argc, char* argv[])
     a_scale_device_buf.ToDevice(a_m_k_scale.mData.data());
     b_scale_device_buf.ToDevice(b_k_n_scale.mData.data());
 
-#if 0
-    printf("print a_m_k_scale\n");
+#if 1
+    printf("print a_m_k_scale:\n");
     for(int m = 0; m < M; ++m)
     {
-        for(int k = 0; k < (K + Scale_Block_K - 1) / Scale_Block_K; ++k)
+        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
         {
-            printf("%f ", a_m_k_scale(m, k));
+            printf("%f ", ck::type_convert<float>(a_m_k_scale(m, k)));
         }
         printf("\n");
     }

@@ -1143,7 +1143,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
         }
 
         // check gridwise gemm pipeline
-#if 1
+#if 0
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
         if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
