@@ -179,8 +179,7 @@ __global__ void
         const ComputePtrOffsetOfN compute_ptr_offset_of_n,
         const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.y / karg.KBatch);
@@ -251,8 +250,7 @@ __global__ void
         const ComputePtrOffsetOfN compute_ptr_offset_of_n,
         const index_t num_k_per_block)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.y / karg.KBatch);
     const index_t k_idx =
