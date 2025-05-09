@@ -65,9 +65,12 @@ template <typename ALayout,
           typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
+          index_t ActivationOP                        = 0,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
           bool MulRoutedWeight                        = true,
+          bool PerTokenQuant                          = true,
+          typename IndexType                          = index_t,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
@@ -132,7 +135,12 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                         CDEShuffleBlockTransferScalarPerVectors,
                         BlkGemmPipeSched,
                         BlkGemmPipelineVer,
+                        ActivationOP,
                         NSwizzle,
+                        IsInputGemm,
+                        MulRoutedWeight,
+                        PerTokenQuant,
+                        IndexType,
                         ComputeTypeA,
                         ComputeTypeB,
                         LDSTypeA,
@@ -247,96 +255,161 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
 
             constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) / BlockSize /
                                              4 * (1 + GridwiseGemm::NWave);
-            constexpr auto estimated_reg_b =
-                NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2);
-            constexpr auto estimated_reg_c =
-                MPerBlock * NPerBlock * sizeof(GemmAccDataType) / BlockSize / 4;
+            constexpr auto estimated_reg_b = NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize /
+                                             4 * (2) * (IsInputGemm ? 2 : 1);
+            constexpr auto estimated_reg_c = MPerBlock * NPerBlock * sizeof(GemmAccDataType) /
+                                             BlockSize / 4 * (IsInputGemm ? 2 : 1);
             constexpr auto estimated_reg_total =
                 estimated_reg_a + estimated_reg_b + estimated_reg_c;
 
             constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
 
-            constexpr auto MemoryDataOp =
-                IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
-            if(has_main_k_block_loop)
+            if(IsInputGemm || arg.TopK == 1)
             {
-                // Tail number always full
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                constexpr auto MemoryDataOp = InMemoryDataOperationEnum::Set;
+
+                if(has_main_k_block_loop)
                 {
+                    // Tail number always full
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                    {
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                            {
+                                const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                                    true,
+                                                                    MemoryDataOp,
+                                                                    minimum_occupancy,
+                                                                    TailNumber::Odd>;
+                                RunKernel(kernel);
+                            }
+                            else
+                            {
+                                const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                                    true,
+                                                                    MemoryDataOp,
+                                                                    minimum_occupancy,
+                                                                    TailNumber::Even>;
+                                RunKernel(kernel);
+                            }
+                        }
+                    }
+                    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                      BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
-                            const auto kernel = kernel_moe_gemm<GridwiseGemm,
-                                                                true,
-                                                                MemoryDataOp,
-                                                                minimum_occupancy,
-                                                                IsInputGemm,
-                                                                MulRoutedWeight,
-                                                                TailNumber::Odd>;
+                            const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                     true,
+                                                                     MemoryDataOp,
+                                                                     minimum_occupancy,
+                                                                     TailNumber::Odd>;
                             RunKernel(kernel);
                         }
                         else
                         {
-                            const auto kernel = kernel_moe_gemm<GridwiseGemm,
-                                                                true,
-                                                                MemoryDataOp,
-                                                                minimum_occupancy,
-                                                                IsInputGemm,
-                                                                MulRoutedWeight,
-                                                                TailNumber::Even>;
+                            const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                     true,
+                                                                     MemoryDataOp,
+                                                                     minimum_occupancy,
+                                                                     TailNumber::Even>;
                             RunKernel(kernel);
                         }
                     }
-                }
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
-                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    else
                     {
-                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
-                                                                 true,
-                                                                 MemoryDataOp,
-                                                                 minimum_occupancy,
-                                                                 IsInputGemm,
-                                                                 MulRoutedWeight,
-                                                                 TailNumber::Odd>;
+                        throw std::runtime_error("todo: only v1 & v2 support now");
+                    }
+                }
+#if 1
+                else
+                {
+                    // Tail number always 1
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                    {
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Odd>;
                         RunKernel(kernel);
+                    }
+                }
+#endif
+            }
+            else
+            {
+                constexpr auto MemoryDataOp = InMemoryDataOperationEnum::AtomicAdd;
+
+                if(has_main_k_block_loop)
+                {
+                    // Tail number always full
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                    {
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                            {
+                                const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                                    true,
+                                                                    MemoryDataOp,
+                                                                    minimum_occupancy,
+                                                                    TailNumber::Odd>;
+                                RunKernel(kernel);
+                            }
+                            else
+                            {
+                                const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                                    true,
+                                                                    MemoryDataOp,
+                                                                    minimum_occupancy,
+                                                                    TailNumber::Even>;
+                                RunKernel(kernel);
+                            }
+                        }
+                    }
+                    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                      BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                     true,
+                                                                     MemoryDataOp,
+                                                                     minimum_occupancy,
+                                                                     TailNumber::Odd>;
+                            RunKernel(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                     true,
+                                                                     MemoryDataOp,
+                                                                     minimum_occupancy,
+                                                                     TailNumber::Even>;
+                            RunKernel(kernel);
+                        }
                     }
                     else
                     {
-                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
-                                                                 true,
-                                                                 MemoryDataOp,
-                                                                 minimum_occupancy,
-                                                                 IsInputGemm,
-                                                                 MulRoutedWeight,
-                                                                 TailNumber::Even>;
+                        throw std::runtime_error("todo: only v1 & v2 support now");
+                    }
+                }
+#if 1
+                else
+                {
+                    // Tail number always 1
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                    {
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Odd>;
                         RunKernel(kernel);
                     }
                 }
-                else
-                {
-                    throw std::runtime_error("todo: only v1 & v2 support now");
-                }
-            }
-#if 1
-            else
-            {
-                // Tail number always 1
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-                {
-                    const auto kernel = kernel_moe_gemm<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy,
-                                                        IsInputGemm,
-                                                        MulRoutedWeight,
-                                                        TailNumber::Odd>;
-                    RunKernel(kernel);
-                }
-            }
 #endif
-
+            }
             return ave_time;
         }
 

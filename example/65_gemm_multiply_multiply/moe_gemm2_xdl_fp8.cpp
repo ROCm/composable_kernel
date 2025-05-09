@@ -25,7 +25,6 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 using F16 = ck::half_t;
-// using BF16 = ck::bhalf_t;
 using F8  = ck::f8_t;
 using F32 = float;
 
@@ -36,7 +35,7 @@ using A0DataType       = F8;
 using B0DataType       = F8;
 using EDataType        = F16;
 using AccDataType      = F32;
-using CShuffleDataType = F32;
+using CShuffleDataType = F16;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using D2DataType       = F32;
@@ -48,7 +47,6 @@ using ELayout  = Row;
 using D0Layout = Row;
 using D1Layout = Col;
 using D2Layout = ELayout;
-// using DsLayoutGate = ck::Tuple<D0Layout, D1Layout>;
 using DsLayout = ck::Tuple<D0Layout, D1Layout, D2Layout>;
 
 // d0: ascale, d1: bscale, d2:expert weight
@@ -62,11 +60,19 @@ struct MulABScaleExpertWeight
     __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>(
         EDataType& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
-        // for real kernel use
-        // warning: hack hack hack here!!!! ignore d0 right now as kernel mul d0 * d2 outside.
-        // tofix:felix
         (void)d0;
-        e = ck::type_convert<EDataType>(c * d1 * d2);
+        (void)d1;
+        (void)d2;
+        e = ck::type_convert<EDataType>(c);
+    }
+    template <>
+    __host__ __device__ constexpr void operator()<EDataType, EDataType, float, float, float>(
+        EDataType& e, const EDataType& c, const float& d0, const float& d1, const float& d2) const
+    {
+        (void)d0;
+        (void)d1;
+        (void)d2;
+        e = ck::type_convert<EDataType>(c);
     }
     // for reference cpu
     template <>
@@ -125,8 +131,6 @@ static constexpr ck::index_t NPerBlock   = 256;
 static constexpr ck::index_t MNPerXDL    = 16;
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
 
-// static constexpr ck::index_t MXDLPerWave = MPerBlock / 32; //todo fix this constraint
-// static constexpr ck::index_t CShuffleMXDLPerWave = MPerBlock / 32;
 static constexpr ck::index_t CShuffleNLane = 32;
 static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
 static constexpr ck::index_t AK1           = 16 / sizeof(A0DataType);
@@ -136,7 +140,7 @@ static constexpr ck::index_t EVec          = 2;
 static constexpr ck::index_t D0Vec    = 1;
 static constexpr ck::index_t D1Vec    = 1;
 static constexpr ck::index_t D2Vec    = 1;
-static constexpr bool MulRoutedWeight = false;
+static constexpr bool MulRoutedWeight = true;
 using DeviceOpInstance                = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
 ///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     DsData|     EData|     AccData|         CShuffle|           A|           B|          CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
@@ -165,8 +169,8 @@ using DeviceOpInstance                = ck::tensor_operation::device::DeviceMoeG
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-               2,        1,         S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, false, false, MulRoutedWeight, A0DataType>;
+               4,        2,         S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, 0, false, false, MulRoutedWeight, false, int32_t, A0DataType>;
         // kernel 2: 128->32x128x128
         //  <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   128,   32,   128,    128,  16,  16,  32,   32,    1,    2,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<8, 16, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 16, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, EDataType>;
 
@@ -178,9 +182,6 @@ int main(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = true;
 
-    // tokens = 1
-    // topk = 1
-    // experts = 8
     // per expert:
     // GEMM shape
     ck::index_t N               = 4096;
@@ -213,6 +214,18 @@ int main(int argc, char* argv[])
         K               = std::stoi(argv[5]);
         tokens          = std::stoi(argv[6]);
     }
+    else if(argc == 9)
+    {
+
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+        N               = std::stoi(argv[4]);
+        K               = std::stoi(argv[5]);
+        tokens          = std::stoi(argv[6]);
+        sorted_tile_num = std::stoi(argv[7]);
+        valid_tile_num  = std::stoi(argv[8]);
+    }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
@@ -230,15 +243,13 @@ int main(int argc, char* argv[])
 
     ck::index_t KBatch = 1;
 
-    // const ck::index_t experts = 8;
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1}));
-    // max_token_id.mData[0] = valid_size;
-    // max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
+
+    max_token_id.mData = {valid_size, 0, 2, 3, 4, 6, 8, 10, 12, 13};
     // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
-    max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
-    // int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
+
     for(int i = 0; i < sorted_tile_num; i++)
     {
         expert_ids.mData[i] = i / ((valid_tile_num + experts - 1) / experts);
@@ -250,7 +261,7 @@ int main(int argc, char* argv[])
     }
     int token_per_tile = tokens * topk / valid_tile_num;
     int tokenid        = 0;
-    // sorted_token_ids.mData[0] = 0;
+
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
@@ -264,8 +275,7 @@ int main(int argc, char* argv[])
             sorted_token_ids.mData[i] = tokens;
         }
     }
-    expert_ids.savetxt("expert_ids.txt", "int");
-    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+
     Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
@@ -316,12 +326,7 @@ int main(int argc, char* argv[])
     DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
-    // a0_t_k_k.savetxt("a.txt");
-    // expert_ids.savetxt("expert_ids.txt", "int");
-    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
-    // d0_t_n.savetxt("d0_t_n.txt", "int");
-    // d1_e_n.savetxt("d1_e_n.txt", "int");
-    // d2_e_n.savetxt("d2_e_n.txt", "int");
+
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
@@ -399,7 +404,7 @@ int main(int argc, char* argv[])
         e_device_buf.ToDevice(e_t_n_device_result.mData.data());
         invoker.Run(argument, StreamConfig{nullptr, false, 0, 0, 1});
 
-        Tensor<CShuffleDataType> c_t_n({tokens, N});
+        Tensor<float> c_t_n({tokens, N});
 
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeGemm2<A0DataType,
@@ -407,7 +412,7 @@ int main(int argc, char* argv[])
                                                           D0DataType,
                                                           D1DataType,
                                                           D2DataType,
-                                                          CShuffleDataType,
+                                                          float,
                                                           AccDataType,
                                                           PassThrough,
                                                           PassThrough,
@@ -440,8 +445,7 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-        // e_t_n_device_result.savetxt("out.txt");
-        // e_t_n_host_result.savetxt("ref.txt");
+
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
                    ? 0
