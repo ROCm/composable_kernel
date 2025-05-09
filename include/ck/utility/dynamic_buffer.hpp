@@ -282,15 +282,12 @@ struct DynamicBuffer
             using vector_t = typename vector_type_maker<remove_cvref_t<T>, t_per_x>::type::type;
             vector_t tmp;
 
-            // Convert the x value to the appropriate vector type
             if constexpr(std::is_same_v<remove_cvref_t<X>, vector_t>)
             {
-                // If x is already the correct type, use it directly
                 tmp = x;
             }
             else
             {
-                // Otherwise, use memory copy to safely convert between types
                 __builtin_memcpy(&tmp, &x, sizeof(vector_t));
             }
 
