@@ -8,6 +8,7 @@
 using ck::e8m0_bexp_t;
 using ck::f4_t;
 using ck::f4x2_pk_t;
+using ck::f6_t;
 using ck::f8_t;
 using ck::half_t;
 using ck::type_convert;

@@ -94,6 +94,18 @@ struct GeneratorTensor_1<ck::f4x2_pk_t>
 };
 
 template <>
+struct GeneratorTensor_1<ck::f6x32_pk_t>
+{
+    float value = 1.0;
+
+    template <typename... Is>
+    ck::f6x32_pk_t operator()(Is...)
+    {
+        return ck::type_convert<ck::f6x32_t>(ck::float32_t(value));
+    }
+};
+
+template <>
 struct GeneratorTensor_1<int8_t>
 {
     int8_t value = 1;

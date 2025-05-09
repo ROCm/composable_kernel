@@ -34,6 +34,8 @@ using bf6_t   = unsigned _BitInt(6); // e3m2 format
 
 struct f4x2_pk_t
 {
+    static constexpr int packed_size = 2;
+
     using type = uint8_t;
     type data;
     __host__ __device__ f4x2_pk_t() : data{type{}} {}
@@ -58,6 +60,11 @@ struct f4x2_pk_t
 struct f6x16_pk_t
 {
     // store 16 elements of f6_t in an array of 3 uint32_t
+    static constexpr int packed_size       = 16;
+    static constexpr int num_bits_elem     = 6;
+    static constexpr int num_bits_vec_elem = 32;
+    static constexpr int vector_size       = 3;
+
     using element_type = uint32_t;
     using type         = StaticallyIndexedArray_v2<element_type, 3>;
     type data;
@@ -66,27 +73,50 @@ struct f6x16_pk_t
     f6x16_pk_t(type init) : data{init} {}
 
     template <index_t I>
-    __host__ __device__ inline f6_t unpack(Number<I>)
+    __host__ __device__ constexpr f6_t unpack(Number<I>)
     {
+        // TODO: check if this is correct
+        // TODO: have this tested
         static_assert(I < 16, "Index out of range for 16 f6_t elements.");
 
-        constexpr int num_bits_elem     = 6;
-        constexpr int num_bits_vec_elem = 32;
-        constexpr int vector_size       = 3;
-        constexpr int bit_pos           = I * num_bits_elem;
-        constexpr int arr_idx           = bit_pos / num_bits_vec_elem;
-        constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
-        uint32_t bits                   = data.At(Number<arr_idx>{}) >> bit_offset;
-        constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
+        constexpr int bit_pos    = I * num_bits_elem;
+        constexpr int arr_idx    = bit_pos / num_bits_vec_elem;
+        constexpr int bit_offset = bit_pos % num_bits_vec_elem;
+        constexpr int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
 
         if constexpr(overhang > 0 && (arr_idx + 1) < vector_size)
         {
-            bits |= (data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+            constexpr uint32_t bits = (data.At(Number<arr_idx>{}) >> bit_offset) |
+                                      ((data.At(Number<arr_idx + 1>{}) & ((1u << overhang) - 1))
+                                       << (num_bits_elem - overhang));
+            return static_cast<f6_t>(bits & 0x3F);
+        }
+        else
+        {
+            constexpr uint32_t bits = data.At(Number<arr_idx>{}) >> bit_offset;
+            return static_cast<f6_t>(bits & 0x3F);
+        }
+    }
+
+    __host__ __device__ static inline f6_t unpack(const f6x16_pk_t& pk, const index_t i)
+    {
+        // TODO: have only one unpack method
+        const int bit_pos    = i * num_bits_elem;
+        const int arr_idx    = bit_pos / num_bits_vec_elem;
+        const int bit_offset = bit_pos % num_bits_vec_elem;
+        const int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
+
+        uint32_t bits = pk.data.data_[arr_idx] >> bit_offset;
+        if(overhang > 0 && (arr_idx + 1) < vector_size)
+        {
+            bits |= (pk.data.data_[arr_idx + 1] & ((1u << overhang) - 1))
                     << (num_bits_elem - overhang);
         }
 
         return static_cast<f6_t>(bits & 0x3F);
     }
+
+    __host__ __device__ inline f6_t unpack(const index_t i) { return unpack(*this, i); }
 
     __host__ __device__ inline type pack(const test_vec_t& x)
     {
@@ -94,15 +124,13 @@ struct f6x16_pk_t
 
         // for each of the 16 f6_t values, place its 6 bits in the correct position
         ck::static_for<0, 16, 1>{}([&](auto i) {
-            uint32_t bits                   = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
-            constexpr int num_bits_elem     = 6;
-            constexpr int num_bits_vec_elem = 32;
-            constexpr int vector_size       = 3;
-            constexpr int bit_pos           = i * num_bits_elem;
-            constexpr int arr_index         = bit_pos / num_bits_vec_elem;
-            constexpr int bit_offset        = bit_pos % num_bits_vec_elem;
-            constexpr int overhang          = bit_offset + num_bits_elem - num_bits_vec_elem;
-            uint32_t old_value              = packed.At(Number<arr_index>{});
+            uint32_t bits = static_cast<uint32_t>(x[static_cast<int>(i)]) & 0x3F;
+
+            constexpr int bit_pos    = i * num_bits_elem;
+            constexpr int arr_index  = bit_pos / num_bits_vec_elem;
+            constexpr int bit_offset = bit_pos % num_bits_vec_elem;
+            constexpr int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
+            uint32_t old_value       = packed.At(Number<arr_index>{});
 
             // insert bits into the current 32-bit block
             old_value |= (bits << bit_offset);
@@ -124,6 +152,8 @@ struct f6x16_pk_t
 struct f6x32_pk_t
 {
     // store 32 elements of f6_t in an array of 6 uint32_t
+    static constexpr int packed_size = 32;
+
     using element_type = uint32_t;
     using type         = StaticallyIndexedArray_v2<element_type, 6>;
     type data;
@@ -190,6 +220,8 @@ struct f6x32_pk_t
 struct bf6x16_pk_t
 {
     // store 16 elements of bf6_t in an array of 3 uint32_t
+    static constexpr int packed_size = 16;
+
     using element_type = uint32_t;
     using type         = StaticallyIndexedArray_v2<element_type, 3>;
     type data;
@@ -256,6 +288,8 @@ struct bf6x16_pk_t
 struct bf6x32_pk_t
 {
     // store 32 elements of bf6_t in an array of 6 uint32_t
+    static constexpr int packed_size = 32;
+
     using element_type = uint32_t;
     using type         = StaticallyIndexedArray_v2<element_type, 6>;
     type data;
@@ -482,6 +516,35 @@ struct scalar_type<bool>
 {
     using type                           = bool;
     static constexpr index_t vector_size = 1;
+};
+
+// Default behavior for types that do not need special handling
+template <typename T>
+struct packed_type
+{
+    using type                           = T;
+    static constexpr index_t packed_size = 1; // number of packed elements
+};
+
+// Check if the type has packed type specialization
+template <typename T>
+struct has_packed_type
+{
+    static constexpr bool value = is_same_v<typename packed_type<T>::type, T>;
+};
+
+template <>
+struct packed_type<f4_t>
+{
+    using type                           = f4x2_pk_t;
+    static constexpr index_t packed_size = 2; // number of packed elements
+};
+
+template <>
+struct packed_type<f6_t>
+{
+    using type                           = f6x32_pk_t;
+    static constexpr index_t packed_size = 32; // number of packed elements
 };
 
 #if defined(_WIN32)

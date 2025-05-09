@@ -904,20 +904,22 @@ template <typename AType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-__global__ void matmul(const AType* a, const BType* b, CType* c)
+__global__ void matmul(const typename packed_type<AType>::type* a,
+                       const typename packed_type<BType>::type* b,
+                       CType* c)
 {
+    using PackedAType            = typename packed_type<AType>::type;
+    constexpr auto packed_size_a = packed_type<AType>::packed_size;
+    using PackedBType            = typename packed_type<BType>::type;
+    constexpr auto packed_size_b = packed_type<BType>::packed_size;
+
     constexpr int WAVE_SIZE = 64;
     assert(threadIdx.x < WAVE_SIZE);
     assert(blockDim.x == 1 && blockDim.y == 1 && blockDim.z == 1);
 
-    using AFragT =
-        vector_type<AType,
-                    BLOCK_M * BLOCK_K / WAVE_SIZE /
-                        (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1)>::type;
-    using BFragT =
-        vector_type<BType,
-                    BLOCK_K * BLOCK_N / WAVE_SIZE /
-                        (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1)>::type;
+    using AFragT = vector_type<PackedAType, BLOCK_M * BLOCK_K / WAVE_SIZE / packed_size_a>::type;
+    using BFragT = vector_type<PackedBType, BLOCK_K * BLOCK_N / WAVE_SIZE / packed_size_b>::type;
+
     using CFragT        = vector_type<CType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
     using AccumFragT    = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>;
     using RawAccumFragT = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
@@ -931,7 +933,7 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
     // Load the inputs.
     if constexpr(is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
     {
-        fragA = load_A_row_major<AType, AFragT, BLOCK_M, BLOCK_K>(a);
+        fragA = load_A_row_major<PackedAType, AFragT, BLOCK_M, BLOCK_K>(a);
     }
     else
     {
@@ -944,7 +946,7 @@ __global__ void matmul(const AType* a, const BType* b, CType* c)
     }
     else
     {
-        fragB = load_B_col_major<BType, BFragT, BLOCK_K, BLOCK_N>(b);
+        fragB = load_B_col_major<PackedBType, BFragT, BLOCK_K, BLOCK_N>(b);
     }
 
     // Matrix multiply-accumulate using MFMA units
@@ -1356,6 +1358,12 @@ template <typename DeviceMFMA,
           index_t BLOCK_K>
 struct TestMFMA
 {
+
+    using PackedAType                   = typename packed_type<ADataType>::type;
+    static constexpr auto packed_size_a = packed_type<ADataType>::packed_size;
+    using PackedBType                   = typename packed_type<BDataType>::type;
+    static constexpr auto packed_size_b = packed_type<BDataType>::packed_size;
+
     auto PrepareGemmTensors(const GemmParams& params, index_t init)
     {
         auto f_host_tensor_descriptor =
@@ -1372,9 +1380,9 @@ struct TestMFMA
                 }
             };
 
-        Tensor<ADataType> a_m_k(
+        Tensor<PackedAType> a_m_k(
             f_host_tensor_descriptor(params.M, params.K, params.StrideA, ALayout{}));
-        Tensor<BDataType> b_n_k(
+        Tensor<PackedBType> b_n_k(
             f_host_tensor_descriptor(params.K, params.N, params.StrideB, BLayout{}));
         Tensor<CDataType> c_m_n_host_result(
             f_host_tensor_descriptor(params.M, params.N, params.StrideC, CLayout{}));
@@ -1384,34 +1392,34 @@ struct TestMFMA
         switch(init)
         {
         case 0:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{0.015625f});
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{0.015625f});
             // NOTE: not all numbers are representable in FP8, BF8, etc.
-            b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
+            b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<PackedBType, 1>{});
             break;
         case 1:
             // results in C = {K}
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
-            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{1.0f});
+            b_n_k.GenerateTensorValue(GeneratorTensor_1<PackedBType>{1.0f});
             break;
         case 2:
             // expect small round off errors
-            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-5, 5});
-            b_n_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-5, 5});
+            a_m_k.GenerateTensorValue(GeneratorTensor_3<PackedAType>{-5, 5});
+            b_n_k.GenerateTensorValue(GeneratorTensor_3<PackedBType>{-5, 5});
             break;
         case 3:
             // expect small round off errors
-            a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(-1, 3));
-            b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(1, 3));
+            a_m_k.GenerateTensorValue(GeneratorTensor_4<PackedAType>(-1, 3));
+            b_n_k.GenerateTensorValue(GeneratorTensor_4<PackedBType>(1, 3));
             break;
         case 4:
             // FP4 values case
-            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-4, 5});
-            b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-4, 5});
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<PackedAType>{-4, 5});
+            b_n_k.GenerateTensorValue(GeneratorTensor_2<PackedBType>{-4, 5});
             break;
         default:
             // all initial values are representable in FP8, BF8
-            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6});
-            b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6});
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<PackedAType>{-5, 6});
+            b_n_k.GenerateTensorValue(GeneratorTensor_2<PackedBType>{-5, 6});
 
             break;
         }
@@ -1453,10 +1461,10 @@ struct TestMFMA
 
         auto host_tensors = PrepareGemmTensors(params, init);
 
-        const Tensor<ADataType>& a  = std::get<0>(host_tensors);
-        const Tensor<BDataType>& b  = std::get<1>(host_tensors);
-        Tensor<CDataType>& c_host   = std::get<2>(host_tensors);
-        Tensor<CDataType>& c_device = std::get<3>(host_tensors);
+        const Tensor<PackedAType>& a = std::get<0>(host_tensors);
+        const Tensor<PackedBType>& b = std::get<1>(host_tensors);
+        Tensor<CDataType>& c_host    = std::get<2>(host_tensors);
+        Tensor<CDataType>& c_device  = std::get<3>(host_tensors);
 
         using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -1464,8 +1472,8 @@ struct TestMFMA
         auto b_element_op = PassThrough{};
         auto c_element_op = PassThrough{};
 
-        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                BDataType,
+        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<PackedAType,
+                                                                                PackedBType,
                                                                                 CDataType,
                                                                                 CPUAccDataType,
                                                                                 PassThrough,
