@@ -1597,7 +1597,6 @@ struct BlockToCTileMap_GemmStreamK_v2
 
     __host__ __device__ index_t get_grid_dims() const
     {
-        // if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
         if(reduction_strategy == StreamKReductionStrategy::Reduction)
         {
             // return dim3(reduction_start_block_idx + get_sk_tiles(), 1, 1);
