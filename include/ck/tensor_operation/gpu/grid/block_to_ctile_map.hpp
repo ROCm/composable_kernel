@@ -1551,7 +1551,6 @@ struct BlockToCTileMap_GemmStreamK_v2
         // Using multiple blocks for parallel reduction
         reduction_start_block_idx = dp_start_block_idx + dp_num_blocks;
 
-        // if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
         if(reduction_strategy == ck::StreamKReductionStrategy::Reduction)
         {
             // Add additional safety checks
