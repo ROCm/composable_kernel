@@ -141,7 +141,9 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
     using Base::b_block_desc_n0_n1_n2_k;
 
     using Base::AMmaKStride;
+    using Base::APackedSize;
     using Base::BMmaKStride;
+    using Base::BPackedSize;
     using Base::KThreadChunk;
 
     using AccType      = typename Base::AccType;
@@ -539,10 +541,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                vector_type<ComputeTypeA, KPack> a_thread_vec; // = vec: pk_i4_t, 32
-                                vector_type<ComputeTypeB, KPack> b_thread_vec;
+                                vector_type<ComputeTypeA, KPack / APackedSize>
+                                    a_thread_vec; // = vec: pk_i4_t, 32
+                                vector_type<ComputeTypeB, KPack / BPackedSize> b_thread_vec;
 
-                                static_for<0, KPack / 2, 1>{}([&](auto ik) {
+                                static_for<0, KPack / APackedSize, 1>{}([&](auto ik) {
                                     a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                         a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                             make_tuple(m0, I0, k0, ik))>{}];
@@ -578,12 +581,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                 // CK_PRINT<decltype(xdlops_gemm)>();
                                 using mfma_input_type_a =
                                     typename vector_type<ComputeTypeA,
-                                                         xdlops_gemm.K1PerXdlops / 2>::type;
+                                                         xdlops_gemm.K1PerXdlops /
+                                                             APackedSize>::type;
                                 // mfma input type = pk_f4_t, 32
                                 // CK_PRINT<mfma_input_type_a>();
                                 using mfma_input_type_b =
                                     typename vector_type<ComputeTypeB,
-                                                         xdlops_gemm.K1PerXdlops / 2>::type;
+                                                         xdlops_gemm.K1PerXdlops /
+                                                             BPackedSize>::type;
 
                                 constexpr index_t c_offset =
                                     c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
@@ -721,10 +726,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        vector_type<ComputeTypeA, KPack> a_thread_vec;
-                        vector_type<ComputeTypeB, KPack> b_thread_vec;
+                        vector_type<ComputeTypeA, KPack / APackedSize> a_thread_vec;
+                        vector_type<ComputeTypeB, KPack / BPackedSize> b_thread_vec;
 
-                        static_for<0, KPack / 2, 1>{}([&](auto ik) {
+                        static_for<0, KPack / APackedSize, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, k0, ik))>{}];
@@ -751,9 +756,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                         });
 
                         using mfma_input_type_a =
-                            typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops / 2>::type;
+                            typename vector_type<ComputeTypeA,
+                                                 xdlops_gemm.K1PerXdlops / APackedSize>::type;
                         using mfma_input_type_b =
-                            typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops / 2>::type;
+                            typename vector_type<ComputeTypeB,
+                                                 xdlops_gemm.K1PerXdlops / BPackedSize>::type;
 
                         constexpr index_t c_offset =
                             c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
@@ -805,10 +812,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        vector_type<ComputeTypeA, KPack> a_thread_vec;
-                        vector_type<ComputeTypeB, KPack> b_thread_vec;
+                        vector_type<ComputeTypeA, KPack / APackedSize> a_thread_vec;
+                        vector_type<ComputeTypeB, KPack / BPackedSize> b_thread_vec;
 
-                        static_for<0, KPack / 2, 1>{}([&](auto ik) {
+                        static_for<0, KPack / APackedSize, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, k0, ik))>{}];
@@ -835,9 +842,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                         });
 
                         using mfma_input_type_a =
-                            typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops / 2>::type;
+                            typename vector_type<ComputeTypeA,
+                                                 xdlops_gemm.K1PerXdlops / APackedSize>::type;
                         using mfma_input_type_b =
-                            typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops / 2>::type;
+                            typename vector_type<ComputeTypeB,
+                                                 xdlops_gemm.K1PerXdlops / BPackedSize>::type;
 
                         constexpr index_t c_offset =
                             c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
@@ -858,10 +867,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        vector_type<ComputeTypeA, KPack> a_thread_vec;
-                        vector_type<ComputeTypeB, KPack> b_thread_vec;
+                        vector_type<ComputeTypeA, KPack / APackedSize> a_thread_vec;
+                        vector_type<ComputeTypeB, KPack / BPackedSize> b_thread_vec;
 
-                        static_for<0, KPack / 2, 1>{}([&](auto ik) {
+                        static_for<0, KPack / APackedSize, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, k0, ik))>{}];
@@ -888,9 +897,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                         });
 
                         using mfma_input_type_a =
-                            typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops / 2>::type;
+                            typename vector_type<ComputeTypeA,
+                                                 xdlops_gemm.K1PerXdlops / APackedSize>::type;
                         using mfma_input_type_b =
-                            typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops / 2>::type;
+                            typename vector_type<ComputeTypeB,
+                                                 xdlops_gemm.K1PerXdlops / BPackedSize>::type;
 
                         constexpr index_t c_offset =
                             c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));

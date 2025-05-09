@@ -58,10 +58,12 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
     //> store rows/cols into thread registers in chunks of 16
     //> e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
-    static constexpr index_t APackedSize = is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t>
-                                                ? 2
-                                                : 1;
-    static constexpr index_t KThreadChunk = 16 * APackedSize/ sizeof(ComputeTypeA);
+    static constexpr index_t APackedSize =
+        is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ? 2 : 1;
+    static constexpr index_t BPackedSize =
+        is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t> ? 2 : 1;
+
+    static constexpr index_t KThreadChunk = 16 * APackedSize / sizeof(ComputeTypeA);
 
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
@@ -327,18 +329,18 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     // Read buffer + Compute buffer
     // A[M0, M1, M2, KPack]
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack / 2>{}),
-        make_tuple(Number<KPack / 2>{},
-                   Number<KRepeat * MRepeat * KPack / 2>{},
-                   Number<MRepeat * KPack / 2>{},
+        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack / APackedSize>{}),
+        make_tuple(Number<KPack / APackedSize>{},
+                   Number<KRepeat * MRepeat * KPack / APackedSize>{},
+                   Number<MRepeat * KPack / APackedSize>{},
                    I1));
 
     // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack / 2>{}),
-        make_tuple(Number<KPack / 2>{},
-                   Number<KRepeat * NRepeat * KPack / 2>{},
-                   Number<NRepeat * KPack / 2>{},
+        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack / BPackedSize>{}),
+        make_tuple(Number<KPack / BPackedSize>{},
+                   Number<KRepeat * NRepeat * KPack / BPackedSize>{},
+                   Number<NRepeat * KPack / BPackedSize>{},
                    I1));
 
     // C[M, N, NumRegXdlops]

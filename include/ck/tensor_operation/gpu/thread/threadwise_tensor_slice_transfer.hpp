@@ -1247,16 +1247,16 @@ struct ThreadwiseTensorSliceTransfer_v4
             {
                 // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
                 // DstData)
-                vector_type_maker_t<DstData, SrcScalarPerVector / 2> dst_tmp_vector;
+                vector_type_maker_t<DstData, SrcScalarPerVector / PackedSize> dst_tmp_vector;
 
                 // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
-                static_for<0, SrcScalarPerVector / 2, 1>{}([&](auto i) {
+                static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                     dst_tmp_vector.template AsType<DstData>()(i) =
                         type_convert<DstData>(src_tmp_vector.template AsType<SrcData>()[i]);
                 });
 
                 // copy data from dst_tmp_vector into dst_buf
-                static_for<0, SrcScalarPerVector / 2, 1>{}([&](auto i) {
+                static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                     constexpr index_t dst_offset = dst_desc.CalculateOffset(
                         dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
 
