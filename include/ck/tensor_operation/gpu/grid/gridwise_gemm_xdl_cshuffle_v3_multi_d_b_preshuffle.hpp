@@ -171,9 +171,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     static constexpr index_t KLane =
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
     static constexpr index_t KPackPerGroup = KPack / KGroup;
-    static constexpr index_t KRepeat = KPerBlock / KLane / KPackPerGroup;
-    static constexpr index_t NLane   = NPerXdl;
-    static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
+    static constexpr index_t KRepeat       = KPerBlock / KLane / KPackPerGroup;
+    static constexpr index_t NLane         = NPerXdl;
+    static constexpr index_t NWave         = NPerBlock / NPerXdl / NXdlPerWave;
 
     static constexpr auto MakeDsGridPointer()
     {
@@ -211,7 +211,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     }
     __host__ __device__ static auto CalculateBK0Shuffled(index_t K)
     {
-        return math::integer_divide_ceil(K, KLane * KPack);
+        return math::integer_divide_ceil(K, KLane * KPackPerGroup);
     }
 
     __host__ __device__ static auto CalculateKPadded(index_t K)
@@ -1670,7 +1670,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack * (get_thread_local_1d_id() % warpSize)));
+                                   KPackPerGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
