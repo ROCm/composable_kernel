@@ -118,7 +118,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     int H                  = args.get_int("H");
     int W                  = args.get_int("W");
     int n_warmup           = args.get_int("warmup");
-    int n_repeat           = arg_parser.get_int("repeat");
+    int n_repeat           = args.get_int("repeat");
     std::string layout_in  = args.get_str("layout_in");
     std::string layout_out = args.get_str("layout_out");
     int seed               = args.get_int("seed");
