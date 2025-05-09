@@ -900,7 +900,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
-            constexpr index_t LdsSize   = 32 * 4 / (KPerBlock * sizeof(BDataType)/ BPackedSize) ;
+            constexpr index_t LdsSize   = 32 * 4 / (KPerBlock * sizeof(BDataType) / BPackedSize);
             constexpr index_t NLdsLayer = LdsSize < 1 ? 1 : LdsSize;
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
@@ -1466,14 +1466,15 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize()/APackedSize);
+            static_cast<ADataType*>(p_shared),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
         CK_PRINT<ck::Number<a_block_desc_ak0_m_ak1.GetElementSpaceSize()>>();
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) + a_block_space_size_aligned *
                                                                             sizeof(ADataType) /
                                                                             APackedSize),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize()/BPackedSize);
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);

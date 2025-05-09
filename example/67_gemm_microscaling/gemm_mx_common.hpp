@@ -259,7 +259,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         }
 
         break;
-    case 4: //A random
+    case 4: // A random
 
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
         ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(1.0f))}(b_k_n);
@@ -283,7 +283,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "NOTE: No input data initialization." << std::endl;
         }
     }
-    
 
     if(config.verbosity > 0)
         std::cout << "Device memory allocation..." << std::endl;

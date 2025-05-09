@@ -28,7 +28,10 @@ constexpr ck::index_t KPerBlock      = 256;
 constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
 constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
 constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v1;
-
+// v3 should be performant one, However
+//     1. some bug existed cause memory access fault in some cases, MNK=2k2k2k
+//     2. Register spill observed, most likely unpack the e8m0 from single register then feed to
+//     scaled mfma.
 
 // AB DataType: f4x2_pk_t
 // Mathmatically, all numbers are represented as f4.
@@ -49,15 +52,15 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     GemmSpec,         // GemmSpec
     ScaleBlockSize,   // ScaleBlockSize: Scaling block size
     256,              // BlockSize: Thread block size
-    256,              // MPerBlock
-    256,              // NPerBlock
+    128,              // MPerBlock
+    128,              // NPerBlock
     KPerBlock,        // KPerBlock
     32,               // AK1
     32,               // BK1
     16,               // MPerXDL
     16,               // NPerXDL
-    8,                // MXdlPerWave
-    8,                // NXdlPerWave
+    4,                // MXdlPerWave
+    4,                // NXdlPerWave
     S<8, 32, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // ABlockTransferSrcAccessOrder

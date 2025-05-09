@@ -92,7 +92,10 @@ struct ReferenceMXGemm : public device::BaseOperator
                 {
                     if constexpr(is_same_v<ADataType, f4x2_pk_t>)
                     {
-                        if(k%2==1){continue;}
+                        if(k % 2 == 1)
+                        {
+                            continue;
+                        }
                         // TODO: add support for ColMajor layout as well
                         auto a_pack = arg.a_m_k_(m, k);
                         auto a_scale =
@@ -100,17 +103,16 @@ struct ReferenceMXGemm : public device::BaseOperator
                         auto a_f4_lo = f4_t(a_pack.template unpack<>(Number<0>{}));
                         auto a_f4_hi = f4_t(a_pack.template unpack<>(Number<1>{}));
 
-                        a_m_k_scaled(m, k) = type_convert<ComputeTypeA>(a_f4_lo) * a_scale;
-                        a_m_k_scaled(m, k+1) = type_convert<ComputeTypeA>(a_f4_hi) * a_scale;
-                        if(m==0 && 0)
+                        a_m_k_scaled(m, k)     = type_convert<ComputeTypeA>(a_f4_lo) * a_scale;
+                        a_m_k_scaled(m, k + 1) = type_convert<ComputeTypeA>(a_f4_hi) * a_scale;
+                        if(m == 0 && 0)
                         {
                             printf("a_m_k_scaled(%zu, %zu): %f, %f\n",
                                    m,
                                    k,
                                    a_m_k_scaled(m, k),
-                                   a_m_k_scaled(m, k+1)
-                                   );
-                        }                    
+                                   a_m_k_scaled(m, k + 1));
+                        }
                     }
                     else
                     {
@@ -128,21 +130,23 @@ struct ReferenceMXGemm : public device::BaseOperator
                     if constexpr(is_same_v<BDataType, f4x2_pk_t>)
                     {
                         // TODO: add support for RowMajor layout as well
-                        if(k%2==1){continue;}
+                        if(k % 2 == 1)
+                        {
+                            continue;
+                        }
                         auto b_pack = arg.b_k_n_(k, n);
                         auto b_scale =
                             type_convert<ComputeTypeB>(arg.b_kblock_n_scales_(k / SCALE_BLOCK, n));
-                        auto b_f4_lo = f4_t(b_pack.template unpack<>(Number<0>{}));
-                        auto b_f4_hi = f4_t(b_pack.template unpack<>(Number<1>{}));
-                        b_k_n_scaled(k, n) = type_convert<ComputeTypeB>(b_f4_lo) * b_scale;
-                        b_k_n_scaled(k+1, n) = type_convert<ComputeTypeB>(b_f4_hi) * b_scale;
-                        if(n==0 && 0)
+                        auto b_f4_lo           = f4_t(b_pack.template unpack<>(Number<0>{}));
+                        auto b_f4_hi           = f4_t(b_pack.template unpack<>(Number<1>{}));
+                        b_k_n_scaled(k, n)     = type_convert<ComputeTypeB>(b_f4_lo) * b_scale;
+                        b_k_n_scaled(k + 1, n) = type_convert<ComputeTypeB>(b_f4_hi) * b_scale;
+                        if(n == 0 && 0)
                         {
                             printf("b_k_n(%zu, %zu): %2x\n",
                                    n,
                                    k,
-                                   *reinterpret_cast<const uint8_t*>(&b_pack)
-                                   );
+                                   *reinterpret_cast<const uint8_t*>(&b_pack));
                             // printf("b_k_n_scaled(%zu, %zu): %f, %f\n",
                             //        n,
                             //        k,

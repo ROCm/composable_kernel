@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v1_mx.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v3_mx.hpp"
 
 namespace ck {
 
@@ -69,6 +70,30 @@ constexpr auto BlockGemmMXPipeline_Selector()
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
         return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
+                                                  ThreadBlockSize,
+                                                  ScaleBlockSize,
+                                                  ADataType,
+                                                  AScaleDataType,
+                                                  BDataType,
+                                                  BScaleDataType,
+                                                  ATileDesc,
+                                                  BTileDesc,
+                                                  AMmaTileDesc,
+                                                  BMmaTileDesc,
+                                                  ABlockTransferSrcScalarPerVector,
+                                                  BBlockTransferSrcScalarPerVector,
+                                                  MPerBlock,
+                                                  NPerBlock,
+                                                  KPerBlock,
+                                                  MPerXDL,
+                                                  NPerXDL,
+                                                  MRepeat,
+                                                  NRepeat,
+                                                  KPack>{};
+    }
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+    {
+        return BlockwiseGemmXdlops_pipeline_v3_mx<BlkGemmPipeSche,
                                                   ThreadBlockSize,
                                                   ScaleBlockSize,
                                                   ADataType,

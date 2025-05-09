@@ -67,22 +67,24 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
-    using HotLoopInstList =
-        ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
-                                                      MPerBlock,
-                                                      NPerBlock,
-                                                      KPerBlock,
-                                                      ABlockTransferSrcScalarPerVector,
-                                                      BBlockTransferSrcScalarPerVector,
-                                                      A_K1,
-                                                      B_K1,
-                                                      A_K1,
-                                                      B_K1,
-                                                      MRepeat,
-                                                      NRepeat,
-                                                      MPerXDL,
-                                                      NPerXDL,
-                                                      xdlops_gemm.KPerXdlops>;
+    using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        ABlockTransferSrcScalarPerVector,
+        BBlockTransferSrcScalarPerVector,
+        A_K1,
+        B_K1,
+        A_K1,
+        B_K1,
+        MRepeat,
+        NRepeat,
+        MPerXDL,
+        NPerXDL,
+        xdlops_gemm.KPerXdlops,
+        (is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ||
+         is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t>)>;
 
     static_assert(KPerThread % KPack == 0,
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");
@@ -116,7 +118,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KThreadChunk*2 * xdlops_a_idx[I0]);
+        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KThreadChunk * 2 * xdlops_a_idx[I0]);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -127,7 +129,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KThreadChunk*2 * xdlops_b_idx[I0]);
+        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KThreadChunk * 2 * xdlops_b_idx[I0]);
         //                              [0-15]                          [0-3]
     }
 
@@ -323,15 +325,19 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     // Read buffer + Compute buffer
     // A[M0, M1, M2, KPack]
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack/2>{}),
-        make_tuple(
-            Number<KPack/2>{}, Number<KRepeat * MRepeat * KPack/2>{}, Number<MRepeat * KPack/2>{}, I1));
+        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack / 2>{}),
+        make_tuple(Number<KPack / 2>{},
+                   Number<KRepeat * MRepeat * KPack / 2>{},
+                   Number<MRepeat * KPack / 2>{},
+                   I1));
 
     // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack/2>{}),
-        make_tuple(
-            Number<KPack/2>{}, Number<KRepeat * NRepeat * KPack/2>{}, Number<NRepeat * KPack/2>{}, I1));
+        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack / 2>{}),
+        make_tuple(Number<KPack / 2>{},
+                   Number<KRepeat * NRepeat * KPack / 2>{},
+                   Number<NRepeat * KPack / 2>{},
+                   I1));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
