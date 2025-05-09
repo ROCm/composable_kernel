@@ -714,7 +714,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             return false;
         }
 
-        if(!ck::is_xdl_supported())
+        if(ck::get_device_name() != "gfx950")
         {
             return false;
         }

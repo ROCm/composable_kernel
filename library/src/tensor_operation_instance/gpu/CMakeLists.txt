@@ -115,9 +115,12 @@ function(add_instance_library INSTANCE_NAME)
                 list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
             elseif(source MATCHES "mha")
                 list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx908 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10.3-generic gfx11-generic gfx12-generic)
-            elseif(source MATCHES "_mx")
+            endif()
+
+            if(source MATCHES "_mx")
                 list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1200 gfx1201 gfx10.3-generic gfx11-generic gfx12-generic)
             endif()
+
             #only build the fp8 gemm instances for gfx90a if the build argument is set, otherwise only build for gfx942/gfx950
             if(NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH)
                 if(source MATCHES "gemm_xdl_universal" AND source MATCHES "f8")

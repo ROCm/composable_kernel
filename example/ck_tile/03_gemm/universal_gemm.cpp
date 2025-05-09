@@ -12,6 +12,19 @@
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
+template <typename Pipeline, ck_tile::TailNumber TN>
+void try_run(ck_tile::TailNumber tn)
+{
+    if constexpr(Pipeline::PrefetchStages > static_cast<int>(TN))
+    {
+        if(tn == TN)
+        {
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
+        }
+    }
+}
+
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -164,7 +177,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             throw std::runtime_error(err.str());
         }
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-        // Tail pipeline One to Seven
         if(tail_num == ck_tile::TailNumber::One)
         {
             RunSplitk(ck_tile::bool_constant<true>{},
@@ -176,60 +188,17 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
         }
 
-        if constexpr(BaseGemmPipeline::PrefetchStages > 2)
-        {
-            if(tail_num == ck_tile::TailNumber::Two)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 3)
-        {
-            if(tail_num == ck_tile::TailNumber::Three)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 4)
-        {
-            if(tail_num == ck_tile::TailNumber::Four)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 5)
-        {
-            if(tail_num == ck_tile::TailNumber::Five)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 6)
-        {
-            if(tail_num == ck_tile::TailNumber::Six)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{});
-            }
-        }
-        if constexpr(BaseGemmPipeline::PrefetchStages > 7)
-        {
-            if(tail_num == ck_tile::TailNumber::Seven)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
-            }
-        }
+        auto check_tail = [&](auto... TNs) {
+            (try_run<BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
+        };
+
+        check_tail(ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
+                   ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
+
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
         if(tail_num == ck_tile::TailNumber::Three)
         {
@@ -259,7 +228,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         else if(tail_num == ck_tile::TailNumber::Even)
         {
             RunSplitk(ck_tile::bool_constant<false>{},
-                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
         }
         else
         {
