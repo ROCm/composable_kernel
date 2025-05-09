@@ -19,23 +19,100 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         using namespace ck_tile;
-
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
+        /*reduce transform layers,compare with old ck*/
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPack     = GetSmemPackA<Problem>();
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / 8>{}, number<kMPerBlock>{}, number<8>{}),
-            make_tuple(number<(kMPerBlock + 1) * 8>{}, number<8>{}, number<1>{}),
-            number<8>{},
+            make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
+            make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
+            number<KPack>{},
+            number<1>{});
+
+        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+            a_lds_block_desc_0,
+            make_tuple(
+                make_xor_transform(make_tuple(number<MPerBlock>{}, number<KPerBlock / KPack>{})),
+                make_pass_through_transform(number<KPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+
+        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+            a_lds_block_desc_permuted,
+            make_tuple(make_pass_through_transform(number<MPerBlock>{}),
+                       make_merge_transform_v3_division_mod(
+                           make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return a_lds_block_desc;
+#elif defined(USING_MFMA_32x32x16)
+        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t kKPack     = GetSmemPackA<Problem>();
+
+        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
+            make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
+            number<kKPack>{},
             number<1>{});
 
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kMPerBlock),
-                       make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
+                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
+        return a_lds_block_desc;
+#endif
+/*xor*/
+#if 0
+        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t kKPack     = GetSmemPackA<Problem>();
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+
+        constexpr auto DataTypeSize = sizeof(ADataType);
+        constexpr auto MLdsLayer =
+            (32 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / DataTypeSize);
+
+        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<kKPerBlock / kKPack * MLdsLayer>{},
+                    number<kMPerBlock / MLdsLayer>{},
+                    number<kKPack>{}),
+            make_tuple(number<kKPack>{}, number<kKPerBlock * MLdsLayer>{}, number<1>{}),
+            number<kKPack>{},
+            number<1>{});
+
+        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+            a_lds_block_desc_0,
+            make_tuple(make_xor_transform(make_tuple(number<kMPerBlock / MLdsLayer>{},
+                                                    number<kKPerBlock / kKPack * MLdsLayer>{})),
+                    make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}),
+            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+
+        constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+            a_lds_block_desc_permuted,
+            make_tuple(make_unmerge_transform(
+                        make_tuple(number<MLdsLayer>{}, number<kKPerBlock / kKPack>{})),
+                        make_pass_through_transform(number<kMPerBlock / MLdsLayer>{}),
+                        make_pass_through_transform(number<kKPack>{})),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+
+        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+            a_lds_block_desc_xk0_mnldslayer_mn_xk1,
+            make_tuple(make_merge_transform(
+                        make_tuple(number<kMPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
+                        make_merge_transform(
+                        make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
+            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+#endif
         return a_lds_block_desc;
     }
 
@@ -58,7 +135,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
     {
-        return Problem::VectorLoadSize;
+        return Problem::VectorLoadSize / sizeof(typename Problem::ADataType);
     }
 
     template <typename Problem>
@@ -82,7 +159,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
             constexpr index_t KPack = GetSmemPackA<Problem>();
             static_assert(KPack % K3 == 0);
             constexpr index_t K2 = KPack / K3;
-            if constexpr(get_warp_size() % (K2 * M0))
+            if constexpr(get_warp_size() >= (K2 * M0))
             {
                 constexpr index_t K1 = get_warp_size() / (K2 * M0);
                 constexpr index_t K0 = BlockSize / get_warp_size();
@@ -209,7 +286,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         static_assert(kKPack % K3 == 0);
         constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
         constexpr index_t warp_size = get_warp_size();
-        if constexpr(warp_size % (K2 * M0) == 0)
+        if constexpr(warp_size >= (K2 * M0))
         {
             constexpr index_t K1 = warp_size / (K2 * M0);
             constexpr index_t K0 = kBlockSize / warp_size;
