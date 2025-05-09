@@ -27,7 +27,7 @@ constexpr ck::index_t KPerBlock      = 256;
 
 constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
 constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
-constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v1;
+constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v3;
 // v3 should be performant one, However
 //     1. some bug existed cause memory access fault in some cases, MNK=2k2k2k
 //     2. Register spill observed, most likely unpack the e8m0 from single register then feed to

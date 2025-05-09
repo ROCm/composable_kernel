@@ -423,7 +423,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         static_for<0, KRepeat, 1>{}([&](auto k) {
             constexpr auto k_step = k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}([&](auto chunk) {
+                static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
                     constexpr auto a_k_step_chunk =
                         k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                     a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
@@ -436,7 +436,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             });
             static_for<0, NRepeat, 1>{}([&](auto n0) {
                 // read block data in chunks to assemble correct thread vectors
-                static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}([&](auto chunk) {
+                static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
                     constexpr auto b_k_step_chunk =
                         k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                     b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
@@ -616,7 +616,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                             k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
 
                         static_for<0, MRepeat, 1>{}([&](auto m0) {
-                            static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}(
+                            static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}(
                                 [&](auto chunk) {
                                     constexpr auto a_k_step_chunk =
                                         k_step + chunk * KThreadChunk *
@@ -632,7 +632,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                         });
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             // read block data in chunks to assemble correct thread vectors
-                            static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}(
+                            static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}(
                                 [&](auto chunk) {
                                     constexpr auto b_k_step_chunk =
                                         k_step + chunk * KThreadChunk *
@@ -656,7 +656,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                 LoopFunc(I1, I0);
 
                 i += 2;
-            } while(i < (num_loop - 1));
+            } while(i < (num_loop - 2));
         }
 
         // tail
@@ -776,7 +776,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}([&](auto chunk) {
+                    static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
                         constexpr auto a_k_step_chunk =
                             k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                         a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
@@ -789,7 +789,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                 });
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     // read block data in chunks to assemble correct thread vectors
-                    static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}([&](auto chunk) {
+                    static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
                         constexpr auto b_k_step_chunk =
                             k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                         b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
