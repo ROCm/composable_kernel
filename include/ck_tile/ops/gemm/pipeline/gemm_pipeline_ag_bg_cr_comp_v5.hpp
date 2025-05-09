@@ -489,6 +489,8 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
                                 block_sync_lds();
 
+                                block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+
                                 // Local prefetch 2
                                 Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                                 Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
@@ -505,72 +507,183 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 } while(i < (num_loop - PrefetchStages));
             }
 
-            // tail 3
-            if(TailNum == TailNumber::Three)
-            {
-                // 3
-                {
-                    block_sync_lds();
-                    Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
-                    Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
-                    if constexpr(is_a_col_major)
+            // <<< ================== TODO WORK ================ >>>
+
+            // tail
+            auto ReadWriteCompFunc = [&]() {
+                static_for<0, KRepeat, 1>{}([&](auto k0) {
+                    if constexpr(k0 == (KRepeat - 1))
                     {
-                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                            Policy::template MakeShuffledARegTileDistribution<Problem>());
-                        transpose_tile2d(a_shuffle_tmp, a_global_load_tile);
-                        Base::LocalPrefill(a_copy_lds_window0, a_shuffle_tmp, a_element_func);
+                        block_sync_lds();
+
+                        // Local prefill 3
+                        if constexpr(is_a_col_major)
+                        {
+                            auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                Policy::template MakeShuffledARegTileDistribution<Problem>());
+                            transpose_tile2d(a_shuffle_tmp, a_global_load_tile);
+                            Base::LocalPrefill(a_copy_lds_window0, a_shuffle_tmp, a_element_func);
+                        }
+                        else
+                        {
+                            Base::LocalPrefill(
+                                a_copy_lds_window0, a_global_load_tile, a_element_func);
+                        }
+                        if constexpr(is_b_row_major)
+                        {
+                            auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                                Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                            transpose_tile2d(b_shuffle_tmp, b_global_load_tile);
+                            Base::LocalPrefill(b_copy_lds_window0, b_shuffle_tmp, b_element_func);
+                        }
+                        else
+                        {
+                            Base::LocalPrefill(
+                                b_copy_lds_window0, b_global_load_tile, b_element_func);
+                        }
+
+                        block_sync_lds();
                     }
-                    else
-                    {
-                        Base::LocalPrefill(a_copy_lds_window0, a_global_load_tile, a_element_func);
-                    }
-                    if constexpr(is_b_row_major)
-                    {
-                        auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                            Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                        transpose_tile2d(b_shuffle_tmp, b_global_load_tile);
-                        Base::LocalPrefill(b_copy_lds_window0, b_shuffle_tmp, b_element_func);
-                    }
-                    else
-                    {
-                        Base::LocalPrefill(b_copy_lds_window0, b_global_load_tile, b_element_func);
-                    }
-                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                }
-                // 2
-                {
-                    block_sync_lds();
-                    Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
-                    Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
-                    block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                }
-                // 1
-                {
-                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    __builtin_amdgcn_sched_barrier(0);
-                }
-            }
-            else
-            {
-                // 2
-                {
-                    block_sync_lds();
-                    Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
-                    Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
-                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    static_for<0, 8, 1>{}([&](auto i) {
-                        ignore = i;
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                        __builtin_amdgcn_sched_group_barrier(0x008, 8, 0); // MFMA
+
+                    // <<< ================== TODO WIP ================ >>>
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                        make_tuple(m0, I0, I0, ik))>{}];
+                            });
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                        make_tuple(n0, I0, I0, ik))>{}];
+                            });
+
+                            using mfma_input_type =
+                                typename vector_type<ComputeDataType,
+                                                     xdlops_gemm.K1PerXdlops>::type;
+
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            xdlops_gemm.Run(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                        });
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k,
+                            make_tuple(m0, I0, I0, Number<(k0 + 1) % KRepeat * AMmaKStride>{}),
+                            a_block_buf,
+                            a_thread_desc_,
+                            make_tuple(m0, I0, I0, I0),
+                            a_thread_buf);
                     });
-                    __builtin_amdgcn_sched_barrier(0);
-                }
-                // 1
-                {
-                    block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                    __builtin_amdgcn_sched_barrier(0);
-                }
+
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        b_thread_copy_.Run(
+                            b_block_desc_n0_n1_n2_k,
+                            make_tuple(n0, I0, I0, Number<(k0 + 1) % KRepeat * BMmaKStride>{}),
+                            b_block_buf,
+                            b_thread_desc_,
+                            make_tuple(n0, I0, I0, I0),
+                            b_thread_buf);
+                    });
+                });
+
+                HotLoopScheduler();
+            };
+            auto ReadCompFunc = [&]() {
+                vector_type<ComputeDataType, KPack> a_thread_vec;
+                vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                static_for<0, KRepeat - 1, 1>{}([&](auto k0) {
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                        make_tuple(m0, I0, I0, ik))>{}];
+                            });
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                        make_tuple(n0, I0, I0, ik))>{}];
+                            });
+
+                            using mfma_input_type =
+                                typename vector_type<ComputeDataType,
+                                                     xdlops_gemm.K1PerXdlops>::type;
+
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            xdlops_gemm.Run(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                        });
+
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k,
+                            make_tuple(m0, I0, I0, Number<(k0 + 1) % KRepeat * AMmaKStride>{}),
+                            a_block_buf,
+                            a_thread_desc_,
+                            make_tuple(m0, I0, I0, I0),
+                            a_thread_buf);
+                    });
+
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        b_thread_copy_.Run(
+                            b_block_desc_n0_n1_n2_k,
+                            make_tuple(n0, I0, I0, Number<(k0 + 1) % KRepeat * BMmaKStride>{}),
+                            b_block_buf,
+                            b_thread_desc_,
+                            make_tuple(n0, I0, I0, I0),
+                            b_thread_buf);
+                    });
+                });
+
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        static_for<0, KPack, 1>{}([&](auto ik) {
+                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                    make_tuple(m0, I0, I0, ik))>{}];
+                        });
+                        static_for<0, KPack, 1>{}([&](auto ik) {
+                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                    make_tuple(n0, I0, I0, ik))>{}];
+                        });
+
+                        using mfma_input_type =
+                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+                        constexpr index_t c_offset =
+                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                        b_thread_vec.template AsType<mfma_input_type>(),
+                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    });
+                });
+
+                HotLoopScheduler();
+            };
+
+            if constexpr(TailNum == TailNumber::Odd)
+            {
+                ReadWriteCompFunc(I0);
+                ReadWriteCompFunc(I1);
+                ReadCompFunc();
             }
+            else if constexpr(TailNum == TailNumber::Even)
+            {
+                ReadWriteCompFunc(I0);
+                ReadCompFunc();
+            }
+
             return c_block_tile;
         }
     };
