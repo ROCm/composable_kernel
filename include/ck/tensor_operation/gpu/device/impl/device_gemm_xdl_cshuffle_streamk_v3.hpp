@@ -437,8 +437,6 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
     size_t GetWorkSpaceSize(const BaseArgument* pArg) const override
     {
         const Argument* p_arg = dynamic_cast<const Argument*>(pArg);
-        // if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
-        //              StreamKReductionStrategy::Reduction)
         if(p_arg->reduction_strategy == StreamKReductionStrategy::Reduction)
         {
             return p_arg->block_2_ctile_map_streamk.get_workspace_size(sizeof(GemmAccDataType));
