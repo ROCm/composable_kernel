@@ -22,6 +22,6 @@ struct moe_sorting_args : public ck_tile::MoeSortingHostArgs
 // if return non zero, means need workspace, you need to allocate a GPU buffer
 // and set to moe_sorting_args.p_ws
 // NOTE: workspace size are required to clear zero before use the API
-int moe_sorting_get_workspace_size(int tokens, int num_experts);
+int moe_sorting_get_workspace_size(int tokens, int num_experts, int topk);
 float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s);
 float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_config s);

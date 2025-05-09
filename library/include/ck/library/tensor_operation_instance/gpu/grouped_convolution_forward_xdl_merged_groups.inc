@@ -24,10 +24,10 @@ void add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_bf16_inst
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_bf16_instances(
+void add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkcyx_ngkhw_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
-                                                                GKYXC,
+                                                                GKCYX,
                                                                 Empty_Tuple,
                                                                 NGKHW,
                                                                 BF16,
@@ -54,10 +54,10 @@ void add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f16_insta
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_f16_instances(
+void add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkcyx_ngkhw_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
-                                                                GKYXC,
+                                                                GKCYX,
                                                                 Empty_Tuple,
                                                                 NGKHW,
                                                                 F16,
@@ -84,10 +84,10 @@ void add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f32_insta
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_f32_instances(
+void add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkcyx_ngkhw_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
-                                                                GKYXC,
+                                                                GKCYX,
                                                                 Empty_Tuple,
                                                                 NGKHW,
                                                                 F32,
@@ -114,10 +114,10 @@ void add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_int8_inst
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkyxc_ngkhw_int8_instances(
+void add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkcyx_ngkhw_int8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
-                                                                GKYXC,
+                                                                GKCYX,
                                                                 Empty_Tuple,
                                                                 NGKHW,
                                                                 int8_t,
@@ -169,6 +169,55 @@ void add_device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_in
                                                                 GKZYXC,
                                                                 Empty_Tuple,
                                                                 NDHWGK,
+                                                                F32,
+                                                                F32,
+                                                                Empty_Tuple,
+                                                                F32,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
+#endif
+
+// grouped conv3d forward, NGCDHW/GKCZYX/NGKDHW
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NGCDHW,
+                                                                GKCZYX,
+                                                                Empty_Tuple,
+                                                                NGKDHW,
+                                                                BF16,
+                                                                BF16,
+                                                                Empty_Tuple,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NGCDHW,
+                                                                GKCZYX,
+                                                                Empty_Tuple,
+                                                                NGKDHW,
+                                                                F16,
+                                                                F16,
+                                                                Empty_Tuple,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_FP32
+void add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NGCDHW,
+                                                                GKCZYX,
+                                                                Empty_Tuple,
+                                                                NGKDHW,
                                                                 F32,
                                                                 F32,
                                                                 Empty_Tuple,

@@ -74,7 +74,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     int topk                = args.get_int("k");
     int seed                = args.get_int("seed");
     int unit_size           = args.get_int("unit");
-    int moe_buf_size        = args.get_int("moe_buf_size");
+    int64_t moe_buf_size    = static_cast<int64_t>(args.get_uint64("moe_buf_size"));
     int kname               = args.get_int("kname");
     int warmup              = args.get_int("warmup");
     int repeat              = args.get_int("repeat");
@@ -153,9 +153,8 @@ bool test_moe_sorting(ck_tile::ArgParser args)
         local_expert_masking_dev.ToDevice(local_expert_masking_host.data());
 
     // if return zero, means no need workspace, can set moe_sorting_args.p_ws to nullptr
-    ck_tile::index_t workspace_size = moe_sorting_get_workspace_size(tokens, num_experts);
+    ck_tile::index_t workspace_size = moe_sorting_get_workspace_size(tokens, num_experts, topk);
     ck_tile::DeviceMem moe_sorting_ws(workspace_size != 0 ? workspace_size : 0);
-
     if(workspace_size != 0)
         moe_sorting_ws.SetZero(); // note, clear here!!!!
 
@@ -175,7 +174,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                           unit_size,
                           num_experts,
                           topk,
-                          static_cast<ck_tile::index_t>(moe_buf_size * sizeof(float))};
+                          static_cast<ck_tile::long_index_t>(moe_buf_size * sizeof(float))};
 
     ck_tile::stream_config sc{nullptr,
                               true,

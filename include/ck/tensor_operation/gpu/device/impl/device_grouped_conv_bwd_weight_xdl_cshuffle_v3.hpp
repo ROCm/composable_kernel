@@ -17,7 +17,7 @@
 #include "ck/tensor_operation/operator_transform/transform_conv_bwd_weight_to_gemm_v2.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_bwd_weight_v3.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_conv_v3.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -81,6 +81,11 @@ __global__ void
                                         k_idx);
 #else
     ignore = karg;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = compute_ptr_offset_of_batch;
+    ignore = num_k_per_block;
 #endif // end of if (defined(__gfx9__)
 }
 
@@ -140,6 +145,11 @@ __global__ void
                                              k_idx);
 #else
     ignore = karg;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = compute_ptr_offset_of_batch;
+    ignore = num_k_per_block;
 #endif // end of if (defined(__gfx9__)
 }
 
