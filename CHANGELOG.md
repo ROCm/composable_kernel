@@ -19,7 +19,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 ### Optimized
 
-* Added the Vectorize Transose optimization for CK Tile (#2131)
+* Added Vectorize Transpose optimization for CK Tile (#2131)
 
 ### Fixes
 
