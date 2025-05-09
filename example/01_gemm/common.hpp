@@ -180,7 +180,6 @@ bool parse_cmd_args<ProblemSizeStreamK_universal>(int argc,
             {
                 problem_size.Grid_size = std::stoi(argv[11]);
 
-                // Parse reduction strategy if provided
                 if(argc >= 13)
                 {
                     int reduction_strategy          = std::stoi(argv[12]);
