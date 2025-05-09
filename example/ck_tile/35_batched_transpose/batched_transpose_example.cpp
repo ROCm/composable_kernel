@@ -99,6 +99,8 @@ auto create_args(int argc, char* argv[])
         .insert("W", "64", "input width size. ")
         .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
         .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
+        .insert("warmup", "50", "number of iterations before benchmark the kernel")
+        .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "t to 1 will print kernel name");
 
@@ -115,6 +117,8 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     int C                  = args.get_int("C");
     int H                  = args.get_int("H");
     int W                  = args.get_int("W");
+    int n_warmup           = args.get_int("warmup");
+    int n_repeat           = arg_parser.get_int("repeat");
     std::string layout_in  = args.get_str("layout_in");
     std::string layout_out = args.get_str("layout_out");
     int seed               = args.get_int("seed");
@@ -177,7 +181,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         return a_;
     }();
 
-    ck_tile::stream_config sc{nullptr, true};
+    ck_tile::stream_config sc{nullptr, true, n_warmup, n_repeat};
 
     auto ms = batched_transpose(trait, karg, sc);
 
