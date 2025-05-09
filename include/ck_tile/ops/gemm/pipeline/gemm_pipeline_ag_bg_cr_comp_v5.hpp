@@ -356,10 +356,10 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
-            // global prefetch 0
-            // global read 0
+            // Global prefetch 1
             Base::GlobalPrefetch(a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetch(b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
+
             ////////////// LDS desc, window & register /////////////////
             auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem_0);
             auto&& [a_lds_block1, b_lds_block1] = Base::GetABLdsTensorViews(p_smem_1);
@@ -376,14 +376,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             auto b_copy_lds_window1 = make_tile_window(
                 b_lds_block1, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
 
-            // Block GEMM
-            auto block_gemm   = BlockGemm();
-            auto c_block_tile = block_gemm.MakeCBlockTile();
-
-            // initialize C
-            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
-
-            // LDS write 0
+            // Local prefill 1
             if constexpr(is_a_col_major)
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
@@ -407,12 +400,24 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 Base::LocalPrefill(b_copy_lds_window0, b_global_load_tile, b_element_func);
             }
 
-            // global read 1
+            // Global prefetch 2
             Base::GlobalPrefetch(a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetch(b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
 
+            // Global prefetch 3
+            Base::GlobalPrefetch(a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
+
+            // Block GEMM
+            auto block_gemm   = BlockGemm();
+            auto c_block_tile = block_gemm.MakeCBlockTile();
+
+            // Initialize C
+            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+
             block_sync_lds();
 
+            // Prepare block tiles and windows
             constexpr auto ALdsTileDistr = decltype(make_static_tile_distribution(
                 BlockGemm::MakeABlockDistributionEncode())){};
             constexpr auto BLdsTileDistr = decltype(make_static_tile_distribution(
@@ -422,66 +427,23 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
 
             ALdsTile a_block_tile0;
-            ALdsTile a_block_tile1;
-
             BLdsTile b_block_tile0;
-            BLdsTile b_block_tile1;
 
             auto a_lds_ld_window0 =
                 make_tile_window(a_lds_block0,
                                  make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
                                  {0, 0},
                                  ALdsTileDistr);
-            auto a_lds_ld_window1 =
-                make_tile_window(a_lds_block1,
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 ALdsTileDistr);
+
             auto b_lds_ld_window0 =
                 make_tile_window(b_lds_block0,
                                  make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
                                  {0, 0},
                                  BLdsTileDistr);
-            auto b_lds_ld_window1 =
-                make_tile_window(b_lds_block1,
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 BLdsTileDistr);
 
-            static_assert(
-                !(is_tile_window_linear_v<decltype(a_lds_ld_window0)>)&&!(is_tile_window_linear_v<decltype(a_lds_ld_window1)>)&&!(
-                    is_tile_window_linear_v<
-                        decltype(b_lds_ld_window0)>)&&!(is_tile_window_linear_v<decltype(b_lds_ld_window1)>),
-                "LDS windows must not be linear");
-
+            // Local prefetch 1
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
-
-            if constexpr(is_a_col_major)
-            {
-                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegTileDistribution<Problem>());
-                transpose_tile2d(a_shuffle_tmp, a_global_load_tile);
-                Base::LocalPrefill(a_copy_lds_window1, a_shuffle_tmp, a_element_func);
-            }
-            else
-            {
-                Base::LocalPrefill(a_copy_lds_window1, a_global_load_tile, a_element_func);
-            }
-            if constexpr(is_b_row_major)
-            {
-                auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                transpose_tile2d(b_shuffle_tmp, b_global_load_tile);
-                Base::LocalPrefill(b_copy_lds_window1, b_shuffle_tmp, b_element_func);
-            }
-            else
-            {
-                Base::LocalPrefill(b_copy_lds_window1, b_global_load_tile, b_element_func);
-            }
-
-            Base::GlobalPrefetch(a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
 
             if(HasHotLoop)
             {
