@@ -49,20 +49,22 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 
         return a_lds_block_desc;
 #elif defined(USING_MFMA_32x32x16)
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t kKPack     = GetSmemPackA<Problem>();
+        //constexpr index_t kKPack     = GetSmemPackA<Problem>();
+        constexpr index_t K1         = Problem::VectorLoadSize / sizeof(ADataType);
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
-            make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
-            number<kKPack>{},
+            make_tuple(number<kKPerBlock / K1>{}, number<kMPerBlock>{}, number<K1>{}),
+            make_tuple(number<(kMPerBlock + 1) * K1>{}, number<K1>{}, number<1>{}),
+            number<K1>{},
             number<1>{});
 
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kMPerBlock),
-                       make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
+                       make_merge_transform(make_tuple(kKPerBlock / K1, K1))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -139,6 +141,21 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetK1()
+    {
+        using TileShape = typename Problem::BlockGemmShape;
+        if constexpr(TileShape::WarpTile::at(TileShape::idxN) == 32)
+        {
+            return TileShape::WarpTile::at(TileShape::idxK) / 2;
+        }
+        else
+        {
+            static_assert(TileShape::WarpTile::at(TileShape::idxN) == 16);
+            return TileShape::WarpTile::at(TileShape::idxK) / 4;
+        }
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
@@ -189,7 +206,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         }
         else
         {
-            constexpr index_t K1 = 16 / sizeof(ADataType);
+            constexpr index_t K1 = Problem::VectorLoadSize / sizeof(ADataType);
             constexpr index_t K0 = KPerBlock / K1;
             constexpr index_t M2 = get_warp_size() / K0;
             // coalesce reading for each blocks
@@ -232,19 +249,17 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBFlatDramTileDistribution()
     {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-
         using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
 
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t WaveSize  = get_warp_size();
         constexpr index_t WaveNum   = BlockSize / WaveSize;
 
-        constexpr index_t KBPerLoad =
-            Problem::VectorLoadSize / sizeof(BDataType); // dwordx4 load B elem cnt
-        constexpr index_t KThdPerWave = WaveSize;        // threads cnt in K dim
+        constexpr index_t KBPerLoad   = GetK1<Problem>();
+        constexpr index_t KThdPerWave = WaveSize; // threads cnt in K dim
         constexpr index_t KWavePerBlk = 1;
         constexpr index_t KRepeat     = 1;
+        static_assert(TileShape::flatKPerWarp == KThdPerWave * KBPerLoad, "wrong");
 
         constexpr index_t NBPerLoad   = 1;
         constexpr index_t NThdPerWave = 1;
