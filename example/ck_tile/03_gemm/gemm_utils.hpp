@@ -104,7 +104,7 @@ struct GemmConfig
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer = true;
+    static constexpr bool DoubleSmemBuffer = false;
 #endif
 
     static constexpr bool kPadM = false;

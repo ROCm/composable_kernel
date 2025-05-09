@@ -38,9 +38,8 @@ struct BaseGemmPipelineAgBgCrCompV5
 };
 
 /**
- * @brief Compute optimized pipeline version 5
+ * @brief Compute optimized pipeline version 5 TODO
  *
- * TODO
  *
  * @note TODO
  */
@@ -85,7 +84,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
 
     // TODO check KRepeat
-    constexpr index_t KRepeat = 2;
+    static constexpr index_t KRepeat = 2;
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
@@ -115,7 +114,9 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     template <>
     struct PipelineImpl<GemmPipelineScheduler::Intrawave> : public PipelineImplBase
     {
-        using Base = PipelineImplBase;
+        using Base                              = PipelineImplBase;
+        static constexpr index_t PrefetchStages = 3;
+        static constexpr index_t HotloopUnroll  = 2;
 
         CK_TILE_DEVICE static constexpr auto HotLoopScheduler()
         {
@@ -154,12 +155,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? B_LDS_Read_Inst_Num
                                                                          : B_LDS_Read_Inst_Num / 2;
 
-            constexpr auto num_ds_read_inst     = num_ds_read_inst_a + num_ds_read_inst_b;
-            constexpr auto num_ds_write_inst    = A_LDS_Write_Inst_Num + B_LDS_Write_Inst_Num;
-            constexpr auto num_buffer_load_inst = A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num;
-            constexpr auto num_issue            = num_buffer_load_inst;
-
-            // <<< ============================================= >>>
             constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
             constexpr auto ds_read_a_issue_cycle =
                 A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
@@ -283,10 +278,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 }
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
             });
-
-            // IGLP COMPILER BUG:
-            // If comment out following scheduler barrier would cause sanity fail.
-            __builtin_amdgcn_sched_barrier(0);
         }
 
         template <bool HasHotLoop,
@@ -300,7 +291,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
-                                       void* __restrict__ p_smem) const
+                                       void* p_smem) const
         {
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -500,8 +491,8 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                         HotLoopScheduler();
                     };
 
-                    LoopFunc(I0);
-                    LoopFunc(I1);
+                    LoopFunc();
+                    LoopFunc();
 
                     i += HotloopUnroll;
                 } while(i < (num_loop - PrefetchStages));
@@ -559,7 +550,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                 Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
 
-                // TODO verify?
+                // TODO verify
                 block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
 
                 HotLoopScheduler();
@@ -567,13 +558,13 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
             if constexpr(TailNum == TailNumber::Odd)
             {
-                ReadWriteCompFunc(I0);
-                ReadWriteCompFunc(I1);
+                ReadWriteCompFunc();
+                ReadWriteCompFunc();
                 ReadCompFunc();
             }
             else if constexpr(TailNum == TailNumber::Even)
             {
-                ReadWriteCompFunc(I0);
+                ReadWriteCompFunc();
                 ReadCompFunc();
             }
 
@@ -606,7 +597,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const index_t num_loop,
-                                   void* __restrict__ p_smem) const
+                                   void* p_smem) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
