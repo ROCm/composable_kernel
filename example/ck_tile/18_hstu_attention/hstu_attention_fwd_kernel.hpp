@@ -749,7 +749,7 @@ struct HstuAttentionFwdKernel
         auto o_dram = [&]() {
             const auto o_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 o_ptr,
-                make_tuple(mask.max_uih_len, kargs.hdim_v),
+                make_tuple(kargs.seqlen, kargs.hdim_v),
                 make_tuple(kargs.seq_stride_o, 1),
                 number<HstuAttentionPipeline::kAlignmentO>{},
                 number<1>{});
