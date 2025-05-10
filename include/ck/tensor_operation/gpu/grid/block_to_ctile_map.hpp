@@ -1418,7 +1418,7 @@ struct BlockToCTileMap_GemmStreamK_v2
     static constexpr uint32_t MPerBlock                = MPerBlock_;
     static constexpr uint32_t NPerBlock                = NPerBlock_;
     static constexpr uint32_t KPerBlock                = KPerBlock_;
-    static constexpr uint32_t tile_swizzle_sub_m = TileSwizzleSubM_;
+    static constexpr uint32_t tile_swizzle_sub_m       = TileSwizzleSubM_;
 
     //--------------------------------------
     // pass to device
