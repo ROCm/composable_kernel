@@ -399,6 +399,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                 b_scale_grid_desc, make_multi_index(NWaves * NPerXDL, -ScalesPerKBlockSize));
         });
 
+        b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
+                                               make_multi_index(-NPerBlock, ScalesPerKBlockSize));
+
         // Local prefetch A1
         block_sync_lds();
         static_for<0, KRepeat, 1>{}([&](auto k) {
@@ -584,6 +587,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                             b_scale_grid_desc,
                             make_multi_index(NWaves * NPerXDL, -ScalesPerKBlockSize));
                     });
+
+                    b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
+                                               make_multi_index(-NPerBlock, ScalesPerKBlockSize));
                 };
 
                 LoopFunc(I0, I1);
