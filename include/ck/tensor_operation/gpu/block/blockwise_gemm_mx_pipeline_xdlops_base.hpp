@@ -62,6 +62,8 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ? 2 : 1;
     static constexpr index_t BPackedSize =
         is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t> ? 2 : 1;
+    static constexpr index_t ComputePackedSize =
+        is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ? 2 : 1;
 
     static constexpr index_t KThreadChunk = 16 * APackedSize / sizeof(ComputeTypeA);
 
