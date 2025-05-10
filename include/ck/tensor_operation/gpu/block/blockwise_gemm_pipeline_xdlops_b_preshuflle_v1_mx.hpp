@@ -193,7 +193,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
 
     __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
-        return num_loop == 1 ? TailNumber::Odd : TailNumber::Full;
+        return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
 
     template <bool HasMainLoop,
@@ -740,7 +740,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, k0, ik))>{}];
                             b_thread_vec.template AsType<ComputeTypeB>()(ik) =
-                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, k0, ik))>{}];
                         });
 
