@@ -93,14 +93,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     A0Layout,    B0Layout,    CLayout,          
     A0DataType,  A1DataType,  B0DataType,   B1DataType,   CDataType,    AccDataType,  CShuffleDataType, 
     AElementOp, BElementOp, CElementOp,  GemmSpec,         
-    ScaleBlockSize,   256,   
-    128,  128,   128,        
+    ScaleBlockSize,   64,   
+    16,  16,   128,        
     16,    16,               
     16,    16,               
-    8,     2,                
-    S<8, 32, 1>,   S<1, 0, 2>,   S<1, 0, 2>,   2,   16,   16,   0,            
-    S<8, 32, 1>,   S<1, 0, 2>,   S<1, 0, 2>,   2,   16,   16,   0,            
-    2,   1,   S<1, 32, 1, 8>,  8,                
+    1,     1,                
+    S<8, 8, 1>,   S<1, 0, 2>,   S<1, 0, 2>,   2,   16,   16,   0,            
+    S<8, 8, 1>,   S<1, 0, 2>,   S<1, 0, 2>,   2,   16,   16,   0,            
+    1,   1,   S<1, 8, 1, 8>,  2,                
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, A0DataType, B0DataType>;
 // clang-format on
 
@@ -245,13 +245,45 @@ int main(int argc, char* argv[])
     a_scale_device_buf.ToDevice(a_m_k_scale.mData.data());
     b_scale_device_buf.ToDevice(b_k_n_scale.mData.data());
 
-#if 1
+#if 0
+    printf("print a_m_k:\n");
+    for(int m = 0; m < M; ++m)
+    {
+        for(int k = 0; k < K; ++k)
+        {
+            printf("%f ", ck::type_convert<float>(a_m_k(m, k)));
+        }
+        printf("\n");
+    }
+
+    printf("printf b_k_n:\n");
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K; ++k)
+        {
+            printf("%f ", ck::type_convert<float>(b_k_n(k, n)));
+        }
+        printf("\n");
+    }
+#endif
+
+#if 0
     printf("print a_m_k_scale:\n");
     for(int m = 0; m < M; ++m)
     {
         for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
         {
             printf("%f ", ck::type_convert<float>(a_m_k_scale(m, k)));
+        }
+        printf("\n");
+    }
+
+    printf("printf b_k_n_scale:\n");
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
+        {
+            printf("%f ", ck::type_convert<float>(b_k_n_scale(k, n)));
         }
         printf("\n");
     }
@@ -348,6 +380,28 @@ int main(int argc, char* argv[])
         ref_invoker.Run(ref_argument);
 
         c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+#if 0
+        printf("print c_m_n_device_result\n");
+        for(int m = 0; m < M; ++m)
+        {
+            for(int n = 0; n < N; ++n)
+            {
+                printf("%f ", ck::type_convert<float>(c_m_n_device_result(m, n)));
+            }
+            printf("\n");
+        }
+
+        printf("print c_m_n_host_result\n");
+        for(int m = 0; m < M; ++m)
+        {
+            for(int n = 0; n < N; ++n)
+            {
+                printf("%f ", ck::type_convert<float>(c_m_n_host_result(m, n)));
+            }
+            printf("\n");
+        }
+#endif
 
         return ck::utils::check_err(
                    c_m_n_device_result, c_m_n_host_result, "Error: Incorrect results!", 5e-2, 5e-2)

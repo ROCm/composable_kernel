@@ -733,7 +733,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                 });
             });
         }
-        else if constexpr(TailNum == TailNumber::Odd)
+        else
         {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
