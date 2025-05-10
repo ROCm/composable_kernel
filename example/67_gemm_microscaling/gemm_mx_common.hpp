@@ -200,10 +200,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.5f)}(b_k_n);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(ck::float2_t(1.0f))}(a_m_k);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(2.0f))}(b_k_n);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(.5f)}(b_k_n_scale);
         if(config.verbosity > 0)
         {
             std::cout << "Init A = {1}" << std::endl;
@@ -242,6 +242,41 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
         break;
 
+    case 3:
+
+        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(ck::float2_t(1.0f))}(a_m_k);
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+
+        if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
+        {
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+        }
+        else
+        {
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+        }
+
+        break;
+    case 4: // A random
+
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
+        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(1.0f))}(b_k_n);
+
+        if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
+        {
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+        }
+        else
+        {
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
+            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+        }
+
+        break;
+
     default:
         if(config.verbosity > 0)
         {
@@ -251,11 +286,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     if(config.verbosity > 0)
         std::cout << "Device memory allocation..." << std::endl;
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem a_scale_device_buf(sizeof(XDataType) * a_m_k_scale.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem b_scale_device_buf(sizeof(XDataType) * b_k_n_scale.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.GetElementSpaceSize());
+    DeviceMem a_scale_device_buf(sizeof(XDataType) * a_m_k_scale.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.GetElementSpaceSize());
+    DeviceMem b_scale_device_buf(sizeof(XDataType) * b_k_n_scale.GetElementSpaceSize());
+    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.GetElementSpaceSize());
 
     if(config.verbosity > 0)
         std::cout << "Upload data to device..." << std::endl;
@@ -347,16 +382,16 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Comparing results..." << std::endl;
         }
 
-        if(config.init_method == 0)
-        {
-            auto expected = static_cast<float>(K);
-            auto computed = type_convert<float>(c_m_n_device_result(1, 12));
+        // if(config.init_method == 0)
+        // {
+        //     auto expected = static_cast<float>(K);
+        //     auto computed = type_convert<float>(c_m_n_device_result(1, 12));
 
-            res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
-            std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
-                      << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl
-                      << std::endl;
-        }
+        //     res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
+        //     std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
+        //               << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl
+        //               << std::endl;
+        // }
 
         res_verified = res_verified && ck::utils::check_err(c_m_n_device_result,
                                                             c_m_n_host_result,

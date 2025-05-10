@@ -167,6 +167,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     //
     // Should be a multiple of k_per_blk.
     // TODO: Move this to blockwise pipeline base
+    // KPack in packed data types for pk A/B
     static constexpr index_t KPack =
         math::max(lcm_AK1_BK1,
                   MfmaSelector<ComputeTypeA,
@@ -179,14 +180,16 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
             return 2;
         else
             return 1;
     }();
 
     static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<BDataType>, f4x2_pk_t>)
             return 2;
         else
             return 1;
@@ -363,6 +366,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         static_assert(!(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> &&
                         GemmSpec != GemmSpecialization::Default),
                       "pk_i4_t does not support padding");
+        static_assert(!(is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t> &&
+                        GemmSpec != GemmSpecialization::Default),
+                      "f4x2_pk_t does not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -758,8 +764,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr index_t LdsSize       = 32 * 4 / KPerBlock / sizeof(ADataType) / APackedSize;
-            constexpr auto MLdsLayer        = LdsSize < 1 ? 1 : LdsSize;
+            constexpr index_t LdsSize = 32 * 4 / (KPerBlock * sizeof(ADataType) / APackedSize);
+            constexpr auto MLdsLayer  = LdsSize < 1 ? 1 : LdsSize;
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     AK0Number * Number<MLdsLayer>{}, Number<MPerBlock / MLdsLayer>{}, AK1Number),
@@ -894,8 +900,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
-            constexpr index_t LdsSize       = 32 * 4 / KPerBlock / sizeof(BDataType) / BPackedSize;
-            constexpr index_t NLdsLayer     = LdsSize < 1 ? 1 : LdsSize;
+            constexpr index_t LdsSize   = 32 * 4 / (KPerBlock * sizeof(BDataType) / BPackedSize);
+            constexpr index_t NLdsLayer = LdsSize < 1 ? 1 : LdsSize;
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
@@ -1460,13 +1466,15 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
+        CK_PRINT<ck::Number<a_block_desc_ak0_m_ak1.GetElementSpaceSize()>>();
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) + a_block_space_size_aligned *
                                                                             sizeof(ADataType) /
                                                                             APackedSize),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
@@ -1561,6 +1569,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         // shuffle C and write out
         {
+            // printf("c_thread_buf %f %f\n", c_thread_buf[I0], c_thread_buf[I1]);
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");

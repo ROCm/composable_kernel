@@ -58,7 +58,12 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
     //> store rows/cols into thread registers in chunks of 16
     //> e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
-    static constexpr index_t KThreadChunk = 16;
+    static constexpr index_t APackedSize =
+        is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ? 2 : 1;
+    static constexpr index_t BPackedSize =
+        is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t> ? 2 : 1;
+
+    static constexpr index_t KThreadChunk = 16 * APackedSize / sizeof(ComputeTypeA);
 
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
@@ -67,22 +72,24 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
-    using HotLoopInstList =
-        ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
-                                                      MPerBlock,
-                                                      NPerBlock,
-                                                      KPerBlock,
-                                                      ABlockTransferSrcScalarPerVector,
-                                                      BBlockTransferSrcScalarPerVector,
-                                                      A_K1,
-                                                      B_K1,
-                                                      A_K1,
-                                                      B_K1,
-                                                      MRepeat,
-                                                      NRepeat,
-                                                      MPerXDL,
-                                                      NPerXDL,
-                                                      xdlops_gemm.KPerXdlops>;
+    using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        ABlockTransferSrcScalarPerVector,
+        BBlockTransferSrcScalarPerVector,
+        A_K1,
+        B_K1,
+        A_K1,
+        B_K1,
+        MRepeat,
+        NRepeat,
+        MPerXDL,
+        NPerXDL,
+        xdlops_gemm.KPerXdlops,
+        (is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ||
+         is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t>)>;
 
     static_assert(KPerThread % KPack == 0,
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");
@@ -322,15 +329,19 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     // Read buffer + Compute buffer
     // A[M0, M1, M2, KPack]
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
-        make_tuple(
-            Number<KPack>{}, Number<KRepeat * MRepeat * KPack>{}, Number<MRepeat * KPack>{}, I1));
+        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack / APackedSize>{}),
+        make_tuple(Number<KPack / APackedSize>{},
+                   Number<KRepeat * MRepeat * KPack / APackedSize>{},
+                   Number<MRepeat * KPack / APackedSize>{},
+                   I1));
 
     // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
-        make_tuple(
-            Number<KPack>{}, Number<KRepeat * NRepeat * KPack>{}, Number<NRepeat * KPack>{}, I1));
+        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack / BPackedSize>{}),
+        make_tuple(Number<KPack / BPackedSize>{},
+                   Number<KRepeat * NRepeat * KPack / BPackedSize>{},
+                   Number<NRepeat * KPack / BPackedSize>{},
+                   I1));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(

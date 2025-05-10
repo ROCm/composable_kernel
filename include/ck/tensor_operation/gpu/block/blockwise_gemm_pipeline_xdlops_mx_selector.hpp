@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v1_mx.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v3_mx.hpp"
 
 namespace ck {
 
@@ -13,8 +14,9 @@ namespace ck {
 template <typename T>
 static constexpr bool is_scale_mfma_data_type()
 {
-    return is_same_v<T, f8_ocp_t> || is_same_v<T, bf8_ocp_t> || is_same_v<T, f6_t> ||
-           is_same_v<T, bf6_t> || is_same_v<T, f4_t>;
+    using U = element_type_t<T>;
+    return is_same_v<U, f8_ocp_t> || is_same_v<U, bf8_ocp_t> || is_same_v<U, f6_t> ||
+           is_same_v<U, bf6_t> || is_same_v<U, f4_t>;
 }
 
 /**
@@ -68,6 +70,30 @@ constexpr auto BlockGemmMXPipeline_Selector()
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
         return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
+                                                  ThreadBlockSize,
+                                                  ScaleBlockSize,
+                                                  ADataType,
+                                                  AScaleDataType,
+                                                  BDataType,
+                                                  BScaleDataType,
+                                                  ATileDesc,
+                                                  BTileDesc,
+                                                  AMmaTileDesc,
+                                                  BMmaTileDesc,
+                                                  ABlockTransferSrcScalarPerVector,
+                                                  BBlockTransferSrcScalarPerVector,
+                                                  MPerBlock,
+                                                  NPerBlock,
+                                                  KPerBlock,
+                                                  MPerXDL,
+                                                  NPerXDL,
+                                                  MRepeat,
+                                                  NRepeat,
+                                                  KPack>{};
+    }
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+    {
+        return BlockwiseGemmXdlops_pipeline_v3_mx<BlkGemmPipeSche,
                                                   ThreadBlockSize,
                                                   ScaleBlockSize,
                                                   ADataType,

@@ -749,11 +749,12 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
     }
 
     template <class FloatC>
-    __device__ static void Run(const f4x32_t& reg_a,
-                               const int32_t scale_a,
-                               const f4x32_t& reg_b,
-                               const int32_t scale_b,
-                               FloatC& reg_c)
+    __device__ static void
+    Run(const f4x32_t& reg_a, // misalignment between pk_f4_t, 32 and f4_t, 32
+        const int32_t scale_a,
+        const f4x32_t& reg_b,
+        const int32_t scale_b,
+        FloatC& reg_c)
     {
 #if defined(__gfx950__)
         int32x4_t arg_a = bit_cast<int32x4_t>(reg_a);

@@ -245,7 +245,8 @@ struct ThreadwiseTensorSliceTransfer_v2
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
 
     static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
             return 2;
         else
             return 1;
@@ -260,7 +261,8 @@ struct ThreadwiseTensorSliceTransfer_v2
         static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
                       "wrong! Not divisible");
 
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
         {
             static_assert(SrcScalarPerVector % PackedSize == 0, "pk data N cannot be 1");
         }
@@ -1041,7 +1043,8 @@ struct ThreadwiseTensorSliceTransfer_v4
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
 
     static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
             return 2;
         else
             return 1;
@@ -1053,10 +1056,11 @@ struct ThreadwiseTensorSliceTransfer_v4
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
 
-        static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
-                      "wrong! Not divisible");
+        // static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
+        //               "wrong! Not divisible");
 
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
         {
             static_assert(SrcScalarPerVector % PackedSize == 0, "pk data N cannot be 1");
         }
@@ -1073,6 +1077,8 @@ struct ThreadwiseTensorSliceTransfer_v4
                         const DstOriginIdx&,
                         DstBuffer& dst_buf) const
     {
+        // if(get_thread_local_1d_id() < 4)
+        //     printf("TID%03d %s:%d\n", get_thread_local_1d_id(), __FILE__, __LINE__);
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
 
@@ -1131,6 +1137,8 @@ struct ThreadwiseTensorSliceTransfer_v4
         constexpr auto ordered_access_lengths =
             container_reorder_given_new2old(access_lengths, dim_access_order);
 
+        CK_PRINT<SliceLengths, decltype(src_scalar_per_access), decltype(access_lengths)>();
+        CK_PRINT<decltype(ordered_access_lengths)>();
         static_ford<decltype(ordered_access_lengths)>{}([&](auto ordered_access_idx) {
 #if 0
             // TODO: unable to compile
@@ -1167,6 +1175,9 @@ struct ThreadwiseTensorSliceTransfer_v4
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
                                                        is_src_valid);
+                // printf("TID%03d GetOffset() / PackedSize = %d\n",
+                //        get_thread_local_1d_id(),
+                //        src_data_coord.GetOffset() / PackedSize);
             }
             else if constexpr(SrcBuffer::IsStaticBuffer())
             {
@@ -1236,16 +1247,16 @@ struct ThreadwiseTensorSliceTransfer_v4
             {
                 // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
                 // DstData)
-                vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
+                vector_type_maker_t<DstData, SrcScalarPerVector / PackedSize> dst_tmp_vector;
 
                 // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                     dst_tmp_vector.template AsType<DstData>()(i) =
                         type_convert<DstData>(src_tmp_vector.template AsType<SrcData>()[i]);
                 });
 
                 // copy data from dst_tmp_vector into dst_buf
-                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                     constexpr index_t dst_offset = dst_desc.CalculateOffset(
                         dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
 
@@ -1499,7 +1510,8 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
     using Index = MultiIndex<nDim>;
 
     static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
             return 2;
         else
             return 1;

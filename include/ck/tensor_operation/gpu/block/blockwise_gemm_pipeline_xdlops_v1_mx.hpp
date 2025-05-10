@@ -234,6 +234,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         // Global prefetch 1
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+        CK_PRINT<decltype(b_blockwise_copy), decltype(b_grid_desc), decltype(b_grid_buf)>();
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
@@ -338,43 +339,45 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
-                            constexpr auto a_k_step_chunk =
-                                k_step +
-                                chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k,
-                                make_tuple(m0, I0, I0, Number<a_k_step_chunk>{}),
-                                a_block_buf,
-                                a_thread_desc_,
-                                make_tuple(m0, I0, k, Number<chunk * KThreadChunk>{}),
-                                a_thread_buf);
-                        });
+                        static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}(
+                            [&](auto chunk) {
+                                constexpr auto a_k_step_chunk =
+                                    k_step +
+                                    chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k,
+                                    make_tuple(m0, I0, I0, Number<a_k_step_chunk>{}),
+                                    a_block_buf,
+                                    a_thread_desc_,
+                                    make_tuple(m0, I0, k, Number<chunk * KThreadChunk>{}),
+                                    a_thread_buf);
+                            });
                     });
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         // read block data in chunks to assemble correct thread vectors
-                        static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
-                            constexpr auto b_k_step_chunk =
-                                k_step +
-                                chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                            b_thread_copy_.Run(
-                                b_block_desc_n0_n1_n2_k,
-                                make_tuple(n0, I0, I0, Number<b_k_step_chunk>{}),
-                                b_block_buf,
-                                b_thread_desc_,
-                                make_tuple(n0, I0, k, Number<chunk * KThreadChunk>{}),
-                                b_thread_buf);
-                        });
+                        static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}(
+                            [&](auto chunk) {
+                                constexpr auto b_k_step_chunk =
+                                    k_step +
+                                    chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                                b_thread_copy_.Run(
+                                    b_block_desc_n0_n1_n2_k,
+                                    make_tuple(n0, I0, I0, Number<b_k_step_chunk>{}),
+                                    b_block_buf,
+                                    b_thread_desc_,
+                                    make_tuple(n0, I0, k, Number<chunk * KThreadChunk>{}),
+                                    b_thread_buf);
+                            });
                     });
                 });
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
-                            vector_type<ComputeTypeA, KPack> a_thread_vec;
+                            vector_type<ComputeTypeA, KPack> a_thread_vec; // = vec: pk_i4_t, 32
                             vector_type<ComputeTypeB, KPack> b_thread_vec;
 
-                            static_for<0, KPack, 1>{}([&](auto ik) {
+                            static_for<0, KPack / 2, 1>{}([&](auto ik) {
                                 a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                         make_tuple(m0, I0, k0, ik))>{}];
@@ -403,11 +406,16 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 b_scale_thread_vec.template AsType<BScaleDataType>()(s) =
                                     b_scale_thread_buf[Number<b_scale_offset + s>{}];
                             });
-
+                            // CK_PRINT<xdlops_gemm.K1PerXdlops>();
+                            // CK_PRINT<decltype(xdlops_gemm)>();
                             using mfma_input_type_a =
-                                typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
+                                typename vector_type<ComputeTypeA,
+                                                     xdlops_gemm.K1PerXdlops / 2>::type;
+                            // mfma input type = pk_f4_t, 32
+                            // CK_PRINT<mfma_input_type_a>();
                             using mfma_input_type_b =
-                                typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
+                                typename vector_type<ComputeTypeB,
+                                                     xdlops_gemm.K1PerXdlops / 2>::type;
 
                             constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
@@ -498,14 +506,20 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         if constexpr(TailNum == TailNumber::Full)
         {
             block_sync_lds();
-
+            CK_PRINT<KRepeat,
+                     xdlops_gemm.KPerXdlops,
+                     KPack,
+                     xdlops_gemm.K1PerXdlops,
+                     KThreadChunk,
+                     xdlops_gemm.mfma_instr.num_input_blks>();
+            CK_PRINT<KRepeat, NRepeat>();
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step =
                     k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     // read block data in chunks to assemble correct thread
-                    static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
+                    static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}([&](auto chunk) {
                         constexpr auto a_k_step_chunk =
                             k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                         a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
@@ -518,7 +532,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 });
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     // read block data in chunks to assemble correct thread
-                    static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
+                    static_for<0, xdlops_gemm.K1PerXdlops / 2 / KThreadChunk, 1>{}([&](auto chunk) {
                         constexpr auto b_k_step_chunk =
                             k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                         b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
@@ -530,14 +544,104 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
+#if 0
+            auto tmp_offset = get_thread_local_1d_id() * 16;
+            printf("b_block_buf +%d "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "\n",
+                   tmp_offset,
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 0],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 2],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 3],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 4],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 5],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 6],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 7],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 8],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 9],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 10],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 11],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 12],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 13],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 14],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 15],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+0],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+1],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+2],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+3],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+4],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+5],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+6],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+7],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+8],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+9],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+10],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+11],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+12],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+13],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+14],
+                   reinterpret_cast<const uint8_t*>(b_block_buf.p_data_)[tmp_offset + 1024+15]);
+            printf("TID%03d b_thread_buf (%d): "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x "
+                   "\n",
+                   get_thread_local_1d_id(),
+                   static_cast<int>(b_thread_buf.Size()),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<0>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<1>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<2>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<3>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<4>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<5>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<6>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<7>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<8>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<9>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<10>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<11>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<12>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<13>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<14>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<15>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<16>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<17>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<18>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<19>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<20>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<21>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<22>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<23>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<24>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<25>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<26>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<27>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<28>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<29>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<30>{}]),
+                      *reinterpret_cast<const uint8_t*>(&b_thread_buf[Number<31>{}])
+            );
 
+            printf("TID%03d b_scale_thread_buf (%d): "
+                   "0x%02x 0x%02x"
+                   "\n",
+                   get_thread_local_1d_id(),
+                   static_cast<int>(b_scale_thread_buf.Size()),
+                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_buf[Number<0>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_buf[Number<1>{}]));
+#endif
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
                         vector_type<ComputeTypeB, KPack> b_thread_vec;
 
-                        static_for<0, KPack, 1>{}([&](auto ik) {
+                        static_for<0, KPack / 2, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, k0, ik))>{}];
@@ -564,9 +668,9 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         });
 
                         using mfma_input_type_a =
-                            typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
+                            typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops / 2>::type;
                         using mfma_input_type_b =
-                            typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
+                            typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops / 2>::type;
 
                         constexpr index_t c_offset =
                             c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
@@ -581,6 +685,21 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
+#if 0
+            printf("TID%03d c_thread_buf (%d): "
+                   "%08.4f %08.4f %08.4f %08.4f %08.4f %08.4f %08.4f %08.4f "
+                   "\n",
+                   get_thread_local_1d_id(),
+                   static_cast<int>(c_thread_buf.Size()),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<0>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<1>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<2>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<3>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<4>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<5>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<6>{}]),
+                   *reinterpret_cast<const float*>(&c_thread_buf[Number<7>{}]));
+#endif
         }
     }
 
