@@ -86,9 +86,9 @@ struct ReferenceMXGemm : public device::BaseOperator
             Tensor<ComputeTypeB> b_k_n_scaled(HostTensorDescriptor({K, N}, {1, K}));
             // printf("K: %d\n", K);
 
-            for(size_t m = 0; m < M; m++)
+            for(int m = 0; m < M; m++)
             {
-                for(size_t k = 0; k < K; k++)
+                for(int k = 0; k < K; k++)
                 {
                     if constexpr(is_same_v<ADataType, f4x2_pk_t>)
                     {
@@ -105,14 +105,6 @@ struct ReferenceMXGemm : public device::BaseOperator
 
                         a_m_k_scaled(m, k)     = type_convert<ComputeTypeA>(a_f4_lo) * a_scale;
                         a_m_k_scaled(m, k + 1) = type_convert<ComputeTypeA>(a_f4_hi) * a_scale;
-                        if(m == 0 && 0)
-                        {
-                            printf("a_m_k_scaled(%zu, %zu): %f, %f\n",
-                                   m,
-                                   k,
-                                   a_m_k_scaled(m, k),
-                                   a_m_k_scaled(m, k + 1));
-                        }
                     }
                     else
                     {
@@ -123,9 +115,9 @@ struct ReferenceMXGemm : public device::BaseOperator
                 }
             }
 
-            for(size_t n = 0; n < N; n++)
+            for(int n = 0; n < N; n++)
             {
-                for(size_t k = 0; k < K; k++)
+                for(int k = 0; k < K; k++)
                 {
                     if constexpr(is_same_v<BDataType, f4x2_pk_t>)
                     {
@@ -141,19 +133,6 @@ struct ReferenceMXGemm : public device::BaseOperator
                         auto b_f4_hi           = f4_t(b_pack.template unpack<>(Number<1>{}));
                         b_k_n_scaled(k, n)     = type_convert<ComputeTypeB>(b_f4_lo) * b_scale;
                         b_k_n_scaled(k + 1, n) = type_convert<ComputeTypeB>(b_f4_hi) * b_scale;
-                        if(n == 0 && 0)
-                        {
-                            printf("b_k_n(%zu, %zu): %2x\n",
-                                   n,
-                                   k,
-                                   *reinterpret_cast<const uint8_t*>(&b_pack));
-                            // printf("b_k_n_scaled(%zu, %zu): %f, %f\n",
-                            //        n,
-                            //        k,
-                            //        b_k_n_scaled(k, n),
-                            //        b_k_n_scaled(k+1, n)
-                            //        );
-                        }
                     }
                     else
                     {

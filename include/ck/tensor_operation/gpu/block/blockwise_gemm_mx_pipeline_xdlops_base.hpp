@@ -72,6 +72,12 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
+    // Hardcode to 2, for better 8-bit access pattern
+
+    static constexpr index_t MXdlPack = 2;
+    static constexpr index_t NXdlPack = 2;
+    static constexpr index_t KXdlPack = 2;
+
     using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<
         BlockSize,
         MPerBlock,

@@ -886,6 +886,8 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
 
     template <index_t MPerXdlops,
               index_t NPerXdlops,
+              index_t OpselA,
+              index_t OpselB,
               class FloatA,
               class ScaleA,
               class FloatB,
@@ -897,11 +899,20 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
                         const ScaleB& scale_b,
                         FloatC& reg_c) const
     {
-        static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this point.");
-        static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at this point.");
+        if(get_thread_local_1d_id() == 0)
+        {
+            printf("Before BitCast: Scale A: %08x, Scale B: %08x\n",
+                   *reinterpret_cast<const uint32_t*>(&scale_a),
+                   *reinterpret_cast<const uint32_t*>(&scale_b));
+        }
+        // static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this
+        // point."); static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at
+        // this point.");
 
-        intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops>::Run(
-            a, utils::get_exponent_value(scale_a), b, utils::get_exponent_value(scale_b), reg_c);
+        // intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops, OpselA, OpselB>::Run(
+        //     a, utils::get_exponent_value(scale_a), b, utils::get_exponent_value(scale_b), reg_c);
+        intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops, OpselA, OpselB>::Run(
+            a, bit_cast<int32_t>(scale_a), b, bit_cast<int32_t>(scale_b), reg_c);
     }
 };
 
@@ -1441,7 +1452,13 @@ struct XdlopsGemm
         });
     }
 
-    template <class FloatA, class ScaleA, class FloatB, class ScaleB, class FloatC>
+    template <index_t OpselA,
+              index_t OpselB,
+              class FloatA,
+              class ScaleA,
+              class FloatB,
+              class ScaleB,
+              class FloatC>
     __device__ void Run(const FloatA& p_a_wave,
                         const ScaleA& a_scale_thread,
                         const FloatB& p_b_wave,
@@ -1451,12 +1468,12 @@ struct XdlopsGemm
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
             if constexpr(!TransposeC)
             {
-                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                mfma_instr.template run<MPerXdlops, NPerXdlops, OpselA, OpselB>(
                     p_a_wave[k], a_scale_thread[k], p_b_wave[k], b_scale_thread[k], p_c_thread);
             }
             else
             {
-                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                mfma_instr.template run<MPerXdlops, NPerXdlops, OpselB, OpselA>(
                     p_b_wave[k], b_scale_thread[k], p_a_wave[k], a_scale_thread[k], p_c_thread);
             }
         });

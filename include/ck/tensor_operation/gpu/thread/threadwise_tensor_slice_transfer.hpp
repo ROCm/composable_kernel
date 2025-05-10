@@ -1137,8 +1137,8 @@ struct ThreadwiseTensorSliceTransfer_v4
         constexpr auto ordered_access_lengths =
             container_reorder_given_new2old(access_lengths, dim_access_order);
 
-        CK_PRINT<SliceLengths, decltype(src_scalar_per_access), decltype(access_lengths)>();
-        CK_PRINT<decltype(ordered_access_lengths)>();
+        // CK_PRINT<SliceLengths, decltype(src_scalar_per_access), decltype(access_lengths)>();
+        // CK_PRINT<decltype(ordered_access_lengths)>();
         static_ford<decltype(ordered_access_lengths)>{}([&](auto ordered_access_idx) {
 #if 0
             // TODO: unable to compile

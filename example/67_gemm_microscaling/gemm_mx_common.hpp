@@ -103,6 +103,50 @@ bool parse_cmd_args(int argc,
     return true;
 }
 
+#if 1
+void preShuffleScaleBuffer(const ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
+{
+    int MNXdlPack = 2;
+    int KXdlPack  = 2;
+
+    int XdlMNThread = 16;
+    int XdlKThread  = 64 / XdlMNThread;
+
+    int K0 = K / KXdlPack / XdlKThread; // KRepeat
+
+    // The 4 16x128 building blocks will be packed into 1 32x256 for F4
+    // The 8 16x16x128 mfma will be packed into 1 32x32x256 for F4
+
+    // unfold the MN32xK(256/32) scale buffer
+    //    4            16             2           2
+    // To XdlKThread-> XdlMNThread -> KXdlPack -> MNXdlPack
+    // Then, MNRepeat->KRepeat
+
+    for(int n = 0; n < MN; ++n)
+    {
+        for(int k = 0; k < K; ++k)
+        {
+            int n0    = n / (XdlMNThread * MNXdlPack); // i MNRepeat
+            int tempn = n % (XdlMNThread * MNXdlPack);
+            int n1    = tempn / MNXdlPack; // i XdlMNThread
+            int n2    = tempn % MNXdlPack; // i MNXdlPack
+
+            int k0    = k / (XdlKThread * KXdlPack); // i KRepeat
+            int tempk = k % (XdlKThread * KXdlPack);
+            int k1    = tempk / KXdlPack; // i XdlKThread
+            int k2    = tempk % KXdlPack; // i KXdlPack
+
+            int outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
+                              k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
+                              k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
+                              k2 * MNXdlPack + n2;
+
+            dst[outputIndex] = src[n * K + k];
+        }
+    }
+}
+#endif
+
 template <typename DeviceOpInstance,
           typename ADataType,
           typename BDataType,
@@ -181,6 +225,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     Tensor<XDataType> a_m_k_scale(f_host_tensor_descriptor(
         M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{})); // scales for A
     Tensor<XDataType> b_k_n_scale(f_host_tensor_descriptor(
+        K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{})); // scales for B
+
+    Tensor<XDataType> a_shuffled_scale(f_host_tensor_descriptor(
+        M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{})); // scales for A
+    Tensor<XDataType> b_shuffled_scale(f_host_tensor_descriptor(
         K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{})); // scales for B
 
     Tensor<CDataType> c_m_n_host_result(
@@ -283,6 +332,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "NOTE: No input data initialization." << std::endl;
         }
     }
+#if 1
+    preShuffleScaleBuffer(
+        a_m_k_scale.mData.data(), a_shuffled_scale.mData.data(), M, K / ScaleBlockSize);
+    preShuffleScaleBuffer(
+        b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+#endif
 
     if(config.verbosity > 0)
         std::cout << "Device memory allocation..." << std::endl;
@@ -295,9 +350,18 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     if(config.verbosity > 0)
         std::cout << "Upload data to device..." << std::endl;
     a_device_buf.ToDevice(a_m_k.mData.data());
-    a_scale_device_buf.ToDevice(a_m_k_scale.mData.data());
+    a_scale_device_buf.ToDevice(a_shuffled_scale.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    b_scale_device_buf.ToDevice(b_k_n_scale.mData.data());
+    b_scale_device_buf.ToDevice(b_shuffled_scale.mData.data());
+    // for (size_t i = 0; i < N; i++)
+    // {
+    //     for (size_t j = 0; j < K / ScaleBlockSize; j++)
+    //     {
+    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&b_shuffled_scale(j, i)));
+    //     }
+    //     printf("\n");
+    // }
+
     if(config.verbosity > 0)
         std::cout << "Done." << std::endl;
 

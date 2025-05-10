@@ -169,7 +169,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             },
             Number<nDim>{});
 
-        CK_PRINT<SliceLengths, decltype(src_scalar_per_access)>();
+        // // CK_PRINT<SliceLengths, decltype(src_scalar_per_access)>();
         // loop over tensor and copy
         static_ford<decltype(ordered_src_access_lengths)>{}([&](auto ordered_src_access_idx) {
             // judge move forward or move backward
@@ -282,7 +282,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                                                    Sequence<I0, I8, I12, I14>,
                                                    Sequence<I0>>;
 
-            CK_PRINT<tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>>();
+            // // CK_PRINT<tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>>();
             static_for<0, tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>::Size(), 1>{}(
                 [&](auto v_idx) {
                     constexpr auto VectorLoadSize =
@@ -292,7 +292,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
                     using src_vector_container   = vector_type_maker_t<SrcData, VectorLoadSize>;
                     using src_vector_container_t = typename src_vector_container::type;
-                    CK_PRINT<decltype(VectorLoadSize)>();
+                    // CK_PRINT<decltype(VectorLoadSize)>();
 
                     src_vector_container src_vector =
                         src_vector_container{src_buf.template Get<src_vector_container_t>(
@@ -553,7 +553,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
         constexpr auto dst_dim_access_order = DstDimAccessOrder{};
 
-        CK_PRINT<SliceLengths, decltype(dst_scalar_per_access)>();
+        // CK_PRINT<SliceLengths, decltype(dst_scalar_per_access)>();
         constexpr auto ordered_dst_access_lengths =
             container_reorder_given_new2old(dst_access_lengths, dst_dim_access_order);
 
@@ -584,7 +584,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             Number<nDim>{});
 
         // loop over tensor and copy
-        CK_PRINT<decltype(ordered_dst_access_lengths)>();
+        // CK_PRINT<decltype(ordered_dst_access_lengths)>();
         static_ford<decltype(ordered_dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
             // judge move forward or move backward
             constexpr auto forward_sweep = [&]() {
