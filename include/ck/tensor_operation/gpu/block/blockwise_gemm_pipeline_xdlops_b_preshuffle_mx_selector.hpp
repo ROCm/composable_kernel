@@ -13,8 +13,9 @@ namespace ck {
 template <typename T>
 static constexpr bool is_scale_mfma_data_type()
 {
-    return is_same_v<T, f8_ocp_t> || is_same_v<T, bf8_ocp_t> || is_same_v<T, f6_t> ||
-           is_same_v<T, bf6_t> || is_same_v<T, f4_t>;
+    using U = element_type_t<T>;
+    return is_same_v<U, f8_ocp_t> || is_same_v<U, bf8_ocp_t> || is_same_v<U, f6_t> ||
+           is_same_v<U, bf6_t> || is_same_v<U, f4_t>;
 }
 
 /**
