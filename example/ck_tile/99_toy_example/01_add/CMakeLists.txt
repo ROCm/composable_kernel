@@ -1,9 +1,9 @@
-set(EXAMPLE_REDUCE "add")
+set(EXAMPLE_REDUCE "add_3D")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
 message("adding example ${EXAMPLE_REDUCE}")
 
-add_executable(${EXAMPLE_REDUCE} EXCLUDE_FROM_ALL add.cpp)
+add_executable(${EXAMPLE_REDUCE} EXCLUDE_FROM_ALL add_3D.cpp)
 target_include_directories(${EXAMPLE_REDUCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 set(EXAMPLE_REDUCE_COMPILE_OPTIONS)
 
