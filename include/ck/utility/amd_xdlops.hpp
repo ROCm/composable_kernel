@@ -756,11 +756,13 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
         const int32_t scale_b,
         FloatC& reg_c)
     {
-        // if(get_thread_local_1d_id()){
-        //     printf("Scale A: %08x, Scale B: %08x\n",
-        //         *reinterpret_cast<const uint8_t*>(&scale_a), *reinterpret_cast<const
-        //         uint8_t*>(&scale_b));
-        // }
+        if(get_thread_local_1d_id()){
+            printf("Tid: %03d, Scale A: %08x, Scale B: %08x, OpSelA: %d, OpSelB: %d\n",
+                get_thread_local_1d_id(),
+                *reinterpret_cast<const uint32_t*>(&scale_a), *reinterpret_cast<const
+                uint32_t*>(&scale_b),
+                OpselA, OpselB);
+        }
 #if defined(__gfx950__)
         int32x4_t arg_a = bit_cast<int32x4_t>(reg_a);
         int32x4_t arg_b = bit_cast<int32x4_t>(reg_b);

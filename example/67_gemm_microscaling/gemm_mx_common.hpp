@@ -133,13 +133,15 @@ void preShuffleScaleBuffer(const ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int
 
             int k0    = k / (XdlKThread * KXdlPack); // i KRepeat
             int tempk = k % (XdlKThread * KXdlPack);
-            int k1    = tempk / KXdlPack; // i XdlKThread
-            int k2    = tempk % KXdlPack; // i KXdlPack
+            int k1    = tempk % XdlKThread; // i XdlKThread
+            int k2    = tempk / XdlKThread; // i KXdlPack
 
             int outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
                               k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
-                              k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
-                              k2 * MNXdlPack + n2;
+                              k1 * MNXdlPack * KXdlPack * XdlMNThread +
+                              n1 * MNXdlPack * KXdlPack +
+                              k2 * MNXdlPack +
+                              n2;
 
             dst[outputIndex] = src[n * K + k];
         }
@@ -332,12 +334,49 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "NOTE: No input data initialization." << std::endl;
         }
     }
+    printf("a_scale:\n");
+    for (size_t i = 0; i < M; i++)
+    {
+        for (size_t j = 0; j < K / ScaleBlockSize; j++)
+        {
+            a_m_k_scale(i, j) = ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j/4)%4)));
+            printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k_scale(i, j)));
+        }
+        printf("\n");
+    }
+    printf("b_scale:\n");
+    for (size_t i = 0; i < N; i++)
+    {
+        for (size_t j = 0; j < K / ScaleBlockSize; j++)
+        {
+            b_k_n_scale(j, i) = ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j/4)%4)));
+            printf("%02x ", *reinterpret_cast<uint8_t*>(&b_k_n_scale(j, i)));
+        }
+        printf("\n");
+    }
+
 #if 1
     preShuffleScaleBuffer(
         a_m_k_scale.mData.data(), a_shuffled_scale.mData.data(), M, K / ScaleBlockSize);
     preShuffleScaleBuffer(
         b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
 #endif
+
+    printf("a_shuffled_scale:\n");
+    for (size_t i = 0; i < M*K / ScaleBlockSize; i++)
+    {
+        printf("%02x ", *reinterpret_cast<uint8_t*>(&(a_shuffled_scale.mData.data()[i])));
+        
+        if(i % 64 == 63)
+        printf("\n");
+    }
+    printf("b_shuffled_scale:\n");
+    for (size_t i = 0; i < N*K / ScaleBlockSize; i++)
+    {
+        printf("%02x ", *reinterpret_cast<uint8_t*>(&(b_shuffled_scale.mData.data()[i])));
+        if(i % 64 == 63)
+        printf("\n");
+    }
 
     if(config.verbosity > 0)
         std::cout << "Device memory allocation..." << std::endl;
@@ -353,14 +392,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     a_scale_device_buf.ToDevice(a_shuffled_scale.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
     b_scale_device_buf.ToDevice(b_shuffled_scale.mData.data());
-    // for (size_t i = 0; i < N; i++)
-    // {
-    //     for (size_t j = 0; j < K / ScaleBlockSize; j++)
-    //     {
-    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&b_shuffled_scale(j, i)));
-    //     }
-    //     printf("\n");
-    // }
 
     if(config.verbosity > 0)
         std::cout << "Done." << std::endl;

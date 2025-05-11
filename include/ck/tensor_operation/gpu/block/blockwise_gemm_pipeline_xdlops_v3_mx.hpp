@@ -367,19 +367,20 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             a_scale_thread_copy.MoveSrcSliceWindow(
                 a_scale_grid_desc, make_multi_index(MWaves, -KRepeat / KXdlPack, 0));
         });
-
-        if(get_thread_local_1d_id() == 0)
+#if 0
+        if(get_thread_local_1d_id())
         {
-            printf("Scale A: %02x %02x %02x %02x\n",
+            printf("1stGMEM Tid: %03d, Scale A: %02x %02x %02x %02x\n",
+                     get_thread_local_1d_id(),
                    *reinterpret_cast<const uint8_t*>(&a_scale_thread_bufs(I0)[Number<0>{}]),
                    *reinterpret_cast<const uint8_t*>(&a_scale_thread_bufs(I0)[Number<1>{}]),
                    *reinterpret_cast<const uint8_t*>(&a_scale_thread_bufs(I0)[Number<2>{}]),
                    *reinterpret_cast<const uint8_t*>(&a_scale_thread_bufs(I0)[Number<3>{}]));
         }
-
+#endif
         // restore row id and advance to the next set of scales
         a_scale_thread_copy.MoveSrcSliceWindow(
-            a_scale_grid_desc, make_multi_index(-MWaves * MRepeat / MXdlPack, 0, 0));
+            a_scale_grid_desc, make_multi_index(-MWaves * MRepeat / MXdlPack, KRepeat / KXdlPack, 0));
 
         // Prefetch b_scales
         static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
@@ -396,20 +397,21 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             b_scale_thread_copy.MoveSrcSliceWindow(
                 b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
         });
-
-        if(get_thread_local_1d_id() == 0)
+#if 0
+        if(get_thread_local_1d_id())
         {
-            printf("Scale B: %02x %02x %02x %02x\n",
+            printf("1stGMEM Tid: %03d, Scale B: %02x %02x %02x %02x\n",
+                     get_thread_local_1d_id(),
                    *reinterpret_cast<const uint8_t*>(&b_scale_thread_bufs(I0)[Number<0>{}]),
                    *reinterpret_cast<const uint8_t*>(&b_scale_thread_bufs(I0)[Number<1>{}]),
                    *reinterpret_cast<const uint8_t*>(&b_scale_thread_bufs(I0)[Number<2>{}]),
                    *reinterpret_cast<const uint8_t*>(&b_scale_thread_bufs(I0)[Number<3>{}]));
         }
-
+#endif
         // restore col id and advance to the next set of scales
         // NWaves * NPerXDL * NRepeat == NPerBlock
         b_scale_thread_copy.MoveSrcSliceWindow(
-            b_scale_grid_desc, make_multi_index(-NWaves * NRepeat / NXdlPack, 0, 0));
+            b_scale_grid_desc, make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
         // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
@@ -483,7 +485,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
                     // restore row id and advance to the next set of scales
                     a_scale_thread_copy.MoveSrcSliceWindow(
-                        a_scale_grid_desc, make_multi_index(-MWaves * MRepeat / MXdlPack, 0, 0));
+                        a_scale_grid_desc, make_multi_index(-MWaves * MRepeat / MXdlPack, KRepeat / KXdlPack, 0));
 
                     // Prefetch b_scales
                     static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
@@ -504,7 +506,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     // restore col id and advance to the next set of scales
                     // NWaves * NPerXDL * NRepeat == NPerBlock
                     b_scale_thread_copy.MoveSrcSliceWindow(
-                        b_scale_grid_desc, make_multi_index(-NWaves * NRepeat / NXdlPack, 0, 0));
+                        b_scale_grid_desc, make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
                     // TODO: consider scheduling the scale load
                     // -------------------------------------------------------------------------------------------
@@ -672,13 +674,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         // tail
         if constexpr(TailNum == TailNumber::Even)
         {
-            // Global prefetch 1
-            a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-            b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
-
-            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-
             // Prefetch a_scales
             static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                 static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
@@ -710,7 +705,27 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                 b_scale_thread_copy.MoveSrcSliceWindow(
                     b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
             });
+#if 0
+            if(get_thread_local_1d_id())
+        {
+            printf("2stGMEM Tid: %03d, Scale A: %02x %02x %02x %02x\n",
+                     get_thread_local_1d_id(),
+                   *reinterpret_cast<const uint8_t*>(&a_scale_thread_bufs(I1)[Number<0>{}]),
+                   *reinterpret_cast<const uint8_t*>(&a_scale_thread_bufs(I1)[Number<1>{}]),
+                   *reinterpret_cast<const uint8_t*>(&a_scale_thread_bufs(I1)[Number<2>{}]),
+                   *reinterpret_cast<const uint8_t*>(&a_scale_thread_bufs(I1)[Number<3>{}]));
+        }
 
+        if(get_thread_local_1d_id())
+        {
+            printf("2stGMEM Tid: %03d, Scale B: %02x %02x %02x %02x\n",
+                     get_thread_local_1d_id(),
+                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_bufs(I1)[Number<0>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_bufs(I1)[Number<1>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_bufs(I1)[Number<2>{}]),
+                   *reinterpret_cast<const uint8_t*>(&b_scale_thread_bufs(I1)[Number<3>{}]));
+        }
+#endif
             block_sync_lds();
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
             b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
@@ -796,7 +811,17 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
-
+#if 0
+            if(get_thread_local_1d_id())
+        {
+            printf("1stMFMA, Tid: %03d, floatC: %.0f %.0f %.0f %.0f\n",
+                     get_thread_local_1d_id(),
+                   c_thread_buf[Number<0>{}],
+                   c_thread_buf[Number<1>{}],
+                   c_thread_buf[Number<2>{}],
+                   c_thread_buf[Number<3>{}]);
+        }
+#endif
             block_sync_lds();
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
@@ -911,6 +936,17 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
+#if 0
+            if(get_thread_local_1d_id())
+        {
+            printf("2stMFMA, Tid: %03d, floatC: %.0f %.0f %.0f %.0f\n",
+                     get_thread_local_1d_id(),
+                   c_thread_buf[Number<0>{}],
+                   c_thread_buf[Number<1>{}],
+                   c_thread_buf[Number<2>{}],
+                   c_thread_buf[Number<3>{}]);
+        }
+#endif
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {

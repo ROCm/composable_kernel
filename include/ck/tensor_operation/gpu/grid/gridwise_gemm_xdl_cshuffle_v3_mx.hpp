@@ -1279,7 +1279,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 }
             }
         }
-
+#if 0
         // check gridwise gemm pipeline
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
@@ -1290,7 +1290,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 return false;
             }
         }
-
+#endif
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }
@@ -1518,9 +1518,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         //                        mfma.selected_mfma.num_threads_per_blk;
 
         // A wave access continuous memory
-        auto thread_offset_shuffled = get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize;
+        auto thread_offset_shuffled = get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack;
 
-        auto a_thread_offset_m = waveId_m * MPerXdl * MXdlPack;
+        auto a_thread_offset_m = waveId_m;
 
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<AScaleDataType,
@@ -1537,7 +1537,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 make_multi_index(
                     block_m_id * MPerBlock + a_thread_offset_m, 0, thread_offset_shuffled));
 
-        auto b_thread_offset_n = waveId_n * NPerXdl * NXdlPack;
+        auto b_thread_offset_n = waveId_n;
 
         auto b_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
