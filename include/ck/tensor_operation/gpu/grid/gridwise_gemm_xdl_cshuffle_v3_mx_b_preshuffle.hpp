@@ -174,7 +174,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
                                                   is_scale_mfma>;
     static constexpr index_t KPack = math::max(lcm_AK1_BK1, mfma_selector::selected_mfma.k_per_blk);
 
-    static constexpr index_t KGroup = mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
+    static constexpr index_t KGroup = 1;//mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
     static constexpr index_t KLane =
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
     static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
@@ -184,14 +184,16 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
             return 2;
         else
             return 1;
     }();
 
     static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<BDataType>, f4x2_pk_t>)
             return 2;
         else
             return 1;
@@ -385,6 +387,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
         static_assert(!(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> &&
                         GemmSpec != GemmSpecialization::Default),
                       "pk_i4_t does not support padding");
+        static_assert(!(is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t> &&
+                        GemmSpec != GemmSpecialization::Default),
+                      "f4x2_pk_t does not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -1317,7 +1322,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);

@@ -809,10 +809,13 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
         make_naive_tensor_descriptor_packed(make_tuple(Number<1>{}, Number<1>{}));
 
     protected:
+
+    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
+        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
     using Base::a_thread_copy_;
     using Base::a_thread_desc_;
     using Base::b_thread_copy_;
-    using Base::b_thread_desc_;
+    // using Base::b_thread_desc_;
     using Base::c_thread_desc_;
 
     static constexpr BTileDesc b_block_desc_n0_n1_k0_k1;
