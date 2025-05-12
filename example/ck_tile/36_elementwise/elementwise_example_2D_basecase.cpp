@@ -16,13 +16,14 @@
 #include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_problem.hpp"
 #include "ck_tile/ops/elementwise/pipeline/elementwise_traits.hpp"
 #include "ck_tile/ops/elementwise/pipeline/elementwise_operators.hpp"
+#include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_default_policy.hpp"
 #include "ck_tile/ops/elementwise/kernel/elementwise.hpp"
 #include "reference_add.hpp"
 
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "3328", "m dimension")
+    arg_parser.insert("m", "10240", "m dimension")
         .insert("n", "4096", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("v", "1", "cpu validation or not")
@@ -84,17 +85,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "block x-size = " << BlockTile::at(ck_tile::number<0>{}) << std::endl;
     std::cout << "grid size " << kGridSize << std::endl;
 
-    using Shape   = ck_tile::ElementWiseTraits<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Shape   = ck_tile::ElementWiseTraits2D<BlockWarps, BlockTile, WarpTile, Vector>;
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
                                                         ComputeDataType,
                                                         YDataType,
                                                         Shape,
                                                         XElementwiseOperation>;
 
-    using Kernel = ck_tile::ElementWiseKernel<Problem>;
+    using Kernel = ck_tile::ElementWiseKernel<Problem, ck_tile::ElementWiseDefaultPolicy2D>;
 
     // 4. Run the kernel
-    launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
                       Kernel{},
                       kGridSize,
@@ -105,6 +106,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                       static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
                       M,
                       N));
+        
+    std::cout << "Average time: " << ave_time << " ms" << std::endl;
 
     // 5. Verify the output
     bool pass = true;
