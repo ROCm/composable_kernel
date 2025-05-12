@@ -545,20 +545,22 @@ def Build_CK(Map conf=[:]){
                             """
                     }
                     dir("build"){
-                        if ((params.RUN_FULL_QA || param.BUILD_INSTANCES_ONLY) && arch_type == 2 ){
+                        if (params.RUN_FULL_QA && arch_type == 2 ){
                             // build deb packages
                             echo "Build packages"
                             sh 'make -j package'
-                            if (params.RUN_FULL_QA){ // save all packages when building just for gfx942
-                                archiveArtifacts artifacts: 'composablekernel*.deb'
-                                sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
-                                sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
-                                sh 'mv composablekernel-examples_*.deb composablekernel-examples_1.1.0_amd64.deb'
-                                sh 'mv composablekernel-tests_*.deb composablekernel-tests_1.1.0_amd64.deb'
-                            }
-                            else{ // save only dev library when building for all targets
-                                sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
-                            }
+                            archiveArtifacts artifacts: 'composablekernel*.deb'
+                            sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-examples_*.deb composablekernel-examples_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-tests_*.deb composablekernel-tests_1.1.0_amd64.deb'
+                            stash includes: "composablekernel-**.deb", name: "packages"
+                        }
+                        if (param.BUILD_INSTANCES_ONLY && arch_type == 2 ){
+                            // build deb packages
+                            echo "Build packages"
+                            sh 'ninja -j package'
+                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
                             stash includes: "composablekernel-**.deb", name: "packages"
                         }
                     }
