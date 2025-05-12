@@ -885,7 +885,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         std::array<index_t, NDimSpatial> input_left_pads_;
         std::array<index_t, NDimSpatial> input_right_pads_;
 
-        const index_t k_batch_ = 1;
+        const index_t k_batch_;
         index_t num_workgroups_per_Conv_N_;
     };
 
