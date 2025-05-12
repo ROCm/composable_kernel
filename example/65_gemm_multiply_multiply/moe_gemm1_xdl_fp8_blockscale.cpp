@@ -124,7 +124,12 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
-#if 1
+
+static constexpr ck::index_t Nswizzle    = false;
+static constexpr ck::index_t ActOP       = 0; // 0: gelu_and_mul, 1: silu_and_mul
+static constexpr bool MulRoutedWeight    = false;
+
+#if 0
 static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 16;
@@ -135,14 +140,12 @@ static constexpr ck::index_t CShuffleNXDLPerWave = NXDLPerWave;
 static constexpr ck::index_t BLOCKSIZE   = 256;
 
 static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
-static constexpr ck::index_t Nswizzle    = false;
 static constexpr ck::index_t AK1         = 16 / sizeof(A0DataType);
 static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
 static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
 static constexpr ck::index_t D0Vec       = 1;
 static constexpr ck::index_t D1Vec       = 1;
-static constexpr ck::index_t ActOP       = 0; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr bool MulRoutedWeight    = false;
+
 using DeviceOpInstance                   = ck::tensor_operation::device::DeviceMoeGemmBlockScale
     // clang-format off
         <      Row, Col, DsLayout, ELayout,
@@ -178,7 +181,7 @@ static constexpr ck::index_t MPerBlock = 128; using DeviceOpInstance = ck::tenso
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                2,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, true, MulRoutedWeight, int32_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, true, MulRoutedWeight, int32_t, A0DataType>;
 #endif
 // clang-format on
 

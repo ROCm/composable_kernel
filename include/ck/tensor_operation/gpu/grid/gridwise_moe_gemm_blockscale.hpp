@@ -1166,7 +1166,7 @@ struct GridwiseMoeGemmBlockScale
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-                            TailNumber TailNum = TailNumber::Odd>
+              TailNumber TailNum = TailNumber::Odd>
     __device__ static void Run(const index_t* p_sorted_token_ids,
                                const index_t* p_sorted_expert_ids,
                                const index_t* p_max_token_id,
@@ -1478,7 +1478,7 @@ struct GridwiseMoeGemmBlockScale
                                                 false>(
                     b_scale_grid_desc_bn_ak, make_multi_index(block_n_id * NPerBlock / ScaleBlockN, 0));
 
-            blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
+            blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, NumKBlockPerScale, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
                 a_blockwise_copy,
