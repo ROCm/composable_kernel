@@ -71,8 +71,11 @@ template <typename ALayout,
           typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
+          index_t ActivationOP                        = 0,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
+          bool MulRoutedWeight                        = false,
+          typename IndexType                          = index_t,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
@@ -146,13 +149,30 @@ struct DeviceMoeGemmBlockScale
                          CDEShuffleBlockTransferScalarPerVectors,
                          BlkGemmPipeSched,
                          BlkGemmPipelineVer,
+                         ActivationOP,
                          NSwizzle,
+                         IsInputGemm,
+                         MulRoutedWeight,
                          ComputeTypeA,
                          ComputeTypeB,
                          LDSTypeA,
                          LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
+
+    static constexpr index_t APackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
 
     int GetPreShuffleParameters() override { return NPerXDL; }
 
@@ -349,10 +369,10 @@ struct DeviceMoeGemmBlockScale
                     const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
                         arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
 
-                    auto size_a_buffer =
-                        a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
-                    auto size_b_buffer =
-                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
+                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
+                                         sizeof(ADataType) / APackedSize;
+                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
+                                         sizeof(BDataType) / BPackedSize;
 
                     const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
                         arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
@@ -412,8 +432,7 @@ struct DeviceMoeGemmBlockScale
 
             constexpr index_t minimum_occupancy = 2;
 
-            constexpr auto MemoryDataOp =
-                IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+            constexpr auto MemoryDataOp = IsInputGemm  ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
 
             #if CK_USE_ASM_MOE_STAGE2_BLOCKSCALE
             (void)minimum_occupancy;
@@ -486,7 +505,6 @@ struct DeviceMoeGemmBlockScale
                                                                 true,
                                                                 MemoryDataOp,
                                                                 minimum_occupancy,
-                                                                IsInputGemm,
                                                                 TailNumber::Odd>;
                             RunKernel(kernel);
                         }
@@ -496,7 +514,6 @@ struct DeviceMoeGemmBlockScale
                                                                 true,
                                                                 MemoryDataOp,
                                                                 minimum_occupancy,
-                                                                IsInputGemm,
                                                                 TailNumber::Even>;
                             RunKernel(kernel);
                         }
@@ -511,7 +528,6 @@ struct DeviceMoeGemmBlockScale
                                                                  true,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
-                                                                 IsInputGemm,
                                                                  TailNumber::Odd>;
                         RunKernel(kernel);
                     }
@@ -521,7 +537,6 @@ struct DeviceMoeGemmBlockScale
                                                                  true,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
-                                                                 IsInputGemm,
                                                                  TailNumber::Even>;
                         RunKernel(kernel);
                     }
@@ -543,7 +558,6 @@ struct DeviceMoeGemmBlockScale
                                                             false,
                                                             MemoryDataOp,
                                                             minimum_occupancy,
-                                                            IsInputGemm,
                                                             TailNumber::Odd>;
                         RunKernel(kernel);
                     }
@@ -553,7 +567,6 @@ struct DeviceMoeGemmBlockScale
                                                             false,
                                                             MemoryDataOp,
                                                             minimum_occupancy,
-                                                            IsInputGemm,
                                                             TailNumber::Even>;
                         RunKernel(kernel);
                     }
@@ -567,7 +580,6 @@ struct DeviceMoeGemmBlockScale
                                                                  false,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
-                                                                 IsInputGemm,
                                                                  TailNumber::Odd>;
                         RunKernel(kernel);
                     }
@@ -577,7 +589,6 @@ struct DeviceMoeGemmBlockScale
                                                                  false,
                                                                  MemoryDataOp,
                                                                  minimum_occupancy,
-                                                                 IsInputGemm,
                                                                  TailNumber::Even>;
                         RunKernel(kernel);
                     }

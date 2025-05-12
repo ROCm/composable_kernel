@@ -3,9 +3,11 @@
 
 #pragma once
 
+// #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_moe_blockscale_b_preshuffle_gufusion_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_moe_blockscale_b_preshuffle_v1.hpp"
 // #include
 // "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_blockscale_b_preshuffle_v2.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_moe_blockscale_b_preshuffle_gufusion_v3.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_moe_blockscale_b_preshuffle_v3.hpp"
 namespace ck {
 
@@ -32,12 +34,16 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool GUFusion = false>
 constexpr auto BlockGemmBlockMoeScaleBPreshufflePipeline_Selector()
 {
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
-        return BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
+        #if 0
+        if constexpr(GUFusion)
+        {
+            return BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
             BlkGemmPipeSche,
             BlockSize,
             ADataType,
@@ -61,6 +67,35 @@ constexpr auto BlockGemmBlockMoeScaleBPreshufflePipeline_Selector()
             MRepeat,
             NRepeat,
             KPack>{};
+        }
+        else
+        #endif
+        {
+            return BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
+            BlkGemmPipeSche,
+            BlockSize,
+            ADataType,
+            BDataType,
+            ComputeDataType,
+            AccDataType,
+            ATileDesc,
+            BTileDesc,
+            AMmaTileDesc,
+            BMmaTileDesc,
+            ABlockTransferSrcScalarPerVector,
+            BBlockTransferSrcScalarPerVector,
+            MPerBlock,
+            NPerBlock,
+            KPerBlock,
+            MScaleBlock,
+            NScaleBlock,
+            KScaleBlock,
+            MPerXDL,
+            NPerXDL,
+            MRepeat,
+            NRepeat,
+            KPack>{};
+        }
     }
 #if 0
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
@@ -91,30 +126,60 @@ constexpr auto BlockGemmBlockMoeScaleBPreshufflePipeline_Selector()
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
         static_assert(MRepeat >= 4, "MRepeat should at least be 4 in BlockGemmPipelineVersion::v3");
-        return BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
-            BlkGemmPipeSche,
-            BlockSize,
-            ADataType,
-            BDataType,
-            ComputeDataType,
-            AccDataType,
-            ATileDesc,
-            BTileDesc,
-            AMmaTileDesc,
-            BMmaTileDesc,
-            ABlockTransferSrcScalarPerVector,
-            BBlockTransferSrcScalarPerVector,
-            MPerBlock,
-            NPerBlock,
-            KPerBlock,
-            MScaleBlock,
-            NScaleBlock,
-            KScaleBlock,
-            MPerXDL,
-            NPerXDL,
-            MRepeat,
-            NRepeat,
-            KPack>{};
+        if constexpr(GUFusion)
+        {
+            return BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v3<
+                BlkGemmPipeSche,
+                BlockSize,
+                ADataType,
+                BDataType,
+                ComputeDataType,
+                AccDataType,
+                ATileDesc,
+                BTileDesc,
+                AMmaTileDesc,
+                BMmaTileDesc,
+                ABlockTransferSrcScalarPerVector,
+                BBlockTransferSrcScalarPerVector,
+                MPerBlock,
+                NPerBlock,
+                KPerBlock,
+                MScaleBlock,
+                NScaleBlock,
+                KScaleBlock,
+                MPerXDL,
+                NPerXDL,
+                MRepeat,
+                NRepeat,
+                KPack>{};
+        }
+        else
+        {
+            return BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
+                BlkGemmPipeSche,
+                BlockSize,
+                ADataType,
+                BDataType,
+                ComputeDataType,
+                AccDataType,
+                ATileDesc,
+                BTileDesc,
+                AMmaTileDesc,
+                BMmaTileDesc,
+                ABlockTransferSrcScalarPerVector,
+                BBlockTransferSrcScalarPerVector,
+                MPerBlock,
+                NPerBlock,
+                KPerBlock,
+                MScaleBlock,
+                NScaleBlock,
+                KScaleBlock,
+                MPerXDL,
+                NPerXDL,
+                MRepeat,
+                NRepeat,
+                KPack>{};
+        }
     }
     else
     {
