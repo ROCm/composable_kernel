@@ -160,12 +160,12 @@ static constexpr ck::index_t MPerBlock = 128; using DeviceOpInstance = ck::tenso
                256,  Scale_Block_M, Scale_Block_N, Scale_Block_K,
                MPerBlock,   128,    128,
                16,   16,
-               32,   32,
-               2,    2,
+               16,   16,
+               4,    4,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               1,    1,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, false, false, A0DataType>;
+               2,    1,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, false, false, A0DataType>;
 #endif
 // clang-format on
 
@@ -247,25 +247,25 @@ int main(int argc, char* argv[])
     max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
     // int eids[]         = {0, 1, 3, 3, 3};
     //  int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7}; //, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
-    //int eids[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
-    int eids[sorted_tile_num]{};
-    int e_select = 0;
-    for(int i = 0; i < sorted_tile_num; i++)
-    {
-        if (i < valid_tile_num){
-            eids[i] = e_select;
-            //std::rand() % experts;
-        }
-        else{
-            eids[i] = 3;
-        }
-        if (i > ((e_select + 1) * (sorted_tile_num / experts))){
-            e_select++;
-            if (e_select >= experts){
-                e_select = experts - 1;
-            }
-        }
-    }
+    int eids[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
+    // int eids[sorted_tile_num]{};
+    // int e_select = 0;
+    // for(int i = 0; i < sorted_tile_num; i++)
+    // {
+    //     if (i < valid_tile_num){
+    //         eids[i] = e_select;
+    //         //std::rand() % experts;
+    //     }
+    //     else{
+    //         eids[i] = 3;
+    //     }
+    //     if (i > ((e_select + 1) * (sorted_tile_num / experts))){
+    //         e_select++;
+    //         if (e_select >= experts){
+    //             e_select = experts - 1;
+    //         }
+    //     }
+    // }
 
     // int eids[]         = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
     //                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
