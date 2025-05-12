@@ -39,9 +39,9 @@ class TestCkTileGroupedGemm : public ::testing::Test
         static const bool kPadK = false;
 
         static const int kBlockPerCu         = 1;
-        static const ck_tile::index_t M_Tile = 128;
-        static const ck_tile::index_t N_Tile = 128;
-        static const ck_tile::index_t K_Tile = 32;
+        static const ck_tile::index_t M_Tile = 256;
+        static const ck_tile::index_t N_Tile = 256;
+        static const ck_tile::index_t K_Tile = 64;
 
         static const ck_tile::index_t M_Warp = 2;
         static const ck_tile::index_t N_Warp = 2;
@@ -49,7 +49,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
         static const ck_tile::index_t M_Warp_Tile = 32;
         static const ck_tile::index_t N_Warp_Tile = 32;
-        static const ck_tile::index_t K_Warp_Tile = 8;
+        static const ck_tile::index_t K_Warp_Tile = 16;
     };
 
     using grouped_gemm_kargs = ck_tile::GemmHostArgs;

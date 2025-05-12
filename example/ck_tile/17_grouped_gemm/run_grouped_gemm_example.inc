@@ -129,6 +129,14 @@ int run_grouped_gemm_example_with_layouts(int argc,
     const int repeat      = arg_parser.get_int("repeat");
     const int warmup      = arg_parser.get_int("warmup");
     const int kbatch      = arg_parser.get_int("kbatch");
+    bool validate         = arg_parser.get_bool("validate");
+
+    if(kbatch > 1 && validate && warmup + repeat > 1)
+    {
+        std::cout << "WARNING: Data validation enabled with SplitK and more than"
+                  << "1 warmup/repeat. Disabling validation." << std::endl;
+        validate = false;
+    }
 
     std::vector<ck_tile::index_t> Ms        = arg_parser.get_int_vec("Ms");
     std::vector<ck_tile::index_t> Ns        = arg_parser.get_int_vec("Ns");
@@ -144,7 +152,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         {
             Ms.push_back(256 + 256 * i);
             Ns.push_back(256 + 512 * i);
-            Ks.push_back(256 + 64 * i);
+            Ks.push_back(512 + 128 * i);
 
             stride_As.push_back(Ks[i]);
             stride_Bs.push_back(Ks[i]);
@@ -223,7 +231,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     }
 
     bool pass{true};
-    if(arg_parser.get_int("validate"))
+    if(validate)
     {
         for(int i = 0; i < group_count; ++i)
         {

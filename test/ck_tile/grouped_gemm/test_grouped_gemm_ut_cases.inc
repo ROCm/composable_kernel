@@ -14,7 +14,7 @@ TYPED_TEST(TestCkTileGroupedGemm, Basic)
     {
         Ms.push_back(256 + 256 * i);
         Ns.push_back(256 + 512 * i);
-        Ks.push_back(256 + 64 * i);
+        Ks.push_back(512 + 128 * i);
 
         stride_As.push_back(Ks[i]);
         stride_Bs.push_back(Ks[i]);
