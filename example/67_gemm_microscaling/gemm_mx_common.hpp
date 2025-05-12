@@ -138,10 +138,8 @@ void preShuffleScaleBuffer(const ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int
 
             int outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
                               k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
-                              k1 * MNXdlPack * KXdlPack * XdlMNThread +
-                              n1 * MNXdlPack * KXdlPack +
-                              k2 * MNXdlPack +
-                              n2;
+                              k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
+                              k2 * MNXdlPack + n2;
 
             dst[outputIndex] = src[n * K + k];
         }
@@ -248,13 +246,26 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         std::cout << "c_m_n_device_result: " << c_m_n_device_result.mDesc << std::endl;
     }
 
+    auto a_data_element = [](float x) {
+        if constexpr(ck::is_same_v<ADataType, ck::f4x2_pk_t>)
+            return ck::type_convert<ADataType>(ck::float2_t(x));
+        else
+            return ck::type_convert<ADataType>(x);
+    };
+    auto b_data_element = [](float x) {
+        if constexpr(ck::is_same_v<BDataType, ck::f4x2_pk_t>)
+            return ck::type_convert<BDataType>(ck::float2_t(x));
+        else
+            return ck::type_convert<BDataType>(x);
+    };
+
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(ck::float2_t(1.0f))}(a_m_k);
+        ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(2.0f))}(b_k_n);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(.5f)}(b_k_n_scale);
+        ck::utils::FillConstant<BDataType>{b_data_element(2.0f)}(b_k_n);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
         if(config.verbosity > 0)
         {
             std::cout << "Init A = {1}" << std::endl;
@@ -281,6 +292,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         {
             ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
             ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
         }
 
         break;
@@ -295,7 +308,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     case 3:
 
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(ck::float2_t(1.0f))}(a_m_k);
+        ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
 
         if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
@@ -313,7 +326,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     case 4: // A random
 
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(1.0f))}(b_k_n);
+        ck::utils::FillConstant<BDataType>{b_data_element(1.0f)}(b_k_n);
 
         if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
         {
@@ -335,21 +348,23 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         }
     }
     printf("a_scale:\n");
-    for (size_t i = 0; i < M; i++)
+    for(ck::index_t i = 0; i < M; i++)
     {
-        for (size_t j = 0; j < K / ScaleBlockSize; j++)
+        for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
         {
-            a_m_k_scale(i, j) = ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j/4)%4)));
+            // a_m_k_scale(i, j) =
+            //     ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
             printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k_scale(i, j)));
         }
         printf("\n");
     }
     printf("b_scale:\n");
-    for (size_t i = 0; i < N; i++)
+    for(ck::index_t i = 0; i < N; i++)
     {
-        for (size_t j = 0; j < K / ScaleBlockSize; j++)
+        for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
         {
-            b_k_n_scale(j, i) = ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j/4)%4)));
+            // b_k_n_scale(j, i) =
+            //     ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
             printf("%02x ", *reinterpret_cast<uint8_t*>(&b_k_n_scale(j, i)));
         }
         printf("\n");
@@ -363,19 +378,18 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 #endif
 
     printf("a_shuffled_scale:\n");
-    for (size_t i = 0; i < M*K / ScaleBlockSize; i++)
+    for(ck::index_t i = 0; i < M * K / ScaleBlockSize; i++)
     {
         printf("%02x ", *reinterpret_cast<uint8_t*>(&(a_shuffled_scale.mData.data()[i])));
-        
         if(i % 64 == 63)
-        printf("\n");
+            printf("\n");
     }
     printf("b_shuffled_scale:\n");
-    for (size_t i = 0; i < N*K / ScaleBlockSize; i++)
+    for(ck::index_t i = 0; i < N * K / ScaleBlockSize; i++)
     {
         printf("%02x ", *reinterpret_cast<uint8_t*>(&(b_shuffled_scale.mData.data()[i])));
         if(i % 64 == 63)
-        printf("\n");
+            printf("\n");
     }
 
     if(config.verbosity > 0)

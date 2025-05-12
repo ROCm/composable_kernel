@@ -828,6 +828,14 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x128f8f6f4>
     }
 };
 
+__host__ __device__ inline constexpr int32_t get_exponent_value_ex(e8m0x4_bexp_t x)
+{
+    return ((static_cast<uint32_t>(x.template AsType<e8m0_bexp_t>()[Number<0>{}].data)) |
+            (static_cast<uint32_t>(x.template AsType<e8m0_bexp_t>()[Number<1>{}].data) << 8) |
+            (static_cast<uint32_t>(x.template AsType<e8m0_bexp_t>()[Number<2>{}].data) << 16) |
+            (static_cast<uint32_t>(x.template AsType<e8m0_bexp_t>()[Number<3>{}].data) << 24));
+}
+
 template <>
 struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
 {
@@ -847,6 +855,8 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
 
     template <index_t MPerXdlops,
               index_t NPerXdlops,
+              index_t OpselA,
+              index_t OpselB,
               class FloatA,
               class ScaleA,
               class FloatB,
@@ -859,22 +869,14 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
                         FloatC& reg_c) const
     {
         // CK_PRINT<FloatA>();
-        static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this point.");
-        static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at this point.");
+        // static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this
+        // point."); static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at
+        // this point.");
 
-        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(
-            a, utils::get_exponent_value(scale_a), b, utils::get_exponent_value(scale_b), reg_c);
+        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops, OpselA, OpselB>::Run(
+            a, get_exponent_value_ex(scale_a), b, get_exponent_value_ex(scale_b), reg_c);
     }
 };
-
-__host__ __device__ inline constexpr int32_t get_exponent_value_ex(e8m0x4_bexp_t x)
-{
-    return  (
-        (static_cast<uint32_t>(x.template AsType<e8m0_bexp_t>()[Number<0>{}].data) ) |
-        (static_cast<uint32_t>(x.template AsType<e8m0_bexp_t>()[Number<1>{}].data) << 8) |
-        (static_cast<uint32_t>(x.template AsType<e8m0_bexp_t>()[Number<2>{}].data) << 16 ) |
-        (static_cast<uint32_t>(x.template AsType<e8m0_bexp_t>()[Number<3>{}].data) << 24));
-}
 
 template <>
 struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
