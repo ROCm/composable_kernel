@@ -496,10 +496,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                         apply_logits_transform(s_acc.thread_buf_[i]);
                     }
 #else
-                    for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
-                    {
-                        apply_logits_transform(s_acc.thread_buf_[i]);
-                    }
+                    static_for<0, s_acc.thread_buf_.size(), 1>{}([&](auto idx) {
+                        if constexpr((idx + 1) == s_acc.thread_buf_.size() / 2)
+                        {
+                            __builtin_amdgcn_sched_barrier(0);
+                        }
+                        apply_logits_transform(s_acc.thread_buf_[idx]);
+                    });
 #endif
                 }
                 else
