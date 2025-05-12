@@ -1,77 +1,117 @@
 {
-    "tile_m": {
-        "values": [
-            256
-        ]
+    "problem": {
+        "layout_a": {
+            "values": [
+                "r"
+            ]
+        },
+        "layout_b": {
+            "values": [
+                "c"
+            ]
+        },
+        "layout_c": {
+            "values": [
+                "r"
+            ]
+        },
+        "datatype_a": {
+            "values": [
+                "fp16"
+            ]
+        },
+        "datatype_b": {
+            "values": [
+                "fp16"
+            ]
+        },
+        "datatype_c": {
+            "values": [
+                "fp16"
+            ]
+        }
     },
-    "tile_n": {
-        "values": [
-            256
-        ]
+    "tile_config": {
+        "tile_m": {
+            "max": 256,
+            "min": 128,
+            "step": 2,
+            "exclude": [
+                130
+            ]
+        },
+        "tile_n": {
+            "values": [
+                256
+            ]
+        },
+        "tile_k": {
+            "values": [
+                64
+            ]
+        },
+        "warp_m": {
+            "values": [
+                2
+            ]
+        },
+        "warp_n": {
+            "values": [
+                2
+            ]
+        },
+        "warp_k": {
+            "values": [
+                1
+            ]
+        },
+        "warp_tile_m": {
+            "values": [
+                32
+            ]
+        },
+        "warp_tile_n": {
+            "values": [
+                32
+            ]
+        },
+        "warp_tile_k": {
+            "values": [
+                8
+            ]
+        }
     },
-    "tile_k": {
-        "values": [
-            64
-        ]
-    },
-    "warp_m": {
-        "values": [
-            2
-        ]
-    },
-    "warp_n": {
-        "values": [
-            2
-        ]
-    },
-    "warp_k": {
-        "values": [
-            1
-        ]
-    },
-    "warp_tile_m": {
-        "values": [
-            32
-        ]
-    },
-    "warp_tile_n": {
-        "values": [
-            32
-        ]
-    },
-    "warp_tile_k": {
-        "values": [
-            8
-        ]
-    },
-    "kPadM": {
-        "values": [
-            false
-        ]
-    },
-    "kPadN": {
-        "values": [
-            false
-        ]
-    },
-    "kPadK": {
-        "values": [
-            false
-        ]
-    },
-    "pipeline": {
-        "values": [
-            "mem"
-        ]
-    },
-    "scheduler": {
-        "values": [
-            "intrawave"
-        ]
-    },
-    "epilogue": {
-        "values": [
-            "default"
-        ]
+    "trait_config": {
+        "pipeline": {
+            "values": [
+                "mem",
+                "compv3"
+            ]
+        },
+        "scheduler": {
+            "values": [
+                "intrawave"
+            ]
+        },
+        "epilogue": {
+            "values": [
+                "default"
+            ]
+        },
+        "pad_m": {
+            "values": [
+                false
+            ]
+        },
+        "pad_n": {
+            "values": [
+                false
+            ]
+        },
+        "pad_k": {
+            "values": [
+                false
+            ]
+        }
     }
 }

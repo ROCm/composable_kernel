@@ -11,12 +11,96 @@
 #include "ck/version.h"
 #include "ck/host_utility/device_prop.hpp"
 
-class Profiler
+struct GemmProblem
+{
+    int split_k;
+    int m, n, k;
+    int stride_a, stride_b, stride_c;
+
+    std::string dtype_a, dtype_b, dtype_acc, dtype_c;
+    std::string layout_a, layout_b, layout_c;
+
+    friend std::ostream& operator<<(std::ostream& os, const GemmProblem& problem)
+    {
+        os << "{\n"
+           << "   \"split_k\":" << problem.split_k << ",\n"
+           << "   \"m\":" << problem.m << ",\n"
+           << "   \"n\":" << problem.n << ",\n"
+           << "   \"k\":" << problem.k << ",\n"
+           << "   \"stride_a\":" << problem.stride_a << ",\n"
+           << "   \"stride_b\":" << problem.stride_b << ",\n"
+           << "   \"stride_c\":" << problem.stride_c << ",\n"
+           << "   \"dtype_a\":\"" << problem.dtype_a << "\",\n"
+           << "   \"dtype_b\":\"" << problem.dtype_b << "\",\n"
+           << "   \"dtype_acc\":\"" << problem.dtype_acc << "\",\n"
+           << "   \"dtype_c\":\"" << problem.dtype_c << "\",\n"
+           << "   \"layout_a\":\"" << problem.layout_a << "\",\n"
+           << "   \"layout_b\":\"" << problem.layout_b << "\",\n"
+           << "   \"layout_c\":\"" << problem.layout_c << "\"\n"
+           << "}";
+        return os;
+    }
+};
+
+struct PerformanceResult
+{
+    double latency;
+    double tflops;
+    double bandwidth;
+
+    static constexpr bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
+    {
+        switch(m)
+        {
+        case Metric::LATENCY: return a.latency < b.latency;
+        case Metric::TFLOPS: return a.tflops > b.tflops;
+        case Metric::BANDWIDTH: return a.bandwidth > b.bandwidth;
+        default: throw std::invalid_argument("Unsupported metric type");
+        }
+        return false;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
+    {
+        os << "{\n"
+           << "   \"latency(ms)\": " << std::fixed << std::setprecision(2) << result.latency
+           << ",\n"
+           << "   \"tflops(TFlops)\": " << result.tflops << ",\n"
+           << "   \"bandwidth(GB/s)\": " << result.bandwidth << "\n"
+           << "}";
+        return os;
+    }
+};
+
+struct KernelInstance
+{
+    std::string name;
+    GemmProblem problem;
+    PerformanceResult perf_result;
+
+    static constexpr bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
+    {
+        return PerformanceResult::compare(a.perf_result, b.perf_result, m);
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
+    {
+        os << "{\n"
+           << " \"name\": \"" << "{\n"
+           << obj.name << "\n}" << "\",\n"
+           << " \"problem\": \"" << obj.problem << "\",\n"
+           << " \"perf_result\": " << obj.perf_result << "\n"
+           << "}";
+        return os;
+    }
+};
+
+class GemmProfiler
 {
     public:
-    static Profiler& instance()
+    static GemmProfiler& instance()
     {
-        static Profiler instance;
+        static GemmProfiler instance;
         return instance;
     }
 
@@ -112,17 +196,11 @@ class Profiler
     }
 
     private:
-    Profiler()
-    {
-        environment_ = Environment{
-            get_rocm_version(),
-            ck::get_device_name(),
-        };
-    }
-    ~Profiler() { kernel_instances_.clear(); }
+    GemmProfiler() = default;
+    ~GemmProfiler() { kernel_instances_.clear(); }
 
-    Profiler(const Profiler&)            = delete;
-    Profiler& operator=(const Profiler&) = delete;
+    GemmProfiler(const GemmProfiler&)            = delete;
+    GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     Environment environment_;
 

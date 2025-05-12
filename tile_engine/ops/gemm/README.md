@@ -9,7 +9,7 @@ User needs to provide gemm problem such as datatype, layout in the config file. 
 
 # Kernel Configurations
 
-User can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file. For reference please see `./configs/user_provide_config.json`. The Tile engine also has default kernel configuration to expand the range of kernel configuration which is saved in `./configs/default.json`.
+User can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file. For reference please see `./configs/user_provided_config.json`. The Tile engine also has default kernel configuration to expand the range of kernel configuration which is saved in `./configs/default_config.json`.
 
 
 ## Build
@@ -40,12 +40,12 @@ make tile_engine_gemm -j
        -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
      -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
    -pipeline    The type of pipeline. Possible values are compv3, compv4 or mem. Default is compv3.     
-   -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is csshuffle.
+   -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is cshuffle.
       -pad_m    Whether pad or not in m direction. Possible values are true or false. Default is false. 
       -pad_n    Whether pad or not in n direction. Possible values are true or false. Default is false. 
       -pad_k    Whether pad or not in k direction. Possible values are true or false. Default is false. 
 
-Note: pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be one of the options specified in instance_combination.json 
+Note: pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be one of the options specified in user_provided_config.json 
 ```
 
 ## Example
