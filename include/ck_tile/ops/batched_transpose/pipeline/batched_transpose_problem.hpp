@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include <string>
 #include <type_traits>
 
 #define VectorLoadSize 16
@@ -12,11 +11,11 @@
 namespace ck_tile {
 
 template <typename InputType_,
-          typename BlockTile,  // Sequence<...
-          typename WarpTile,   // Sequence<...
-          typename ThreadTile, // Sequence<...
-          bool kPadM_ = true,
-          bool kPadN_ = true>
+          typename BlockTile, // Sequence<...
+          typename WarpTile,  // Sequence<...
+          typename ThreadTile,
+          bool kPadM_ = false,
+          bool kPadN_ = false> // Sequence<...
 struct BatchedTransposeProblem
 {
     using InputType = remove_cvref_t<InputType_>;
@@ -42,7 +41,7 @@ struct BatchedTransposeProblem
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
 
-    static constexpr index_t AlignmentM = kPadM ? VectorLoadSize / sizeof(InputType) : 1; // TODO
-    static constexpr index_t AlignmentN = kPadN ? VectorLoadSize / sizeof(InputType) : 1;
+    static constexpr index_t VectorSizeInput  = kPadM ? 1 : VectorLoadSize / sizeof(InputType);
+    static constexpr index_t VectorSizeOutput = kPadN ? 1 : VectorLoadSize / sizeof(InputType);
 };
 } // namespace ck_tile

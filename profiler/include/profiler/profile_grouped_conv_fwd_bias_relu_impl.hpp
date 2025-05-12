@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_bias_relu.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -35,15 +35,15 @@ template <ck::index_t NDimSpatial,
           typename AComputeType = InDataType,
           typename BComputeType = AComputeType,
           typename IndexType    = ck::index_t>
-bool profile_grouped_conv_fwd_impl(int do_verification,
-                                   int init_method,
-                                   bool do_log,
-                                   bool time_kernel,
-                                   const ck::utils::conv::ConvParam& conv_param)
+bool profile_grouped_conv_fwd_bias_relu_impl(int do_verification,
+                                             int init_method,
+                                             bool do_log,
+                                             bool time_kernel,
+                                             const ck::utils::conv::ConvParam& conv_param)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using OutElementOp = ck::tensor_operation::element_wise::AddRelu;
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
@@ -86,10 +86,12 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     Tensor<WeiDataType> weight(wei_g_k_c_xs_desc);
     Tensor<OutDataType> host_output(out_g_n_k_wos_desc);
     Tensor<OutDataType> device_output(out_g_n_k_wos_desc);
+    Tensor<OutDataType> bias(out_g_n_k_wos_desc);
 
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << host_output.mDesc << std::endl;
+    std::cout << "bias: " << bias.mDesc << std::endl;
 
     switch(init_method)
     {
@@ -97,18 +99,22 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     case 1:
         input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         weight.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+        bias.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         break;
     default:
         input.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
         weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        bias.GenerateTensorValue(GeneratorTensor_3<OutDataType>{-0.5, 0.5});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
+    DeviceMem bias_device_buf(sizeof(OutDataType) * bias.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(input.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());
+    bias_device_buf.ToDevice(bias.mData.data());
 
     // run reference op
     if(do_verification)
@@ -119,10 +125,14 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                                                      OutDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
-                                                                     OutElementOp>{};
+                                                                     OutElementOp,
+                                                                     0,
+                                                                     0,
+                                                                     1>{};
 
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(input,
+        std::array<Tensor<OutDataType>, 1> d_tensors = {bias};
+        auto ref_invoker                             = ref_conv.MakeInvoker();
+        auto ref_argument                            = ref_conv.MakeArgument(input,
                                                   weight,
                                                   host_output,
                                                   conv_param.conv_filter_strides_,
@@ -131,7 +141,10 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                                   conv_param.input_right_pads_,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  out_element_op);
+                                                  out_element_op,
+                                                  {},
+                                                  {},
+                                                  d_tensors);
 
         // init host output to zero
         host_output.SetZero();
@@ -206,20 +219,21 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         }
     };
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NDimSpatial,
-                                                                                   InLayout,
-                                                                                   WeiLayout,
-                                                                                   ck::Tuple<>,
-                                                                                   OutLayout,
-                                                                                   InDataType,
-                                                                                   WeiDataType,
-                                                                                   ck::Tuple<>,
-                                                                                   OutDataType,
-                                                                                   InElementOp,
-                                                                                   WeiElementOp,
-                                                                                   OutElementOp,
-                                                                                   AComputeType,
-                                                                                   BComputeType>;
+    using DeviceOp =
+        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                      InLayout,
+                                                                      WeiLayout,
+                                                                      ck::Tuple<OutLayout>,
+                                                                      OutLayout,
+                                                                      InDataType,
+                                                                      WeiDataType,
+                                                                      ck::Tuple<OutDataType>,
+                                                                      OutDataType,
+                                                                      InElementOp,
+                                                                      WeiElementOp,
+                                                                      OutElementOp,
+                                                                      AComputeType,
+                                                                      BComputeType>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -231,14 +245,14 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     {
         auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
                                                         wei_device_buf.GetDeviceBuffer(),
-                                                        {},
+                                                        {bias_device_buf.GetDeviceBuffer()},
                                                         out_device_buf.GetDeviceBuffer(),
                                                         a_g_n_c_wis_lengths,
                                                         a_g_n_c_wis_strides,
                                                         b_g_k_c_xs_lengths,
                                                         b_g_k_c_xs_strides,
-                                                        {},
-                                                        {},
+                                                        {e_g_n_k_wos_lengths},
+                                                        {e_g_n_k_wos_strides},
                                                         e_g_n_k_wos_lengths,
                                                         e_g_n_k_wos_strides,
                                                         conv_filter_strides,
