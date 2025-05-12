@@ -268,7 +268,7 @@ int main(int argc, char* argv[])
     constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{0};
     ck::index_t Scale_Stride_AM      = (K + Scale_Block_K - 1) / Scale_Block_K;
     ck::index_t Scale_Stride_BN      = (K + Scale_Block_K - 1) / Scale_Block_K;
-    ck::index_t Scale_Stride_B       = (N * 2 + Scale_Block_N - 1) / Scale_Block_N;
+    ck::index_t Scale_Stride_B       = (N + Scale_Block_N - 1) / Scale_Block_N * 2;
 
     ck::index_t KBatch = 1;
 
@@ -279,7 +279,7 @@ int main(int argc, char* argv[])
     // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = i / (valid_tile_num / experts);
+        expert_ids.mData[i] = (i / valid_tile_num) / experts;
     }
 
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
@@ -303,7 +303,7 @@ int main(int argc, char* argv[])
                                                    {Scale_Stride_AM, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<B1DataType> b1_e_n_k(HostTensorDescriptor(
-        {experts, (K + Scale_Block_K - 1) / Scale_Block_K, (N * 2 + Scale_Block_N - 1) / Scale_Block_N},
+        {experts, (K + Scale_Block_K - 1) / Scale_Block_K, (N  + Scale_Block_N - 1) / Scale_Block_N * 2},
         {(Scale_Stride_B * Scale_Stride_BN), 1, Scale_Stride_BN}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
@@ -381,8 +381,8 @@ int main(int argc, char* argv[])
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
     // a0_t_k.savetxt("a.txt");
-    // expert_ids.savetxt("expert_ids.txt", "int");
-    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+    expert_ids.savetxt("expert_ids.txt", "int");
+    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
     // d2_e_n.savetxt("d2_e_n.txt", "int");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
@@ -503,8 +503,8 @@ int main(int argc, char* argv[])
                                                       expert_ids,
                                                       max_token_id,
                                                       MPerBlock,
-                                                      a0_t_k,
-                                                      b0_e_n_k,
+                                                      a_t_k,
+                                                      b_e_n_k,
                                                       d2_e_n,
                                                       c_t_k_n,
                                                       PassThrough{},

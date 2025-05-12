@@ -154,6 +154,119 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<SrcDescs::Size() == SrcBuffers::Size(), bool> = false>
     __device__ void RunRead(const SrcDescs& src_descs,
                             const SrcBuffers& src_bufs,
+                            Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
+    {
+        // loop over space-filling curve
+        static_for<0, src_num_access, 1>{}([&](auto iAccess) {
+            auto src_vectors = generate_vectors<SrcDatas, SrcScalarPerVector>();
+            auto elm_vectors = generate_vectors<DstDatas, SrcScalarPerVector>();
+
+            bool oob_val = true;
+
+            // copy data from src_bufs into src_vectors
+            static_for<0, nSrc, 1>{}([&](auto i) {
+                using src_vector_t = typename remove_cvref_t<decltype(src_vectors[i])>::type;
+
+                const bool is_src_valid =
+                    coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
+                                                                                src_coords_[i]);
+
+                oob_val = oob_val & is_src_valid;
+                src_vectors(i).template AsType<src_vector_t>()(I0) =
+                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
+            });
+
+            constexpr auto get_elem_op_vec_len = []() {
+                if constexpr(is_detected<is_pack8_invocable_t, decltype(element_op_)>::value)
+                {
+                    if constexpr(decltype(element_op_)::is_pack8_invocable)
+                        return math::min(8, SrcScalarPerVector);
+                }
+                if constexpr(is_detected<is_pack4_invocable_t, decltype(element_op_)>::value)
+                {
+                    if constexpr(decltype(element_op_)::is_pack4_invocable)
+                        return math::min(4, SrcScalarPerVector);
+                }
+                if constexpr(is_detected<is_pack2_invocable_t, decltype(element_op_)>::value)
+                {
+                    if constexpr(decltype(element_op_)::is_pack2_invocable)
+                        return math::min(2, SrcScalarPerVector);
+                }
+                return 1;
+            };
+
+            constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
+
+            // apply pointwise function
+            static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto i) {
+                // get reference to src data
+                const auto src_data_refs = generate_tie(
+                    // return type should be lvalue
+                    [&](auto iSrc) -> const auto& {
+                        using SrcData = remove_cvref_t<tuple_element_t<iSrc.value, SrcDatas>>;
+
+                        using elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
+
+                        return src_vectors[iSrc].template AsType<elem_op_vec_t>()[i];
+                    },
+                    Number<nSrc>{});
+
+                // get reference to dst data
+                auto dst_data_refs = generate_tie(
+                    // return type should be lvalue
+                    [&](auto iDst) -> auto& {
+                        using DstData = remove_cvref_t<tuple_element_t<iDst.value, DstDatas>>;
+
+                        using elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
+
+                        return elm_vectors(iDst).template AsType<elem_op_vec_t>()(i);
+                    },
+                    Number<nDst>{});
+
+                // apply pointwise function
+                // pointwise function signature:
+                // element_op_(dst_data_refs[I0],
+                //             dst_data_refs[I1],
+                //             ...,
+                //             src_data_refs[I0],
+                //             src_data_refs[I1],
+                //             ...)
+                unpack2(element_op_, dst_data_refs, src_data_refs);
+            });
+
+            elm_vectors_tuple_(thread_scratch_id)(iAccess) = elm_vectors;
+            oob_vectors_tuple_(thread_scratch_id)(iAccess) = oob_val;
+
+            // move coordinate
+            if constexpr(iAccess.value != src_num_access - 1)
+            {
+                constexpr auto forward_step = SrcSpaceFillingCurve::GetForwardStep(iAccess);
+
+                static_for<0, nSrc, 1>{}([&](auto i) {
+                    move_tensor_coordinate(src_descs[i],
+                                           src_coords_(i),
+                                           make_tensor_coordinate_step(src_descs[i], forward_step));
+                });
+            }
+        });
+
+        // move coordinate back to slice origin (or not)
+        static_for<0, nSrc, 1>{}([&](auto i) {
+            if constexpr(SrcResetCoordinateAfterRunFlags::At(i))
+            {
+                const auto src_reset_step =
+                    make_tensor_coordinate_step(src_descs[i], GetSrcCoordinateResetStep());
+
+                move_tensor_coordinate(src_descs[i], src_coords_(i), src_reset_step);
+            }
+        });
+    }
+
+    template <typename SrcBuffers,
+              index_t ThreadScratchId                                   = 0,
+              enable_if_t<SrcDescs::Size() == SrcBuffers::Size(), bool> = false>
+    __device__ void RunRead(const SrcDescs& src_descs,
+                            const SrcBuffers& src_bufs,
                             StaticallyIndexedArray<float, scatter_num>& scatter_weights,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
@@ -413,7 +526,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
               enable_if_t<DstDescs::Size() == 1 && DstBuffers::Size() == 1, bool> = false>
     __device__ void RunWrite(const DstDescs& dst_descs,
                              DstBuffers dst_bufs,
-                             StaticallyIndexedArray<index_t, scatter_num>& scatter_offsets,
+                             StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         OOBCheck(thread_scratch_id);
@@ -481,6 +594,21 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
     // DstDescs: Tuple<const DstDesc0&, const DstDesc1&, ...>
     // DstBuffers: Tuple<const DstBuffer0&, const DstBuffer1&, ...>
     template <typename SrcBuffers,
+              typename DstBuffers,
+              enable_if_t<SrcDescs::Size() == SrcBuffers::Size() &&
+                              DstDescs::Size() == DstBuffers::Size(),
+                          bool> = false>
+    __device__ void Run(const SrcDescs& src_descs,
+                        const SrcBuffers& src_bufs,
+                        const DstDescs& dst_descs,
+                        DstBuffers dst_bufs,
+                        StaticallyIndexedArray<IndexType, scatter_num>& scatter_offsets)
+    {
+        RunRead(src_descs, src_bufs);
+        RunWrite(dst_descs, dst_bufs, scatter_offsets);
+    }
+
+        template <typename SrcBuffers,
               typename DstBuffers,
               enable_if_t<SrcDescs::Size() == SrcBuffers::Size() &&
                               DstDescs::Size() == DstBuffers::Size(),

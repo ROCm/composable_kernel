@@ -1206,7 +1206,7 @@ struct GridwiseMoeGemmBlockScale
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.N * (IsInputGemm ? 2 : 1), ScaleBlockN),
+            make_tuple(math::integer_divide_ceil(problem.N , ScaleBlockN),
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
 
@@ -1267,7 +1267,7 @@ struct GridwiseMoeGemmBlockScale
         });
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
         const index_t expert_scale_stride =
-            __builtin_amdgcn_readfirstlane(math::integer_divide_ceil(problem.N * (IsInputGemm ? 2 : 1), ScaleBlockN) *
+            __builtin_amdgcn_readfirstlane(math::integer_divide_ceil(problem.N, ScaleBlockN) * (IsInputGemm ? 2 : 1) *
                                            math::integer_divide_ceil(problem.K, ScaleBlockK));
 
         // N0, K0, Blocksize*KPack
@@ -1958,7 +1958,7 @@ struct GridwiseMoeGemmBlockScale
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(math::integer_divide_ceil(problem.N * (IsInputGemm ? 2 : 1), ScaleBlockN),
+            make_tuple(math::integer_divide_ceil(problem.N, ScaleBlockN),
                        math::integer_divide_ceil(problem.K, ScaleBlockK)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockK), 1));
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
@@ -2019,7 +2019,7 @@ struct GridwiseMoeGemmBlockScale
         });
         const index_t expert_stride = __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
         const index_t expert_scale_stride =
-            __builtin_amdgcn_readfirstlane(math::integer_divide_ceil(problem.N  * (IsInputGemm ? 2 : 1), ScaleBlockN) *
+            __builtin_amdgcn_readfirstlane(math::integer_divide_ceil(problem.N , ScaleBlockN)  * (IsInputGemm ? 2 : 1) * 
                                            math::integer_divide_ceil(problem.K, ScaleBlockK));
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
@@ -2158,8 +2158,8 @@ struct GridwiseMoeGemmBlockScale
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            scale_gather_offsets(m0) =
-                token_offset * math::integer_divide_ceil(problem.K, ScaleBlockK);
+            scale_gather_offsets(m0) = static_cast<IndexType>(token_offset) * 
+                                       math::integer_divide_ceil(problem.K, ScaleBlockK);
         });
 
         // printf("blkid: %d, tid:%d, a_thread_offset: %d, scale_gather_offsets: %d\n", block_m_id,
@@ -2222,7 +2222,7 @@ struct GridwiseMoeGemmBlockScale
                                        KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
             const BScaleType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2 / BPackedSize;
             const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_scale_grid_up + expert_id * expert_scale_stride,
+                p_b_scale_grid_up + expert_id * expert_scale_stride / BPackedSize,
                 b_scale_grid_desc_bn_ak.GetElementSpaceSize());
             auto b_scale_thread_copy_up =
                 ThreadwiseTensorSliceTransfer_v2<BScaleType,
