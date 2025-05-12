@@ -718,7 +718,7 @@ def process_results(Map conf=[:]){
                             echo "could not locate the GEMM performance logs: ${err.getMessage()}."
                         }
                     }
-                    if (params.RUN_FULL_QA) || params.BUILD_INSTANCES_ONLY){
+                    if (params.RUN_FULL_QA || params.BUILD_INSTANCES_ONLY){
                         // unstash deb packages
                         unstash "packages"
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
