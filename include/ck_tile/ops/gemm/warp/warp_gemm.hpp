@@ -78,6 +78,18 @@ using WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution =
 #endif
 
 #if defined(__gfx950__)
+using WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution =
+    WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+        WarpGemmAttributeMfmaImplF16F16F32M16N16K32<WGAttrCtlEnum::Default_>,
+        1>>;
+
+using WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution =
+    WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+        WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K32<WGAttrCtlEnum::Default_>,
+        1>>;
+#endif
+
+#if defined(__gfx950__)
 using WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution =
     WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
         WarpGemmAttributeMfmaImplF16F16F32M32N32K16<WGAttrCtlEnum::Default_>>>;
@@ -97,7 +109,6 @@ using WarpGemmMfmaF16F16F32M64N4K16 = WarpGemmImpl<WarpGemmAtrributeMfmaIterateK
     4>>;
 
 // fp16 2:4 structured sparsity
-
 using WarpGemmSmfmacF16F16F32M32N32K16 = WarpGemmSmfmacImpl<WarpGemmAttributeSmfmac<
     WarpGemmAttributeSmfmacImplF16F16F32M32N32K16<WGAttrCtlEnum::Default_>>>;
 

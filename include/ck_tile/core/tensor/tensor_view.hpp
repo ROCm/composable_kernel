@@ -384,22 +384,6 @@ struct tensor_view
             coord.get_offset() / PackedSize, linear_offset / PackedSize, is_valid_element, x);
     }
 
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tensor_view{");
-
-        // buf_
-        printf("buf_: ");
-        print(buf_);
-        printf(", ");
-
-        // desc_
-        printf("desc_: ");
-        print(desc_);
-
-        printf("}");
-    }
-
     // member
     buffer_view buf_;
     TensorDesc desc_;
@@ -494,6 +478,7 @@ template <typename TensorView,
 CK_TILE_HOST_DEVICE constexpr auto
 pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, DoPads)
 {
+
     constexpr index_t num_dim = DoPads::size();
 
     static_assert(num_dim == TileLengths::size() && num_dim == TensorView::get_num_of_dimension(),
