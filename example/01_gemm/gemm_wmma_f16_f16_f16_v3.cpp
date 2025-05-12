@@ -8,11 +8,6 @@
 using F16 = half_t;
 using F32 = float;
 
-using Row = tensor_layout::gemm::RowMajor;
-using Col = tensor_layout::gemm::ColumnMajor;
-
-using PassThrough = element_wise::PassThrough;
-
 using ADataType        = F16;
 using BDataType        = F16;
 using AccDataType      = F32;

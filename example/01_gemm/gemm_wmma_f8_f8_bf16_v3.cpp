@@ -9,11 +9,6 @@ using F8   = f8_t;
 using BF16 = bhalf_t;
 using F32  = float;
 
-using Row = tensor_layout::gemm::RowMajor;
-using Col = tensor_layout::gemm::ColumnMajor;
-
-using PassThrough = element_wise::PassThrough;
-
 using ADataType        = F8;
 using BDataType        = F8;
 using AccDataType      = F32;
