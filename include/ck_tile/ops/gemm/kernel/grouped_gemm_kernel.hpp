@@ -6,6 +6,7 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/literals.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/host/stream_utils.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
@@ -81,21 +82,16 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
      * @brief Get the maximum occupancy grid size for the persistent kernel on the current device.
      * @return The maximum occupancy grid size.
      * @note This function queries the maximum occupancy of the kernel using
-     *       `hipOccupancyMaxActiveBlocksPerMultiprocessor` and the number of
-     *       multiprocessors using `hipGetDeviceProperties`.
+     *       `hipOccupancyMaxActiveBlocksPerMultiprocessor`.
      */
-    CK_TILE_HOST static auto MaxOccupancyGridSize() -> dim3
+    CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
         using ConstantPointer = const void CK_CONSTANT_ADDRESS_SPACE*;
         const auto kernel     = kentry<KernelBlockSize, 1, Kernel, ConstantPointer, index_t>;
         int occupancy;
         hip_check_error(
             hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
-        hipDeviceProp_t dev_prop;
-        hipDevice_t dev;
-        hip_check_error(hipGetDevice(&dev));
-        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
-        const int grid_size = dev_prop.multiProcessorCount * occupancy;
+        const int grid_size = get_available_compute_units(s) * occupancy;
         return dim3(grid_size, 1, 1);
     }
 

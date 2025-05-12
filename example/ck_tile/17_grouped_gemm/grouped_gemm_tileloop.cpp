@@ -131,7 +131,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                              memory_operation>>;
         using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         constexpr dim3 blocks = Kernel::BlockSize();
-        const dim3 grids      = Kernel::MaxOccupancyGridSize();
+        const dim3 grids      = Kernel::MaxOccupancyGridSize(s);
 
         if(s.log_level_ > 0)
         {
