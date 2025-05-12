@@ -22,23 +22,25 @@ template <typename ADataType_,
           index_t kMPerXdl_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
-          bool isCTransposed_>
+          bool isCTransposed_,
+          memory_operation_enum MemoryOperation_>
 struct CShuffleEpilogueProblem
 {
-    using ADataType                        = remove_cvref_t<ADataType_>;
-    using BDataType                        = remove_cvref_t<BDataType_>;
-    using AccDataType                      = remove_cvref_t<AccDataType_>;
-    using ODataType                        = remove_cvref_t<ODataType_>;
-    using CLayout                          = remove_cvref_t<CLayout_>;
-    static constexpr index_t kBlockSize    = kBlockSize_;
-    static constexpr index_t kMPerBlock    = kM_;
-    static constexpr index_t kNPerBlock    = kN_;
-    static constexpr index_t kMWave        = kMWave_;
-    static constexpr index_t kNWave        = kNWave_;
-    static constexpr index_t kMPerXdl      = kMPerXdl_;
-    static constexpr index_t kNPerXdl      = kNPerXdl_;
-    static constexpr index_t kKPerXdl      = kKPerXdl_;
-    static constexpr index_t isCTransposed = isCTransposed_;
+    using ADataType                                        = remove_cvref_t<ADataType_>;
+    using BDataType                                        = remove_cvref_t<BDataType_>;
+    using AccDataType                                      = remove_cvref_t<AccDataType_>;
+    using ODataType                                        = remove_cvref_t<ODataType_>;
+    using CLayout                                          = remove_cvref_t<CLayout_>;
+    static constexpr index_t kBlockSize                    = kBlockSize_;
+    static constexpr index_t kMPerBlock                    = kM_;
+    static constexpr index_t kNPerBlock                    = kN_;
+    static constexpr index_t kMWave                        = kMWave_;
+    static constexpr index_t kNWave                        = kNWave_;
+    static constexpr index_t kMPerXdl                      = kMPerXdl_;
+    static constexpr index_t kNPerXdl                      = kNPerXdl_;
+    static constexpr index_t kKPerXdl                      = kKPerXdl_;
+    static constexpr index_t isCTransposed                 = isCTransposed_;
+    static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -81,27 +83,6 @@ struct CShuffleEpilogue
     using CWarpDstr   = typename WG::CWarpDstr;
     using CWarpTensor = typename WG::CWarpTensor;
 
-    CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
-    {
-        constexpr auto block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<CShuffleMXdlPerWavePerShuffle, kMWave>,
-                                             sequence<CShuffleNXdlPerWavePerShuffle, kNWave>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<1, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>;
-        constexpr auto block_dstr_encoding = detail::make_embed_tile_distribution_encoding(
-            block_outer_dstr_encoding, typename CWarpDstr::DstrEncode{});
-
-        return block_dstr_encoding;
-    }
-
-    static constexpr auto LdsDistributionTileDistr =
-        decltype(make_static_tile_distribution(MakeLdsDistributionEncode())){};
-
-    using LdsTile = decltype(make_static_distributed_tensor<ODataType>(LdsDistributionTileDistr));
-    LdsTile lds_tile_;
     /**
      * @brief Get the vector store size for C tensor.
      *
@@ -208,10 +189,6 @@ struct CShuffleEpilogue
                                               tile_distribution_pattern::thread_raked>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
-        constexpr auto c_warp_tile_y_lengths =
-            to_sequence(LdsTile{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_tile_y_index_zeros = uniform_sequence_gen_t<LdsTile::NDimY, 0>{};
-
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
@@ -219,10 +196,6 @@ struct CShuffleEpilogue
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             constexpr auto idx_y_start = SFC::get_index(iAccess);
 
-            constexpr auto mIter = number<idx_y_start.at(number<0>{}) /
-                                          (kMPerXdl * kMWave * CShuffleMXdlPerWavePerShuffle)>{};
-            constexpr auto nIter = number<idx_y_start.at(number<1>{}) /
-                                          (kNPerXdl * kNWave * CShuffleNXdlPerWavePerShuffle)>{};
             constexpr auto mIter = number<idx_y_start.at(number<0>{}) /
                                           (kMPerXdl * kMWave * CShuffleMXdlPerWavePerShuffle)>{};
             constexpr auto nIter = number<idx_y_start.at(number<1>{}) /
@@ -259,74 +232,6 @@ struct CShuffleEpilogue
                 move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
             }
         });
-
-        // const index_t iMWarp = get_warp_id() / kNWave;
-        // const index_t iNWarp = get_warp_id() - iMWarp * kNWave;
-
-        // constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
-        // auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
-        //     static_cast<ODataType*>(p_smem), lds_block_desc);
-        // auto in_lds_window =
-        //     make_tile_window(o_lds_block,
-        //                      make_tuple(number<kMPerXdl>{}, number<kNPerXdl>{}),
-        //                      {number<kMPerXdl>{} * iMWarp, number<kNPerXdl>{} * iNWarp});
-        // auto out_lds_window =
-        //     make_tile_window(o_lds_block,
-        //                      make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave *
-        //                      kNPerXdl>{}), {0, 0});
-
-        // using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-        //                                 sequence<0, 1>,
-        //                                 sequence<kMPerXdl * kMWave, kNPerXdl * kNWave>>;
-        // constexpr index_t num_access = SFC::get_num_of_access();
-
-        // using TileEncodingPattern =
-        //     TileDistributionEncodingPattern2D<kBlockSize,
-        //                                       kMPerIteration,
-        //                                       kNPerIteration,
-        //                                       GetVectorSizeC(),
-        //                                       tile_distribution_pattern::thread_raked>;
-        // constexpr auto dram_tile_distribution =
-        // TileEncodingPattern::Make2DStaticTileDistribution();
-
-        // constexpr auto c_warp_y_lengths =
-        //     to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        // constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-
-        // CWarpTensor c_warp_in_tensor;
-        // static_for<0, num_access, 1>{}([&](auto iAccess) {
-        //     constexpr auto idx_y_start = SFC::get_index(iAccess);
-
-        //     constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (kMPerXdl * kMWave)>{};
-        //     constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (kNPerXdl * kNWave)>{};
-
-        //     c_warp_in_tensor.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
-        //         merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-        //         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-
-        //     const auto c_warp_in_tensor_casted = cast_tile<ODataType>(c_warp_in_tensor);
-
-        //     block_sync_lds();
-        //     store_tile(in_lds_window, c_warp_in_tensor_casted);
-        //     block_sync_lds();
-
-        //     const auto c_out_tensor =
-        //         load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
-
-        //     if constexpr(MemoryOperation == memory_operation_enum::set)
-        //     {
-        //         store_tile(out_dram_window, c_out_tensor);
-        //     }
-        //     else
-        //     {
-        //         update_tile(out_dram_window, c_out_tensor);
-        //     }
-        //     if constexpr(iAccess != num_access - 1)
-        //     {
-        //         constexpr auto step = SFC::get_forward_step(iAccess);
-        //         move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
-        //     }
-        // });
     }
 };
 } // namespace ck_tile
