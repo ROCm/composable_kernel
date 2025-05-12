@@ -104,7 +104,7 @@ bool parse_cmd_args(int argc,
 }
 
 #if 1
-void preShuffleScaleBuffer(const ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
+void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
 {
     int MNXdlPack = 2;
     int KXdlPack  = 2;
@@ -128,8 +128,8 @@ void preShuffleScaleBuffer(const ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int
         {
             int n0    = n / (XdlMNThread * MNXdlPack); // i MNRepeat
             int tempn = n % (XdlMNThread * MNXdlPack);
-            int n1    = tempn / MNXdlPack; // i XdlMNThread
-            int n2    = tempn % MNXdlPack; // i MNXdlPack
+            int n1    = tempn % XdlMNThread; // i XdlMNThread
+            int n2    = tempn / XdlMNThread; // i MNXdlPack
 
             int k0    = k / (XdlKThread * KXdlPack); // i KRepeat
             int tempk = k % (XdlKThread * KXdlPack);
@@ -140,8 +140,10 @@ void preShuffleScaleBuffer(const ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int
                               k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
                               k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
                               k2 * MNXdlPack + n2;
-
+            // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f, n2 +
+            // k2 * MNXdlPack)));
             dst[outputIndex] = src[n * K + k];
+            // printf("Src: %0d, Dst: %d\n", n * K + k, outputIndex);;
         }
     }
 }
@@ -280,13 +282,17 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+        // ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
+        // ck::utils::FillConstant<BDataType>{b_data_element(1.0f)}(b_k_n);
 
         if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
         {
             a_m_k_scale.GenerateTensorValue(
-                GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+                GeneratorTensor_2<XDataType>{120, 135}); // scales: {0.25, 0.5, 1, 2}
             b_k_n_scale.GenerateTensorValue(
                 GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
         }
         else
         {
@@ -347,28 +353,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "NOTE: No input data initialization." << std::endl;
         }
     }
-    printf("a_scale:\n");
-    for(ck::index_t i = 0; i < M; i++)
-    {
-        for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
-        {
-            // a_m_k_scale(i, j) =
-            //     ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
-            printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k_scale(i, j)));
-        }
-        printf("\n");
-    }
-    printf("b_scale:\n");
-    for(ck::index_t i = 0; i < N; i++)
-    {
-        for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
-        {
-            // b_k_n_scale(j, i) =
-            //     ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
-            printf("%02x ", *reinterpret_cast<uint8_t*>(&b_k_n_scale(j, i)));
-        }
-        printf("\n");
-    }
 
 #if 1
     preShuffleScaleBuffer(
@@ -376,21 +360,47 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     preShuffleScaleBuffer(
         b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
 #endif
+    // printf("a_scale:\n");
+    // for(ck::index_t i = 0; i < M; i++)
+    // {
+    //     for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
+    //     {
+    //         // a_m_k_scale(i, j) =
+    //         //     ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
+    //         a_m_k_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         a_shuffled_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k_scale(i, j)));
+    //     }
+    //     printf("\n");
+    // }
+    // printf("b_scale:\n");
+    // for(ck::index_t i = 0; i < N; i++)
+    // {
+    //     for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
+    //     {
+    // //         // b_k_n_scale(j, i) =
+    // //             // ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
+    //         // b_k_n_scale(j, i) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         // b_shuffled_scale(j, i) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&b_k_n_scale(j, i)));
+    //     }
+    //     printf("\n");
+    // }
 
-    printf("a_shuffled_scale:\n");
-    for(ck::index_t i = 0; i < M * K / ScaleBlockSize; i++)
-    {
-        printf("%02x ", *reinterpret_cast<uint8_t*>(&(a_shuffled_scale.mData.data()[i])));
-        if(i % 64 == 63)
-            printf("\n");
-    }
-    printf("b_shuffled_scale:\n");
-    for(ck::index_t i = 0; i < N * K / ScaleBlockSize; i++)
-    {
-        printf("%02x ", *reinterpret_cast<uint8_t*>(&(b_shuffled_scale.mData.data()[i])));
-        if(i % 64 == 63)
-            printf("\n");
-    }
+    // printf("a_shuffled_scale:\n");
+    // for(ck::index_t i = 0; i < M * K / ScaleBlockSize; i++)
+    // {
+    //     printf("%02x ", *reinterpret_cast<uint8_t*>(&(a_shuffled_scale.mData.data()[i])));
+    //     if(i % 64 == 63)
+    //         printf("\n");
+    // }
+    // printf("b_shuffled_scale:\n");
+    // for(ck::index_t i = 0; i < N * K / ScaleBlockSize; i++)
+    // {
+    //     printf("%02x ", *reinterpret_cast<uint8_t*>(&(b_shuffled_scale.mData.data()[i])));
+    //     if(i % 64 == 63)
+    //         printf("\n");
+    // }
 
     if(config.verbosity > 0)
         std::cout << "Device memory allocation..." << std::endl;
