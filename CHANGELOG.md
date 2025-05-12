@@ -19,7 +19,10 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 ### Optimized
 
+
+* Optimize the gemm multiply multiply preshuffle & lds bypass with Pack of KGroup and better instruction layout. (#2166)
 * Added Vectorize Transpose optimization for CK Tile (#2131)
+
 
 ### Fixes
 
