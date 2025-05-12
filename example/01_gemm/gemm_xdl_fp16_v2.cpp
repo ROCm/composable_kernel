@@ -59,4 +59,80 @@ using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALa
 
 #include "run_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
+struct GemmTypeConifg_RR
+{
+    using ADataType_ = ck::half_t;
+    using BDataType_ = ck::half_t;
+    using CDataType_ = ck::half_t;
+    using ALayout_   = Row;
+    using BLayout_   = Row;
+    using CLayout_   = Row;
+};
+
+struct GemmTypeConifg_RC
+{
+    using ADataType_ = ck::half_t;
+    using BDataType_ = ck::half_t;
+    using CDataType_ = ck::half_t;
+    using ALayout_   = Row;
+    using BLayout_   = Col;
+    using CLayout_   = Row;
+};
+
+using DeviceGemmInstance_0 = 
+    ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV2<
+        ALayout,   BLayout,  CLayout,   
+        F16,   F16,  F16,  F32,  F16, 
+        PassThrough, PassThrough, PassThrough, GemmDefault, 
+        2,   256,
+        256, 256, 
+        32, 8, 4,
+        32,   32,
+        4,    4, 
+        S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        2, 8, 8, 0,
+        S<8, 32, 1>,  S<0, 2, 1>,  S<0, 2, 1>,
+        1, 8, 4, 0,
+        1, 1, S<1, 32, 1, 8>, 8,
+        ck::LoopScheduler::Default, ck::PipelineVersion::v1>;
+
+using DeviceGemmInstance_1 =
+    ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV2<
+        ALayout,   BLayout,  CLayout,   
+        F16,   F16,  F16,  F32,  F16, 
+        PassThrough, PassThrough, PassThrough, GemmDefault, 
+        2,   256,
+        256, 256, 
+        32, 8, 8,
+        32,   32,
+        4,    4, 
+        S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        2, 8, 8, 0,
+        S<4, 32, 2>,  S<0, 2, 1>,  S<0, 2, 1>,
+        1, 8, 8, 0,
+        1, 1, S<1, 32, 1, 8>, 8,
+        ck::LoopScheduler::Default, ck::PipelineVersion::v1>;
+
+using DeviceGemmInstance_2 =
+    ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV2<
+        ALayout,   BLayout,  CLayout,   
+        F16,   F16,  F16,  F32,  F16, 
+        PassThrough, PassThrough, PassThrough, GemmDefault, 
+        2,   256,
+        256, 256, 
+        32, 8, 8,
+        32,   32,
+        4,    4, 
+        S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        2, 8, 8, 0,
+        S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        2, 8, 8, 0,
+        1, 1, S<1, 32, 1, 8>, 8,
+        ck::LoopScheduler::Default, ck::PipelineVersion::v1>;
+
+int main(int argc, char* argv[])
+{
+   run_gemm_example_with_instance<DeviceGemmInstance_0, GemmTypeConifg_RR>(argc, argv);
+   run_gemm_example_with_instance<DeviceGemmInstance_1, GemmTypeConifg_RR>(argc, argv);
+   run_gemm_example_with_instance<DeviceGemmInstance_2, GemmTypeConifg_RC>(argc, argv);
+}

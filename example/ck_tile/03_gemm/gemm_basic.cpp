@@ -26,11 +26,11 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
-    constexpr int kBlockPerCu = 1;
+    constexpr int kBlockPerCu = 2;
 
     // This part comes from the Codegen
-    constexpr ck_tile::index_t M_Tile = 256;
-    constexpr ck_tile::index_t N_Tile = 256;
+    constexpr ck_tile::index_t M_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 128;
     constexpr ck_tile::index_t K_Tile = 64;
 
     constexpr ck_tile::index_t M_Warp = 2;
@@ -144,15 +144,16 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else
     {
-        if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "C")
+        if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
                 argc, argv, Row{}, Col{}, Row{});
+        }
+#if 0
+        else if(a_layout == "R" && b_layout == "R")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Row{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "R")
         {
@@ -164,6 +165,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
                 argc, argv, Col{}, Col{}, Row{});
         }
+#endif
         else
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices!");
@@ -185,6 +187,7 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
+#if 0
     else if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
@@ -207,6 +210,7 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }
+#endif
 #endif
     else
     {

@@ -7,3 +7,8 @@ endif()
 list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -mllvm -enable-noalias-to-md-conversion=0)
 target_compile_options(tile_example_gemm_basic PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 target_compile_options(tile_example_gemm_universal PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+
+target_compile_options(tile_example_gemm_universal PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+target_compile_options(tile_example_gemm_basic PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+#target_compile_options(tile_example_gemm_basic PRIVATE ";-mllvm;--slp-threshold=-32")
+#target_compile_options(tile_example_gemm_universal PRIVATE ";-mllvm;--slp-threshold=-32")

@@ -9,6 +9,7 @@
 #include "ck/tensor_operation/gpu/warp/xdlops_gemm.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
+#define ENABLE_HOT  1
 // Double LDS buffer
 // Prefetech 2 stage
 // Local prefetch 1 stage
@@ -372,6 +373,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+        #if ENABLE_HOT
         // schedule
         constexpr auto num_ds_read_inst =
             HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;
@@ -398,13 +400,14 @@ struct BlockwiseGemmXdlops_pipeline_v4
             __builtin_amdgcn_sched_group_barrier(
                 0x008, num_mfma_inst / num_buffer_load_inst - 3, 0); // MFMA
         });
+        #endif
     }
 
     template <index_t stage>
     __device__ static constexpr auto TailScheduler()
     {
     }
-
+#if ENABLE_HOT
     template <>
     __device__ constexpr auto TailScheduler<1>()
     {
@@ -449,6 +452,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
                 0x008, num_mfma_inst / num_ds_read_inst, 0); // MFMA
         });
     }
+#endif
 
     static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_k;
     static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_k;

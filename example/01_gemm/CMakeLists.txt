@@ -18,13 +18,17 @@ endif(USE_BITINT_EXTENSION_INT4)
 add_custom_target(example_gemm_xdl)
 add_example_executable(example_gemm_xdl_fp16 gemm_xdl_fp16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16)
+target_compile_options(example_gemm_xdl_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
 
 add_example_executable(example_gemm_xdl_fp16_v2 gemm_xdl_fp16_v2.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v2)
+target_compile_options(example_gemm_xdl_fp16_v2 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
 
 add_example_executable(example_gemm_xdl_fp16_streamk_v3 gemm_xdl_fp16_streamk_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_streamk_v3)
 add_example_executable(example_gemm_xdl_fp16_v3 gemm_xdl_fp16_v3.cpp)
+target_compile_options(example_gemm_xdl_fp16_v3 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v3)
 add_example_executable(example_gemm_xdl_fp8_v3 gemm_xdl_fp8_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_v3)
@@ -38,6 +42,7 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_streamk_v3)
 
 add_example_executable(example_gemm_xdl_bf16_v3 gemm_xdl_bf16_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16_v3)
+target_compile_options(example_gemm_xdl_bf16_v3 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
 
 list(APPEND gpu_list gfx942 gfx950)
 set(target 0)
@@ -60,6 +65,7 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_skip_b_lds_fp16)
 
 add_example_executable(example_gemm_xdl_bf16 gemm_xdl_bf16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16)
+target_compile_options(example_gemm_xdl_bf16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
 
 add_example_executable(example_gemm_xdl_int8 gemm_xdl_int8.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_int8)

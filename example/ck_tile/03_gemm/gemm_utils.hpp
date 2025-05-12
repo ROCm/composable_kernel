@@ -57,7 +57,7 @@ struct GemmConfig
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64;
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -96,7 +96,7 @@ struct GemmConfig
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
 
-    static constexpr int kBlockPerCu                         = 1;
+    static constexpr int kBlockPerCu                         = 2;
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
 };
