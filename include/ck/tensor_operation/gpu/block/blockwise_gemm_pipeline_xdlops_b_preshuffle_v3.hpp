@@ -378,7 +378,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
 
         // Local prefetch A1
         block_sync_lds();
-        static_for<0, 2, 1>{}([&](auto m0) {
+        static_for<0, DS_READ_A_PREFETCH_STAGES, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
                     // K = k0 × KGroup × k1 = k0 × kg0 × A_K1
