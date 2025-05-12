@@ -181,9 +181,26 @@ using DeviceGemmInstance_5 =
         1, 1, S<1, 32, 1, 8>, 4,
         ck::LoopScheduler::Default, ck::PipelineVersion::v1>;
 
-
+using DeviceGemmInstance_7 =
+    ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV2<
+        ALayout,   BLayout,  CLayout,   
+        F16,   F16,  F16,  F32,  F16, 
+        PassThrough, PassThrough, PassThrough, GemmDefault, 
+        2,   256,
+        256,  256, 
+        64, 8, 8,
+        32,   32,
+        4,    4, 
+        S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        2, 8, 8, 0,
+        S<4, 32, 2>,  S<0, 2, 1>,  S<0, 2, 1>,
+        1, 8, 8, 0,
+        1, 1, S<1, 32, 1, 8>, 4,
+        ck::LoopScheduler::Default, ck::PipelineVersion::v1>;
+        
 int main(int argc, char* argv[])
 {
+
    run_gemm_example_with_instance<DeviceGemmInstance_0, GemmTypeConifg_RR>(argc, argv);
    run_gemm_example_with_instance<DeviceGemmInstance_1, GemmTypeConifg_RR>(argc, argv);
    run_gemm_example_with_instance<DeviceGemmInstance_4, GemmTypeConifg_RR>(argc, argv);
@@ -191,4 +208,6 @@ int main(int argc, char* argv[])
    run_gemm_example_with_instance<DeviceGemmInstance_2, GemmTypeConifg_RC>(argc, argv);
    run_gemm_example_with_instance<DeviceGemmInstance_3, GemmTypeConifg_RC>(argc, argv);
    run_gemm_example_with_instance<DeviceGemmInstance_5, GemmTypeConifg_RC>(argc, argv);
+
+   run_gemm_example_with_instance<DeviceGemmInstance_7, GemmTypeConifg_RR>(argc, argv);
 }
