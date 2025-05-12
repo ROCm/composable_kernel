@@ -76,6 +76,7 @@ def check_host() {
     if ("${env.CK_SCCACHE}" != "null"){
         def SCCACHE_SERVER="${env.CK_SCCACHE.split(':')[0]}"
         echo "sccache server: ${SCCACHE_SERVER}"
+        sh "chmod +w -R ${env.WORKSPACE}"
         sh '''ping -c 1 -p 6379 "${SCCACHE_SERVER}" | echo $? > tmp.txt'''
         def output = readFile(file: "tmp.txt")
         echo "tmp.txt contents: \$output"
@@ -115,7 +116,7 @@ def getDockerImage(Map conf=[:]){
     def retimage
     try 
     {
-        echo "Pulling down image: ${image}"
+        echo "Pulling image: ${image}"
         retimage = docker.image("${image}")
         withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
             retimage.pull()
@@ -334,8 +335,8 @@ def cmake_build(Map conf=[:]){
         }
     }
 
-    // Only archive from master or develop
-    if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
+    // Only archive from develop
+    if (package_build == true && env.BRANCH_NAME == "develop") {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
     //check the node gpu architecture
@@ -395,7 +396,7 @@ def buildHipClangJob(Map conf=[:]){
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
-        def dockerOpts="-u root --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
@@ -464,7 +465,7 @@ def Build_CK(Map conf=[:]){
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
-        def dockerOpts="-u root --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
@@ -527,21 +528,27 @@ def Build_CK(Map conf=[:]){
                         arch_type = 6
                     }
                     cmake_build(conf)
-                    if ( !params.BUILD_LEGACY_OS && arch_type == 1 ){
+                    if ( params.RUN_INDUCTOR_TESTS && !params.BUILD_LEGACY_OS && arch_type == 1 ){
                             echo "Run inductor codegen tests"
                             sh """
-                                  pip install --break-system-packages --verbose .
-                                  pytest python/test/test_gen_instances.py
+                                  python3 -m venv ${env.WORKSPACE}
+                                  . ${env.WORKSPACE}/bin/activate
+                                  python3 -m pip install pytest build setuptools setuptools_scm
+                                  python3 -m pip install .
+                                  python3 -m pytest python/test/test_gen_instances.py
                             """
                     }
                     dir("build"){
-                        if (params.RUN_FULL_QA && arch_type == 1 ){
+                        if (params.RUN_FULL_QA && arch_type == 2 ){
                             // build deb packages for all gfx9 targets on gfx90a system and prepare to export
                             echo "Build ckProfiler package"
                             sh 'make -j package'
-                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
-                            sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
-                            stash includes: "ckprofiler_0.2.0_amd64.deb", name: "ckprofiler_0.2.0_amd64.deb"
+                            archiveArtifacts artifacts: 'composablekernel*.deb'
+                            sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-examples_*.deb composablekernel-examples_1.1.0_amd64.deb'
+                            sh 'mv composablekernel-tests_*.deb composablekernel-tests_1.1.0_amd64.deb'
+                            stash includes: "composablekernel-**.deb", name: "packages"
                         }
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
@@ -625,10 +632,6 @@ def Build_CK(Map conf=[:]){
                             """
                         }
                     }
-                    // set ownership of all files and folders to jenkins after all steps completed
-                    dir("build"){
-                        sh "sudo chown -R jenkins:jenkins ../*"
-                    }
                 }
             }
         }
@@ -654,7 +657,8 @@ def Build_CK_and_Reboot(Map conf=[:]){
 def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
-    def image = getDockerImageName() 
+    //use older image that has user jenkins
+    def image = "rocm/composable_kernel:ck_ub22.04_rocm6.3"
     def prefixpath = "/opt/rocm"
 
     // Jenkins is complaining about the render group 
@@ -667,12 +671,17 @@ def process_results(Map conf=[:]){
     def retimage
 
     gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
-        try {
-            (retimage, image) = getDockerImage(conf)
+        try
+        {
+            echo "Pulling image: ${image}"
+            retimage = docker.image("${image}")
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+                retimage.pull()
+            }
         }
-        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-            echo "The job was cancelled or aborted"
-            throw e
+        catch(Exception ex)
+        {
+            error "Unable to locate image: ${image}"
         }
     }
 
@@ -700,9 +709,14 @@ def process_results(Map conf=[:]){
                     }
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
-                        unstash "ckprofiler_0.2.0_amd64.deb"
-                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
-                        unstash "perf_log"
+                        unstash "packages"
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
+                        try{
+                            unstash "perf_log"
+                        }
+                        catch(Exception err){
+                            echo "could not locate perf_log: ${err.getMessage()}."
+                        }
                         try{
                             unstash "perf_log_gfx11"
                             unstash "perf_log_gfx12"
@@ -843,6 +857,10 @@ pipeline {
             name: "BUILD_LEGACY_OS",
             defaultValue: false,
             description: "Try building CK with legacy OS dockers: RHEL8 and SLES15 (default: OFF)")
+        booleanParam(
+            name: "RUN_INDUCTOR_TESTS",
+            defaultValue: true,
+            description: "Run inductor codegen tests (default: ON)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -937,8 +955,8 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 test_grouped_convnd_fwd_large_cases_xdl && \
-                                           ./bin/test_grouped_convnd_fwd_large_cases_xdl"""
+                                           make -j64 test_grouped_convnd_fwd_large_cases_xdl test_grouped_convnd_bwd_data_xdl_large_cases && \
+                                           ./bin/test_grouped_convnd_fwd_large_cases_xdl && ./bin/test_grouped_convnd_bwd_data_xdl_large_cases"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1110,11 +1128,11 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install \
-                                         -DGPU_TARGETS="gfx90a;gfx942" \
+                                         -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx90a;gfx942" \
+                                           -DGPU_TARGETS="gfx942" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }

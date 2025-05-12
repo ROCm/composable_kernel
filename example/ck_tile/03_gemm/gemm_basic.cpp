@@ -53,50 +53,67 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
     using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
-    using GemmEpilogue        = ck_tile::CShuffleEpilogue<
-        ck_tile::CShuffleEpilogueProblem<ADataType,
-                                         BDataType,
-                                         AccDataType,
-                                         CDataType,
-                                         CLayout,
-                                         CodegenPipelineProblem::kBlockSize,
-                                         TilePartitioner::MPerBlock,
-                                         TilePartitioner::NPerBlock,
-                                         M_Warp,
-                                         N_Warp,
-                                         M_Warp_Tile,
-                                         N_Warp_Tile,
-                                         K_Warp_Tile,
-                                         CodegenPipelineProblem::TransposeC>>;
-    // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
-    // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
-    using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
-    auto kargs = Kernel::MakeKernelArgs(args);
+    const auto Run = [&](const auto memory_operation_) {
+        constexpr auto memory_operation = memory_operation_.value;
 
-    const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-    constexpr dim3 blocks = Kernel::BlockSize();
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             CLayout,
+                                             CodegenPipelineProblem::kBlockSize,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             CodegenPipelineProblem::TransposeC,
+                                             memory_operation>>;
 
-    if(!Kernel::IsSupportedArgument(kargs))
+        // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
+        // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
+        using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKernelArgs(args);
+
+        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
+        constexpr dim3 blocks = Kernel::BlockSize();
+
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+        }
+
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                      << "shape: " << CodegenGemmShape::GetName() << '\n'
+                      << "problem: " << CodegenPipelineProblem::GetName() << '\n'
+                      << "pipeline: " << CodegenGemmPipeline::GetName() << '\n'
+                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << std::endl;
+        }
+
+        float ave_time = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+
+        return ave_time;
+    };
+
+    if(args.k_batch == 1)
     {
-        throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::set>{});
     }
-
-    if(s.log_level_ > 0)
+    else
     {
-        std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                  << "shape: " << CodegenGemmShape::GetName() << '\n'
-                  << "problem: " << CodegenPipelineProblem::GetName() << '\n'
-                  << "pipeline: " << CodegenGemmPipeline::GetName() << '\n'
-                  << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                  << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                  << std::endl;
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::atomic_add>{});
     }
-
-    float ave_time = ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-
-    return ave_time;
 }
 
 #include "run_gemm_example.inc"

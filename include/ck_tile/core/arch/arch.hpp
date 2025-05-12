@@ -154,4 +154,13 @@ __host__ __device__ T CK_CONSTANT_ADDRESS_SPACE* cast_pointer_to_constant_addres
 #pragma clang diagnostic pop
 }
 
+CK_TILE_HOST_DEVICE constexpr index_t get_smem_capacity()
+{
+#if defined(__gfx950__)
+    return 163840;
+#else
+    return 65536;
+#endif
+}
+
 } // namespace ck_tile
