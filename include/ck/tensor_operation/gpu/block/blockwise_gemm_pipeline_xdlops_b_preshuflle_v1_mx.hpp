@@ -249,7 +249,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
     {
         ignore = b_block_desc;
         ignore = b_block_buf;
-
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeB>(
@@ -412,7 +411,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
             constexpr auto k_step = k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, xdlops_gemm.K1PerXdlops / APackedSize / KThreadChunk, 1>{}([&](auto chunk) {
+                static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
                     constexpr auto a_k_step_chunk =
                         k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                     a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
@@ -424,7 +423,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                 });
             });
         });
-
+        
         // Initialize C
         c_thread_buf.Clear();
 
@@ -518,7 +517,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                             k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
 
                         static_for<0, MRepeat, 1>{}([&](auto m0) {
-                            static_for<0, xdlops_gemm.K1PerXdlops / APackedSize / KThreadChunk, 1>{}(
+                            static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}(
                                 [&](auto chunk) {
                                     constexpr auto a_k_step_chunk =
                                         k_step + chunk * KThreadChunk *
@@ -673,7 +672,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx<BlockGemmPipelineScheduler
                     k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, xdlops_gemm.K1PerXdlops / APackedSize / KThreadChunk, 1>{}([&](auto chunk) {
+                    static_for<0, xdlops_gemm.K1PerXdlops / KThreadChunk, 1>{}([&](auto chunk) {
                         constexpr auto a_k_step_chunk =
                             k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                         a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
