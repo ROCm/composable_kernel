@@ -39,8 +39,8 @@ struct ReferenceMoeGemm1BlockScale : public device::BaseOperator
                  const index_t sorted_tile_size,
                  const Tensor<ADataType>& a_t_k,
                  const Tensor<BDataType>& b_e_n_k,
-                 Tensor<CDataType>& c_t_k_n,
                  const Tensor<D2DataType>& d2,
+                 Tensor<CDataType>& c_t_k_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
@@ -50,8 +50,8 @@ struct ReferenceMoeGemm1BlockScale : public device::BaseOperator
               sorted_tile_size_{sorted_tile_size},
               a_t_k_{a_t_k},
               b_e_n_k_{b_e_n_k},
-              c_t_k_n_{c_t_k_n},
               d2_{d2},
+              c_t_k_n_{c_t_k_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
@@ -64,8 +64,8 @@ struct ReferenceMoeGemm1BlockScale : public device::BaseOperator
         index_t sorted_tile_size_;
         const Tensor<ADataType>& a_t_k_;
         const Tensor<BDataType>& b_e_n_k_;
-        Tensor<CDataType>& c_t_k_n_;
         const Tensor<D2DataType>& d2_;
+        Tensor<CDataType>& c_t_k_n_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -215,8 +215,8 @@ struct ReferenceMoeGemm1BlockScale : public device::BaseOperator
                              const index_t sorted_tile_size,
                              const Tensor<ADataType>& a_t_k,
                              const Tensor<BDataType>& b_e_n_k,
-                             Tensor<CDataType>& c_t_k_n,
                              const Tensor<D2DataType>& d2,
+                             Tensor<CDataType>& c_t_k_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
@@ -227,8 +227,8 @@ struct ReferenceMoeGemm1BlockScale : public device::BaseOperator
                         sorted_tile_size,
                         a_t_k,
                         b_e_n_k,
-                        c_t_k_n,
                         d2,
+                        c_t_k_n,
                         a_element_op,
                         b_element_op,
                         c_element_op};

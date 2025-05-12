@@ -61,18 +61,28 @@ struct MulABScaleExpertWeight
     operator()<EDataType, float, float>(EDataType& e, const float& c, const float& d2) const
     {
         // for real kernel use
-        e = ck::type_convert<EDataType>(c * d2);
+        (void)d2;
+        e = ck::type_convert<EDataType>(c);
     }
-
+    template <>
+    __host__ __device__ constexpr void operator()<EDataType, EDataType, float>(
+        EDataType& e, const EDataType& c, const float& d2) const
+    {
+        (void)d2;
+        e = ck::type_convert<EDataType>(c);
+    }
     // for reference cpu
     template <>
     __host__ __device__ constexpr void
     operator()<float, float, float>(float& e, const float& c, const float& d2) const
     {
         // for reference cpu
-        e = ck::type_convert<EDataType>(c * d2);
+        (void)d2;
+        e = ck::type_convert<EDataType>(c);
     }
 };
+
+using CDEElementOp = MulABScaleExpertWeight;
 
 void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int NXdl)
 {
@@ -116,7 +126,7 @@ static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
 #if 1
 static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t NPerBlock   = 256;
+static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 16;
 static constexpr ck::index_t MXDLPerWave = MPerBlock / (MNPerXDL * 1);
 static constexpr ck::index_t NXDLPerWave = NPerBlock / (MNPerXDL * 4);
@@ -475,8 +485,8 @@ int main(int argc, char* argv[])
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeGemm1BlockScale<float,
                                                                     float,
-                                                                    CShuffleDataType,
                                                                     D2DataType,
+                                                                    CShuffleDataType,
                                                                     AccDataType,
                                                                     PassThrough,
                                                                     PassThrough,
@@ -492,8 +502,8 @@ int main(int argc, char* argv[])
                                                       MPerBlock,
                                                       a0_t_k,
                                                       b0_e_n_k,
-                                                      c_t_k_n,
                                                       d2_e_n,
+                                                      c_t_k_n,
                                                       PassThrough{},
                                                       PassThrough{},
                                                       PassThrough{});
@@ -510,7 +520,6 @@ int main(int argc, char* argv[])
             {
                 continue;
             }
-            const int e = expert_ids(m / MPerBlock);
             for(int n = 0; n < N; ++n)
             {
                 e_t_n_host_result(t, topk_id, n) = ck::type_convert<EDataType>(c_t_k_n(t, topk_id, n));

@@ -153,6 +153,7 @@ struct DeviceMoeGemmBlockScale
                          NSwizzle,
                          IsInputGemm,
                          MulRoutedWeight,
+                         IndexType,
                          ComputeTypeA,
                          ComputeTypeB,
                          LDSTypeA,
