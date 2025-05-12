@@ -8,7 +8,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle_v3_ab_scale.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle_v3_blockscale_bpreshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
@@ -47,6 +47,36 @@ using D1Layout = Col;
 using DsLayout = ck::Tuple<>;
 using ELayout  = Row;
 
+void preShuffleBuffer(const FP8* src, FP8* dst, int N, int K, int NXdl)
+{
+    int KPack = 16;
+    int NLane = NXdl;
+    int KLane = 64 / NLane;
+
+    int K0 = K / (KLane * KPack);
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> N0 K0 KLane NLane KPack
+    int tempk;
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K; ++k)
+        {
+            int n0 = n / NLane;
+            int n1 = n % NLane;
+
+            int k0 = k / (KLane * KPack);
+            tempk  = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
+
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
+
+            dst[outputIndex] = src[n * K + k];
+        }
+    }
+}
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using AElementOp   = PassThrough;
@@ -59,7 +89,8 @@ static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
 
-using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
+using DeviceOpInstance =
+    ck::tensor_operation::device::DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
     // clang-format off
          <Row, Col, DsLayout, ELayout,
           A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
@@ -68,10 +99,10 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_
           128, 128,
           128, 16, 16,
           16,   16,
-          4,    4,
+          8,    2,
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-          1,    2,  S<1, 32, 1, 8>,  S<8>,
+          2,    1,  S<1, 32, 1, 8>,  S<8>,
           ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
 // clang-format on
 
@@ -150,6 +181,8 @@ int main(int argc, char* argv[])
                                                        Scale_Stride_AM,
                                                        A0Layout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
+    Tensor<B0DataType> b0_preshuffled(
+        f_host_tensor_descriptor(K, N, StrideB, B0Layout{})); // use laout only for size
     Tensor<B1DataType> b1_k_n(f_host_tensor_descriptor((K + Scale_Block_K - 1) / Scale_Block_K,
                                                        (N + Scale_Block_N - 1) / Scale_Block_N,
                                                        Scale_Stride_BN,
@@ -223,7 +256,6 @@ int main(int argc, char* argv[])
 
     a0_device_buf.ToDevice(a0_m_k.mData.data());
     a1_device_buf.ToDevice(a1_m_k.mData.data());
-    b0_device_buf.ToDevice(b0_k_n.mData.data());
     b1_device_buf.ToDevice(b1_k_n.mData.data());
 
     auto a_element_op   = AElementOp{};
@@ -234,8 +266,13 @@ int main(int argc, char* argv[])
 
     // do GEMM
     auto device_op = DeviceOpInstance{};
-    auto invoker   = device_op.MakeInvoker();
-    auto argument  = device_op.MakeArgument(a0_device_buf.GetDeviceBuffer(),
+    int NPerXdl    = device_op.GetPreShuffleParameters();
+
+    preShuffleBuffer(b0_k_n.mData.data(), b0_preshuffled.mData.data(), N, K, NPerXdl);
+
+    b0_device_buf.ToDevice(b0_preshuffled.mData.data());
+    auto invoker  = device_op.MakeInvoker();
+    auto argument = device_op.MakeArgument(a0_device_buf.GetDeviceBuffer(),
                                            b0_device_buf.GetDeviceBuffer(),
                                            std::array<const void*, NumDTensor>{},
                                            e_device_buf.GetDeviceBuffer(),
