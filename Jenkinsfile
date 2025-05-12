@@ -315,7 +315,7 @@ def cmake_build(Map conf=[:]){
         sh cmd
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
+            if (params.NINJA_BUILD_TRACE){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
                 sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
                 sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
@@ -396,7 +396,13 @@ def buildHipClangJob(Map conf=[:]){
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
-        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts
+        if ( params.BUILD_INSTANCES_ONLY ){
+            dockerOpts = "--group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        }
+        else{
+            dockerOpts = "--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        }
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
@@ -539,15 +545,20 @@ def Build_CK(Map conf=[:]){
                             """
                     }
                     dir("build"){
-                        if (params.RUN_FULL_QA && arch_type == 2 ){
-                            // build deb packages for all gfx9 targets on gfx90a system and prepare to export
-                            echo "Build ckProfiler package"
+                        if ((params.RUN_FULL_QA || param.BUILD_INSTANCES_ONLY) && arch_type == 2 ){
+                            // build deb packages
+                            echo "Build packages"
                             sh 'make -j package'
-                            archiveArtifacts artifacts: 'composablekernel*.deb'
-                            sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
-                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
-                            sh 'mv composablekernel-examples_*.deb composablekernel-examples_1.1.0_amd64.deb'
-                            sh 'mv composablekernel-tests_*.deb composablekernel-tests_1.1.0_amd64.deb'
+                            if (params.RUN_FULL_QA){ // save all packages when building just for gfx942
+                                archiveArtifacts artifacts: 'composablekernel*.deb'
+                                sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
+                                sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
+                                sh 'mv composablekernel-examples_*.deb composablekernel-examples_1.1.0_amd64.deb'
+                                sh 'mv composablekernel-tests_*.deb composablekernel-tests_1.1.0_amd64.deb'
+                            }
+                            else{ // save only dev library when building for all targets
+                                sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
+                            }
                             stash includes: "composablekernel-**.deb", name: "packages"
                         }
                     }
@@ -707,24 +718,10 @@ def process_results(Map conf=[:]){
                             echo "could not locate the GEMM performance logs: ${err.getMessage()}."
                         }
                     }
-                    if (params.RUN_FULL_QA){
-                        // unstash perf files to master
+                    if (params.RUN_FULL_QA) || params.BUILD_INSTANCES_ONLY){
+                        // unstash deb packages
                         unstash "packages"
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
-                        try{
-                            unstash "perf_log"
-                        }
-                        catch(Exception err){
-                            echo "could not locate perf_log: ${err.getMessage()}."
-                        }
-                        try{
-                            unstash "perf_log_gfx11"
-                            unstash "perf_log_gfx12"
-                        }
-                        catch(Exception err){
-                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
-                        }
-                        sh "./process_qa_data.sh"
                     }
                     else{
                         // unstash perf files to master
@@ -753,11 +750,11 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;ROCMVERSION=6.4;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
-                                              0 21 * * * % ROCMVERSION=6.4;hipTensor_test=true;RUN_CODEGEN_TESTS=true;BUILD_GFX908=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;RUN_CODEGEN_TESTS=true;BUILD_GFX908=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false
+                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 13 * * * % BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
 
 pipeline {
@@ -1192,7 +1189,6 @@ pipeline {
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1151;gfx1201"  \
                                            -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
                     }
                     steps{
