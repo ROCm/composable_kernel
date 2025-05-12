@@ -1016,9 +1016,9 @@ struct FmhaFwdSplitKVKernel
 
         AttentionVariant variant;
         const auto variant_params = [&] {
-            if constexpr(AttentionVariant::use_logits_soft_cap)
+            if constexpr(kHasLogitsSoftCap)
             {
-                return ck_tile::LogitsSoftCapParams<FmhaMask, AttentionVariant::use_exp2>{
+                return ck_tile::LogitsSoftCapParams<FmhaMask, CK_TILE_FMHA_FWD_FAST_EXP2>{
                     mask, kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
             }
             else
