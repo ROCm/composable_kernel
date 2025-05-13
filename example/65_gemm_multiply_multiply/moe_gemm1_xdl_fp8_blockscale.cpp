@@ -129,8 +129,8 @@ static constexpr ck::index_t Nswizzle    = false;
 static constexpr ck::index_t ActOP       = 0; // 0: gelu_and_mul, 1: silu_and_mul
 static constexpr bool MulRoutedWeight    = false;
 
-#if 0
-static constexpr ck::index_t MPerBlock = 128;
+#if 1
+static constexpr ck::index_t MPerBlock = 32;
 static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 16;
 static constexpr ck::index_t MXDLPerWave = MPerBlock / (MNPerXDL * 1);
@@ -167,7 +167,7 @@ using DeviceOpInstance                   = ck::tensor_operation::device::DeviceM
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
                 CShuffleMXDLPerWave,    CShuffleNXDLPerWave,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec, 1>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, true, MulRoutedWeight, int32_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, true, MulRoutedWeight, int32_t, A0DataType>;
 #else
 static constexpr ck::index_t MPerBlock = 128; using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
                Row, Col, DsLayout, ELayout,
@@ -190,7 +190,7 @@ int main(int argc, char* argv[])
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = true;
-#if 0
+#if 1
     // GEMM shape
     ck::index_t N               = 4096;
     ck::index_t K               = 6144;
@@ -199,10 +199,12 @@ int main(int argc, char* argv[])
     // ck::index_t sorted_tile_num = 133;
     // ck::index_t valid_tile_num  = 128;
     // ck::index_t tokens          = 8192;
-    ck::index_t sorted_tile_num = 15;
-    ck::index_t valid_tile_num  = 13;
+    // ck::index_t sorted_tile_num = 15;
+    // ck::index_t valid_tile_num  = 13;
+    ck::index_t sorted_tile_num = 55;
+    ck::index_t valid_tile_num  = 52;
     ck::index_t tokens          = 832;
-    #else
+#else
     //deepseek
     ck::index_t N               = 2048;
     ck::index_t K               = 7168;

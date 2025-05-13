@@ -3,7 +3,7 @@
 
 #pragma once
 
-// #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_moe_blockscale_b_preshuffle_gufusion_v1.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_moe_blockscale_b_preshuffle_gufusion_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_moe_blockscale_b_preshuffle_v1.hpp"
 // #include
 // "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_blockscale_b_preshuffle_v2.hpp"
@@ -40,7 +40,6 @@ constexpr auto BlockGemmBlockMoeScaleBPreshufflePipeline_Selector()
 {
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
-        #if 0
         if constexpr(GUFusion)
         {
             return BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
@@ -69,7 +68,6 @@ constexpr auto BlockGemmBlockMoeScaleBPreshufflePipeline_Selector()
             KPack>{};
         }
         else
-        #endif
         {
             return BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v1<
             BlkGemmPipeSche,
