@@ -186,7 +186,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     else
     {
         ave_time = gemm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, false>(
-            args, ck_tile::stream_config{nullptr, false, 1, n_warmup, n_repeat});
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
     }
         
 
@@ -203,6 +203,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
               << " B_Type=" << DataTypeTraits<BDataType>::name
               << " C_Type=" << DataTypeTraits<CDataType>::name
               << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
+              << " Persistent=" << (persistent ? "on" : "off")
               << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
 
