@@ -287,7 +287,7 @@ def cmake_build(Map conf=[:]){
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        if (params.NINJA_BUILD_TRACE){
+        if (setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE){
             echo "running ninja build trace"
             setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
             build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
@@ -315,7 +315,7 @@ def cmake_build(Map conf=[:]){
         sh cmd
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            if (params.NINJA_BUILD_TRACE){
+            if (setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
                 sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
                 sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
@@ -323,7 +323,7 @@ def cmake_build(Map conf=[:]){
                 archiveArtifacts "clang_build_analysis.log"
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
-                    sh "ninja test"
+                    sh "ninja check"
                 }
             }
             else{
