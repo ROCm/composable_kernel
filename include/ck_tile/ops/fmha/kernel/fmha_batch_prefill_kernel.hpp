@@ -22,7 +22,7 @@
 namespace ck_tile {
 
 template <typename FmhaPipeline_, typename EpiloguePipeline_>
-struct FmhaFwdKernel
+struct FmhaBatchPrefillWithPagedKVCacheKernel
 {
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
     using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
@@ -87,7 +87,7 @@ struct FmhaFwdKernel
             if (kPadHeadDimV) n += "dv";
             return n.empty() ? n : std::string("p") + n; }();
         return
-            _SS_("fmha_fwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
+            _SS_("fmha_batch_prefill_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
             "_" + (kIsGroupMode ? "group" : "batch") + "_"
             "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
                     _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kQKHeaddim) + "_" +
@@ -129,6 +129,17 @@ struct FmhaFwdKernel
         // for MQA/GQA, nhead could be different. This parameter is nhead_q / nhead_k
         // if this param is larger than 1, indicate MQA/GQA case
         ck_tile::index_t nhead_ratio_qk;
+
+        int32_t num_total_pages;
+        const int32_t* kv_indptr;
+        const int32_t* kv_page_indices;
+#if 0 // we assume page_block_size=1 for now
+        const int32_t* kv_last_page_lens;
+        ck_tile::index_t page_block_size;
+#else
+        static constexpr ck_tile::index_t page_block_size = 1;
+#endif
+
         float scale_s;
 
         ck_tile::index_t stride_q;
@@ -290,8 +301,8 @@ struct FmhaFwdKernel
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
     {
         const int32_t* seqstart_q_ptr;
-        const int32_t* seqstart_k_ptr;
-        const int32_t* seqlen_k_ptr;
+        ck_tile::index_t batch_stride_k;
+        ck_tile::index_t batch_stride_v;
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
@@ -313,11 +324,17 @@ struct FmhaFwdKernel
                   void* lse_ptr,
                   void* o_ptr,
                   ck_tile::index_t seqlen_q,
-                  ck_tile::index_t seqlen_k,
                   ck_tile::index_t hdim_q,
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head_q,
                   ck_tile::index_t nhead_ratio_qk,
+                  int32_t num_total_pages,
+                  const void* kv_indptr,
+                  const void* kv_page_indices,
+#if 0 // we assume page_block_size=1 for now
+              const void* kv_last_page_lens,
+              ck_tile::index_t page_block_size,
+#endif
                   float scale_s,
                   float scale_p,
                   float scale_o,
@@ -355,11 +372,18 @@ struct FmhaFwdKernel
                      v_ptr,
                      o_ptr,
                      seqlen_q,
-                     seqlen_k,
+                     -1,
                      hdim_q,
                      hdim_v,
                      num_head_q,
                      nhead_ratio_qk,
+                     num_total_pages,
+                     reinterpret_cast<const int32_t*>(kv_indptr),
+                     reinterpret_cast<const int32_t*>(kv_page_indices),
+#if 0 // we assume page_block_size=1 for now
+                     reinterpret_cast<const int32_t*>(kv_last_page_lens),
+                     page_block_size,
+#endif
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
@@ -442,192 +466,6 @@ struct FmhaFwdKernel
         return kargs;
     }
 
-    // std::variant<> can't take in a list initializer, overload for backward compatibility
-    template <bool Cond = !kIsGroupMode>
-    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
-              const void* k_ptr,
-              const void* v_ptr,
-              const void* bias_ptr,
-              void* rand_val_ptr,
-              void* lse_ptr,
-              void* o_ptr,
-              ck_tile::index_t seqlen_q,
-              ck_tile::index_t seqlen_k,
-              ck_tile::index_t hdim_q,
-              ck_tile::index_t hdim_v,
-              ck_tile::index_t num_head_q,
-              ck_tile::index_t nhead_ratio_qk,
-              float scale_s,
-              float scale_p,
-              float scale_o,
-              float logits_soft_cap,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
-              ck_tile::index_t stride_randval,
-              ck_tile::index_t stride_o,
-              ck_tile::index_t nhead_stride_q,
-              ck_tile::index_t nhead_stride_k,
-              ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_bias,
-              ck_tile::index_t nhead_stride_randval,
-              ck_tile::index_t nhead_stride_lse,
-              ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t batch_stride_q,
-              ck_tile::index_t batch_stride_k,
-              ck_tile::index_t batch_stride_v,
-              ck_tile::index_t batch_stride_bias,
-              ck_tile::index_t batch_stride_randval,
-              ck_tile::index_t batch_stride_lse,
-              ck_tile::index_t batch_stride_o,
-              ck_tile::index_t window_size_left,
-              ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type,
-              float p_drop,
-              bool s_randval,
-              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
-    {
-        return MakeKargsImpl(
-            q_ptr,
-            k_ptr,
-            v_ptr,
-            bias_ptr,
-            rand_val_ptr,
-            lse_ptr,
-            o_ptr,
-            seqlen_q,
-            seqlen_k,
-            hdim_q,
-            hdim_v,
-            num_head_q,
-            nhead_ratio_qk,
-            scale_s,
-            scale_p,
-            scale_o,
-            logits_soft_cap,
-            stride_q,
-            stride_k,
-            stride_v,
-            stride_bias,
-            stride_randval,
-            stride_o,
-            nhead_stride_q,
-            nhead_stride_k,
-            nhead_stride_v,
-            nhead_stride_bias,
-            nhead_stride_randval,
-            nhead_stride_lse,
-            nhead_stride_o,
-            batch_stride_q,
-            batch_stride_k,
-            batch_stride_v,
-            batch_stride_bias,
-            batch_stride_randval,
-            batch_stride_lse,
-            batch_stride_o,
-            window_size_left,
-            window_size_right,
-            mask_type,
-            p_drop,
-            s_randval,
-            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
-    }
-
-    // std::variant<> can't take in a list initializer, overload for backward compatibility
-    template <bool Cond = !kIsGroupMode>
-    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
-              const void* k_ptr,
-              const void* v_ptr,
-              const void* bias_ptr,
-              void* rand_val_ptr,
-              void* lse_ptr,
-              void* o_ptr,
-              ck_tile::index_t seqlen_q,
-              ck_tile::index_t seqlen_k,
-              ck_tile::index_t hdim_q,
-              ck_tile::index_t hdim_v,
-              ck_tile::index_t num_head_q,
-              ck_tile::index_t nhead_ratio_qk,
-              float scale_s,
-              float scale_p,
-              float scale_o,
-              float logits_soft_cap,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
-              ck_tile::index_t stride_randval,
-              ck_tile::index_t stride_o,
-              ck_tile::index_t nhead_stride_q,
-              ck_tile::index_t nhead_stride_k,
-              ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_bias,
-              ck_tile::index_t nhead_stride_randval,
-              ck_tile::index_t nhead_stride_lse,
-              ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t batch_stride_q,
-              ck_tile::index_t batch_stride_k,
-              ck_tile::index_t batch_stride_v,
-              ck_tile::index_t batch_stride_bias,
-              ck_tile::index_t batch_stride_randval,
-              ck_tile::index_t batch_stride_lse,
-              ck_tile::index_t batch_stride_o,
-              ck_tile::index_t window_size_left,
-              ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type,
-              float p_drop,
-              bool s_randval,
-              const std::tuple<const void*, const void*>& drop_seed_offset)
-    {
-        return MakeKargsImpl(
-            q_ptr,
-            k_ptr,
-            v_ptr,
-            bias_ptr,
-            rand_val_ptr,
-            lse_ptr,
-            o_ptr,
-            seqlen_q,
-            seqlen_k,
-            hdim_q,
-            hdim_v,
-            num_head_q,
-            nhead_ratio_qk,
-            scale_s,
-            scale_p,
-            scale_o,
-            logits_soft_cap,
-            stride_q,
-            stride_k,
-            stride_v,
-            stride_bias,
-            stride_randval,
-            stride_o,
-            nhead_stride_q,
-            nhead_stride_k,
-            nhead_stride_v,
-            nhead_stride_bias,
-            nhead_stride_randval,
-            nhead_stride_lse,
-            nhead_stride_o,
-            batch_stride_q,
-            batch_stride_k,
-            batch_stride_v,
-            batch_stride_bias,
-            batch_stride_randval,
-            batch_stride_lse,
-            batch_stride_o,
-            window_size_left,
-            window_size_right,
-            mask_type,
-            p_drop,
-            s_randval,
-            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
-    }
-
     template <bool Cond = kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargsImpl(const void* q_ptr,
@@ -638,12 +476,17 @@ struct FmhaFwdKernel
                   void* lse_ptr,
                   void* o_ptr,
                   const void* seqstart_q_ptr,
-                  const void* seqstart_k_ptr,
-                  const void* seqlen_k_ptr,
                   ck_tile::index_t hdim_q,
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head_q,
                   ck_tile::index_t nhead_ratio_qk,
+                  int32_t num_total_pages,
+                  const void* kv_indptr,
+                  const void* kv_page_indices,
+#if 0 // we assume page_block_size=1 for now
+              const void* kv_last_page_lens,
+              ck_tile::index_t page_block_size,
+#endif
                   float scale_s,
                   float scale_p,
                   float scale_o,
@@ -661,6 +504,8 @@ struct FmhaFwdKernel
                   ck_tile::index_t nhead_stride_randval,
                   ck_tile::index_t nhead_stride_lse,
                   ck_tile::index_t nhead_stride_o,
+                  ck_tile::index_t batch_stride_k,
+                  ck_tile::index_t batch_stride_v,
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
                   ck_tile::index_t mask_type,
@@ -679,6 +524,13 @@ struct FmhaFwdKernel
                      hdim_v,
                      num_head_q,
                      nhead_ratio_qk,
+                     num_total_pages,
+                     reinterpret_cast<const int32_t*>(kv_indptr),
+                     reinterpret_cast<const int32_t*>(kv_page_indices),
+#if 0 // we assume page_block_size=1 for now
+                     reinterpret_cast<const int32_t*>(kv_last_page_lens),
+                     page_block_size,
+#endif
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
@@ -699,8 +551,8 @@ struct FmhaFwdKernel
                     {},               // placeholder for dropout
                     {},               // placeholder for logits_soft_cap
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
-                    reinterpret_cast<const int32_t*>(seqstart_k_ptr),
-                    reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
+                    batch_stride_k,
+                    batch_stride_v};
 
         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
         {
@@ -757,176 +609,12 @@ struct FmhaFwdKernel
         return kargs;
     }
 
-    // std::variant<> can't take in a list initializer, overload for backward compatibility
-    template <bool Cond = kIsGroupMode>
-    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
-              const void* k_ptr,
-              const void* v_ptr,
-              const void* bias_ptr,
-              void* rand_val_ptr,
-              void* lse_ptr,
-              void* o_ptr,
-              const void* seqstart_q_ptr,
-              const void* seqstart_k_ptr,
-              const void* seqlen_k_ptr,
-              ck_tile::index_t hdim_q,
-              ck_tile::index_t hdim_v,
-              ck_tile::index_t num_head_q,
-              ck_tile::index_t nhead_ratio_qk,
-              float scale_s,
-              float scale_p,
-              float scale_o,
-              float logits_soft_cap,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
-              ck_tile::index_t stride_randval,
-              ck_tile::index_t stride_o,
-              ck_tile::index_t nhead_stride_q,
-              ck_tile::index_t nhead_stride_k,
-              ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_bias,
-              ck_tile::index_t nhead_stride_randval,
-              ck_tile::index_t nhead_stride_lse,
-              ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t window_size_left,
-              ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type,
-              float p_drop,
-              bool s_randval,
-              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
-    {
-        return MakeKargsImpl(
-            q_ptr,
-            k_ptr,
-            v_ptr,
-            bias_ptr,
-            rand_val_ptr,
-            lse_ptr,
-            o_ptr,
-            seqstart_q_ptr,
-            seqstart_k_ptr,
-            seqlen_k_ptr,
-            hdim_q,
-            hdim_v,
-            num_head_q,
-            nhead_ratio_qk,
-            scale_s,
-            scale_p,
-            scale_o,
-            logits_soft_cap,
-            stride_q,
-            stride_k,
-            stride_v,
-            stride_bias,
-            stride_randval,
-            stride_o,
-            nhead_stride_q,
-            nhead_stride_k,
-            nhead_stride_v,
-            nhead_stride_bias,
-            nhead_stride_randval,
-            nhead_stride_lse,
-            nhead_stride_o,
-            window_size_left,
-            window_size_right,
-            mask_type,
-            p_drop,
-            s_randval,
-            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
-    }
-
-    // std::variant<> can't take in a list initializer, overload for backward compatibility
-    template <bool Cond = kIsGroupMode>
-    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
-              const void* k_ptr,
-              const void* v_ptr,
-              const void* bias_ptr,
-              void* rand_val_ptr,
-              void* lse_ptr,
-              void* o_ptr,
-              const void* seqstart_q_ptr,
-              const void* seqstart_k_ptr,
-              const void* seqlen_k_ptr,
-              ck_tile::index_t hdim_q,
-              ck_tile::index_t hdim_v,
-              ck_tile::index_t num_head_q,
-              ck_tile::index_t nhead_ratio_qk,
-              float scale_s,
-              float scale_p,
-              float scale_o,
-              float logits_soft_cap,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
-              ck_tile::index_t stride_randval,
-              ck_tile::index_t stride_o,
-              ck_tile::index_t nhead_stride_q,
-              ck_tile::index_t nhead_stride_k,
-              ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_bias,
-              ck_tile::index_t nhead_stride_randval,
-              ck_tile::index_t nhead_stride_lse,
-              ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t window_size_left,
-              ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type,
-              float p_drop,
-              bool s_randval,
-              const std::tuple<const void*, const void*>& drop_seed_offset)
-    {
-        return MakeKargsImpl(
-            q_ptr,
-            k_ptr,
-            v_ptr,
-            bias_ptr,
-            rand_val_ptr,
-            lse_ptr,
-            o_ptr,
-            seqstart_q_ptr,
-            seqstart_k_ptr,
-            seqlen_k_ptr,
-            hdim_q,
-            hdim_v,
-            num_head_q,
-            nhead_ratio_qk,
-            scale_s,
-            scale_p,
-            scale_o,
-            logits_soft_cap,
-            stride_q,
-            stride_k,
-            stride_v,
-            stride_bias,
-            stride_randval,
-            stride_o,
-            nhead_stride_q,
-            nhead_stride_k,
-            nhead_stride_v,
-            nhead_stride_bias,
-            nhead_stride_randval,
-            nhead_stride_lse,
-            nhead_stride_o,
-            window_size_left,
-            window_size_right,
-            mask_type,
-            p_drop,
-            s_randval,
-            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
-    }
-
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
-                                                ck_tile::index_t hdim_v_,
-                                                bool has_padded_seqlen_k = false)
+                                                ck_tile::index_t hdim_v_)
     {
-        // has_padded_seqlen_k is determined by checking (seqlen_k_ptr != nullptr)
-        if(has_padded_seqlen_k)
+        if constexpr(kIsGroupMode)
         {
             // TODO: this may need tuning
             return dim3(nhead_,
@@ -946,12 +634,7 @@ struct FmhaFwdKernel
 
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
     {
-        bool has_padded_seqlen_k = false;
-
         if constexpr(kIsGroupMode)
-            has_padded_seqlen_k = (kargs.seqlen_k_ptr != nullptr);
-
-        if(has_padded_seqlen_k)
         {
             // const index_t num_tile_m0 = seqlen_q / kM0;
             const index_t num_tile_n1 =
@@ -1012,29 +695,24 @@ struct FmhaFwdKernel
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
         long_index_t batch_offset_q       = 0;
-        long_index_t batch_offset_k       = 0;
-        long_index_t batch_offset_v       = 0;
         long_index_t batch_offset_bias    = 0;
         long_index_t batch_offset_randval = 0;
         long_index_t batch_offset_lse     = 0;
         long_index_t batch_offset_o       = 0;
 
+        const int32_t num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
+#if 0 // we assume page_block_size=1 for now
+        const int32_t last_page_len   = kargs.kv_last_page_lens[i_batch];
+#endif
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
-            const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
 
             batch_offset_q = query_start * kargs.stride_q;
-            batch_offset_k = key_start * kargs.stride_k;
-            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                batch_offset_v = key_start * kargs.stride_v;
-            }
-            else
-            {
-                batch_offset_v = key_start;
-            }
+
+            kargs.kv_page_indices += kargs.kv_indptr[i_batch];
+
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = query_start * kargs.stride_bias;
@@ -1050,8 +728,7 @@ struct FmhaFwdKernel
             batch_offset_o = query_start * kargs.stride_o;
 
             // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+            kargs.seqlen_q = kargs.seqstart_q_ptr[i_batch + 1] - query_start;
 
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
@@ -1060,21 +737,18 @@ struct FmhaFwdKernel
                 return;
             }
 
-            if(kargs.seqlen_k_ptr != nullptr)
-            {
-                kargs.seqlen_k = kargs.seqlen_k_ptr[i_batch];
-            }
-            else
-            {
-                const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
-                kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
-            }
+#if 0 // we assume page_block_size=1 for now
+            kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
+#else
+            kargs.seqlen_k = num_page_blocks;
+#endif
         }
         else
         {
             batch_offset_q = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
-            batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
-            batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+
+            kargs.kv_page_indices += kargs.kv_indptr[i_batch];
+
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
@@ -1089,6 +763,12 @@ struct FmhaFwdKernel
                     static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
+
+#if 0 // we assume page_block_size=1 for now
+            kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
+#else
+            kargs.seqlen_k = num_page_blocks;
+#endif
         }
 
         // for simplicity, batch stride we just modify the pointer
@@ -1097,12 +777,10 @@ struct FmhaFwdKernel
                                  batch_offset_q;
         const KDataType* k_ptr =
             reinterpret_cast<const KDataType*>(kargs.k_ptr) +
-            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_k +
-            batch_offset_k;
+            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_k;
         const VDataType* v_ptr =
             reinterpret_cast<const VDataType*>(kargs.v_ptr) +
-            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_v +
-            batch_offset_v;
+            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_v;
         ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) +
                            static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o +
                            batch_offset_o;
@@ -1133,12 +811,12 @@ struct FmhaFwdKernel
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.seqlen_k, kargs.hdim_q),
+                make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_q),
                 make_tuple(kargs.stride_k, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
-            constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : false;
+            constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
             return pad_tensor_view(
                 k_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
@@ -1149,19 +827,20 @@ struct FmhaFwdKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.seqlen_k, kargs.hdim_v),
+                    make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_v),
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                const auto v_dram_transposed =
-                    transform_tensor_view(v_dram_naive,
-                                          make_tuple(make_pass_through_transform(kargs.hdim_v),
-                                                     make_pass_through_transform(kargs.seqlen_k)),
-                                          make_tuple(sequence<1>{}, sequence<0>{}),
-                                          make_tuple(sequence<0>{}, sequence<1>{}));
+                const auto v_dram_transposed = transform_tensor_view(
+                    v_dram_naive,
+                    make_tuple(
+                        make_pass_through_transform(kargs.hdim_v),
+                        make_pass_through_transform(kargs.num_total_pages * kargs.page_block_size)),
+                    make_tuple(sequence<1>{}, sequence<0>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
 
-                constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : false;
+                constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
                 return pad_tensor_view(
                     v_dram_transposed,
                     make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
@@ -1171,7 +850,7 @@ struct FmhaFwdKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.hdim_v, kargs.seqlen_k),
+                    make_tuple(kargs.hdim_v, kargs.num_total_pages * kargs.page_block_size),
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
@@ -1401,6 +1080,9 @@ struct FmhaFwdKernel
                     variant_params,
                     block_indices,
                     smem_ptr,
+                    kargs.kv_page_indices,
+                    kargs.stride_k,
+                    kargs.stride_v,
                     dropout);
             }
             else
@@ -1418,6 +1100,9 @@ struct FmhaFwdKernel
                                       variant_params,
                                       block_indices,
                                       smem_ptr,
+                                      kargs.kv_page_indices,
+                                      kargs.stride_k,
+                                      kargs.stride_v,
                                       dropout);
             }
         }();
