@@ -255,7 +255,6 @@ class TileConfig:
         )
     )
 
-    # Warp-level configurations
     warp_m: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
             values=[256]
@@ -272,7 +271,6 @@ class TileConfig:
         )
     )
 
-    # Warp tile subdivision
     warp_tile_m: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
             values=[256]
@@ -331,12 +329,10 @@ class GemmConfig(BaseModel):
         config_path = Path(filepath)
 
         try:
-            # Validate file existence and accessibility
             if not config_path.exists():
                 raise FileNotFoundError(f"Config file {filepath} not found")
-            config_path.stat()  # Verify file accessibility
+            config_path.stat()  
 
-            # Parse JSON content
             with open(filepath, 'r') as f:
                 try:
                     config_dict = json.load(f)
@@ -346,14 +342,12 @@ class GemmConfig(BaseModel):
                         f"Error at line {e.lineno}: {e.msg}"
                     ) from e
 
-            # Configuration construction logic
             if validate_nested:
                 return cls.model_validate(
                     config_dict,
                     context={'validating': True}
                 )
             else:
-                # Verify required fields in construct mode
                 required_fields = {'problem', 'tile_config', 'trait_config'}
                 if missing := required_fields - config_dict.keys():
                     raise ValueError(
@@ -362,7 +356,6 @@ class GemmConfig(BaseModel):
                 return cls.model_construct(**config_dict)
 
         except ValidationError as ve:
-            # Format validation errors
             error_msgs = [
                 f"[{'->'.join(map(str, err['loc']))}] "
                 f"{err['msg']} (received: {err['input']!r})"
