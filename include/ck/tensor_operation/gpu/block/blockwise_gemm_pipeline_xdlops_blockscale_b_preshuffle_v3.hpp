@@ -786,7 +786,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
                     // We need new compiler to enable this feature
                     // HotLoopScheduler();
-                    __builtin_amdgcn_sched_barrier(0);
+                    // __builtin_amdgcn_sched_barrier(0);
                 };
 
                 LoopFunc(I0, I1);
@@ -1034,7 +1034,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             });
             // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
             // latency
-            // // __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
         else
         {
