@@ -559,7 +559,7 @@ def Build_CK(Map conf=[:]){
                         if (params.BUILD_INSTANCES_ONLY && arch_type == 2 ){
                             // build deb packages
                             echo "Build packages"
-                            sh 'ninja -j package'
+                            sh 'ninja -j64 package'
                             sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
                             stash includes: "composablekernel-**.deb", name: "packages"
                         }
