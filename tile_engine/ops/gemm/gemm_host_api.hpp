@@ -152,6 +152,10 @@ inline auto create_args(int argc, char* argv[])
                 "0",
                 "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "
                 "tflops, or 2 for bandwidth. Default is 0, latency.")
+        .insert("structured_sparsity",
+                "false",
+                "Whether use sparsity kernel or not. Possible values are true or false. Default is "
+                "false")
         .insert(
             "pipeline",
             "compv3",

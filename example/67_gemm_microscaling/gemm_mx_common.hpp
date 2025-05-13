@@ -235,7 +235,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         break;
 
     case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
         a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
 
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});

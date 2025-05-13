@@ -11,9 +11,187 @@ import os
 import sys
 import itertools
 import copy
+<<<<<<< HEAD
 import logging
 from json_utils import *
 from codegen_utils import *
+=======
+import json
+from dataclasses import dataclass
+ 
+DATA_TYPE_MAP = {'fp32'  : 'float',
+                 'fp16'  : 'ck_tile::half_t',
+                 'bf16'  : 'ck_tile::bf16_t',
+                 'int8'  : 'ck_tile::int8_t',
+                 'fp8'   : 'ck_tile::fp8_t',
+                 'bf8'   : 'ck_tile::bf8_t',
+                 'int4'  : 'ck_tile::pk_int4_t'
+                }
+
+LAYOUT_MAP = {'r' : 'ck_tile::tensor_layout::gemm::RowMajor',
+              'c' : 'ck_tile::tensor_layout::gemm::ColumnMajor'}                                       
+
+DEFAULT_EPILOGUE = """
+            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+                                ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
+                                                                      BDataType,
+                                                                      AccDataType, 
+                                                                      CDataType, 
+                                                                      CLayout, 
+                                                                      kPadM,
+                                                                      kPadN,
+                                                                      WarpTileM,
+                                                                      WarpTileN,
+                                                                      WarpTileK,
+                                                                      UniversalGemmProblem::TransposeC,
+                                                                      true,
+                                                                      memory_operation>>;
+"""
+
+CSHUFFLE_EPILOGUE = """
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<
+                            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                             BDataType,
+                                                             AccDataType,
+                                                             CDataType,
+                                                             CLayout,
+                                                             GemmPipelineProblem::kBlockSize,
+                                                             TilePartitioner::MPerBlock,
+                                                             TilePartitioner::NPerBlock,
+                                                             WarpM,
+                                                             WarpN,
+                                                             WarpTileM,
+                                                             WarpTileN,
+                                                             WarpTileK,
+                                                             UniversalGemmProblem::TransposeC,
+                                                             memory_operation>>;
+"""
+HOT_LOOP_FALSE = """
+            if(tail_num == ck_tile::TailNumber::Full)
+            {
+                RunSplitk(ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            }
+            else if(tail_num == ck_tile::TailNumber::Odd)
+            {
+                RunSplitk(ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            }
+            else if(tail_num == ck_tile::TailNumber::Even)
+            {
+                RunSplitk(ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+            }
+            else
+            {
+                throw std::runtime_error("Num K loop must be larger than number of prefetech stages.");
+            }  
+"""
+RUN_MEM = """
+            // Handle One and Full cases directly
+            if (tail_num == ck_tile::TailNumber::One) {
+                RunSplitk(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
+            } else if (tail_num == ck_tile::TailNumber::Full) {
+                RunSplitk(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            }
+            // Variadic call using fold expression
+            auto check_tail = [&](auto... TNs) {
+                (try_run< BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
+            };
+
+            check_tail(
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{}
+            );
+"""
+
+RUN_COMPV3 = """
+            if(tail_num == ck_tile::TailNumber::Full)
+            {
+                RunSplitk(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            }
+            else if(tail_num == ck_tile::TailNumber::Odd)
+            {
+                RunSplitk(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            }
+            else if(tail_num == ck_tile::TailNumber::Even)
+            {
+                RunSplitk(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+            }
+            else
+            {
+                throw std::runtime_error("The tail number is wrong. It should be Full, Odd, or Even.");
+            }
+"""
+
+RUN_COMPV4 = """
+            if(tail_num == ck_tile::TailNumber::Three)
+            {
+                RunSplitk(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
+            }
+            else
+            {
+                RunSplitk(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
+            }
+"""
+
+
+PIPELINE_MAP = {'mem' : ['ck_tile::BaseGemmPipelineAgBgCrMem', 'ck_tile::GemmPipelineAgBgCrMem'],
+                'compv3' : ['ck_tile::BaseGemmPipelineAgBgCrCompV3', 'ck_tile::GemmPipelineAgBgCrCompV3'],
+                'compv4' : ['ck_tile::BaseGemmPipelineAgBgCrCompV4', 'ck_tile::GemmPipelineAgBgCrCompV4']}
+
+SCHEDULER_MAP = {'interwave' : 'ck_tile::GemmPipelineScheduler::Interwave',
+                 'intrawave' : 'ck_tile::GemmPipelineScheduler::Intrawave'}
+
+EPILOGUE_MAP = {'default' :DEFAULT_EPILOGUE,
+                'cshuffle' : CSHUFFLE_EPILOGUE}      
+
+HOT_LOOP_TRUE = {'mem' : RUN_MEM,
+                 'compv3' : RUN_COMPV3,
+                 'compv4' : RUN_COMPV4}    
+
+
+def BOOL_MAP(b_) -> str:
+    if b_:
+        return 'true'
+    else:
+        return 'false'
+
+@dataclass
+class GemmConfig:
+    def __init__(self, config_data):
+        self.matrix_cfg : Dict[str, Any] = {}
+        self.impl_cfg : Dict[str, Any] = {}
+        for key, value in config_data.items():
+            if key in ["datatype", "layout_a", "layout_b", "layout_c"]:
+                self.matrix_cfg[key] = value
+            else:
+                self.impl_cfg[key] = value
+    
+    @property
+    def datatype(self) -> str:
+        return self.matrix_cfg["datatype"]["values"][0]
+    
+    @property
+    def layouts(self) -> List[str]:
+        return [
+            self.matrix_cfg["layout_a"]["values"][0],
+            self.matrix_cfg["layout_b"]["values"][0],
+            self.matrix_cfg["layout_c"]["values"][0]
+        ]
+
+>>>>>>> origin
 
 class GemmCodeGenerator:
     def __init__(self, output_dir: str, user_provided_config: Optional[GemmConfig] = None):
@@ -149,9 +327,19 @@ namespace {trait_name} {{
                                pad_m: bool, pad_n: bool, pad_k: bool) -> str:
         """Generate kernel struct template"""
         return f"""
+template <typename Pipeline, ck_tile::TailNumber TN>
+void try_run(ck_tile::TailNumber tn) {{
+    if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN)) {{
+        if (tn == TN) {{
+            RunSplitk(ck_tile::bool_constant<true>{{}},
+                ck_tile::integral_constant<ck_tile::TailNumber, TN>{{}});
+        }}
+    }}
+}}
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
-          int WarpTileM, int WarpTileN, int WarpTileK>
+          int WarpTileM, int WarpTileN, int WarpTileK,
+          bool structured_sparsity>
 struct GemmKernel {{
     static constexpr bool pad_m = {BOOL_MAP(pad_m)};
     static constexpr bool pad_n = {BOOL_MAP(pad_n)};
@@ -160,7 +348,7 @@ struct GemmKernel {{
     static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s) {{
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;
-        static constexpr bool DoubleSmemBuffer = false;
+        static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
         static constexpr bool TransposeC = false;
 
         static constexpr int kBlockPerCu                         = 1;
@@ -184,8 +372,8 @@ struct GemmKernel {{
             ck_tile::TileGemmTraits<pad_m, pad_n, pad_k, ALayout, BLayout, CLayout>;        
 
         using GemmUniversalTraits =
-            ck_tile::TileGemmUniversalTraits<pad_m, pad_n, pad_k, DoubleSmemBuffer,
-                                             ALayout, BLayout, CLayout, TransposeC>;    
+            ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                             ALayout, BLayout, CLayout, TransposeC, structured_sparsity>;    
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -200,10 +388,11 @@ struct GemmKernel {{
 
         float ave_time{{0}};
 
-        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {{
+        const auto Run = [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {{
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
             constexpr auto scheduler      = {SCHEDULER_MAP[scheduler]};
+            constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem = 
                 ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -243,6 +432,20 @@ struct GemmKernel {{
 
         }};
 
+        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
+            if(args.k_batch == 1) {{
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                            ck_tile::memory_operation_enum::set>{{}});
+            }} else {{
+                Run(has_hot_loop_,
+                    tail_number_,
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                            ck_tile::memory_operation_enum::atomic_add>{{}});
+            }}
+        }};
+
         if(has_hot_loop) {{
             {HOT_LOOP_TRUE[pipeline]}
         }} else {{
@@ -251,6 +454,7 @@ struct GemmKernel {{
 
         return ave_time;
     }}
+    
     static std::string get_name() {{
         return std::string("GemmKernel<Bllktile: ") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) + ", " +
                 "WaveMap: " + std::to_string(WarpM) + "x" + std::to_string(WarpN) + "x" + std::to_string(WarpK) + ", " +
@@ -306,9 +510,9 @@ struct GemmDispatcher {
         return kernel_map;
     }
 
-    static void init() {
+    static void init(bool structured_sparsity) {
         auto& kernel_map = get_kernel_map();    
-        if(!kernel_map.empty()) return;
+        if(!kernel_map.empty()) return;            
         \n"""
 
         def get_tile_value(tile_param):
@@ -333,14 +537,29 @@ struct GemmDispatcher {
             get_tile_value(self.config.tile_config.warp_tile_k),
         ))
 
+        
         for trait in self.all_trait_names:
-            content += f"""            kernel_map["{trait}"] = [](GemmProfiler& profiler,
+            content += f"""        kernel_map["{trait}"] = [=]((Profiler& profiler,
                                                                 ck_tile::DeviceMem& c_m_n_dev_buf,
                                                                 ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                                                                 ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                                                                int verify, ck_tile::GemmHostArgs& args,
+                                                                int verify, 
+                                                                ck_tile::GemmHostArgs& args,
                                                                 const ck_tile::stream_config& s) {{
-                        """
+            if(structured_sparsity){{  // SMFMA"""
+            for tile in tile_params:
+                # Check if we have valid tile/warp combinations 
+                # (tile_m/(warp_m*warp_tile_m)) * warp_m * warp_tile_m == tile_m
+                if ((tile[0]/(tile[3] * tile[7]) * tile[3] * tile[7]) != tile[0]) or \
+                   ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
+                    continue
+                sparse = self.config.problem.datatype_values[0] == 'fp16' and \
+                    ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
+                     (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
+                content += f"""
+                profiler.run_kernel<{group}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
+            content += f"""
+            }} else {{"""
             for tile in tile_params:
                 # Check if we have valid tile/warp combinations 
                 # (tile_m/(warp_m*warp_tile_m)) * warp_m * warp_tile_m == tile_m
@@ -348,9 +567,10 @@ struct GemmDispatcher {
                 ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
                     continue
                 content += f"""
-                profiler.benchmark_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, s);"""
+                profiler.run_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
             content += f"""
-            }};\n"""
+            }}
+        }};\n"""
 
         content += """    }
     

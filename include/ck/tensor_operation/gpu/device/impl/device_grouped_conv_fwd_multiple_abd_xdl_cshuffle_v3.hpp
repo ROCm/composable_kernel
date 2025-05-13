@@ -279,9 +279,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     static constexpr bool isMultiD   = DsDataType::Size() > 0;
     static constexpr bool isMultiABD = isMultiA || isMultiB || isMultiD;
 
-    // multi ABD not supported
-    static_assert(!isMultiABD, "Multi A, Mutli B and Multi D are not supported");
-
     static constexpr index_t NumATensor = GetNumABTensors<isMultiA, ADataType>();
     static constexpr index_t NumBTensor = GetNumABTensors<isMultiB, BDataType>();
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -1080,91 +1077,96 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float avg_time = 0.f;
-
-            if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+            if constexpr(!isMultiABD)
             {
-                const index_t a_grid_size =
-                    arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
-                        arg.a_in_transpose_desc_);
-                const index_t b_grid_size =
-                    arg.elementwise_block_2_ctile_map_transpose_b_.CalculateGridSize(
-                        arg.b_in_transpose_desc_);
+                if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
+                             is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+                {
+                    const index_t a_grid_size =
+                        arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
+                            arg.a_in_transpose_desc_);
+                    const index_t b_grid_size =
+                        arg.elementwise_block_2_ctile_map_transpose_b_.CalculateGridSize(
+                            arg.b_in_transpose_desc_);
 
-                ADataType* p_a_out_grid = type_convert<ADataType*>(arg.p_workspace_);
-                BDataType* p_b_out_grid = type_convert<BDataType*>(arg.p_workspace_) +
-                                          arg.GetWorkspaceATensorSizeBytes() / sizeof(BDataType);
+                    ADataType* p_a_out_grid = type_convert<ADataType*>(arg.p_workspace_);
+                    BDataType* p_b_out_grid =
+                        type_convert<BDataType*>(arg.p_workspace_) +
+                        arg.GetWorkspaceATensorSizeBytes() / sizeof(BDataType);
 
-                auto kernel_transpose = kernel_elementwise_dual<GridwiseElementwiseInputTranspose,
-                                                                GridwiseElementwiseWeightTranspose,
-                                                                ck::Tuple<NGCHWTransposeDescType>,
-                                                                ck::Tuple<GKCYXTransposeDescType>,
-                                                                ck::Tuple<NHWGCTransposeDescType>,
-                                                                ck::Tuple<GKYXCTransposeDescType>,
-                                                                ck::Tuple<const ADataType*>,
-                                                                ck::Tuple<const BDataType*>,
-                                                                ck::Tuple<ADataType*>,
-                                                                ck::Tuple<BDataType*>,
-                                                                Block2TileMapElementwise,
-                                                                Block2TileMapElementwise,
-                                                                element_wise::PassThrough>;
+                    auto kernel_transpose =
+                        kernel_elementwise_dual<GridwiseElementwiseInputTranspose,
+                                                GridwiseElementwiseWeightTranspose,
+                                                ck::Tuple<NGCHWTransposeDescType>,
+                                                ck::Tuple<GKCYXTransposeDescType>,
+                                                ck::Tuple<NHWGCTransposeDescType>,
+                                                ck::Tuple<GKYXCTransposeDescType>,
+                                                ck::Tuple<const ADataType*>,
+                                                ck::Tuple<const BDataType*>,
+                                                ck::Tuple<ADataType*>,
+                                                ck::Tuple<BDataType*>,
+                                                Block2TileMapElementwise,
+                                                Block2TileMapElementwise,
+                                                element_wise::PassThrough>;
 
-                avg_time += launch_and_time_kernel(stream_config,
-                                                   kernel_transpose,
-                                                   dim3(a_grid_size + b_grid_size),
-                                                   dim3(ElementwiseBlocksize),
-                                                   0,
-                                                   make_tuple(arg.a_in_transpose_desc_),
-                                                   make_tuple(arg.b_in_transpose_desc_),
-                                                   make_tuple(arg.a_out_transpose_desc_),
-                                                   make_tuple(arg.b_out_transpose_desc_),
-                                                   make_tuple(arg.p_a_grid_),
-                                                   make_tuple(arg.p_b_grid_),
-                                                   make_tuple(p_a_out_grid),
-                                                   make_tuple(p_b_out_grid),
-                                                   arg.elementwise_block_2_ctile_map_transpose_a_,
-                                                   arg.elementwise_block_2_ctile_map_transpose_b_,
-                                                   element_wise::PassThrough{},
-                                                   a_grid_size);
+                    avg_time +=
+                        launch_and_time_kernel(stream_config,
+                                               kernel_transpose,
+                                               dim3(a_grid_size + b_grid_size),
+                                               dim3(ElementwiseBlocksize),
+                                               0,
+                                               make_tuple(arg.a_in_transpose_desc_),
+                                               make_tuple(arg.b_in_transpose_desc_),
+                                               make_tuple(arg.a_out_transpose_desc_),
+                                               make_tuple(arg.b_out_transpose_desc_),
+                                               make_tuple(arg.p_a_grid_),
+                                               make_tuple(arg.p_b_grid_),
+                                               make_tuple(p_a_out_grid),
+                                               make_tuple(p_b_out_grid),
+                                               arg.elementwise_block_2_ctile_map_transpose_a_,
+                                               arg.elementwise_block_2_ctile_map_transpose_b_,
+                                               element_wise::PassThrough{},
+                                               a_grid_size);
+                }
+
+                avg_time += RunGemm(arg, stream_config);
+
+                if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
+                             is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+                {
+                    const index_t grid_size =
+                        arg.elementwise_block_2_ctile_map_transpose_e_.CalculateGridSize(
+                            arg.e_in_transpose_desc_);
+
+                    const EDataType* p_e_in_grid =
+                        type_convert<EDataType*>(arg.p_workspace_) +
+                        (arg.GetWorkspaceATensorSizeBytes() + arg.GetWorkspaceBTensorSizeBytes()) /
+                            sizeof(EDataType);
+
+                    EDataType* p_e_out_grid = arg.p_e_grid_;
+
+                    auto kernel_transpose = kernel_elementwise<GridwiseElementwiseOutputTranspose,
+                                                               ck::Tuple<NHWGCTransposeDescType>,
+                                                               ck::Tuple<NGCHWTransposeDescType>,
+                                                               ck::Tuple<const EDataType*>,
+                                                               ck::Tuple<EDataType*>,
+                                                               Block2TileMapElementwise,
+                                                               element_wise::PassThrough>;
+
+                    avg_time +=
+                        launch_and_time_kernel(stream_config,
+                                               kernel_transpose,
+                                               dim3(grid_size),
+                                               dim3(ElementwiseBlocksize),
+                                               0,
+                                               make_tuple(arg.e_in_transpose_desc_),
+                                               make_tuple(arg.e_out_transpose_desc_),
+                                               make_tuple(p_e_in_grid),
+                                               make_tuple(p_e_out_grid),
+                                               arg.elementwise_block_2_ctile_map_transpose_e_,
+                                               element_wise::PassThrough{});
+                }
             }
-
-            avg_time += RunGemm(arg, stream_config);
-
-            if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
-            {
-                const index_t grid_size =
-                    arg.elementwise_block_2_ctile_map_transpose_e_.CalculateGridSize(
-                        arg.e_in_transpose_desc_);
-
-                const EDataType* p_e_in_grid =
-                    type_convert<EDataType*>(arg.p_workspace_) +
-                    (arg.GetWorkspaceATensorSizeBytes() + arg.GetWorkspaceBTensorSizeBytes()) /
-                        sizeof(EDataType);
-
-                EDataType* p_e_out_grid = arg.p_e_grid_;
-
-                auto kernel_transpose = kernel_elementwise<GridwiseElementwiseOutputTranspose,
-                                                           ck::Tuple<NHWGCTransposeDescType>,
-                                                           ck::Tuple<NGCHWTransposeDescType>,
-                                                           ck::Tuple<const EDataType*>,
-                                                           ck::Tuple<EDataType*>,
-                                                           Block2TileMapElementwise,
-                                                           element_wise::PassThrough>;
-
-                avg_time += launch_and_time_kernel(stream_config,
-                                                   kernel_transpose,
-                                                   dim3(grid_size),
-                                                   dim3(ElementwiseBlocksize),
-                                                   0,
-                                                   make_tuple(arg.e_in_transpose_desc_),
-                                                   make_tuple(arg.e_out_transpose_desc_),
-                                                   make_tuple(p_e_in_grid),
-                                                   make_tuple(p_e_out_grid),
-                                                   arg.elementwise_block_2_ctile_map_transpose_e_,
-                                                   element_wise::PassThrough{});
-            }
-
             return avg_time;
         }
 
@@ -1182,6 +1184,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         const index_t G = arg.b_g_k_c_xs_lengths_[I0];
         const index_t K = arg.b_g_k_c_xs_lengths_[I1];
         const index_t C = arg.b_g_k_c_xs_lengths_[I2];
+        // Move this to runtime check to align Conv instances
+        // with Conv Multiple D instances
+        if constexpr(isMultiABD)
+        {
+            return false;
+        }
 
         // check device
         if(get_device_name() == "gfx908")
