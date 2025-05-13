@@ -71,7 +71,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
     static constexpr auto I16 = Number<16>{};
 
     static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
             return 2;
         else
             return 1;
@@ -96,7 +97,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
           dst_element_op_(dst_element_op),
           gather_offsets_(gather_offsets)
     {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
         {
             static_assert(is_same_v<remove_cvref_t<SrcData>, remove_cvref_t<DstData>>,
                           "SrcData != DstData");
@@ -105,7 +107,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 SrcScalarPerVector_ % PackedSize == 0 && DstScalarPerVector_ % PackedSize == 0,
                 "SrcScalarPerVector_ and DstScalarPerVector_ cannot be 1 for packed data type");
 
-            static_assert(SrcVectorDim == DstVectorDim, "pk_i4_t does not support transpose");
+            static_assert(SrcVectorDim == DstVectorDim,
+                          "pk_i4_t or f4x2_pk_t does not support transpose");
         }
     }
 
@@ -222,7 +225,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             auto gather_offset =
                 gather_offsets_(ordered_src_access_idx[Number<ordered_gather_dim>{}]);
 
-            const IndexType ld_offset = src_coord_.GetOffset() + gather_offset;
+            const IndexType ld_offset = src_coord_.GetOffset() / PackedSize + gather_offset;
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, true);
 

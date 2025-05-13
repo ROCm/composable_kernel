@@ -61,34 +61,43 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool GUFusion = false>
 constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
 {
 
     // Hardware MX GEMM pipeline
     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
     {
-        return BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlkGemmPipeSche,
-                                                                  ThreadBlockSize,
-                                                                  ScaleBlockSize,
-                                                                  ADataType,
-                                                                  AScaleDataType,
-                                                                  BDataType,
-                                                                  BScaleDataType,
-                                                                  ATileDesc,
-                                                                  BTileDesc,
-                                                                  AMmaTileDesc,
-                                                                  BMmaTileDesc,
-                                                                  ABlockTransferSrcScalarPerVector,
-                                                                  BBlockTransferSrcScalarPerVector,
-                                                                  MPerBlock,
-                                                                  NPerBlock,
-                                                                  KPerBlock,
-                                                                  MPerXDL,
-                                                                  NPerXDL,
-                                                                  MRepeat,
-                                                                  NRepeat,
-                                                                  KPack>{};
+        if constexpr(GUFusion)
+        {
+            return nullptr;
+        }
+        else
+        {
+            return BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<
+                BlkGemmPipeSche,
+                ThreadBlockSize,
+                ScaleBlockSize,
+                ADataType,
+                AScaleDataType,
+                BDataType,
+                BScaleDataType,
+                ATileDesc,
+                BTileDesc,
+                AMmaTileDesc,
+                BMmaTileDesc,
+                ABlockTransferSrcScalarPerVector,
+                BBlockTransferSrcScalarPerVector,
+                MPerBlock,
+                NPerBlock,
+                KPerBlock,
+                MPerXDL,
+                NPerXDL,
+                MRepeat,
+                NRepeat,
+                KPack>{};
+        }
     }
     else
     {

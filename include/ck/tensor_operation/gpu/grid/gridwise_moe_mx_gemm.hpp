@@ -170,6 +170,9 @@ template <typename ALayout,
           typename ComputeTypeB                       = BDataType>
 struct GridwiseMoeGemmMX
 {
+    using LDSTypeA = ADataType;
+    using LDSTypeB = BDataType;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -190,7 +193,14 @@ struct GridwiseMoeGemmMX
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    using mfma_selector = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>;
+    static constexpr bool is_single_rate_mfma = false;
+    static constexpr auto is_scale_mfma       = true;
+    using mfma_selector                       = MfmaSelector<ComputeTypeA,
+                                       MPerXdl,
+                                       NPerXdl,
+                                       ComputeTypeB,
+                                       is_single_rate_mfma,
+                                       is_scale_mfma>;
     static constexpr index_t KPack =
         math::max(math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk);
     static constexpr index_t KLane =
@@ -846,20 +856,21 @@ struct GridwiseMoeGemmMX
             constexpr auto KThreadRead      = 64 / MPerXdl;
             constexpr auto K0PerThreadRead  = AK0Number / KThreadRead;
 
-            constexpr auto kfold = (AK1Number * M0 * sizeof(LDSTypeA) > 128)
+            constexpr auto kfold = (AK1Number * M0 * sizeof(LDSTypeA) / APackedSize > 128)
                                        ? 1
-                                       : 128 / (AK1Number * M0 * sizeof(LDSTypeA));
+                                       : 128 / (AK1Number * M0 * sizeof(LDSTypeA) / APackedSize);
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
             // 1<=mpair<=n0
-            constexpr auto mpair = (AK1Number * MPerXdl * sizeof(LDSTypeA) > 128)
-                                       ? 1
-                                       : ((128 / (AK1Number * MPerXdl * sizeof(LDSTypeA))) > M0
-                                              ? M0
-                                              : 128 / (AK1Number * MPerXdl * sizeof(LDSTypeA)));
+            constexpr auto mpair =
+                (AK1Number * MPerXdl * sizeof(LDSTypeA) / APackedSize > 128)
+                    ? 1
+                    : ((128 / (AK1Number * MPerXdl * sizeof(LDSTypeA) / APackedSize)) > M0
+                           ? M0
+                           : 128 / (AK1Number * MPerXdl * sizeof(LDSTypeA) / APackedSize));
 
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(Number<KThreadWrite / kfold / KThreadReadPerm>{},
@@ -1208,7 +1219,9 @@ struct GridwiseMoeGemmMX
                                const index_t* p_sorted_expert_ids,
                                const index_t* p_max_token_id,
                                const ADataType* p_a_grid,
+                               const AScaleDataType* p_a_scale_grid,
                                const BDataType* p_b_grid,
+                               const BScaleDataType* p_b_scale_grid,
                                DsGridPointer& p_ds_grid,
                                CDataType* p_c_grid,
                                void* p_shared,
@@ -1233,6 +1246,15 @@ struct GridwiseMoeGemmMX
             problem.N,
             problem.NPadded,
             problem.StrideC);
+
+        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
+            make_tuple(IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
+                       math::integer_divide_ceil(problem.K, ScaleBlockSize)),
+            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize), 1));
+        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
+            make_tuple(problem.K, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
+            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize), 1));
+
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
@@ -1243,6 +1265,7 @@ struct GridwiseMoeGemmMX
             return;
         const index_t expert_id =
             __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[expert_block_id]);
+
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr(NSwizzle)
             {
@@ -1291,6 +1314,8 @@ struct GridwiseMoeGemmMX
         });
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
+        const index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
+            problem.N * math::integer_divide_ceil(problem.K, ScaleBlockSize));
 
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
@@ -1301,6 +1326,13 @@ struct GridwiseMoeGemmMX
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
             b_grid_desc_bpreshuffled.GetElementSpaceSize());
+
+        const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
+        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_scale_grid + expert_id * expert_scale_stride,
+            b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
@@ -1386,6 +1418,49 @@ struct GridwiseMoeGemmMX
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
+
+        // a and b scale processing
+        const auto wave_idx = BlockwiseGemmPipe::GetWaveIdx();
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        static constexpr auto mfma = BlockwiseGemmPipe::xdlops_gemm.mfma;
+
+        auto thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
+                               mfma.selected_mfma.num_threads_per_blk;
+
+        auto a_thread_offset_m = get_thread_local_1d_id() % MPerXdl + waveId_m * MPerXdl;
+
+        auto a_scale_thread_copy =
+            ThreadwiseTensorSliceTransfer_v2<AScaleDataType,
+                                             AScaleDataType,
+                                             decltype(a_scale_grid_desc_am_ak),
+                                             decltype(BlockwiseGemmPipe::a_scale_thread_desc_copy),
+                                             Sequence<1, 1>, // SliceLengths
+                                             Sequence<0, 1>, // DimAccessOrder
+                                             1,              // SrcVectorDim
+                                             1,              // SrcScalarPerVector
+                                             1,              // SrcScalarStrideInVector
+                                             true>(
+                a_scale_grid_desc_am_ak,
+                make_multi_index(block_m_id * MPerBlock + a_thread_offset_m, thread_offset_k));
+
+        auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl + waveId_n * NPerXdl;
+
+        auto b_scale_thread_copy =
+            ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
+                                             BScaleDataType,
+                                             decltype(b_scale_grid_desc_bn_ak),
+                                             decltype(BlockwiseGemmPipe::b_scale_thread_desc_copy),
+                                             Sequence<1, 1>, // SliceLengths
+                                             Sequence<0, 1>, // DimAccessOrder
+                                             1,              // SrcVectorDim
+                                             1,              // SrcScalarPerVector
+                                             1,
+                                             true>(
+                b_scale_grid_desc_bn_ak,
+                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, thread_offset_k));
+
         if constexpr(IsInputGemm)
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
@@ -1423,6 +1498,12 @@ struct GridwiseMoeGemmMX
                 b_block_slice_copy_step,
                 c_thread_buf,
                 c_thread_buf_up,
+                a_scale_grid_desc_am_ak,
+                a_scale_thread_copy,
+                a_scale_grid_buf,
+                b_scale_grid_desc_bn_ak,
+                b_scale_thread_copy,
+                b_scale_grid_buf,
                 num_k_block_main_loop);
         }
         else
@@ -1435,11 +1516,18 @@ struct GridwiseMoeGemmMX
                 a_block_buf,
                 a_block_slice_copy_step,
                 b_grid_desc_bpreshuffled,
+                b_block_desc_bk0_n_bk1,
                 b_blockwise_copy,
                 b_grid_buf,
                 b_block_buf,
                 b_block_slice_copy_step,
                 c_thread_buf,
+                a_scale_grid_desc_am_ak,
+                a_scale_thread_copy,
+                a_scale_grid_buf,
+                b_scale_grid_desc_bn_ak,
+                b_scale_thread_copy,
+                b_scale_grid_buf,
                 num_k_block_main_loop);
         }
 
@@ -1916,7 +2004,9 @@ struct GridwiseMoeGemmMX
                                     const index_t* p_sorted_expert_ids,
                                     const index_t* p_max_token_id,
                                     const ADataType* p_a_grid,
+                                    const AScaleDataType* p_a_scale_grid,
                                     const BDataType* p_b_grid,
+                                    const BScaleDataType* p_b_scale_grid,
                                     DsGridPointer& p_ds_grid,
                                     CDataType* p_c_grid,
                                     void* p_shared,

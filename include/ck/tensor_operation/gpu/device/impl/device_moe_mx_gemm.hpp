@@ -86,6 +86,7 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                                                            BScaleDataType,
                                                            DsDataType,
                                                            CDataType,
+                                                           ScaleBlockSize,
                                                            AElementwiseOperation,
                                                            BElementwiseOperation,
                                                            CElementwiseOperation>
