@@ -32,31 +32,15 @@ class BaseConfigParam(BaseModel):
 
         if len(active_modes) > 1:
             raise ValidationError(
-                f"Configuration conflict: Multiple active modes detected {active_modes}",
-                [{'type': 'mode_conflict', 'ctx': {'modes': active_modes}}]
+                f"Configuration conflict: Multiple active modes detected {active_modes}"
             )
 
         if not active_modes:
             raise ValidationError(
                 "No valid configuration mode detected. Must provide either: "
                 "- enum: 'values' list\n"
-                "- range: 'min'/'max' with optional 'step'",
-                [{'type': 'mode_required'}]
+                "- range: 'min'/'max' with optional 'step'"
             )
-
-        current_mode = active_modes[0]
-        if current_mode == 'enum':
-            if not isinstance(data['values'], list) or len(
-                    data['values']) == 0:
-                raise ValueError("Enum mode requires non-empty 'values' list")
-        elif current_mode == 'range':
-            min_val = data['min']
-            max_val = data['max']
-            if min_val > max_val:
-                raise ValueError(f"Invalid range: {min_val} > {max_val}")
-            if 'step' in data and data['step'] <= 0:
-                raise ValueError(
-                    f"Invalid step: {data['step']} (must be positive)")
 
         return data
 
@@ -143,7 +127,7 @@ class RangeConfigParam(BaseConfigParam):
         min_val = data.get('min')
         max_val = data.get('max')
         if min_val is not None and max_val is not None and min_val > max_val:
-            raise ValueError("`min` must be less than `max`")
+            raise ValueError("min: {min_val} must be less than max: {max_val}")
         # Pre-validate candidate generation to catch empty ranges
         if all(key in data for key in ('min', 'max', 'step')):
             try:
@@ -163,7 +147,7 @@ class RangeConfigParam(BaseConfigParam):
     def validate_step_value(cls, v: int) -> int:
         """Ensures step is a valid positive integer"""
         if v <= 0:
-            raise ValueError("Step must be a positive integer")
+            raise ValueError(f"Step: {v} must be a positive integer")
         return v
 
     @field_validator('exclude')
