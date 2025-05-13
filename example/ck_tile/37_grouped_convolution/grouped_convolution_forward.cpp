@@ -38,6 +38,10 @@ float grouped_conv_fwd_calc(const ck_tile::GroupedConvHostArgs& args,
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 16;
 
+    constexpr ck_tile::index_t VectorSizeA = 8;
+    constexpr ck_tile::index_t VectorSizeB = 8;
+    constexpr ck_tile::index_t VectorSizeC = 8;
+
     // Implicit GEMM Traits
     using CodegenShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -47,9 +51,16 @@ float grouped_conv_fwd_calc(const ck_tile::GroupedConvHostArgs& args,
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenShape>;
 
     using CodegenTraits          = ck_tile::GroupedConvImplicitGemmTraits;
-    using CodegenPipelineProblem = ck_tile::
-        GemmPipelineProblem<InDataType, WeiDataType, AccDataType, CodegenShape, CodegenTraits>;
-    using CodegenPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
+    using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<InDataType,
+                                                                WeiDataType,
+                                                                AccDataType,
+                                                                CodegenShape,
+                                                                CodegenTraits,
+                                                                InDataType,
+                                                                true,
+                                                                VectorSizeA,
+                                                                VectorSizeB>;
+    using CodegenPipeline        = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
     const auto Run = [&](const auto memory_operation_) {
         constexpr auto memory_operation = memory_operation_.value;
@@ -69,7 +80,9 @@ float grouped_conv_fwd_calc(const ck_tile::GroupedConvHostArgs& args,
                                              N_Warp_Tile,
                                              K_Warp_Tile,
                                              CodegenPipelineProblem::TransposeC,
-                                             memory_operation>>;
+                                             memory_operation,
+                                             true,
+                                             VectorSizeC>>;
 
         constexpr auto ConvSpec = ck_tile::ConvolutionForwardSpecialization::Default;
 
@@ -99,7 +112,10 @@ float grouped_conv_fwd_calc(const ck_tile::GroupedConvHostArgs& args,
                       << "pipeline: " << CodegenPipeline::GetName() << '\n'
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
+                      << '\n'
+                      << "Vector size A: " << CodegenPipeline::GetVectorSizeA()
+                      << ", Vector size B: " << CodegenPipeline::GetVectorSizeB()
+                      << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
         }
 
         float ave_time = ck_tile::launch_kernel(

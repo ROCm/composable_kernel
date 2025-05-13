@@ -23,7 +23,9 @@ template <typename ADataType_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
           bool isCTransposed_,
-          memory_operation_enum MemoryOperation_>
+          memory_operation_enum MemoryOperation_,
+          bool FixedVectorSize_ = false,
+          index_t VectorSizeC_  = 1>
 struct CShuffleEpilogueProblem
 {
     using ADataType                                        = remove_cvref_t<ADataType_>;
@@ -41,6 +43,8 @@ struct CShuffleEpilogueProblem
     static constexpr index_t kKPerXdl                      = kKPerXdl_;
     static constexpr index_t isCTransposed                 = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
+    static constexpr bool FixedVectorSize                  = FixedVectorSize_;
+    static constexpr index_t VectorSizeC                   = VectorSizeC_;
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -65,6 +69,8 @@ struct CShuffleEpilogue
     static constexpr index_t kNPerXdl                      = Problem::kNPerXdl;
     static constexpr index_t kKPerXdl                      = Problem::kKPerXdl;
     static constexpr index_t isCTransposed                 = Problem::isCTransposed;
+    static constexpr bool FixedVectorSize                  = Problem::FixedVectorSize;
+    static constexpr index_t VectorSizeC                   = Problem::VectorSizeC;
     static constexpr index_t kMPerIteration                = kMPerXdl * kMWave;
     static constexpr index_t kNPerIteration                = kNPerXdl * kNWave;
 
@@ -91,8 +97,12 @@ struct CShuffleEpilogue
      */
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
+        if constexpr(FixedVectorSize)
+        {
+            return VectorSizeC;
+        }
         constexpr index_t MaxVectorStoreSize = 16;
-        return MaxVectorStoreSize / sizeof(ODataType);
+        return static_cast<index_t>(MaxVectorStoreSize / sizeof(ODataType));
     }
 
     template <typename Problem>
