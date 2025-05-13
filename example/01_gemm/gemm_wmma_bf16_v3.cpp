@@ -19,7 +19,7 @@ using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 using CElementOp = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::GemmSpec;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffleV3<
@@ -56,3 +56,4 @@ using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALa
 #include "run_gemm_example.inc"
 
 int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
+
