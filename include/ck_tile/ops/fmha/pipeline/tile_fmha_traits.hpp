@@ -13,6 +13,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadSeqLenK_ /* padding for seqlen_k */,
           bool kPadHeadDimQ_ /* paddding for hdim_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
+          bool kHasLogitsSoftCap_,
           BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
           bool kStoreLSE_,
@@ -25,6 +26,7 @@ struct TileFmhaTraits
     static constexpr bool kPadSeqLenK       = kPadSeqLenK_;
     static constexpr bool kPadHeadDimQ      = kPadHeadDimQ_;
     static constexpr bool kPadHeadDimV      = kPadHeadDimV_;
+    static constexpr bool kHasLogitsSoftCap = kHasLogitsSoftCap_;
     static constexpr auto BiasEnum          = BiasEnum_;
     static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
     static constexpr bool kStoreLSE         = kStoreLSE_;
@@ -37,6 +39,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadSeqLenK_ /* padding for seqlen_k */,
           bool kPadHeadDimQ_ /* paddding for hdim_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
+          bool kHasLogitsSoftCap_,
           BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
           bool kStoreLSE_, /* set to true if either num_splits > 1 or fwd training is running */
@@ -51,6 +54,7 @@ struct TileFmhaFwdSplitKVTraits
     static constexpr bool kPadSeqLenK       = kPadSeqLenK_;
     static constexpr bool kPadHeadDimQ      = kPadHeadDimQ_;
     static constexpr bool kPadHeadDimV      = kPadHeadDimV_;
+    static constexpr bool kHasLogitsSoftCap = kHasLogitsSoftCap_;
     static constexpr auto BiasEnum          = BiasEnum_;
     static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
     static constexpr bool kStoreLSE         = kStoreLSE_;
