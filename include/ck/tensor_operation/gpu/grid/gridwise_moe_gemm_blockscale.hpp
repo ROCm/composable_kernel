@@ -1576,69 +1576,71 @@ struct GridwiseMoeGemmBlockScale
             constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I5);
             constexpr auto N3 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I6);
             constexpr auto N4 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I7);
-            // if constexpr(IsInputGemm) // gu fusion
-            // {
-            //     static_assert(N0 * N1 * N2 * N3 * N4 == NPerBlock);
-            //     static_assert(N4 == 4);
-            //     const index_t n1 = get_warp_local_1d_id() / MWave;
-            //     const index_t n3 = threadIdx.y % get_warp_size() / NPerXdl;
-            //     vector_type<float, 4> topk_weights;
-            //     static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
-            //         static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
-            //             static_for<0, N2, 1>{}([&](auto n2) {      // m_inst_num_groups_per_blk
-            //                 const index_t m_pos = block_m_id * MPerBlock + n0 * N1 * N2 * N3 * N4 +
-            //                                         n1 * N2 * N3 * N4 + n2 * N3 * N4 + n3 * N4;
-            //                 if constexpr(MulRoutedWeight)
-            //                 {
-            //                     topk_weights = *c_style_pointer_cast<const vector_type<float, N4>*>(
-            //                         p_ds_grid[I0] + m_pos);
-            //                 }
-            //                 static_for<0, N4, 1>{}([&](auto n4) { // m_inst_group_size
-            //                         constexpr index_t c_offset =
-            //                             blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
-            //                                 make_tuple(m0, n0, n2 * N4 + n4));
-            //                         constexpr auto cidx = Number<c_offset>{};
 
-            //                         if constexpr(ActivationOperation == Activation::silu_and_mul)
-            //                         {
-            //                             float gate = c_thread_buf[cidx];
-            //                             float up   = c_thread_buf_up[cidx];
-            //                             if constexpr(MulRoutedWeight)
-            //                             {
-            //                                 gate = gate * topk_weights.AsType<float>()[n4];
-            //                                 up   = up * topk_weights.AsType<float>()[n4];
-            //                             }
-            //                             if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-            //                             {
-            //                                 gate *= 16;
-            //                                 up *= 16;
-            //                             }
-            //                             tensor_operation::element_wise::Silu{}(gate, gate);
-            //                             c_thread_buf(cidx) = gate * up;
-            //                         }
-            //                         else if(ActivationOperation == Activation::gelu_and_mul)
-            //                         {
-            //                             float gate = c_thread_buf[cidx];
-            //                             float up   = c_thread_buf_up[cidx];
-            //                             if constexpr(MulRoutedWeight)
-            //                             {
-            //                                 gate = gate * topk_weights.AsType<float>()[n3];
-            //                                 up   = up * topk_weights.AsType<float>()[n3];
-            //                             }
-            //                             if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-            //                             {
-            //                                 gate *= 16;
-            //                                 up *= 16;
-            //                             }
-            //                             tensor_operation::element_wise::Gelu{}(gate, gate);
-            //                             c_thread_buf(cidx) = gate * up;
-            //                         }
-            //                     });
-            //                 });
-            //             });
-            //         });
-            //     });
-            // }
+            if constexpr(IsInputGemm) // gu fusion, elementwise
+            {
+                static_assert(N0 * N1 * N2 * N3 * N4 == NPerBlock);
+                static_assert(N4 == 4);
+                const index_t n1 = get_warp_local_1d_id() / MWave;
+                const index_t n3 = threadIdx.x % get_warp_size() / NPerXdl;
+
+                vector_type<float, 4> topk_weights;
+                static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
+                    static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
+                        static_for<0, N2, 1>{}([&](auto n2) {      // num_groups_per_blk
+                            const index_t n_pos = block_n_id * NPerBlock + n0 * N1 * N2 * N3 * N4 +
+                                                    n1 * N2 * N3 * N4 + n2 * N3 * N4 + n3 * N4;
+                            if constexpr(MulRoutedWeight)
+                            {
+                                topk_weights = *c_style_pointer_cast<const vector_type<float, N4>*>(
+                                                p_ds_grid[I0] + n_pos);
+                            }
+                            // if((blockIdx.x == 0) && (blockIdx.y == 0)){printf("m0:%d, n_pos:%d\n", static_cast<int>(m0), n_pos);}
+                            static_for<0, N4, 1>{}([&](auto n4) { // inst_group_size
+                                constexpr index_t c_offset =
+                                    blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
+                                        make_tuple(m0, n0, n2 * N4 + n4));
+                                constexpr auto cidx = Number<c_offset>{};
+
+                                if constexpr(ActivationOperation == Activation::silu_and_mul)
+                                {
+                                    float gate = c_thread_buf[cidx];
+                                    float up   = c_thread_buf_up[cidx];
+                                    if constexpr(MulRoutedWeight)
+                                    {
+                                        gate = gate * topk_weights.AsType<float>()[n4];
+                                        up   = up * topk_weights.AsType<float>()[n4];
+                                    }
+                                    if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                    {
+                                        gate *= 16;
+                                        up *= 16;
+                                    }
+                                    tensor_operation::element_wise::Silu{}(gate, gate);
+                                    c_thread_buf(cidx) = gate * up;
+                                }
+                                else if(ActivationOperation == Activation::gelu_and_mul)
+                                {
+                                    float gate = c_thread_buf[cidx];
+                                    float up   = c_thread_buf_up[cidx];
+                                    if constexpr(MulRoutedWeight)
+                                    {
+                                        gate = gate * topk_weights.AsType<float>()[n4];
+                                        up   = up * topk_weights.AsType<float>()[n4];
+                                    }
+                                    if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                    {
+                                        gate *= 16;
+                                        up *= 16;
+                                    }
+                                    tensor_operation::element_wise::Gelu{}(gate, gate);
+                                    c_thread_buf(cidx) = gate * up;
+                                }
+                            });
+                        });
+                    });
+                });
+            }
 
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
@@ -2327,67 +2329,70 @@ struct GridwiseMoeGemmBlockScale
             constexpr auto N3 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I6);
             constexpr auto N4 = c_block_desc_m0_n0_m1_n1_m2_n2_n3_n4_tmp.GetLength(I7);
 
-            // if constexpr(IsInputGemm) // gu fusion
-            // {
-                
-            //     vector_type<float, 4> topk_weights;
-            //     static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
-            //         static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
-            //             static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
-            //                 static_for<0, N3, 1>{}([&](auto n3) { // m_inst_group_size
-            //                     const index_t m_pos = block_m_id * MPerBlock + n0 * N1 * N2 * N3 * N4 +
-            //                                             n1 * N2 * N3 * N4 + n2 * N3 * N4 + n3 * N4;
-            //                     if constexpr(MulRoutedWeight)
-            //                     {
-            //                         topk_weights = *c_style_pointer_cast<const vector_type<float, N3>*>(
-            //                             p_ds_grid[I0] + m_pos);
-            //                     }
-            //                     static_for<0, N4, 1>{}([&](auto n4) { // m_inst_group_size
-            //                         constexpr index_t c_offset =
-            //                             blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
-            //                                 make_tuple(m0, n0, m2 * N3 + n3));
-            //                         constexpr auto cidx = Number<c_offset>{};
+            if constexpr(IsInputGemm) // gu fusion, elementwise
+            {
+                static_assert(N0 * N1 * N2 * N3 * N4 == NPerBlock);
+                static_assert(N4 == 4);
+                const index_t n1 = get_warp_local_1d_id() / MWave;
+                const index_t n3 = threadIdx.x % get_warp_size() / NPerXdl;
 
-            //                         if constexpr(ActivationOperation == Activation::silu_and_mul)
-            //                         {
-            //                             float gate = c_thread_buf[cidx];
-            //                             float up   = c_thread_buf_up[cidx];
-            //                             if constexpr(MulRoutedWeight)
-            //                             {
-            //                                 gate = gate * topk_weights.AsType<float>()[n3];
-            //                                 up   = up * topk_weights.AsType<float>()[n3];
-            //                             }
-            //                             if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-            //                             {
-            //                                 gate *= 16;
-            //                                 up *= 16;
-            //                             }
-            //                             tensor_operation::element_wise::Silu{}(gate, gate);
-            //                             c_thread_buf(cidx) = gate * up;
-            //                         }
-            //                         else if(ActivationOperation == Activation::gelu_and_mul)
-            //                         {
-            //                             float gate = c_thread_buf[cidx];
-            //                             float up   = c_thread_buf_up[cidx];
-            //                             if constexpr(MulRoutedWeight)
-            //                             {
-            //                                 gate = gate * topk_weights.AsType<float>()[n3];
-            //                                 up   = up * topk_weights.AsType<float>()[n3];
-            //                             }
-            //                             if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-            //                             {
-            //                                 gate *= 16;
-            //                                 up *= 16;
-            //                             }
-            //                             tensor_operation::element_wise::Gelu{}(gate, gate);
-            //                             c_thread_buf(cidx) = gate * up;
-            //                         }
-            //                     });
-            //                 });
-            //             });
-            //         });
-            //     });
-            // }
+                vector_type<float, 4> topk_weights;
+                static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
+                    static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
+                        static_for<0, N2, 1>{}([&](auto n2) {      // num_groups_per_blk
+                            const index_t n_pos = block_n_id * NPerBlock + n0 * N1 * N2 * N3 * N4 +
+                                                    n1 * N2 * N3 * N4 + n2 * N3 * N4 + n3 * N4;
+                            if constexpr(MulRoutedWeight)
+                            {
+                                topk_weights = *c_style_pointer_cast<const vector_type<float, N4>*>(
+                                                p_ds_grid[I0] + n_pos);
+                            }
+                            // if((blockIdx.x == 0) && (blockIdx.y == 0)){printf("m0:%d, n_pos:%d\n", static_cast<int>(m0), n_pos);}
+                            static_for<0, N4, 1>{}([&](auto n4) { // inst_group_size
+                                constexpr index_t c_offset =
+                                    blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
+                                        make_tuple(m0, n0, n2 * N4 + n4));
+                                constexpr auto cidx = Number<c_offset>{};
+
+                                if constexpr(ActivationOperation == Activation::silu_and_mul)
+                                {
+                                    float gate = c_thread_buf[cidx];
+                                    float up   = c_thread_buf_up[cidx];
+                                    if constexpr(MulRoutedWeight)
+                                    {
+                                        gate = gate * topk_weights.AsType<float>()[n4];
+                                        up   = up * topk_weights.AsType<float>()[n4];
+                                    }
+                                    if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                    {
+                                        gate *= 16;
+                                        up *= 16;
+                                    }
+                                    tensor_operation::element_wise::Silu{}(gate, gate);
+                                    c_thread_buf(cidx) = gate * up;
+                                }
+                                else if(ActivationOperation == Activation::gelu_and_mul)
+                                {
+                                    float gate = c_thread_buf[cidx];
+                                    float up   = c_thread_buf_up[cidx];
+                                    if constexpr(MulRoutedWeight)
+                                    {
+                                        gate = gate * topk_weights.AsType<float>()[n4];
+                                        up   = up * topk_weights.AsType<float>()[n4];
+                                    }
+                                    if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                    {
+                                        gate *= 16;
+                                        up *= 16;
+                                    }
+                                    tensor_operation::element_wise::Gelu{}(gate, gate);
+                                    c_thread_buf(cidx) = gate * up;
+                                }
+                            });
+                        });
+                    });
+                });
+            }
 
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();

@@ -163,7 +163,6 @@ struct ReferenceMoeGemm1BlockScale : public device::BaseOperator
 
                     arg.c_element_op_(v_c, v_acc);
                     arg.c_element_op_(v_c_up, v_acc_up);
-                    #if 0
                     if constexpr(ActivationType == 1)
                     {
                         if constexpr(is_same_v<BDataType, pk_i4_t>)
@@ -184,8 +183,6 @@ struct ReferenceMoeGemm1BlockScale : public device::BaseOperator
                         tensor_operation::element_wise::Gelu{}(v_c, v_c);
                         arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
                     }
-                    #endif
-                    arg.c_t_k_n_(t, topk_id, n) = v_c;
                 }
             };
 
