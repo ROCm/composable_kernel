@@ -313,16 +313,16 @@ __device__ AFragT load_A_row_major(AType const* input_ptr)
     using ARawT = typename scalar_type<AFragT>::type;
     CK_PRINT<AFragT, ARawT>();
 
-    using AScalarFragT = vector_type<ARawT, chunk_size / packed_size_v<AType>>::type;
-    CK_PRINT<AScalarFragT>();
+    using AScalarChunkT = vector_type<ARawT, scalar_type<AFragT>::vector_size / num_chunks>::type;
+    CK_PRINT<AScalarChunkT>();
 
     union
     {
         AFragT frag;
-        AScalarFragT chunks[num_chunks];
+        AScalarChunkT chunks[num_chunks];
     } fragA{};
 
-    const AScalarFragT* fragPtr;
+    const AScalarChunkT* fragPtr;
 
     // BLOCK_K is a stride in A matrix
     auto startOffset  = row_major(startCoord2D, BLOCK_K) / packed_size_v<AType>;
@@ -330,8 +330,8 @@ __device__ AFragT load_A_row_major(AType const* input_ptr)
 
     for(index_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++)
     {
-        fragPtr                 = reinterpret_cast<AScalarFragT const*>(input_ptr + startOffset +
-                                                        chunk_idx * kMajorOffset);
+        fragPtr                 = reinterpret_cast<AScalarChunkT const*>(input_ptr + startOffset +
+                                                         chunk_idx * kMajorOffset);
         fragA.chunks[chunk_idx] = *fragPtr;
     }
 
