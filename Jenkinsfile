@@ -287,7 +287,7 @@ def cmake_build(Map conf=[:]){
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
+        if (params.NINJA_BUILD_TRACE){
             echo "running ninja build trace"
             setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
             build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
