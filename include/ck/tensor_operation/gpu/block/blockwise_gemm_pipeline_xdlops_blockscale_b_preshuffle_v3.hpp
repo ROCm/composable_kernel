@@ -784,7 +784,8 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                                  b_scale_thread_bufs[mfma_reg_buf][I0];
                     });
 
-                    HotLoopScheduler();
+                    // We need new compiler to enable this feature
+                    // HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
                 };
 
@@ -933,7 +934,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 }
             });
 
-            HotLoopScheduler();
+            // HotLoopScheduler();
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 c_scale_thread_buf(m0) = a_scale_thread_bufs[I0][m0] * b_scale_thread_bufs[I0][I0];
