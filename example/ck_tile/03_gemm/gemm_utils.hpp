@@ -15,6 +15,7 @@
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 
+#if 0
 #ifndef CK_TILE_PIPELINE_DEFAULT
 #define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
 #endif
@@ -34,10 +35,29 @@
 #else
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
+#endif
 
-struct GemmConfig
+struct GemmConfigBase
 {
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+    static constexpr bool kPadK = false;
+
+    static constexpr bool PermuteA = false;
+    static constexpr bool PermuteB = false;
+
+    static constexpr bool TransposeC            = false;
+    static constexpr bool UseStructuredSparsity = false;
+
+    static constexpr int kBlockPerCu                         = 1;
+    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    static constexpr ck_tile::index_t TileParitionerM01      = 4;
+    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
+};
+
+
+struct GemmConfig_1 : public GemmConfigBase
+{
     // Memory friendly for Interwave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 32;
@@ -52,8 +72,31 @@ struct GemmConfig
     static constexpr ck_tile::index_t K_Warp_Tile = 8;
 
     static constexpr bool DoubleSmemBuffer = false;
-#endif
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
+};
+
+struct GemmConfig_1_1 : public GemmConfigBase
+{
+    // Memory friendly for Interwave scheduler
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 64;
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 8;
+
+    static constexpr bool DoubleSmemBuffer = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
+    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
+};
+
+struct GemmConfig_2 : public GemmConfigBase
+{
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -68,7 +111,55 @@ struct GemmConfig
     static constexpr ck_tile::index_t K_Warp_Tile = 32;
 
     static constexpr bool DoubleSmemBuffer = false;
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+
+    static constexpr int kBlockPerCu                         = 2;
+};
+
+struct GemmConfig_2_1 : public GemmConfigBase
+{
+    // Compute friendly for Intrawave scheduler
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+
+    static constexpr bool DoubleSmemBuffer = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
+    static constexpr int kBlockPerCu = 2;
+};
+
+struct GemmConfig_2_2 : public GemmConfigBase
+{
+    // Compute friendly for Intrawave scheduler
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 32;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    //static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
+    //static constexpr int kBlockPerCu = 2;
+};
+
+struct GemmConfig_3 : public GemmConfigBase
+{
     // Compute friendly for Intrawave scheduler
     // Using the ping pong reader in the lds level
     static constexpr ck_tile::index_t M_Tile = 256;
@@ -84,21 +175,28 @@ struct GemmConfig
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     static constexpr bool DoubleSmemBuffer = true;
-#endif
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
+};
 
-    static constexpr bool kPadM = false;
-    static constexpr bool kPadN = false;
-    static constexpr bool kPadK = false;
+struct GemmConfig_3_1 : public GemmConfigBase
+{
+    // Compute friendly for Intrawave scheduler
+    // Using the ping pong reader in the lds level
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 32;
 
-    static constexpr bool PermuteA = false;
-    static constexpr bool PermuteB = false;
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
 
-    static constexpr bool TransposeC            = false;
-    static constexpr bool UseStructuredSparsity = false;
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr int kBlockPerCu                         = 2;
-    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-    static constexpr ck_tile::index_t TileParitionerM01      = 4;
+    static constexpr bool DoubleSmemBuffer = true;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
+    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>

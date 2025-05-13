@@ -12,7 +12,8 @@
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
@@ -128,12 +129,12 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     {
         if(a_layout == "R" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
                 argc, argv, Row{}, Col{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
                 argc, argv, Col{}, Col{}, Row{});
         }
         else
@@ -146,23 +147,23 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     {
         if(a_layout == "R" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
                 argc, argv, Row{}, Col{}, Row{});
         }
 #if 0
         else if(a_layout == "R" && b_layout == "R")
         {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
                 argc, argv, Row{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "R")
         {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
                 argc, argv, Col{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            return run_gemm_example_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
                 argc, argv, Col{}, Col{}, Row{});
         }
 #endif
