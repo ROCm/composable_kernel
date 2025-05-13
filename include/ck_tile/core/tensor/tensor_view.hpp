@@ -219,6 +219,27 @@ struct tensor_view
     CK_TILE_HOST_DEVICE constexpr void
     async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
                                       const TensorCoord& coord,
+                                      index_t coord_extra_offset,
+                                      index_t linear_offset,
+                                      bool_constant<pre_nop> = {}) const
+    {
+        return buf_.template async_get_raw<X>(
+            smem,
+            (coord.get_offset() + coord_extra_offset) / PackedSize,
+            linear_offset / PackedSize,
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            bool_constant<pre_nop>{});
+    }
+
+    template <typename X,
+              bool pre_nop = false,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
+                                      const TensorCoord& coord,
                                       index_t linear_offset,
                                       bool is_valid_element,
                                       bool_constant<pre_nop> = {}) const
