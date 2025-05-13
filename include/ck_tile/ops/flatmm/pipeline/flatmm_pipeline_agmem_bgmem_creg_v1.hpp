@@ -90,7 +90,9 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         constexpr index_t A_Buffer_Load_Inst_Num = kMPerBlock * kKPerBlock / BlockSize / KPerLoad;
         constexpr index_t A_LDS_Read_Inst_Num    = MIterPerWarp * KIterPerWarp;
         constexpr index_t B_Buffer_Load_Inst_Num = NIterPerWarp * KIterPerWarp;
-        // constexpr index_t A_LDS_Read_Inst_Remain = A_LDS_Read_Inst_Num - A_Buffer_Load_Inst_Num;
+        (void)A_Buffer_Load_Inst_Num;
+        (void)A_LDS_Read_Inst_Num;
+        (void)B_Buffer_Load_Inst_Num;
 #if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
         static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
             ignore = i;
