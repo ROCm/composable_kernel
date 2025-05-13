@@ -122,6 +122,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
     using Base::B_K1;
     using Base::I0;
     using Base::I1;
+    using Base::KGroup;
     using Base::KRepeat;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
@@ -152,9 +153,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
         constexpr index_t M0 = TileDesc_M0_M1_M2_K{}.GetLength(Number<0>{});
         constexpr index_t M1 = TileDesc_M0_M1_M2_K{}.GetLength(Number<1>{});
         constexpr index_t M2 = TileDesc_M0_M1_M2_K{}.GetLength(Number<2>{});
-        constexpr index_t K2 = KPack;
+        constexpr index_t K2 = KPack / KGroup;
         constexpr index_t K1 = 64 / NPerXDL;
-        constexpr index_t K0 = KRepeat;
+        constexpr index_t K0 = KRepeat * KGroup;
 
         return transform_tensor_descriptor(
             TileDesc_M0_M1_M2_K{},
@@ -281,12 +282,14 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
         block_sync_lds();
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
-                a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                   make_tuple(m0, I0, I0, k0, I0, I0),
-                                   a_block_buf.At(I0),
-                                   a_thread_desc_,
-                                   make_tuple(m0, I0, I0, k0, I0, I0),
-                                   a_thread_bufs(I0));
+                static_for<0, KGroup, 1>{}([&](auto kg0) {
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                       make_tuple(m0, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                       a_block_buf.At(I0),
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                       a_thread_bufs(I0));
+                });
             });
         });
 
@@ -320,12 +323,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
-                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                               make_tuple(m0, I0, I0, k0, I0, I0),
-                                               a_block_buf.At(local_read_buf),
-                                               a_thread_desc_,
-                                               make_tuple(m0, I0, I0, k0, I0, I0),
-                                               a_thread_bufs(local_read_buf));
+                            static_for<0, KGroup, 1>{}([&](auto kg0) {
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(m0, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                    a_block_buf.At(local_read_buf),
+                                    a_thread_desc_,
+                                    make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                    a_thread_bufs(local_read_buf));
+                            });
                         });
                     });
 
@@ -391,12 +397,14 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, k0, I0, I0),
-                                       a_block_buf.At(local_read_reg),
-                                       a_thread_desc_,
-                                       make_tuple(m0, I0, I0, k0, I0, I0),
-                                       a_thread_bufs(local_read_reg));
+                    static_for<0, KGroup, 1>{}([&](auto kg0) {
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                           make_tuple(m0, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                           a_block_buf.At(local_read_reg),
+                                           a_thread_desc_,
+                                           make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                           a_thread_bufs(local_read_reg));
+                    });
                 });
             });
 
@@ -445,12 +453,14 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, k0, I0, I0),
-                                       a_block_buf.At(local_read_reg),
-                                       a_thread_desc_,
-                                       make_tuple(m0, I0, I0, k0, I0, I0),
-                                       a_thread_bufs(local_read_reg));
+                    static_for<0, KGroup, 1>{}([&](auto kg0) {
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                           make_tuple(m0, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                           a_block_buf.At(local_read_reg),
+                                           a_thread_desc_,
+                                           make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                           a_thread_bufs(local_read_reg));
+                    });
                 });
             });
 
@@ -539,7 +549,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
                                                          ComputeDataType,
                                                          decltype(a_block_desc_m0_m1_m2_k0_k1_k2),
                                                          decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, 1, 1, KPack>,
+                                                         Sequence<1, 1, 1, 1, 1, KPack / KGroup>,
                                                          Sequence<0, 1, 2, 3, 4, 5>,
                                                          5,
                                                          A_K1,
