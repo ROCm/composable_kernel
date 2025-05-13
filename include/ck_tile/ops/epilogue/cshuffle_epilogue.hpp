@@ -154,7 +154,7 @@ struct CShuffleEpilogue
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
-                                   onst DsDramWindows& ds_dram_window,
+                                   const DsDramWindows& ds_dram_window,
                                    void* p_smem)
     {
 
@@ -190,10 +190,6 @@ struct CShuffleEpilogue
             [&](auto idx) { return make_tile_window(ds_dram_window[idx], dram_tile_distribution); },
             number<NumDTensor>{});
 
-        using elemenet_wise_output_t =
-            decltype(load_tile(make_tile_window(out_lds_window, dram_tile_distribution)));
-        elemenet_wise_output_t elemenet_wise_output;
-
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
@@ -215,26 +211,26 @@ struct CShuffleEpilogue
             store_tile(in_lds_window, c_warp_in_tensor_casted);
             block_sync_lds();
 
-            const auto c_out_tensor =
+            auto c_out_tensor =
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
             const auto ds_tensor = generate_tuple(
                 [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
 
             const auto c_ds_tiles = concat_tuple_of_reference(
-                tie(elemenet_wise_output, c_out_tensor),
+                tie(c_out_tensor, c_out_tensor),
                 generate_tie(
-                    [&](auto i) -> const auto& { return ds_tensor[i]; }, number<NumDTensor>{}));
+                    [&](auto idx) -> const auto& { return ds_tensor[idx]; }, number<NumDTensor>{}));
 
             tile_elementwise_in_out_unpack_tuple(typename Problem::CDElementwise{}, c_ds_tiles);
 
             if constexpr(MemoryOperation == memory_operation_enum::set)
             {
-                store_tile(out_dram_window, c_out_tensor);
+                store_tile(out_dram_window, elemenet_wise_output);
             }
             else
             {
-                update_tile(out_dram_window, c_out_tensor);
+                update_tile(out_dram_window, elemenet_wise_output);
             }
             if constexpr(iAccess != num_access - 1)
             {

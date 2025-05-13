@@ -1496,8 +1496,10 @@ struct ElementWiseAdd
      * @note [return] Perform element-wise addition and store the result in 'r'
      */
     template <typename ResT, typename ParamT>
-    CK_TILE_DEVICE auto operator()(ResT& r, const ParamT& a, const ParamT& b, const ParamT& c) const
-        -> void
+    CK_TILE_DEVICE auto operator()(ResT& r,
+                                   [[maybe_unused]] const ParamT& a,
+                                   [[maybe_unused]] const ParamT& b,
+                                   [[maybe_unused]] const ParamT& c) const -> void
     {
         r = a + b + c;
     }
@@ -1536,7 +1538,7 @@ struct ElementWiseMul
     CK_TILE_DEVICE auto operator()(ResT& r, const ParamT& a, const ParamT& b, const ParamT& c) const
         -> void
     {
-        r = a + b + c;
+        r = a * b * c;
     }
 
     /**
