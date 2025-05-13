@@ -118,14 +118,12 @@ class RangeConfigParam(BaseConfigParam):
     """Represents a numeric range-type configuration parameter"""
     min: int = Field(
         ...,
-        description="Lower boundary for range mode",
-        json_schema_extra={"mode": "range"}
+        description="Lower boundary for range mode"
     )
 
     max: int = Field(
         ...,
-        description="Upper boundary for range mode",
-        json_schema_extra={"mode": "range"}
+        description="Upper boundary for range mode"
     )
 
     step: int = Field(
