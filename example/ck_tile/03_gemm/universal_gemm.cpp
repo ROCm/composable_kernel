@@ -31,7 +31,8 @@ template <typename ADataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          bool Persistent = false>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     using GemmShape = ck_tile::TileGemmShape<
@@ -60,7 +61,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                  BLayout,
                                                                  CLayout,
                                                                  GemmConfig::TransposeC,
-                                                                 GemmConfig::UseStructuredSparsity>;
+                                                                 GemmConfig::UseStructuredSparsity,
+                                                                 Persistent>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -111,7 +113,15 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
+        dim3 grids;
+        if constexpr(Persistent)
+        {
+            grids = Kernel::MaxOccupancyGridSize(s);
+        }
+        else
+        {
+            grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+        }
         constexpr dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
@@ -130,7 +140,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         ave_time = ck_tile::launch_kernel(s,
                                           ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
                                               Kernel{}, grids, blocks, 0, kargs));
-        return ave_time;
     };
 
     const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
