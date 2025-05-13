@@ -362,8 +362,10 @@ struct HstuAttentionFwdPipelineQRKSVS
                     }
                     else // kUseCausal=true, kUseLocal=false
                     {
-                        if(!mask.IsFullTileInsideMask(
-                               q_origin.at(number<0>{}), seqlen_k_curr, number<kK1>{}))
+                        if(!mask.IsFullTileInsideMask(q_origin.at(number<0>{}),
+                                                      seqlen_k_curr,
+                                                      number<kK1>{},
+                                                      number<kM0>{}))
                         {
                             constexpr auto s_spans = SaccBlockTileType::get_distributed_spans();
                             sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
