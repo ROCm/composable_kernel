@@ -27,7 +27,6 @@ class GemmCodeGenerator:
             self.config = GemmConfig.from_json(config_path)
 
         self.all_trait_names: List[str] = []
-        self.all_trait_configs: List[dict[str, Union[str, bool]]] = []
 
     def list_all_trait_names(self):
         """List all possible kernel trait names"""
@@ -40,7 +39,7 @@ class GemmCodeGenerator:
             list_f.write(str(w_p / "gemm_common.hpp") + "\n")
             list_f.write(str(w_p / "gemm_instances.hpp") + "\n")
             list_f.write(str(w_p / "gemm_dispatcher.hpp") + "\n")
-            for trait in sorted(self.all_trait_names):
+            for trait in self.all_trait_names:
                 list_f.write(str(w_p / f"gemm_{trait}.hpp") + "\n")
 
     def _generate_all_traits(self):
@@ -67,17 +66,9 @@ class GemmCodeGenerator:
             if current_combination not in unsupported_combinations:
                 trait_name = (
                     f"{pipeline}_{epilogue}_{scheduler}_"
-                    f"pad_{BOOL_MAP(pad_m)}_{BOOL_MAP(pad_n)}_{BOOL_MAP(pad_k)}"
+                    f"{BOOL_MAP(pad_m)}_{BOOL_MAP(pad_n)}_{BOOL_MAP(pad_k)}"
                 )
                 self.all_trait_names.append(trait_name)
-                self.all_trait_configs.append({
-                    "pipeline": pipeline,
-                    "epilogue": epilogue,
-                    "scheduler": scheduler,
-                    "pad_m": pad_m,
-                    "pad_n": pad_m,
-                    "pad_k": pad_k
-                })
             else:
                 logging.warning(
                     f"Invalid combination: {pipeline}-{epilogue}-{scheduler}"
@@ -115,18 +106,17 @@ using CLayout = {LAYOUT_MAP[self.config.problem.layout_values[2]]};
 
     def _generate_all_trait_files(self):
         """Generate implementation """
-        if not self.all_trait_configs:  # Check if the list is empty
+        if not self.all_trait_names:  # Check if the list is empty
             self._generate_all_traits()
-        for trait_config in self.all_trait_configs:
-            self._generate_trait_files(**trait_config)
+        for trait in self.all_trait_names:
+            self._generate_trait_files(trait)
         self._generate_common_instance_header_files()
 
     
-    def _generate_trait_files(self, pipeline: str, epilogue: str, scheduler: str,
-                              pad_m: bool, pad_n: bool, pad_k: bool):
+    def _generate_trait_files(self, trait: str):
         """Generate a configuration group with all tile/warp combinations"""
-        trait_name = f"{pipeline}_{epilogue}_{scheduler}_pad_{BOOL_MAP(pad_m)}_{BOOL_MAP(pad_n)}_{BOOL_MAP(pad_k)}"
-        filename = f"gemm_{trait_name}.hpp"
+        pipeline, epilogue, scheduler, pad_m, pad_n, pad_k = trait.split("_")
+        filename = f"gemm_{trait}.hpp"
 
         content = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
@@ -136,21 +126,21 @@ using CLayout = {LAYOUT_MAP[self.config.problem.layout_values[2]]};
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/host.hpp"
 
-namespace {trait_name} {{
+namespace {trait} {{
 """
         # Add template struct with configuration
         content += self._generate_kernel_struct(pipeline, epilogue, scheduler, pad_m, pad_n, pad_k)
 
-        content += f"\n}} // namespace {trait_name}\n"
+        content += f"\n}} // namespace {trait}\n"
         (self.output_dir / filename).write_text(content)
 
     def _generate_kernel_struct(self, pipeline: str, epilogue: str, scheduler: str,
-                               pad_m: bool, pad_n: bool, pad_k: bool) -> str:
+                               pad_m: str, pad_n: str, pad_k: str) -> str:
         """Generate kernel struct template"""
         return f"""
 template <typename Pipeline, ck_tile::TailNumber TN>
 void try_run(ck_tile::TailNumber tn) {{
-    if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN)) {{
+    if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN) - 1) {{
         if (tn == TN) {{
             RunSplitk(ck_tile::bool_constant<true>{{}},
                 ck_tile::integral_constant<ck_tile::TailNumber, TN>{{}});
@@ -162,9 +152,9 @@ template <int TileM, int TileN, int TileK,
           int WarpTileM, int WarpTileN, int WarpTileK,
           bool structured_sparsity>
 struct GemmKernel {{
-    static constexpr bool kPadM = {BOOL_MAP(pad_m)};
-    static constexpr bool kPadN = {BOOL_MAP(pad_n)};
-    static constexpr bool kPadK = {BOOL_MAP(pad_k)};
+    static constexpr bool kPadM = {pad_m};
+    static constexpr bool kPadN = {pad_n};
+    static constexpr bool kPadK = {pad_k};
 
     static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s) {{
         static constexpr bool permuteA = false;
@@ -300,6 +290,41 @@ struct GemmKernel {{
             content += f"#include \"gemm_{trait}.hpp\"\n"
         (self.output_dir / "gemm_instances.hpp").write_text(content)
 
+    def is_tile_valid(self, tile: tuple, trait: str) -> bool:
+        """Check if the tile configuration is valid for the given trait"""
+        # Extract tile parameters
+        tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k = tile
+
+        # Extract the pipeline and epilogue from the trait name
+        pipeline, *_ = trait.split("_")
+
+        if (warp_m * warp_tile_m) == 0 or (warp_n * warp_tile_n) == 0 or (warp_k * warp_tile_k) == 0:
+            return False
+
+        if tile_m % (warp_m * warp_tile_m) == 0 and \
+                tile_n % (warp_n * warp_tile_n) == 0 and \
+                tile_k % (warp_k * warp_tile_k) == 0:
+            total_tile_in_lds = (tile_m * tile_k) * size_of(self.config.problem.datatype_values[0])  + (tile_n * tile_k) * size_of(self.config.problem.datatype_values[1])
+            # Validate and append valid tile parameters
+            max_tile_size = pow(2, 16) if pipeline == "compv4" else pow(2, 15)
+
+            if total_tile_in_lds > max_tile_size:
+                logging.warning(
+                        f"Tile configuration exceeds LDS capacity for {trait} pipeline. Details: "
+                        f"Total required LDS: {total_tile_in_lds} bytes ({total_tile_in_lds/1024:.1f} KB) / "
+                        f"Max allowed: {max_tile_size} bytes ({max_tile_size/1024} KB). "
+                        f"Matrix A ({self.config.problem.datatype_values[0]}): ({tile_m}x{tile_k}) * {size_of(self.config.problem.datatype_values[0])}B = {tile_m * tile_k * size_of(self.config.problem.datatype_values[0])}B. "
+                        f"Matrix B ({self.config.problem.datatype_values[1]}): ({tile_n}x{tile_k}) * {size_of(self.config.problem.datatype_values[1])}B = {tile_n * tile_k * size_of(self.config.problem.datatype_values[1])}B. "
+                        f"Warp: {warp_m}x{warp_n}x{warp_k}, "
+                        f"Warp tile: {warp_tile_m}x{warp_tile_n}x{warp_tile_k}."
+                    )
+                return False
+
+            warp_tile_key = f"{self.config.problem.datatype_values[0]}_{self.config.problem.datatype_values[0]}_{self.config.problem.datatype_values[0]}"
+            if [warp_tile_m, warp_tile_n, warp_tile_k] in warp_tile_combinations[warp_tile_key]:
+                return  True
+        return False
+
     def _generate_dispatcher_files(self):
         """Generate dispatch mechanism"""
         content = """// SPDX-License-Identifier: MIT
@@ -336,15 +361,7 @@ struct GemmDispatcher {
         if(!kernel_map.empty()) return;            
         \n"""
 
-        def get_tile_value(tile_param):
-            if isinstance(tile_param, RangeConfigParam):
-                tile_param_values = list(range(tile_param.min, tile_param.max, tile_param.step))
-                if tile_param.exclude is not None:
-                    exclude_set = set(tile_param.exclude)
-                    tile_param_values = [v for v in tile_param_values if v not in exclude_set]
-            else:
-                tile_param_values = tile_param.values
-            return tile_param_values
+        get_tile_value = lambda tile_param: tile_param.generate_candidates() if isinstance(tile_param, RangeConfigParam) else tile_param.values
         
         tile_params = set(itertools.product(
             get_tile_value(self.config.tile_config.tile_m),
@@ -369,26 +386,18 @@ struct GemmDispatcher {
                                                                 const ck_tile::stream_config& stream) {{
             if(structured_sparsity){{  // SMFMA"""
             for tile in tile_params:
-                # Check if we have valid tile/warp combinations 
-                # (tile_m/(warp_m*warp_tile_m)) * warp_m * warp_tile_m == tile_m
-                if ((tile[0]/(tile[3] * tile[7]) * tile[3] * tile[7]) != tile[0]) or \
-                   ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
-                    continue
-                sparse = self.config.problem.datatype_values[0] == 'fp16' and \
-                    ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
-                     (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
-                content += f"""
-                profiler.benchmark_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
+                if self.is_tile_valid(tile, trait):
+                    sparse = self.config.problem.datatype_values[0] == 'fp16' and \
+                        ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
+                        (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
+                    content += f"""
+                    profiler.benchmark_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
             content += f"""
             }} else {{"""
             for tile in tile_params:
-                # Check if we have valid tile/warp combinations 
-                # (tile_m/(warp_m*warp_tile_m)) * warp_m * warp_tile_m == tile_m
-                if ((tile[0]/(tile[3] * tile[7]) * tile[3] * tile[7]) != tile[0]) or \
-                ((tile[1]/(tile[4] * tile[8]) * tile[4] * tile[8]) != tile[1]):
-                    continue
-                content += f"""
-                profiler.benchmark_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
+                if self.is_tile_valid(tile, trait):
+                    content += f"""
+                    profiler.benchmark_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
             content += f"""
             }}
         }};\n"""

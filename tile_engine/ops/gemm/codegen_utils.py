@@ -149,3 +149,20 @@ HOT_LOOP_TRUE = {'mem' : RUN_MEM,
                  'compv4' : RUN_COMPV4} 
 
 BOOL_MAP = lambda b_: {True: 'true', False: 'false'}[bool(b_)]
+
+warp_tile_combinations = {
+        'fp16_fp16_fp16' : [[32,32,8], [16,16,16], [32,32,16], [16,16,32], [4,64,16], [64,4,16]],
+        'bf16_bf16_bf16' : [[32,32,8], [16,16,16], [32,32,16], [16,16,32], [4,64,16], [64,4,16]],
+        'fp8_fp8_fp16' : [[32,32,16], [32,32,32], [16,16,64], [16,16,32], [16,16,128], [32,32,64]], #last 2 were not supported by MI300 architecture.
+        'bf8_bf8_fp16' : [[32,32,16], [32,32,32], [16,16,64], [16,16,32], [16,16,128], [32,32,64]]
+    }
+
+def size_of(data_type):
+    if data_type == 'fp16' or data_type == 'bf16':
+        return 2
+    elif data_type == 'int8' or data_type == 'fp8' or data_type == 'bf8':
+        return 1
+    elif data_type == 'int4': ## TODO:: needs to confirm
+        return 0.5
+    else:
+        return 4  
