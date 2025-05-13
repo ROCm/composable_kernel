@@ -2,29 +2,30 @@
 # Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 # -*- coding: utf-8 -*-
+
 """
-generate kernel instances to speed up compilation
+Mappings and utility functions for kernel code generation.
 """
 
-DATA_TYPE_MAP = {'fp32'  : 'float',
-                 'fp16'  : 'ck_tile::half_t',
-                 'bf16'  : 'ck_tile::bf16_t',
-                 'int8'  : 'ck_tile::int8_t',
-                 'fp8'   : 'ck_tile::fp8_t',
-                 'bf8'   : 'ck_tile::bf8_t',
-                 'int4'  : 'ck_tile::pk_int4_t'
-                }
+DATA_TYPE_MAP = {'fp32': 'float',
+                 'fp16': 'ck_tile::half_t',
+                 'bf16': 'ck_tile::bf16_t',
+                 'int8': 'ck_tile::int8_t',
+                 'fp8': 'ck_tile::fp8_t',
+                 'bf8': 'ck_tile::bf8_t',
+                 'int4': 'ck_tile::pk_int4_t'
+                 }
 
-LAYOUT_MAP = {'r' : 'ck_tile::tensor_layout::gemm::RowMajor',
-              'c' : 'ck_tile::tensor_layout::gemm::ColumnMajor'}                                       
+LAYOUT_MAP = {'r': 'ck_tile::tensor_layout::gemm::RowMajor',
+              'c': 'ck_tile::tensor_layout::gemm::ColumnMajor'}
 
 DEFAULT_EPILOGUE = """
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
                                 ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
                                                                       BDataType,
-                                                                      AccDataType, 
-                                                                      CDataType, 
-                                                                      CLayout, 
+                                                                      AccDataType,
+                                                                      CDataType,
+                                                                      CLayout,
                                                                       kPadM,
                                                                       kPadN,
                                                                       WarpTileM,
@@ -72,7 +73,7 @@ HOT_LOOP_FALSE = """
             else
             {
                 throw std::runtime_error("Num K loop must be larger than number of prefetech stages.");
-            }  
+            }
 """
 RUN_MEM = """
             // Handle One and Full cases directly
@@ -134,35 +135,39 @@ RUN_COMPV4 = """
 """
 
 
-PIPELINE_MAP = {'mem' : ['ck_tile::BaseGemmPipelineAgBgCrMem', 'ck_tile::GemmPipelineAgBgCrMem'],
-                'compv3' : ['ck_tile::BaseGemmPipelineAgBgCrCompV3', 'ck_tile::GemmPipelineAgBgCrCompV3'],
-                'compv4' : ['ck_tile::BaseGemmPipelineAgBgCrCompV4', 'ck_tile::GemmPipelineAgBgCrCompV4']}
+PIPELINE_MAP = {'mem': ['ck_tile::BaseGemmPipelineAgBgCrMem', 'ck_tile::GemmPipelineAgBgCrMem'],
+                'compv3': ['ck_tile::BaseGemmPipelineAgBgCrCompV3', 'ck_tile::GemmPipelineAgBgCrCompV3'],
+                'compv4': ['ck_tile::BaseGemmPipelineAgBgCrCompV4', 'ck_tile::GemmPipelineAgBgCrCompV4']}
 
-SCHEDULER_MAP = {'interwave' : 'ck_tile::GemmPipelineScheduler::Interwave',
-                 'intrawave' : 'ck_tile::GemmPipelineScheduler::Intrawave'}
+SCHEDULER_MAP = {'interwave': 'ck_tile::GemmPipelineScheduler::Interwave',
+                 'intrawave': 'ck_tile::GemmPipelineScheduler::Intrawave'}
 
-EPILOGUE_MAP = {'default' :DEFAULT_EPILOGUE,
-                'cshuffle' : CSHUFFLE_EPILOGUE} 
+EPILOGUE_MAP = {'default': DEFAULT_EPILOGUE,
+                'cshuffle': CSHUFFLE_EPILOGUE}
 
-HOT_LOOP_TRUE = {'mem' : RUN_MEM,
-                 'compv3' : RUN_COMPV3,
-                 'compv4' : RUN_COMPV4} 
+HOT_LOOP_TRUE = {'mem': RUN_MEM,
+                 'compv3': RUN_COMPV3,
+                 'compv4': RUN_COMPV4}
 
-BOOL_MAP = lambda b_: {True: 'true', False: 'false'}[bool(b_)]
+
+def BOOL_MAP(b_): return {True: 'true', False: 'false'}[bool(b_)]
+
 
 warp_tile_combinations = {
-        'fp16_fp16_fp16' : [[32,32,8], [16,16,16], [32,32,16], [16,16,32], [4,64,16], [64,4,16]],
-        'bf16_bf16_bf16' : [[32,32,8], [16,16,16], [32,32,16], [16,16,32], [4,64,16], [64,4,16]],
-        'fp8_fp8_fp16' : [[32,32,16], [32,32,32], [16,16,64], [16,16,32], [16,16,128], [32,32,64]], #last 2 were not supported by MI300 architecture.
-        'bf8_bf8_fp16' : [[32,32,16], [32,32,32], [16,16,64], [16,16,32], [16,16,128], [32,32,64]]
-    }
+    'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+    'bf16_bf16_bf16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+    # last 2 were not supported by MI300 architecture.
+    'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32], [16, 16, 128], [32, 32, 64]],
+    'bf8_bf8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32], [16, 16, 128], [32, 32, 64]]
+}
+
 
 def size_of(data_type):
     if data_type == 'fp16' or data_type == 'bf16':
         return 2
     elif data_type == 'int8' or data_type == 'fp8' or data_type == 'bf8':
         return 1
-    elif data_type == 'int4': ## TODO:: needs to confirm
+    elif data_type == 'int4':  # TODO:: needs to confirm
         return 0.5
     else:
-        return 4  
+        return 4

@@ -122,7 +122,7 @@ class GemmProfiler
                           ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                           int verify,
                           ck_tile::GemmHostArgs& args,
-                          const ck_tile::stream_config& s)
+                          const ck_tile::stream_config& stream)
     {
         std::string description = Kernel::get_name();
 
@@ -143,7 +143,7 @@ class GemmProfiler
 
         KernelInstance kernel_instance{description, problem, {-1.0f, -1.0f, -1.0f}};
 
-        float avg_time = Kernel::launch(args, s);
+        float avg_time = Kernel::launch(args, stream);
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
         std::size_t flop     = std::size_t(2) * args.M * args.N * args.K;
@@ -194,13 +194,6 @@ class GemmProfiler
 
         return kernel_instance;
     }
-
-    private:
-    GemmProfiler() = default;
-    ~GemmProfiler() { kernel_instances_.clear(); }
-
-    GemmProfiler(const GemmProfiler&)            = delete;
-    GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     std::vector<KernelInstance> kernel_instances_;
 };

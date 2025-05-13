@@ -2,18 +2,21 @@
 # Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 # -*- coding: utf-8 -*-
+
 """
-generate kernel instances to speed up compilation
+Handles loading, parsing, and validation of JSON configuration parameters.
 """
+
 from pathlib import Path
 from pydantic import BaseModel, model_validator, field_validator, ValidationInfo, Field, ValidationError
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Union, Tuple, Type
 import json
 
+
 class BaseConfigParam(BaseModel):
-    """Base configuration parameter model"""
-    
+    """Base model for configuration parameters, enforcing mode validation."""
+
     @model_validator(mode='before')
     def validate_mode_exclusivity(cls, data: Dict) -> Dict:
         mode_requirements = {
@@ -43,7 +46,8 @@ class BaseConfigParam(BaseModel):
 
         current_mode = active_modes[0]
         if current_mode == 'enum':
-            if not isinstance(data['values'], list) or len(data['values']) == 0:
+            if not isinstance(data['values'], list) or len(
+                    data['values']) == 0:
                 raise ValueError("Enum mode requires non-empty 'values' list")
         elif current_mode == 'range':
             min_val = data['min']
@@ -51,12 +55,14 @@ class BaseConfigParam(BaseModel):
             if min_val > max_val:
                 raise ValueError(f"Invalid range: {min_val} > {max_val}")
             if 'step' in data and data['step'] <= 0:
-                raise ValueError(f"Invalid step: {data['step']} (must be positive)")
+                raise ValueError(
+                    f"Invalid step: {data['step']} (must be positive)")
 
         return data
 
+
 class EnumConfigParam(BaseConfigParam):
-    """Enum-type configuration parameter that enforces explicit values mode"""
+    """Represents an enumeration-type configuration parameter"""
     values: List[Union[int, str, bool]] = Field(
         ...,
         min_items=1,
@@ -64,7 +70,7 @@ class EnumConfigParam(BaseConfigParam):
     )
 
     @field_validator("values")
-    def validate_enum_values(cls, v, info: ValidationInfo)-> Any: 
+    def validate_enum_values(cls, v, info: ValidationInfo) -> Any:
         # Type validation
         valid_types = (int, str, bool)
         for idx, item in enumerate(v):
@@ -81,7 +87,7 @@ class EnumConfigParam(BaseConfigParam):
                         }
                     }]
                 )
-            
+
             # String content validation
             if isinstance(item, str) and not item.strip():
                 raise ValidationError(
@@ -107,26 +113,27 @@ class EnumConfigParam(BaseConfigParam):
 
         return v
 
+
 class RangeConfigParam(BaseConfigParam):
-    """Range-type parameter with min/max/step and exclusion support"""
+    """Represents a numeric range-type configuration parameter"""
     min: int = Field(
         ...,
         description="Lower boundary for range mode",
         json_schema_extra={"mode": "range"}
     )
-    
+
     max: int = Field(
         ...,
-        description="Upper boundary for range mode", 
+        description="Upper boundary for range mode",
         json_schema_extra={"mode": "range"}
     )
-    
+
     step: int = Field(
         default=1,
         ge=1,
         description="Increment step between values (minimum 1)"
     )
-    
+
     exclude: Optional[List[int]] = Field(
         default=None,
         description="Values to exclude from the range (must be within [min, max])"
@@ -142,12 +149,16 @@ class RangeConfigParam(BaseConfigParam):
         # Pre-validate candidate generation to catch empty ranges
         if all(key in data for key in ('min', 'max', 'step')):
             try:
-                candidates = list(range(data['min'], data['max'] + 1, data['step']))
+                candidates = list(
+                    range(
+                        data['min'],
+                        data['max'] + 1,
+                        data['step']))
                 if not candidates:
                     raise ValueError("Empty candidate list with current step")
             except ValueError as e:
                 raise ValueError(f"Invalid step configuration: {str(e)}")
-                
+
         return data
 
     @field_validator('step')
@@ -183,14 +194,16 @@ class RangeConfigParam(BaseConfigParam):
         # Verify step alignment
         misaligned = [x for x in v if (x - min_val) % step_val != 0]
         if misaligned:
-            raise ValueError(f"Misaligned exclude values {misaligned} with step {step_val}")
+            raise ValueError(
+                f"Misaligned exclude values {misaligned} with step {step_val}")
 
         # Detect non-existent candidates in exclusion list
         try:
             candidates = list(range(min_val, max_val + 1, step_val))
             ghost_excludes = [x for x in v if x not in candidates]
             if ghost_excludes:
-                raise ValueError(f"Excludes {ghost_excludes} not in candidate list")
+                raise ValueError(
+                    f"Excludes {ghost_excludes} not in candidate list")
         except ValueError as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
@@ -199,24 +212,23 @@ class RangeConfigParam(BaseConfigParam):
     def generate_candidates(self) -> List[int]:
         """Generates valid candidates after applying range constraints"""
         candidates = list(range(self.min, self.max + 1, self.step))
-        
+
         if self.exclude:
             exclude_set = set(self.exclude)
             candidates = [x for x in candidates if x not in exclude_set]
-        
+
         if not candidates:
             raise ValueError(
                 f"No valid candidates for range [{self.min}-{self.max}] "
                 f"with step {self.step} and excludes {self.exclude}"
             )
-        
+
         return candidates
 
 
 @dataclass
 class ProblemConfig:
-    """configuration class for managing problem parameter groups."""
-
+    """configuration class for problem parameter."""
     datatypes: Tuple[EnumConfigParam, ...] = Field(
         default_factory=lambda: (
             EnumConfigParam(values=["fp16"]),
@@ -235,8 +247,8 @@ class ProblemConfig:
 
     @property
     def datatype_values(self) -> list:
-        return [p.values[0] for p in self.datatypes] 
-    
+        return [p.values[0] for p in self.datatypes]
+
     @property
     def layout_values(self) -> list:
         return [p.values[0] for p in self.layouts]
@@ -244,7 +256,7 @@ class ProblemConfig:
 
 @dataclass
 class TileConfig:
-    # Core tile dimensions
+    """configuration class for tile parameter."""
     tile_m: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
             values=[256]
@@ -269,7 +281,7 @@ class TileConfig:
     )
     warp_n: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
-            values=[256]        
+            values=[256]
         )
     )
     warp_k: Union[EnumConfigParam, RangeConfigParam] = Field(
@@ -298,8 +310,7 @@ class TileConfig:
 
 @dataclass
 class TraitConfig:
-    """Configuration container for architecture-specific traits and optimizations."""
-
+    """configuration class for kernel traits."""
     pipeline: EnumConfigParam = Field(
         default_factory=lambda: EnumConfigParam(values=['compv3']))
 
@@ -323,6 +334,7 @@ class TraitConfig:
         default_factory=lambda: EnumConfigParam(values=[False])
     )
 
+
 class GemmConfig(BaseModel):
     """Main configuration class for GEMM operations """
     problem: ProblemConfig
@@ -330,17 +342,18 @@ class GemmConfig(BaseModel):
     trait_config: TraitConfig
 
     @classmethod
-    def from_json(cls:Type["GemmConfig"], filepath: str, validate_nested: bool = True) -> "GemmConfig":
+    def from_json(cls: Type["GemmConfig"], filepath: str,
+                  validate_nested: bool = True) -> "GemmConfig":
         """JSON configuration loader with validation controls"""
-        
+
         config_path = Path(filepath)
-        
+
         try:
             # Validate file existence and accessibility
             if not config_path.exists():
                 raise FileNotFoundError(f"Config file {filepath} not found")
             config_path.stat()  # Verify file accessibility
-            
+
             # Parse JSON content
             with open(filepath, 'r') as f:
                 try:
@@ -376,7 +389,7 @@ class GemmConfig(BaseModel):
             raise ValueError(
                 "Configuration validation failed:\n" + "\n".join(error_msgs)
             ) from ve
-            
+
         except PermissionError as pe:
             raise RuntimeError(
                 f"Permission denied accessing {filepath}"

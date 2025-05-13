@@ -81,18 +81,20 @@
     "trait_config": {
         "pipeline": {
             "values": [
-                "mem",
-                "compv3"
+                "compv3",
+                "mem"
             ]
         },
         "scheduler": {
             "values": [
-                "intrawave"
+                "intrawave",
+                "interwave"
             ]
         },
         "epilogue": {
             "values": [
-                "default"
+                "default",
+                "cshuffle"
             ]
         },
         "pad_m": {
