@@ -93,6 +93,30 @@ def build_compiler(){
     return compiler
 }
 
+def check_arch(){
+    def arch_type = 0
+    sh 'rocminfo | tee rocminfo.log'
+    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
+        arch_type = 1
+    }
+    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
+        arch_type = 2
+    }
+    else if ( runShell('grep -n "gfx10" rocminfo.log') ) {
+        arch_type = 3
+    }
+    else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
+        arch_type = 4
+    }
+    else if ( runShell('grep -n "gfx12" rocminfo.log') ) {
+        arch_type = 5
+    }
+    else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
+        arch_type = 6
+    }
+    return arch_type
+}
+
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
     def prefixpath = conf.get("prefixpath", "/opt/rocm")
@@ -340,21 +364,14 @@ def cmake_build(Map conf=[:]){
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
     //check the node gpu architecture
-    def arch_type = 0
-    sh 'rocminfo | tee rocminfo.log'
-    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
-        arch_type = 1
-    }
-    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
-        arch_type = 2
-    }
+    def arch = check_arch()
     if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
             archiveArtifacts "perf_fmha_*.log"
-            if (arch_type == 1){
+            if (arch == 1){
                 stash includes: "perf_fmha_**_gfx90a.log", name: "perf_fmha_log_gfx90a"
             }
-            else if (arch_type == 2){
+            else if (arch == 2){
                 stash includes: "perf_fmha_**_gfx942.log", name: "perf_fmha_log_gfx942"
             }
         }
@@ -365,10 +382,10 @@ def cmake_build(Map conf=[:]){
     if (params.RUN_CK_TILE_GEMM_TESTS){
         try{
             archiveArtifacts "perf_tile_gemm_**.log"
-            if (arch_type == 1){
+            if (arch == 1){
                 stash includes: "perf_tile_gemm_**_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
             }
-            else if (arch_type == 2){
+            else if (arch == 2){
                 stash includes: "perf_tile_gemm_**_gfx942.log", name: "perf_tile_gemm_log_gfx942"
             }
         }
@@ -424,7 +441,18 @@ def buildHipClangJob(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 20, unit: 'HOURS')
                 {
+                    //check whether to run performance tests on this node
+                    def arch = check_arch()
                     cmake_build(conf)
+                    dir("build"){
+                        if (params.BUILD_INSTANCES_ONLY && arch == 2 ){
+                            // build deb packages
+                            echo "Build packages"
+                            sh 'ninja -j64 package'
+                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
+                            stash includes: "composablekernel-**.deb", name: "packages"
+                        }
+                    }
                 }
             }
         }
@@ -513,28 +541,9 @@ def Build_CK(Map conf=[:]){
                 timeout(time: 20, unit: 'HOURS')
                 {
                     //check whether to run performance tests on this node
-                    def arch_type = 0
-                    sh 'rocminfo | tee rocminfo.log'
-                    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
-                        arch_type = 1
-                    }
-                    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
-                        arch_type = 2
-                    }
-                    else if ( runShell('grep -n "gfx10" rocminfo.log') ) {
-                        arch_type = 3
-                    }
-                    else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
-                        arch_type = 4
-                    }
-                    else if ( runShell('grep -n "gfx12" rocminfo.log') ) {
-                        arch_type = 5
-                    }
-                    else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
-                        arch_type = 6
-                    }
+                    def arch = check_arch()
                     cmake_build(conf)
-                    if ( params.RUN_INDUCTOR_TESTS && !params.BUILD_LEGACY_OS && arch_type == 1 ){
+                    if ( params.RUN_INDUCTOR_TESTS && !params.BUILD_LEGACY_OS && arch == 1 ){
                             echo "Run inductor codegen tests"
                             sh """
                                   python3 -m venv ${env.WORKSPACE}
@@ -545,7 +554,7 @@ def Build_CK(Map conf=[:]){
                             """
                     }
                     dir("build"){
-                        if (params.RUN_FULL_QA && arch_type == 2 ){
+                        if (params.RUN_FULL_QA && arch == 2 ){
                             // build deb packages
                             echo "Build packages"
                             sh 'make -j package'
@@ -556,18 +565,11 @@ def Build_CK(Map conf=[:]){
                             sh 'mv composablekernel-tests_*.deb composablekernel-tests_1.1.0_amd64.deb'
                             stash includes: "composablekernel-**.deb", name: "packages"
                         }
-                        if (params.BUILD_INSTANCES_ONLY && arch_type == 2 ){
-                            // build deb packages
-                            echo "Build packages"
-                            sh 'ninja -j64 package'
-                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
-                            stash includes: "composablekernel-**.deb", name: "packages"
-                        }
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
 					dir("script"){
                         if (params.RUN_PERFORMANCE_TESTS){
-                        if (params.RUN_FULL_QA && arch_type == 1){
+                        if (params.RUN_FULL_QA && arch == 1){
                             // run full tests on gfx90a
                             echo "Run full performance tests"
                             sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
@@ -586,7 +588,7 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_mixed_gemm.log"
                             stash includes: "perf_**.log", name: "perf_log"
                         }
-                        else if ( arch_type == 1 ){
+                        else if ( arch == 1 ){
                             // run standard tests on gfx90a
                             echo "Run performance tests"
                             sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
@@ -597,28 +599,28 @@ def Build_CK(Map conf=[:]){
                             stash includes: "perf_**.log", name: "perf_log"
                         }
                         // disable performance tests on gfx1030 for now.
-                        //else if ( arch_type == 3){
+                        //else if ( arch == 3){
                             // run basic tests on gfx1030
                         //    echo "Run gemm performance tests"
                         //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
                         //    archiveArtifacts "perf_onnx_gemm_gfx10.log"
                         //    stash includes: "perf_onnx_gemm_gfx10.log", name: "perf_log_gfx10"
                         //}
-                        else if ( arch_type == 4){
+                        else if ( arch == 4){
                             // run basic tests on gfx11
                             echo "Run gemm performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx11"
                             archiveArtifacts "perf_onnx_gemm_gfx11.log"
                             stash includes: "perf_onnx_gemm_gfx11.log", name: "perf_log_gfx11"
                         }
-                        else if ( arch_type == 5 ){
+                        else if ( arch == 5 ){
                             // run basic tests on gfx12
                             echo "Run gemm performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
                             archiveArtifacts "perf_onnx_gemm_gfx12.log"
                             stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
                         }
-                        else if ( arch_type == 6 ){
+                        else if ( arch == 6 ){
                             // run basic tests on gfx908
                             echo "Run performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx908"
@@ -627,7 +629,7 @@ def Build_CK(Map conf=[:]){
                         }
                         }
                     }
-                    if (params.hipTensor_test && arch_type == 1 ){
+                    if (params.hipTensor_test && arch == 1 ){
                         // build and test hipTensor on gfx90a node
                         sh """#!/bin/bash
                             rm -rf "${params.hipTensor_branch}".zip
