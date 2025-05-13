@@ -601,7 +601,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
                                                             make_tuple(n0, I0, k0, ik))>{}];
                                 });
 
-                                using mfma_input_type =xdlops_gemm
+                                using mfma_input_type =
                                     typename vector_type<ComputeDataType,
                                                          xdlops_gemm.K1PerXdlops>::type;
 

@@ -269,7 +269,7 @@ int main(int argc, char* argv[])
     // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = i / ck::math::integer_divide_ceil(valid_tile_num, experts);
+        expert_ids.mData[i] = i / (valid_tile_num / experts);
     }
 
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
