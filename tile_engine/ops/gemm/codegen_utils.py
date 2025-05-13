@@ -1,3 +1,10 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+# -*- coding: utf-8 -*-
+"""
+generate kernel instances to speed up compilation
+"""
 
 DATA_TYPE_MAP = {'fp32'  : 'float',
                  'fp16'  : 'ck_tile::half_t',

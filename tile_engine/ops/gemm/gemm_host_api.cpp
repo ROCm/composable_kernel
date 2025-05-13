@@ -115,9 +115,9 @@ void run(const ck_tile::ArgParser& arg_parser)
     trait.pipeline  = arg_parser.get_str("pipeline");
     trait.scheduler = arg_parser.get_str("scheduler");
     trait.epilogue  = arg_parser.get_str("epilogue");
-    trait.kPadM     = arg_parser.get_bool("pad_m");
-    trait.kPadN     = arg_parser.get_bool("pad_n");
-    trait.kPadK     = arg_parser.get_bool("pad_k");
+    trait.pad_m     = arg_parser.get_bool("pad_m");
+    trait.pad_n     = arg_parser.get_bool("pad_n");
+    trait.pad_k     = arg_parser.get_bool("pad_k");
 
     std::cout << "Run Gemm kernel with M =" << M << " N =" << N << " K =" << K
               << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C

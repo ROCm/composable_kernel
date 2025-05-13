@@ -87,11 +87,11 @@ struct KernelTraits
     /// @brief The name of the epilogue (e.g., "cshuffle", "default").
     std::string epilogue;
     /// @brief Indicates whether padding is applied to the M dimension.
-    bool kPadM;
+    bool pad_m;
     /// @brief Indicates whether padding is applied to the N dimension.
-    bool kPadN;
+    bool pad_n;
     /// @brief Indicates whether padding is applied to the K dimension.
-    bool kPadK;
+    bool pad_k;
 };
 
 template <typename Layout>

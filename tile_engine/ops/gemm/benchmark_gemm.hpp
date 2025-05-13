@@ -48,7 +48,7 @@ struct PerformanceResult
     double tflops;
     double bandwidth;
 
-    static constexpr bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
+    static bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
     {
         switch(m)
         {
@@ -78,7 +78,7 @@ struct KernelInstance
     GemmProblem problem;
     PerformanceResult perf_result;
 
-    static constexpr bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
+    static bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
     {
         return PerformanceResult::compare(a.perf_result, b.perf_result, m);
     }
@@ -201,8 +201,6 @@ class GemmProfiler
 
     GemmProfiler(const GemmProfiler&)            = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;
-
-    Environment environment_;
 
     std::vector<KernelInstance> kernel_instances_;
 };
