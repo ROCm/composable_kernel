@@ -13,24 +13,6 @@
 
 #include "ck_tile/ops/gemm.hpp"
 
-enum class Metric
-{
-    LATENCY   = 0,
-    TFLOPS    = 1,
-    BANDWIDTH = 2
-};
-
-inline constexpr auto get_metric_name(Metric m)
-{
-    switch(m)
-    {
-    case Metric::LATENCY: return "latency";
-    case Metric::TFLOPS: return "tflops";
-    case Metric::BANDWIDTH: return "bandwidth";
-    default: throw std::invalid_argument("Unsupported metric type");
-    }
-}
-
 template <typename T>
 struct DataTypeTraits;
 
