@@ -28,7 +28,7 @@ template <typename ADataType,
           bool MulRoutedWeight  = true,
           typename ComputeTypeA = CDataType,
           typename ComputeTypeB = ComputeTypeA>
-struct ReferenceMoeGemm2 : public device::BaseOperator
+struct ReferenceMoeMXGemm2 : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
@@ -81,14 +81,18 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
     // Invoker
     struct Invoker : public device::BaseInvoker
     {
-        using Argument = ReferenceMoeGemm2::Argument;
+        using Argument = ReferenceMoeMXGemm2::Argument;
 
         float Run(const Argument& arg)
         {
             arg.c_t_n_.SetZero();
-            const ck::index_t SCALE_BLOCK = arg.b_e_n_k_.mDesc.GetLengths()[2];
-            auto f_mk_kn_mn               = [&](auto m, auto n) {
-                const int K = arg.a_t_k_k_.mDesc.GetLengths()[2];
+            auto f_mk_kn_mn = [&](auto m, auto n) {
+                const int K                   = arg.a_t_k_k_.mDesc.GetLengths()[2];
+                const ck::index_t SCALE_BLOCK = K / arg.b_e_n_k_scale_.mDesc.GetLengths()[1];
+                if(m == 0 && n == 0)
+                {
+                    printf("SCALE_BLOCK: %d\n", SCALE_BLOCK);
+                }
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
