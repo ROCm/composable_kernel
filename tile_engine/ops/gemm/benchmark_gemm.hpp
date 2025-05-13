@@ -7,8 +7,9 @@
 #include <vector>
 #include <filesystem>
 #include <memory>
+#include <fstream>
+#include <iomanip>
 
-#include "ck/version.h"
 #include "ck/host_utility/device_prop.hpp"
 
 struct GemmProblem
@@ -57,7 +58,6 @@ struct PerformanceResult
         case Metric::BANDWIDTH: return a.bandwidth > b.bandwidth;
         default: throw std::invalid_argument("Unsupported metric type");
         }
-        return false;
     }
 
     friend std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
@@ -175,7 +175,8 @@ class GemmProfiler
         c_m_n_dev_result.SetZero();
     }
 
-    KernelInstance select_best_instance(Metric metric)
+    KernelInstance select_best_instance(Metric metric,
+                                        const std::string& csv_filename = "gemm_kernels.csv")
     {
         if(kernel_instances_.empty())
             throw std::runtime_error("Empty instances");
@@ -191,6 +192,44 @@ class GemmProfiler
         std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
                   << "The best kernel instance is: " << kernel_instance << std::endl;
         std::cout << "**********************************" << std::endl;
+
+        if(!csv_filename.empty())
+        {
+            std::ofstream file(csv_filename, std::ios::app);
+
+            if(!file.is_open())
+            {
+                std::cerr << "Warning: Failed to open CSV file for writing." << std::endl;
+            }
+            else
+            {
+                if(file.tellp() == 0)
+                {
+                    file << "rocm_version, device_name,"
+                         << "split_k,m,n,k,stride_a,stride_b,stride_c,"
+                         << "dtype_a,dtype_b,dtype_acc,dtype_c,"
+                         << "layout_a,layout_b,layout_c,"
+                         << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
+                }
+
+                const auto& p   = kernel_instance.problem;
+                const auto& res = kernel_instance.perf_result;
+
+                file << get_rocm_version() << "," << ck::get_device_name() << "," << p.split_k
+                     << "," << p.m << "," << p.n << "," << p.k << "," << p.stride_a << ","
+                     << p.stride_b << "," << p.stride_c << "," << p.dtype_a << "," << p.dtype_b
+                     << "," << p.dtype_acc << "," << p.dtype_c << "," << p.layout_a << ","
+                     << p.layout_b << "," << p.layout_c << "," << std::fixed << std::setprecision(2)
+                     << res.latency << "," << std::fixed << std::setprecision(2) << res.tflops
+                     << "," << std::fixed << std::setprecision(2) << res.bandwidth << ","
+                     << get_metric_name(metric) << "\n";
+
+                if(!file)
+                {
+                    std::cerr << "Warning: Error occurred while writing to CSV file." << std::endl;
+                }
+            }
+        }
 
         return kernel_instance;
     }

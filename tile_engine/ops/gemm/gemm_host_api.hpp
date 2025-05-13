@@ -27,8 +27,8 @@ inline constexpr auto get_metric_name(Metric m)
     case Metric::LATENCY: return "latency";
     case Metric::TFLOPS: return "tflops";
     case Metric::BANDWIDTH: return "bandwidth";
+    default: throw std::invalid_argument("Unsupported metric type");
     }
-    return "unknown";
 }
 
 template <typename T>
