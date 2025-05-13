@@ -3,44 +3,24 @@
 
 #include "gemm_mx_common.hpp"
 
-#ifndef EXAMPLE_A_DATA_TYPE
-#define EXAMPLE_A_DATA_TYPE f8_t
-#endif
-#ifndef EXAMPLE_B_DATA_TYPE
-#define EXAMPLE_B_DATA_TYPE f8_t
-#endif
-#ifndef EXAMPLE_C_DATA_TYPE
-#define EXAMPLE_C_DATA_TYPE half_t
-#endif
-#ifndef EXAMPLE_A_LAYOUT
-#define EXAMPLE_A_LAYOUT Row
-#endif
-#ifndef EXAMPLE_B_LAYOUT
-#define EXAMPLE_B_LAYOUT Col
-#endif
-#ifndef EXAMPLE_C_LAYOUT
-#define EXAMPLE_C_LAYOUT Row
-#endif
-
-using ADataType = ck::EXAMPLE_A_DATA_TYPE;
-using BDataType = ck::EXAMPLE_B_DATA_TYPE;
+using ADataType = ck::f8_t;
+using BDataType = ck::bf8_t;
 
 using XDataType = ck::e8m0_bexp_t;
 
-using CDataType        = ck::EXAMPLE_C_DATA_TYPE;
+using CDataType        = ck::bhalf_t;
 using AccDataType      = float;
 using CShuffleDataType = CDataType;
 
-using ALayout = EXAMPLE_A_LAYOUT;
-using BLayout = EXAMPLE_B_LAYOUT;
-using CLayout = EXAMPLE_C_LAYOUT;
+using ALayout = Row;
+using BLayout = Row;
+using CLayout = Row;
 
 using AElementOp = PassThrough; // elementwise transformation for A matrix
 using BElementOp = PassThrough; // elementwise transformation for B matrix
 using CElementOp = PassThrough; // elementwise transformation for C matrix
 
 constexpr ck::index_t ScaleBlockSize = 32; // scaling block size
-constexpr ck::index_t KPerBlock      = 256;
 
 constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
 constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
@@ -65,26 +45,26 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     256,              // BlockSize: Thread block size
     128,              // MPerBlock
     128,              // NPerBlock
-    KPerBlock,        // KPerBlock
+    256,              // KPerBlock
     16,               // AK1
-    16,               // BK1
+    8,                // BK1
     16,               // MPerXDL
     16,               // NPerXDL
     4,                // MXdlPerWave
     4,                // NXdlPerWave
-    S<8, 32, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
+    S<16, 16, 1>,     // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
     2,                // ABlockTransferSrcVectorDim
     16,               // ABlockTransferSrcScalarPerVector
     16,               // ABlockTransferDstScalarPerVector_AK1
     false,            // ABlockLdsExtraM
-    S<8, 32, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
-    S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
-    S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
-    2,                // BBlockTransferSrcVectorDim
+    S<32, 8, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
+    S<0, 2, 1>,       // BBlockTransferThreadClusterArrangeOrder
+    S<0, 2, 1>,       // BBlockTransferSrcAccessOrder
+    1,                // BBlockTransferSrcVectorDim
     16,               // BBlockTransferSrcScalarPerVector
-    16,               // BBlockTransferDstScalarPerVector_BK1
+    8,                // BBlockTransferDstScalarPerVector_BK1
     false,            // BBlockLdsExtraN
     2,                // CShuffleMXdlPerWavePerShuffle
     2,                // CShuffleNXdlPerWavePerShuffle

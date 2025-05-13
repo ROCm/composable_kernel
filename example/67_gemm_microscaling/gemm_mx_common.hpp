@@ -104,6 +104,7 @@ bool parse_cmd_args(int argc,
 }
 
 #if 1
+template <bool KLast>
 void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
 {
     int MNXdlPack = 2;
@@ -142,8 +143,10 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
                               k2 * MNXdlPack + n2;
             // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f, n2 +
             // k2 * MNXdlPack)));
-            dst[outputIndex] = src[n * K + k];
-            // printf("Src: %0d, Dst: %d\n", n * K + k, outputIndex);;
+            if constexpr(KLast)
+                dst[outputIndex] = src[n * K + k];
+            else
+                dst[outputIndex] = src[k * MN + n];
         }
     }
 }
@@ -287,12 +290,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
         {
-            a_m_k_scale.GenerateTensorValue(
-                GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
-            b_k_n_scale.GenerateTensorValue(
-                GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
-            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+            // a_m_k_scale.GenerateTensorValue(
+            //     GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
+            // b_k_n_scale.GenerateTensorValue(
+            //     GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
         }
         else
         {
@@ -355,9 +358,9 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     }
 
 #if 1
-    preShuffleScaleBuffer(
+    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(
         a_m_k_scale.mData.data(), a_shuffled_scale.mData.data(), M, K / ScaleBlockSize);
-    preShuffleScaleBuffer(
+    preShuffleScaleBuffer<ck::is_same_v<BLayout, Col>>(
         b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
 #endif
     // printf("a_scale:\n");
