@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -80,19 +80,20 @@ __global__ void
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
-                                                  p_b_grid + b_batch_offset,
-                                                  p_ds_grid_grp,
-                                                  p_e_grid + e_batch_offset,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  cde_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_etile_map);
+    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
+        p_a_grid + a_batch_offset,
+        p_b_grid + b_batch_offset,
+        p_ds_grid_grp,
+        p_e_grid + e_batch_offset,
+        p_shared,
+        a_element_op,
+        b_element_op,
+        cde_element_op,
+        a_grid_desc_ak0_m_ak1,
+        b_grid_desc_bk0_n_bk1,
+        ds_grid_desc_mblock_mperblock_nblock_nperblock,
+        e_grid_desc_mblock_mperblock_nblock_nperblock,
+        block_2_etile_map);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -556,7 +557,6 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         AElementwiseOperation,
         BElementwiseOperation,
         CDEElementwiseOperation,
-        InMemoryDataOperationEnum::Set,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,
