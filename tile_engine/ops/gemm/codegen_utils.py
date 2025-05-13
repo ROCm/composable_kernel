@@ -16,19 +16,23 @@ DATA_TYPE_MAP = {'fp32'  : 'float',
                 }
 
 LAYOUT_MAP = {'r' : 'ck_tile::tensor_layout::gemm::RowMajor',
-              'c' : 'ck_tile::tensor_layout::gemm::ColumnMajor'} 
+              'c' : 'ck_tile::tensor_layout::gemm::ColumnMajor'}                                       
 
 DEFAULT_EPILOGUE = """
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-                                ck_tile::DefaultGemm2DEpilogueProblem<AccDataType, 
+                                ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
+                                                                      BDataType,
+                                                                      AccDataType, 
                                                                       CDataType, 
                                                                       CLayout, 
-                                                                      pad_m,
-                                                                      pad_n,
+                                                                      kPadM,
+                                                                      kPadN,
                                                                       WarpTileM,
                                                                       WarpTileN,
                                                                       WarpTileK,
-                                                                      UniversalGemmProblem::TransposeC>>;
+                                                                      UniversalGemmProblem::TransposeC,
+                                                                      true,
+                                                                      memory_operation>>;
 """
 
 CSHUFFLE_EPILOGUE = """
@@ -46,94 +50,68 @@ CSHUFFLE_EPILOGUE = """
                                                              WarpTileM,
                                                              WarpTileN,
                                                              WarpTileK,
-                                                             UniversalGemmProblem::TransposeC>>;
+                                                             UniversalGemmProblem::TransposeC,
+                                                             memory_operation>>;
 """
-
 HOT_LOOP_FALSE = """
             if(tail_num == ck_tile::TailNumber::Full)
             {
-                Run(ck_tile::bool_constant<false>{},
+                RunSplitk(ck_tile::bool_constant<false>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
             else if(tail_num == ck_tile::TailNumber::Odd)
             {
-                Run(ck_tile::bool_constant<false>{},
+                RunSplitk(ck_tile::bool_constant<false>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
             else if(tail_num == ck_tile::TailNumber::Even)
             {
-                Run(ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+                RunSplitk(ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
             else
             {
                 throw std::runtime_error("Num K loop must be larger than number of prefetech stages.");
             }  
 """
-
 RUN_MEM = """
-            if(tail_num == ck_tile::TailNumber::One)
-            {
-                Run(ck_tile::bool_constant<true>{},
+            // Handle One and Full cases directly
+            if (tail_num == ck_tile::TailNumber::One) {
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
-            }
-            else if(tail_num == ck_tile::TailNumber::Full)
-            {
-                Run(ck_tile::bool_constant<true>{},
+            } else if (tail_num == ck_tile::TailNumber::Full) {
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
+            // Variadic call using fold expression
+            auto check_tail = [&](auto... TNs) {
+                (try_run< BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
+            };
 
-            if constexpr(BaseGemmPipeline::PrefetchStages > 2)
-            {
-                if(tail_num == ck_tile::TailNumber::Two)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
-                }
-        
-                if(tail_num == ck_tile::TailNumber::Three)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Four)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Five)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Six)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{});
-                }
-                if(tail_num == ck_tile::TailNumber::Seven)
-                {
-                    Run(ck_tile::bool_constant<true>{},
-                        ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
-                }
-                throw std::runtime_error("The tile number is wrong! It should not exceed the prefetch stage numbers");
-            }
+            check_tail(
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{}
+            );
 """
 
 RUN_COMPV3 = """
             if(tail_num == ck_tile::TailNumber::Full)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
             else if(tail_num == ck_tile::TailNumber::Odd)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
             else if(tail_num == ck_tile::TailNumber::Even)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
             else
@@ -145,15 +123,16 @@ RUN_COMPV3 = """
 RUN_COMPV4 = """
             if(tail_num == ck_tile::TailNumber::Three)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
             }
             else
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
             }
 """
+
 
 PIPELINE_MAP = {'mem' : ['ck_tile::BaseGemmPipelineAgBgCrMem', 'ck_tile::GemmPipelineAgBgCrMem'],
                 'compv3' : ['ck_tile::BaseGemmPipelineAgBgCrCompV3', 'ck_tile::GemmPipelineAgBgCrCompV3'],
@@ -163,10 +142,10 @@ SCHEDULER_MAP = {'interwave' : 'ck_tile::GemmPipelineScheduler::Interwave',
                  'intrawave' : 'ck_tile::GemmPipelineScheduler::Intrawave'}
 
 EPILOGUE_MAP = {'default' :DEFAULT_EPILOGUE,
-                'cshuffle' : CSHUFFLE_EPILOGUE}      
+                'cshuffle' : CSHUFFLE_EPILOGUE} 
 
 HOT_LOOP_TRUE = {'mem' : RUN_MEM,
                  'compv3' : RUN_COMPV3,
-                 'compv4' : RUN_COMPV4}  
+                 'compv4' : RUN_COMPV4} 
 
 BOOL_MAP = lambda b_: {True: 'true', False: 'false'}[bool(b_)]

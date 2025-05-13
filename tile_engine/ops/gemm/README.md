@@ -37,7 +37,7 @@ rm -rf tile_engine/ && make tile_engine_gemm -j  # rebuild
                   -timer    The type of timer. Possible values are gpu timer or cpu timer. Default is gpu timer.
                   -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
                 -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
-   -structured_sparsity    whether use sparsity kernel or not. "Whether use sparsity kernel or not. Possible values are true or false. Default is false.
+   -structured_sparsity    whether use sparsity kernel or not. Possible values are true or false. Default is false.
               -pipeline    The type of pipeline. Possible values are compv3, compv4 or mem. Default is compv3.     
               -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is cshuffle.
                  -pad_m    Whether pad or not in m direction. Possible values are true or false. Default is false. 
