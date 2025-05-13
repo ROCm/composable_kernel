@@ -68,11 +68,7 @@ struct MulABScaleExpertWeight
         (void)d1;
         (void)d2;
 
-#if CK_USE_PK4_LAYOUT_SHUFFLE
         e = ck::type_convert<EDataType>(c);
-#else
-        e = ck::type_convert<EDataType>(c);
-#endif
     }
     // for reference cpu
     template <>
@@ -80,11 +76,7 @@ struct MulABScaleExpertWeight
         float& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
         // for reference cpu
-#if CK_USE_PK4_LAYOUT_SHUFFLE
         e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
-#else
-        e = ck::type_convert<EDataType>(c * d0 * d1 * d2);
-#endif
     }
 };
 
