@@ -288,7 +288,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
         {
             a_m_k_scale.GenerateTensorValue(
-                GeneratorTensor_2<XDataType>{120, 135}); // scales: {0.25, 0.5, 1, 2}
+                GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
             b_k_n_scale.GenerateTensorValue(
                 GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
             // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
