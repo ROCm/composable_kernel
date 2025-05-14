@@ -381,7 +381,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         static_for<0, DS_READ_A_PREFETCH_STAGES, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
-                    // K = k0 × KGroup × k1 = k0 × kg0 × A_K1
                     a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
                                        make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                        a_block_buf.At(I0),
