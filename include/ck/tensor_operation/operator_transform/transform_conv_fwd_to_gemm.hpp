@@ -706,6 +706,7 @@ struct TransformConvFwdToGemm
               typename ck::enable_if<NDimSpatial == 2 &&
                                          (is_same_v<ALayout, tensor_layout::convolution::G_NHW_C> ||
                                           is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
+                                          is_same_v<ALayout, tensor_layout::convolution::NGCHW> ||
                                           is_same_v<ALayout, tensor_layout::convolution::GNHWC>),
                                      bool>::type = false>
     __host__ __device__ auto MakeADescriptor_M_K() const
@@ -1314,6 +1315,7 @@ struct TransformConvFwdToGemm
                                    is_same_v<BLayout, tensor_layout::convolution::G_K_ZYX_C> ||
                                    is_same_v<BLayout, tensor_layout::convolution::KXGC> ||
                                    is_same_v<BLayout, tensor_layout::convolution::KYXGC> ||
+                                   is_same_v<BLayout, tensor_layout::convolution::GKCYX> ||
                                    is_same_v<BLayout, tensor_layout::convolution::KZYXGC>,
                                bool>::type = false>
     __host__ __device__ auto MakeBDescriptor_N_K() const
@@ -1425,6 +1427,7 @@ struct TransformConvFwdToGemm
               typename ck::enable_if<NDimSp == 2 &&
                                          (is_same_v<CLayout, tensor_layout::convolution::G_NHW_K> ||
                                           is_same_v<CLayout, tensor_layout::convolution::NHWGK> ||
+                                          is_same_v<CLayout, tensor_layout::convolution::NGKHW> ||
                                           is_same_v<CLayout, tensor_layout::convolution::GNHWK>),
                                      bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const

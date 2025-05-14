@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_preshuffle_multiple_abd_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
+namespace ck {
+namespace tensor_operation {
+namespace device {
+namespace instance {
+
+#ifdef CK_ENABLE_FP8
+using F8 = ck::f8_t;
+#endif
+
+#ifdef CK_ENABLE_BF8
+using BF8 = ck::bf8_t;
+#endif
+
+using BF16 = ck::bhalf_t;
+using F16  = ck::half_t;
+using F32  = float;
+
+template <ck::index_t... Is>
+using S = ck::Sequence<Is...>;
+
+using Empty_Tuple = ck::Tuple<>;
+
+using namespace ck::tensor_layout::convolution;
+
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+static constexpr auto ConvFwdDefault =
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
+
+static constexpr auto ConvFwd1x1P0 = ConvolutionForwardSpecialization::Filter1x1Pad0;
+
+static constexpr auto ConvFwd1x1S1P0 = ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
+
+static constexpr auto ConvFwdOddC =
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
+
+static constexpr auto GemmMNKPadding = GemmSpecialization::MNKPadding;
+
+template <index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          ConvolutionForwardSpecialization ConvSpec>
+using device_grouped_conv_fwd_preshuffle_xdl_f16_generic_instances = std::tuple<
+    // clang-format off
+  //####################################################|     NumDim|      A|      B|          Ds|      E| AData| BData| AccData| CShuffle|          Ds| EData|           A|           B|         CDE|    ConvForward|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl| HPer | WPer | Y| X| PadH| PadW|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+  //####################################################|    Spatial| Layout| Layout|      Layout| Layout|  Type|  Type|    Type| DataType|    DataType|  Type| Elementwise| Elementwise| Elementwise| Specialization| Specialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per| Block| Block|  |  |     |     |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+  //####################################################|           |       |       |            |       |      |      |        |         |            |      |   Operation|   Operation|   Operation|               |               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave|      |      |  |  |     |     |   Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+  //####################################################|           |       |       |            |       |      |      |        |         |            |      |            |            |            |               |               |         |      |      |      |      |    |    |     |     |     |     |      |      |  |  |     |     |                  |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+  // generic instance
+  DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,   F16,   F16,     F32,      F16,    DsLayout,   F16, PassThrough, PassThrough, PassThrough,       ConvSpec, GemmMNKPadding,        1,    64,   112,    64,    64,   8,   8,   16,   16,    7,    4,     4,    56, 3, 3, true, true,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,           1,           1,               S<1, 16, 1, 4>,               1>
+    // clang-format on
+    >;
+
+} // namespace instance
+} // namespace device
+} // namespace tensor_operation
+} // namespace ck

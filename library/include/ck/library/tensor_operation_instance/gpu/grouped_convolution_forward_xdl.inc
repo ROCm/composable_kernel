@@ -267,6 +267,20 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances(
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_fwd_preshuffle_xdl_ngchw_gkcyx_ngkhw_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NGCHW,
+                                                                GKCYX,
+                                                                Empty_Tuple,
+                                                                NGKHW,
+                                                                F16,
+                                                                F16,
+                                                                Empty_Tuple,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_BF16

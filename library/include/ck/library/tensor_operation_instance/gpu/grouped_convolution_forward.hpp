@@ -276,7 +276,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
         }
 
-        // layout NGCHW/GKYXC/NGKHW
+        // layout NGCHW/GKCYX/NGKHW
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NGCHW> &&
                      is_same_v<WeiLayout, GKCYX> && is_same_v<OutLayout, NGKHW>)
         {
@@ -311,6 +311,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_mem_inter_instances(
                     op_ptrs);
+
+                add_device_grouped_conv2d_fwd_preshuffle_xdl_ngchw_gkcyx_ngkhw_f16_instances(
+                    op_ptrs);    
             }
 #endif
 #ifdef CK_ENABLE_BF16
