@@ -97,10 +97,10 @@ using DeviceOpInstance =
           A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
           AElementOp,  BElementOp, CDEElementOp, GemmSpec,
           256, Scale_Block_M, Scale_Block_N, Scale_Block_K,
-          128, 128,
+          64,  128,
           128, 16, 16,
           16,   16,
-          8,    2,
+          4,    2,
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
           S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
           2,    1,  S<1, 32, 1, 8>,  S<8>,
@@ -237,6 +237,16 @@ int main(int argc, char* argv[])
         a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
     }
+
+    // printf("a1_m_k: \n");
+    // for(int i = 0; i < (M + Scale_Block_M - 1) / Scale_Block_M; ++i)
+    // {
+    //     for(int j = 0; j < (K + Scale_Block_K - 1) / Scale_Block_K; ++j)
+    //     {
+    //         printf("%f ", a1_m_k(i, j));
+    //     }
+    //     printf("\n");
+    // }
 
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem a1_device_buf(sizeof(A1DataType) * a1_m_k.mDesc.GetElementSpaceSize());

@@ -152,13 +152,13 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_gemm_blockscale_wp_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_default_instances(
                     op_ptrs);
-                add_device_gemm_blockscale_wp_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_blockscale_wp_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_kpadding_instances(
+                // op_ptrs);
 
                 add_device_gemm_blockscale_wp_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_default_instances(
                     op_ptrs);
-                add_device_gemm_blockscale_wp_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_blockscale_wp_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_mem_v1_kpadding_instances(
+                //     op_ptrs);
             }
         }
 #endif

@@ -133,6 +133,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
     using Base::B_K1;
     using Base::I0;
     using Base::I1;
+    using Base::KGroup;
     using Base::KRepeat;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
@@ -163,9 +164,9 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
         constexpr index_t M0 = TileDesc_M0_M1_M2_K{}.GetLength(Number<0>{});
         constexpr index_t M1 = TileDesc_M0_M1_M2_K{}.GetLength(Number<1>{});
         constexpr index_t M2 = TileDesc_M0_M1_M2_K{}.GetLength(Number<2>{});
-        constexpr index_t K2 = KPack;
+        constexpr index_t K2 = KPack / KGroup;
         constexpr index_t K1 = 64 / NPerXDL;
-        constexpr index_t K0 = KRepeat;
+        constexpr index_t K0 = KRepeat * KGroup;
 
         return transform_tensor_descriptor(
             TileDesc_M0_M1_M2_K{},
@@ -389,6 +390,9 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
             a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
                                                    a_scale_thread_copy_step.At(Number<1>{}));
         }
+        // printf("Tid: %d| a_scale_thread_buf: %f %f\n", get_thread_local_1d_id(),
+        //        a_scale_thread_buf[Number<0>{}],
+        //        a_scale_thread_buf[Number<1>{}]);
 
         b_scale_thread_copy.Run(b_scale_grid_desc,
                                 b_scale_grid_buf,
@@ -409,12 +413,58 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
         block_sync_lds();
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
-                a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                   make_tuple(m0, I0, I0, k0, I0, I0),
-                                   a_block_buf,
-                                   a_thread_desc_,
-                                   make_tuple(m0, I0, I0, k0, I0, I0),
-                                   a_thread_buf);
+                static_for<0, KGroup, 1>{}([&](auto kg0) {
+                    a_thread_copy_.Run(
+                        a_block_desc_m0_m1_m2_k0_k1_k2,
+                        make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                        a_block_buf,
+                        a_thread_desc_,
+                        make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
+                        a_thread_buf);
+#if defined(__gfx950__) && 0
+                    printf(
+                        "Tid: %02d, a_thread_buf: %02x %02x %02x %02x %02x %02x %02x %02x| %02x "
+                        "%02x %02x %02x %02x %02x %02x %02x| %02x %02x %02x %02x %02x %02x %02x "
+                        "%02x| %02x %02x %02x %02x %02x %02x %02x %02x|\n",
+                        get_thread_local_1d_id(),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<0>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<1>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<2>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<3>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<0 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<1 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<2 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<3 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 0>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 1>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 2>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 3>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 0 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 1 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 2 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 3 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 0>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 1>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 2>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 3>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 0 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 1 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 2 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 3 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 8 + 0>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 8 + 1>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 8 + 2>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 8 + 3>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(
+                            &(a_thread_buf[Number<16 + 8 + 0 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(
+                            &(a_thread_buf[Number<16 + 8 + 1 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(
+                            &(a_thread_buf[Number<16 + 8 + 2 + 4>{}]))),
+                        *(reinterpret_cast<const uint8_t*>(
+                            &(a_thread_buf[Number<16 + 8 + 3 + 4>{}]))));
+#endif
+                });
             });
         });
 
@@ -520,12 +570,15 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
-                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                               make_tuple(m0, I0, I0, k0, I0, I0),
-                                               a_block_buf,
-                                               a_thread_desc_,
-                                               make_tuple(m0, I0, I0, k0, I0, I0),
-                                               a_thread_buf);
+                            static_for<0, KGroup, 1>{}([&](auto kg0) {
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                                    a_block_buf,
+                                    a_thread_desc_,
+                                    make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
+                                    a_thread_buf);
+                            });
                         });
                     });
 
@@ -683,12 +736,15 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, k0, I0, I0),
-                                       a_block_buf,
-                                       a_thread_desc_,
-                                       make_tuple(m0, I0, I0, k0, I0, I0),
-                                       a_thread_buf);
+                    static_for<0, KGroup, 1>{}([&](auto kg0) {
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                            a_block_buf,
+                            a_thread_desc_,
+                            make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
+                            a_thread_buf);
+                    });
                 });
             });
 
@@ -806,6 +862,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                                 b_thread_vec.template AsType<mfma_input_type>(),
                                 c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{}));
                         });
+
                         constexpr index_t c_offset =
                             c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
@@ -836,7 +893,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                                                          ComputeDataType,
                                                          decltype(a_block_desc_m0_m1_m2_k0_k1_k2),
                                                          decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, 1, 1, KPack>,
+                                                         Sequence<1, 1, 1, 1, 1, KPack / KGroup>,
                                                          Sequence<0, 1, 2, 3, 4, 5>,
                                                          5,
                                                          A_K1,

@@ -99,9 +99,7 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
             }
         };
 
-    ck::index_t Scale_Stride_AM = ck::is_same_v<ALayout, tensor_layout::gemm::RowMajor>
-                                      ? ((K + ScaleBlockK - 1) / ScaleBlockK)
-                                      : ((M + ScaleBlockM - 1) / ScaleBlockM);
+    ck::index_t Scale_Stride_AM = ((M + ScaleBlockM - 1) / ScaleBlockM);
     ck::index_t Scale_Stride_BN = ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>
                                       ? ((K + ScaleBlockK - 1) / ScaleBlockK)
                                       : ((N + ScaleBlockN - 1) / ScaleBlockN);
@@ -110,7 +108,7 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
     Tensor<A1DataType> a1_m_k(f_host_tensor_descriptor((M + ScaleBlockM - 1) / ScaleBlockM,
                                                        (K + ScaleBlockK - 1) / ScaleBlockK,
                                                        Scale_Stride_AM,
-                                                       ALayout{}));
+                                                       ck::tensor_layout::gemm::ColumnMajor{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<B0DataType> b_preshuffled_mfma16(
         f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
@@ -303,16 +301,25 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
                 if constexpr(is_same_v<A0DataType, f8_t> || is_same_v<B0DataType, f8_t> ||
                              is_same_v<EDataType, f8_t>)
                 {
-                    std::string msg = "Error: Incorrect results!";
-                    double rtol     = 5e-2;
-                    double atol     = 5e-2;
-                    pass            = pass & ck::utils::check_err(
-                                      e_m_n_device_result, e_m_n_host_result, msg, rtol, atol);
+                    std::string msg   = "Error: Incorrect results!";
+                    double rtol       = 5e-2;
+                    double atol       = 5e-2;
+                    bool current_pass = ck::utils::check_err(
+                        e_m_n_device_result, e_m_n_host_result, msg, rtol, atol);
+                    pass = pass & current_pass;
+                    if(!current_pass)
+                    {
+                        std::cout << op_ptr->GetTypeString() << " failed" << std::endl;
+                    }
                 }
                 else
                 {
 #endif
                     pass = pass & ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
+                    if(!pass)
+                    {
+                        std::cout << op_ptr->GetTypeString() << " failed" << std::endl;
+                    }
 #if defined CK_ENABLE_FP8
                 }
 #endif

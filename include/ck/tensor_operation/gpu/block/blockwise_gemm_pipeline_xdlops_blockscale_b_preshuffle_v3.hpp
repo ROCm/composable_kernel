@@ -535,12 +535,13 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         static_for<0, 2, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                       a_block_buf.At(I0),
-                                       a_thread_desc_,
-                                       make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                       a_thread_buf);
+                    a_thread_copy_.Run(
+                        a_block_desc_m0_m1_m2_k0_k1_k2,
+                        make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                        a_block_buf.At(I0),
+                        a_thread_desc_,
+                        make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
+                        a_thread_buf);
                 });
             });
         });
@@ -720,7 +721,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                             I0,
                                             k0,
                                             I0,
-                                            Number<kg0 * A_K1>{}),
+                                            Number<kg0 * KPack / KGroup>{}),
                                         a_thread_buf);
                                 });
                             });
@@ -746,7 +747,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                             I0,
                                             k0,
                                             I0,
-                                            Number<kg0 * A_K1>{}),
+                                            Number<kg0 * KPack / KGroup>{}),
                                         a_thread_buf);
                                 });
                             });
@@ -772,7 +773,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                             I0,
                                             k0,
                                             I0,
-                                            Number<kg0 * A_K1>{}),
+                                            Number<kg0 * KPack / KGroup>{}),
                                         a_thread_buf);
                                 });
                             });
@@ -876,19 +877,22 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
+                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                               make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                                          I0,
+                                                          I0,
+                                                          Number<k0 * KGroup + kg0>{},
+                                                          I0,
+                                                          I0),
+                                               a_block_buf.At(I1),
+                                               a_thread_desc_,
+                                               make_tuple(Number<(m0 + 2) % 2>{},
+                                                          I0,
+                                                          I0,
+                                                          k0,
+                                                          I0,
+                                                          Number<kg0 * KPack / KGroup>{}),
+                                               a_thread_buf);
                         });
                     });
                 }
@@ -896,19 +900,22 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
+                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                               make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                                          I0,
+                                                          I0,
+                                                          Number<k0 * KGroup + kg0>{},
+                                                          I0,
+                                                          I0),
+                                               a_block_buf.At(I1),
+                                               a_thread_desc_,
+                                               make_tuple(Number<(m0 + 2) % 2>{},
+                                                          I0,
+                                                          I0,
+                                                          k0,
+                                                          I0,
+                                                          Number<kg0 * KPack / KGroup>{}),
+                                               a_thread_buf);
                         });
                     });
                 }
@@ -916,19 +923,22 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I0),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
+                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                                               make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                                          I0,
+                                                          I0,
+                                                          Number<k0 * KGroup + kg0>{},
+                                                          I0,
+                                                          I0),
+                                               a_block_buf.At(I0),
+                                               a_thread_desc_,
+                                               make_tuple(Number<(m0 + 2) % 2>{},
+                                                          I0,
+                                                          I0,
+                                                          k0,
+                                                          I0,
+                                                          Number<kg0 * KPack / KGroup>{}),
+                                               a_thread_buf);
                         });
                     });
                 }
@@ -1026,7 +1036,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                            I0,
                                            k0,
                                            I0,
-                                           Number<kg0 * A_K1>{}),
+                                           Number<kg0 * KPack / KGroup>{}),
                                 a_thread_buf);
                         });
                     });
@@ -1114,8 +1124,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                     Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                 a_block_buf.At(I0),
                                 a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                                make_tuple(Number<(m0 + 2) % 2>{},
+                                           I0,
+                                           I0,
+                                           k0,
+                                           I0,
+                                           Number<kg0 * KPack / KGroup>{}),
                                 a_thread_buf);
                         });
                     });

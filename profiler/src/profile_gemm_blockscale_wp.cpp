@@ -35,7 +35,7 @@ enum struct ScaleBlockTile
     Tile_1_128_128,   // 1
 };
 
-#define OP_NAME "gemm_blockscale_weighpreshuffle"
+#define OP_NAME "gemm_blockscale_wp"
 #define OP_DESC "GEMM_BlockScale_WeightPreshuffle"
 
 int profile_gemm_blockscale_weighpreshuffle(int argc, char* argv[])

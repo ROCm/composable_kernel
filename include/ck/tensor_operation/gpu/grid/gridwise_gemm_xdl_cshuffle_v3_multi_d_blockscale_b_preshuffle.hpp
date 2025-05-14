@@ -1286,7 +1286,7 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
                                              0,
                                              1,
                                              1,
-                                             false>(
+                                             true>(
                 a_scale_grid_desc_am_ak,
                 make_multi_index(block_m_id * MPerBlock / ScaleBlockM + a_thread_offset, 0));
 
@@ -1300,7 +1300,7 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
                                              1,
                                              ScaleSliceSizeK,
                                              1,
-                                             false>(
+                                             true>(
                 b_scale_grid_desc_bn_ak, make_multi_index(block_n_id * NPerBlock / ScaleBlockN, 0));
 
         // constexpr auto a_scale_thread_slice_copy_step = make_multi_index(0, 1);
@@ -1788,7 +1788,7 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
                                              0,
                                              1,
                                              1,
-                                             false>(
+                                             true>(
                 a_scale_grid_desc_am_ak,
                 make_multi_index(block_m_id * MPerBlock / ScaleBlockM + a_thread_offset, 0));
 
@@ -1802,7 +1802,7 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
                                              1,
                                              ScaleSliceSizeK,
                                              1,
-                                             false>(
+                                             true>(
                 b_scale_grid_desc_bn_ak, make_multi_index(block_n_id * NPerBlock / ScaleBlockN, 0));
 
         // constexpr auto a_scale_thread_slice_copy_step = make_multi_index(0, 1);
