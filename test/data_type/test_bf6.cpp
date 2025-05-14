@@ -430,6 +430,10 @@ TEST(BF6, TestAllValues)
     ck::static_for<0, 64, 1>{}([&](auto i) {
         float fp = type_convert<float>(bf6_t(e3m2BitsOCP[i]));
         ASSERT_EQ(fp, e3m2ValuesOCP[i]);
+
+        bf6_t bf6 = type_convert<bf6_t>(e3m2ValuesOCP[i]);
+        ASSERT_EQ(bf6 & 0x3F, e3m2BitsOCP[i] & 0x3F);
+
         // Print the binary representation
         printf("Bits: 0b");
         for(int j = 5; j >= 0; --j)

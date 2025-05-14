@@ -468,3 +468,49 @@ TEST(FP4, TestAsType32)
                   test_vec.at(i + 1));
     });
 }
+
+TEST(FP4, TestAllValues)
+{
+    constexpr std::array<float, 16> e2m1ValuesOCP = {
+        // clang-format off
+        0.0000000000, 0.5000000000,
+        1.0000000000, 1.5000000000,
+        2.0000000000, 3.0000000000,
+        4.0000000000, 6.0000000000,
+        -0.0000000000, -0.5000000000,
+        -1.0000000000, -1.5000000000,
+        -2.0000000000, -3.0000000000,
+        -4.0000000000, -6.0000000000
+        // clang-format on
+    };
+
+    constexpr uint8_t e2m1BitsOCP[] = {
+        // clang-format off
+        0b0000, 0b0001,
+        0b0010, 0b0011,
+        0b0100, 0b0101,
+        0b0110, 0b0111,
+        0b1000, 0b1001,
+        0b1010, 0b1011,
+        0b1100, 0b1101,
+        0b1110, 0b1111
+        // clang-format on
+    };
+
+    printf("FP4 Table\n");
+    ck::static_for<0, 16, 1>{}([&](auto i) {
+        float fp = type_convert<float>(f4_t(e2m1BitsOCP[i]));
+        ASSERT_EQ(fp, e2m1ValuesOCP[i]);
+
+        uint8_t fp4 = type_convert<f4_t>(e2m1ValuesOCP[i]);
+        ASSERT_EQ(fp4 & 0xF, e2m1BitsOCP[i] & 0xF);
+
+        // Print the binary representation
+        printf("Bits: 0b");
+        for(int j = 3; j >= 0; --j)
+        {
+            printf("%c", (e2m1BitsOCP[i] & (1 << j)) ? '1' : '0');
+        }
+        printf(", 0x%02X, Value: %f\n", e2m1BitsOCP[i], e2m1ValuesOCP[i]);
+    });
+}
