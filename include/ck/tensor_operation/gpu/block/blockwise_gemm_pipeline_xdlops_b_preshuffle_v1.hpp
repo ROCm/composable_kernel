@@ -283,7 +283,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
                     a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                       make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                        a_block_buf,
                                        a_thread_desc_,
                                        make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
@@ -354,7 +354,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                             static_for<0, KGroup, 1>{}([&](auto kg0) {
                                 a_thread_copy_.Run(
                                     a_block_desc_m0_m1_m2_k0_k1_k2,
-                                    make_tuple(m0, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                    make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                     a_block_buf,
                                     a_thread_desc_,
                                     make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
@@ -419,7 +419,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, KGroup, 1>{}([&](auto kg0) {
                         a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                           make_tuple(m0, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                           make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                            a_block_buf,
                                            a_thread_desc_,
                                            make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
