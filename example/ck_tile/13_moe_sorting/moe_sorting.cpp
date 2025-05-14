@@ -153,9 +153,8 @@ bool test_moe_sorting(ck_tile::ArgParser args)
         local_expert_masking_dev.ToDevice(local_expert_masking_host.data());
 
     // if return zero, means no need workspace, can set moe_sorting_args.p_ws to nullptr
-    ck_tile::index_t workspace_size = moe_sorting_get_workspace_size(tokens, num_experts);
+    ck_tile::index_t workspace_size = moe_sorting_get_workspace_size(tokens, num_experts, topk);
     ck_tile::DeviceMem moe_sorting_ws(workspace_size != 0 ? workspace_size : 0);
-
     if(workspace_size != 0)
         moe_sorting_ws.SetZero(); // note, clear here!!!!
 

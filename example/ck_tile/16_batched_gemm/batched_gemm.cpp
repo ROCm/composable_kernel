@@ -106,61 +106,81 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
 
     float ave_time{0};
 
-    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
-        constexpr bool has_hot_loop_v = has_hot_loop_.value;
-        constexpr auto tail_number_v  = tail_number_.value;
-        constexpr auto scheduler      = GEMM_PIPELINE_SCHEDULER;
+    const auto Run =
+        [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {
+            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
+            constexpr auto tail_number_v    = tail_number_.value;
+            constexpr auto scheduler        = GEMM_PIPELINE_SCHEDULER;
+            constexpr auto memory_operation = memory_operation_.value;
 
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler,
-                                                                           has_hot_loop_v,
-                                                                           tail_number_v>;
+            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                               BDataType,
+                                                                               AccDataType,
+                                                                               GemmShape,
+                                                                               GemmUniversalTraits,
+                                                                               scheduler,
+                                                                               has_hot_loop_v,
+                                                                               tail_number_v>;
 
-        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             AccDataType,
-                                             CDataType,
-                                             CLayout,
-                                             GemmPipelineProblem::kBlockSize,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             M_Warp,
-                                             N_Warp,
-                                             M_Warp_Tile,
-                                             N_Warp_Tile,
-                                             K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC>>;
-        using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::MakeKernelArgs(args);
+            using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<
+                ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                 BDataType,
+                                                 AccDataType,
+                                                 CDataType,
+                                                 CLayout,
+                                                 GemmPipelineProblem::kBlockSize,
+                                                 TilePartitioner::MPerBlock,
+                                                 TilePartitioner::NPerBlock,
+                                                 M_Warp,
+                                                 N_Warp,
+                                                 M_Warp_Tile,
+                                                 N_Warp_Tile,
+                                                 K_Warp_Tile,
+                                                 UniversalGemmProblem::TransposeC,
+                                                 memory_operation>>;
+            using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
-        constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 grids = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
+            constexpr dim3 blocks = Kernel::BlockSize();
 
-        if(!Kernel::IsSupportedArgument(kargs))
+            if(!Kernel::IsSupportedArgument(kargs))
+            {
+                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+            }
+
+            if(s.log_level_ > 0)
+            {
+                std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                          << "shape: " << GemmShape::GetName() << '\n'
+                          << "problem: " << GemmPipelineProblem::GetName() << '\n'
+                          << "pipeline: " << GemmPipeline::GetName() << '\n'
+                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
+                          << "}" << std::endl;
+            }
+
+            ave_time = ck_tile::launch_kernel(
+                s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            return ave_time;
+        };
+
+    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
+        if(args.k_batch == 1)
         {
-            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+            Run(has_hot_loop_,
+                tail_number_,
+                ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::set>{});
         }
-
-        if(s.log_level_ > 0)
+        else
         {
-            std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                      << "shape: " << GemmShape::GetName() << '\n'
-                      << "problem: " << GemmPipelineProblem::GetName() << '\n'
-                      << "pipeline: " << GemmPipeline::GetName() << '\n'
-                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
+            Run(has_hot_loop_,
+                tail_number_,
+                ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::atomic_add>{});
         }
-
-        ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        return ave_time;
     };
 
     if(has_hot_loop)
@@ -168,18 +188,18 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
         if(tail_num == ck_tile::TailNumber::Full)
         {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
         }
         else if(tail_num == ck_tile::TailNumber::Odd)
         {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
         }
         else if(tail_num == ck_tile::TailNumber::Even)
         {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
         }
         else
         {
@@ -193,20 +213,21 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
         // Tail pipeline One to Seven
         if(tail_num == ck_tile::TailNumber::One)
         {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
         }
         else if(tail_num == ck_tile::TailNumber::Full)
         {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
         }
 
         if constexpr(BaseGemmPipeline::PrefetchStages > 2)
         {
             if(tail_num == ck_tile::TailNumber::Two)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(
+                    ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
             }
         }
@@ -214,7 +235,8 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
         {
             if(tail_num == ck_tile::TailNumber::Three)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(
+                    ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
             }
         }
@@ -222,7 +244,8 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
         {
             if(tail_num == ck_tile::TailNumber::Four)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(
+                    ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{});
             }
         }
@@ -230,7 +253,8 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
         {
             if(tail_num == ck_tile::TailNumber::Five)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(
+                    ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{});
             }
         }
@@ -238,7 +262,8 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
         {
             if(tail_num == ck_tile::TailNumber::Six)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(
+                    ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{});
             }
         }
@@ -246,20 +271,22 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
         {
             if(tail_num == ck_tile::TailNumber::Seven)
             {
-                Run(ck_tile::bool_constant<true>{},
+                RunSplitk(
+                    ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
             }
         }
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
         if(tail_num == ck_tile::TailNumber::Three)
         {
-            Run(ck_tile::bool_constant<true>{},
+            RunSplitk(
+                ck_tile::bool_constant<true>{},
                 ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
         }
         else
         {
-            Run(ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
         }
 #endif
     }
@@ -267,18 +294,18 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
     {
         if(tail_num == ck_tile::TailNumber::Full)
         {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            RunSplitk(ck_tile::bool_constant<false>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
         }
         else if(tail_num == ck_tile::TailNumber::Odd)
         {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            RunSplitk(ck_tile::bool_constant<false>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
         }
         else if(tail_num == ck_tile::TailNumber::Even)
         {
-            Run(ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            RunSplitk(ck_tile::bool_constant<false>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
         }
         std::ostringstream err;
         err << "Incorrect tail_num for pipeline without hotloop, expected Full, Odd or Even, but "

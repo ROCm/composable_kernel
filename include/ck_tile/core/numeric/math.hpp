@@ -487,6 +487,9 @@ struct log2e<float>
 template <typename T = double>
 constexpr T log2e_v = log2e<T>::value;
 
+template <typename T = double>
+constexpr T log2e_rcp_v = 1. / log2e<T>::value;
+
 CK_TILE_DEVICE
 float exp2(float x) { return exp2f(x); };
 
@@ -1378,6 +1381,44 @@ template <>
 CK_TILE_DEVICE double exp<double>(double x)
 {
     return exp(x);
+};
+
+template <typename T>
+CK_TILE_DEVICE T tanh_fast(T x)
+{
+    return type_convert<T>((exp<T>(2.0 * type_convert<float>(x)) - 1.0) /
+                           (exp<T>(2.0 * type_convert<float>(x)) + 1.0));
+};
+
+template <>
+CK_TILE_DEVICE float tanh_fast<float>(float x)
+{
+    // float a = __builtin_amdgcn_sinh(x);
+    // float b = __builtin_amdgcn_cosh(x);
+    // float e = a * __builtin_amdgcn_rcpf(b);
+    // return e;
+
+    float a = 2.0f * log2e_v<float> * x;
+    a       = __builtin_amdgcn_exp2f(a);
+    a       = __builtin_amdgcn_rcpf(a + 1.0f);
+    a       = 2 * a;
+    a       = 1 - a;
+    return a;
+
+    // float e, r, s, t, d;
+    // float a = x;
+    // s = abs(a);
+    // t = -log2e_v<float> * 2.0f * s;
+    // e = __builtin_amdgcn_exp2f(t);
+    // d = e + 1.0f;
+    // r = __builtin_amdgcn_rcpf(d);
+    // r = e * (-r) + r;
+    // if (s < 4.997253418e-3f) r = a;
+    // union fipnr {float f; unsigned int i;};
+    // fipnr r_; r_.f = r;
+    // fipnr a_; a_.f = a;
+    // { r_.i = (r_.i|(a_.i&0x80000000)); r = r_.f; }
+    // return r;
 };
 
 template <typename T>
