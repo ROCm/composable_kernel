@@ -164,11 +164,12 @@ warp_tile_supported_combinations = {
 
 # To Do: remove some unsupported combinations
 trait_unsupported_combinations = {
-            ("compv3", "cshuffle", "interwave"),
-            ("compv3", "default", "interwave"),
-            ("compv4", "cshuffle", "interwave"),
-            ("compv4", "default", "interwave")
-        }
+    ("compv3", "cshuffle", "interwave"),
+    ("compv3", "default", "interwave"),
+    ("compv4", "cshuffle", "interwave"),
+    ("compv4", "default", "interwave")
+}
+
 
 def element_size(data_type: str) -> float:
     data_type = data_type.lower()

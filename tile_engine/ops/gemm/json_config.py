@@ -341,7 +341,7 @@ class GemmConfig(BaseModel):
         try:
             if not config_path.exists():
                 raise FileNotFoundError(f"Config file {filepath} not found")
-            config_path.stat()  
+            config_path.stat()
 
             with open(filepath, 'r') as f:
                 try:

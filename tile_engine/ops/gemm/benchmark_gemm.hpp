@@ -104,8 +104,10 @@ struct KernelInstance
     friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
     {
         os << "{\n"
-           << " \"name\": \"" << "{\n"
-           << obj.name << "\n}" << "\",\n"
+           << " \"name\": \""
+           << "{\n"
+           << obj.name << "\n}"
+           << "\",\n"
            << " \"problem\": \"" << obj.problem << "\",\n"
            << " \"perf_result\": " << obj.perf_result << "\n"
            << "}";

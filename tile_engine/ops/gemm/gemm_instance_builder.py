@@ -375,7 +375,8 @@ struct GemmKernel {{
         # Warp combination validation
         warp_tile_key = f"{self.config.problem.datatype_map['matrix_a']}_{self.config.problem.datatype_map['matrix_b']}_{self.config.problem.datatype_map['matrix_c']}"
         current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
-        allowed_combinations = warp_tile_supported_combinations.get(warp_tile_key, [])
+        allowed_combinations = warp_tile_supported_combinations.get(
+            warp_tile_key, [])
 
         if current_combination not in allowed_combinations:
             logging.warning(
