@@ -19,11 +19,12 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         using namespace ck_tile;
-#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
+#if (defined(USING_MFMA_16x16x32) || defined(USING_MFMA_16x16x128)) && defined(ENABLE_FP8)
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
         /*reduce transform layers,compare with old ck*/
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t KPack     = GetSmemPackA<Problem>();
+        constexpr index_t KPack     = Problem::VectorLoadSize / sizeof(ADataType);
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
@@ -139,6 +140,21 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetK1()
+    {
+        using TileShape = typename Problem::BlockGemmShape;
+        if constexpr(TileShape::WarpTile::at(TileShape::idxN) == 32)
+        {
+            return TileShape::WarpTile::at(TileShape::idxK) / 2;
+        }
+        else
+        {
+            static_assert(TileShape::WarpTile::at(TileShape::idxN) == 16);
+            return TileShape::WarpTile::at(TileShape::idxK) / 4;
+        }
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
@@ -232,16 +248,13 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBFlatDramTileDistribution()
     {
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-
         using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
 
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t WaveSize  = get_warp_size();
         constexpr index_t WaveNum   = BlockSize / WaveSize;
 
-        constexpr index_t KBPerLoad =
-            Problem::VectorLoadSize / sizeof(BDataType); // dwordx4 load B elem cnt
+        constexpr index_t KBPerLoad = GetK1<Problem>(); // dwordx4 load B elem cnt
         constexpr index_t KThdPerWave = WaveSize;        // threads cnt in K dim
         constexpr index_t KWavePerBlk = 1;
         constexpr index_t KRepeat     = 1;

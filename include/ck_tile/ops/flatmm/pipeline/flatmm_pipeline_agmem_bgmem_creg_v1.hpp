@@ -75,6 +75,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
     CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
     {
+#if 0
 #if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8) || defined(USING_MFMA_32x32x16)
         constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
@@ -148,6 +149,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             __builtin_amdgcn_sched_group_barrier(0x008, 3, 0); // MFMA
         });
         __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
+#endif
 #endif
     }
 

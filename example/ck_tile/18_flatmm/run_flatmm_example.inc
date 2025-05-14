@@ -33,37 +33,28 @@ static constexpr inline auto is_row_major(Layout layout_)
 
 // mfma_type, 0:32x32, 1:16x16
 template <typename T>
-auto shuffle_b(const ck_tile::HostTensor<T>& t, std::string mfma_dtype, int mfma_type)
+auto shuffle_b(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
     int n_ = t.get_lengths()[1];
     int k_ = t.get_lengths()[0];
 
-    if((mfma_dtype == "bf16" || mfma_dtype == "fp16") && mfma_type == 0)
+
+    if constexpr(GemmConfig<T>::N_Warp_Tile == 32)
     {
-        ck_tile::HostTensor<T> t_view({n_ / 32, 32, k_ / 16, 2, 8});
+        ck_tile::HostTensor<T> t_view(
+            {n_ / 32, 32, k_ / GemmConfig<T>::K_Warp_Tile, 2, GemmConfig<T>::K_Warp_Tile / 2});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
-    else if((mfma_dtype == "bf16" || mfma_dtype == "fp16") && mfma_type == 1)
+    else
     {
-        ck_tile::HostTensor<T> t_view({n_ / 16, 16, k_ / 32, 4, 8});
+        static_assert(GemmConfig<T>::N_Warp_Tile == 16);
+        ck_tile::HostTensor<T> t_view(
+            {n_ / 16, 16, k_ / GemmConfig<T>::K_Warp_Tile, 4, GemmConfig<T>::K_Warp_Tile / 4});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
-    else if((mfma_dtype == "int8" || mfma_dtype == "fp8" || mfma_dtype == "bf8") && mfma_type == 0)
-    {
-        ck_tile::HostTensor<T> t_view({n_ / 32, 32, k_ / 32, 2, 16});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-    }
-    else if((mfma_dtype == "int8" || mfma_dtype == "fp8" || mfma_dtype == "bf8") && mfma_type == 1)
-    {
-        ck_tile::HostTensor<T> t_view({n_ / 16, 16, k_ / 64, 4, 16});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-    }
-    return t;
 }
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
@@ -189,12 +180,8 @@ int run_flatmm_example_with_layouts(int argc,
 
     // do pre-shuffle
     std::string mfma = arg_parser.get_str("prec");
-#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
-    ck_tile::index_t mfma_type = 1;
-#else
-    ck_tile::index_t mfma_type = 0;
-#endif
-    ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b(b_origin_host, mfma, mfma_type);
+
+    ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<BDataType>(b_origin_host);
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
 
