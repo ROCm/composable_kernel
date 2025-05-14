@@ -5,6 +5,8 @@
 
 #include "mx_mfma_op.hpp"
 
+using ck::bf6_t;
+using ck::bf8_t;
 using ck::e8m0_bexp_t;
 using ck::f4_t;
 using ck::f4x2_pk_t;
@@ -74,6 +76,22 @@ TEST(MFMA, FP8MFMA16x16x128)
     EXPECT_TRUE(pass);
 }
 
+TEST(MFMA, BF8MFMA16x16x128)
+{
+    using ALayout = ck::tensor_layout::gemm::ColumnMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::ColumnMajor;
+    auto AB_init  = (common_init < 0) ? 5 : common_init;
+    auto pass     = run_mfma_test<ALayout,
+                              BLayout,
+                              CLayout,
+                              bf8_t,
+                              bf8_t,
+                              half_t,
+                              ck::MFMA_F8F6F4::F32_16x16x128>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
 TEST(MFMA, FP4MFMA16x16x128)
 {
     using ALayout = ck::tensor_layout::gemm::RowMajor;
@@ -86,7 +104,7 @@ TEST(MFMA, FP4MFMA16x16x128)
             AB_init);
     EXPECT_TRUE(pass);
 }
-#if 1
+
 TEST(MFMA, FP6MFMA16x16x128)
 {
     using ALayout = ck::tensor_layout::gemm::RowMajor;
@@ -99,7 +117,23 @@ TEST(MFMA, FP6MFMA16x16x128)
             AB_init);
     EXPECT_TRUE(pass);
 }
-#endif
+
+TEST(MFMA, BF6MFMA16x16x128)
+{
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass    = run_mfma_test<ALayout,
+                              BLayout,
+                              CLayout,
+                              bf6_t,
+                              bf6_t,
+                              float,
+                              ck::MFMA_F8F6F4::F32_16x16x128>(AB_init);
+    EXPECT_TRUE(pass);
+}
 
 TEST(MFMA, FP8MFMA32x32x64)
 {
@@ -111,6 +145,23 @@ TEST(MFMA, FP8MFMA32x32x64)
     auto pass =
         run_mfma_test<ALayout, BLayout, CLayout, f8_t, f8_t, float, ck::MFMA_F8F6F4::F32_32x32x64>(
             AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MFMA, BF8MFMA32x32x64)
+{
+    using ALayout = ck::tensor_layout::gemm::ColumnMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::ColumnMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass    = run_mfma_test<ALayout,
+                              BLayout,
+                              CLayout,
+                              bf8_t,
+                              bf8_t,
+                              float,
+                              ck::MFMA_F8F6F4::F32_32x32x64>(AB_init);
     EXPECT_TRUE(pass);
 }
 
@@ -137,6 +188,23 @@ TEST(MFMA, FP6MFMA32x32x64)
     auto pass =
         run_mfma_test<ALayout, BLayout, CLayout, f6_t, f6_t, half_t, ck::MFMA_F8F6F4::F32_32x32x64>(
             AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MFMA, BF6MFMA32x32x64)
+{
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass    = run_mfma_test<ALayout,
+                              BLayout,
+                              CLayout,
+                              bf6_t,
+                              bf6_t,
+                              half_t,
+                              ck::MFMA_F8F6F4::F32_32x32x64>(AB_init);
     EXPECT_TRUE(pass);
 }
 

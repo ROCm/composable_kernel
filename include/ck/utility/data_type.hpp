@@ -336,6 +336,13 @@ struct packed_type<f6_t>
     static constexpr index_t packed_size = f6x32_pk_t::packed_size; // number of packed elements
 };
 
+template <>
+struct packed_type<bf6_t>
+{
+    using type                           = bf6x32_pk_t;
+    static constexpr index_t packed_size = bf6x32_pk_t::packed_size; // number of packed elements
+};
+
 template <typename T>
 using packed_type_t = typename packed_type<T>::type;
 

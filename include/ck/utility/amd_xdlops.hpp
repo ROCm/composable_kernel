@@ -498,8 +498,30 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                0, // cbsz
+                0, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0, // blgp
+                0,
+                0,
+                0,
+                0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+
+    template <class FloatC>
+    __device__ static void Run(const bf8x32_t& reg_a, const bf8x32_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        reg_c.template AsType<float16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float16_t>()[Number<0>{}],
+                1, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1, // blgp
                 0,
                 0,
                 0,
@@ -556,6 +578,34 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 2, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 2, // blgp
+                0, // OPSEL
+                0,
+                0, // OPSEL
+                0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+
+    template <class FloatC>
+    __device__ static void Run(const bf6x32_t& reg_a, const bf6x32_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+
+        int32x6_t arg_a = bit_cast<int32x6_t>(reg_a);
+        int32x6_t arg_b = bit_cast<int32x6_t>(reg_b);
+
+        using arg_type = int32x8_t;
+
+        reg_c.template AsType<float16_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
+                arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
+                arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
+                reg_c.template AsType<float16_t>()[Number<0>{}],
+                3, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                3, // blgp
                 0, // OPSEL
                 0,
                 0, // OPSEL
@@ -875,6 +925,29 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
     }
 
     template <class FloatC>
+    __device__ static void Run(const bf8x32_t& reg_a, const bf8x32_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+                reg_a,
+                reg_b,
+                reg_c.template AsType<float4_t>()[Number<0>{}],
+                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1, // blgp
+                0,
+                0,
+                0,
+                0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+
+    template <class FloatC>
     __device__ static void Run(const f4x32_t& reg_a, const f4x32_t& reg_b, FloatC& reg_c)
     {
 #if defined(__gfx950__)
@@ -915,8 +988,35 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
                 arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                2, // cbsz
+                2, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 2, // blgp
+                0, // OPSEL
+                0,
+                0, // OPSEL
+                0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+
+    template <class FloatC>
+    __device__ static void Run(const bf6x32_t& reg_a, const bf6x32_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        int32x6_t arg_a = bit_cast<int32x6_t>(reg_a);
+        int32x6_t arg_b = bit_cast<int32x6_t>(reg_b);
+
+        using arg_type = int32x8_t;
+
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+                arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
+                arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
+                reg_c.template AsType<float4_t>()[Number<0>{}],
+                3, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                3, // blgp
                 0, // OPSEL
                 0,
                 0, // OPSEL
