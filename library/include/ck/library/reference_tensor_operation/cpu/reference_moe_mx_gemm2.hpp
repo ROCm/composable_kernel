@@ -111,7 +111,7 @@ struct ReferenceMoeMXGemm2 : public device::BaseOperator
                             auto f4x2    = arg.a_t_k_k_(t, topk_id, k).data;
                             auto a_scale = arg.a_t_k_k_scale_(t, topk_id, k / SCALE_BLOCK);
 
-                            auto f4 = 0;
+                            f4_t f4 = 0;
                             if(k % 2 == 1)
                                 f4 = (f4x2 >> 0) & 0xf;
                             else
@@ -130,7 +130,7 @@ struct ReferenceMoeMXGemm2 : public device::BaseOperator
                             auto f4x2    = arg.b_e_n_k_(e, k, n).data;
                             auto b_scale = arg.b_e_n_k_scale_(e, k / SCALE_BLOCK, n);
 
-                            auto f4 = 0;
+                            f4_t f4 = 0;
                             if(k % 2 == 1)
                                 f4 = (f4x2 >> 0) & 0xf;
                             else
