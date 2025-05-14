@@ -254,9 +254,9 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v3<
 
         constexpr auto buffer_load_issue_point_b = 0;
         constexpr auto buffer_load_issue_point_interval_more =
-            num_mfma_perstage / buffer_load_perstage_more;
+            num_mfma_perstage / buffer_load_perstage_more ? num_mfma_perstage / buffer_load_perstage_more : 1;
         constexpr auto buffer_load_issue_point_interval_less =
-            num_mfma_perstage / buffer_load_perstage_less;
+            num_mfma_perstage / buffer_load_perstage_less ? num_mfma_perstage / buffer_load_perstage_less : 1;
         constexpr auto ds_write_issue_point      = 0;
         constexpr auto buffer_load_issue_point_a = num_mfma_perstage >= 3 ? 1 : 0;
 
