@@ -34,53 +34,84 @@
     "tile_config": {
         "tile_m": {
             "max": 512,
-            "min": 256,
-            "step": 64
+            "min": 64,
+            "step": 8
         },
         "tile_n": {
-            "values": [
-                256
-            ]
+            "max": 512,
+            "min": 64,
+            "step": 8
         },
         "tile_k": {
-            "values": [
-                32
-            ]
+            "max": 512,
+            "min": 64,
+            "step": 8
         },
         "warp_m": {
             "values": [
-                2
+                4,
+                8,
+                16,
+                32,
+                64,
+                128
             ]
         },
         "warp_n": {
             "values": [
-                2
+                4,
+                8,
+                16,
+                32,
+                64,
+                128
             ]
         },
         "warp_k": {
             "values": [
-                1
+                4,
+                8,
+                16,
+                32,
+                64,
+                128
             ]
         },
         "warp_tile_m": {
             "values": [
-                32
+                4,
+                8,
+                16,
+                32,
+                64,
+                128
             ]
         },
         "warp_tile_n": {
             "values": [
-                32
+                4,
+                8,
+                16,
+                32,
+                64,
+                128
             ]
         },
         "warp_tile_k": {
             "values": [
-                8
+                4,
+                8,
+                16,
+                32,
+                64,
+                128
             ]
         }
     },
     "trait_config": {
         "pipeline": {
             "values": [
+                "compv4",
                 "compv3",
                 "mem"
             ]

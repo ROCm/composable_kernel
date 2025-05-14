@@ -228,12 +228,22 @@ class ProblemConfig:
     )
 
     @property
-    def datatype_values(self) -> list:
-        return [p.values[0] for p in self.datatypes]
+    def datatype_map(self) -> dict[str, str]:
+        """Get current layout selections as a key-value map."""
+        return {
+            'matrix_a': self.datatypes[0].values[0],
+            'matrix_b': self.datatypes[1].values[0],
+            'matrix_c': self.datatypes[2].values[0]
+        }
 
     @property
-    def layout_values(self) -> list:
-        return [p.values[0] for p in self.layouts]
+    def layout_map(self) -> dict[str, str]:
+        """Get current layout selections as a key-value map."""
+        return {
+            'matrix_a': self.layouts[0].values[0],
+            'matrix_b': self.layouts[1].values[0],
+            'matrix_c': self.layouts[2].values[0]
+        }
 
 
 @dataclass
@@ -257,33 +267,33 @@ class TileConfig:
 
     warp_m: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
-            values=[256]
+            values=[8]
         )
     )
     warp_n: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
-            values=[256]
+            values=[8]
         )
     )
     warp_k: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
-            values=[256]
+            values=[8]
         )
     )
 
     warp_tile_m: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
-            values=[256]
+            values=[8]
         )
     )
     warp_tile_n: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
-            values=[256]
+            values=[8]
         )
     )
     warp_tile_k: Union[EnumConfigParam, RangeConfigParam] = Field(
         default_factory=lambda: EnumConfigParam(
-            values=[256]
+            values=[8]
         )
     )
 

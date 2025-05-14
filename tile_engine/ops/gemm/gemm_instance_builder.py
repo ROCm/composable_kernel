@@ -26,8 +26,9 @@ from codegen_utils import (
     EPILOGUE_MAP,
     HOT_LOOP_TRUE,
     BOOL_MAP,
-    warp_tile_combinations,
-    size_of
+    warp_tile_supported_combinations,
+    trait_unsupported_combinations,
+    element_size
 )
 import logging
 
@@ -73,14 +74,6 @@ class GemmCodeGenerator:
             "pad_n",
             "pad_k"]
 
-        # To remove some unsupported combinations
-        unsupported_combinations = {
-            ("compv3", "cshuffle", "interwave"),
-            ("compv3", "default", "interwave"),
-            ("compv4", "cshuffle", "interwave"),
-            ("compv4", "default", "interwave")
-        }
-
         # Generate all unique_combinations
         _unique = set(itertools.product(*[
             getattr(self.config.trait_config, param).values
@@ -91,7 +84,7 @@ class GemmCodeGenerator:
             pipeline, epilogue, scheduler, pad_m, pad_n, pad_k = combo
             current_combination = (pipeline, epilogue, scheduler)
 
-            if current_combination not in unsupported_combinations:
+            if current_combination not in trait_unsupported_combinations:
                 trait_name = (
                     f"{pipeline}_{epilogue}_{scheduler}_"
                     f"{BOOL_MAP(pad_m)}_{BOOL_MAP(pad_n)}_{BOOL_MAP(pad_k)}"
@@ -118,15 +111,15 @@ class GemmCodeGenerator:
 #include "ck_tile/core.hpp"
 
 // Data types
-using ADataType = {DATA_TYPE_MAP[self.config.problem.datatype_values[0]]};
-using BDataType = {DATA_TYPE_MAP[self.config.problem.datatype_values[1]]};
+using ADataType = {DATA_TYPE_MAP[self.config.problem.datatype_map['matrix_a']]};
+using BDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map['matrix_b']]};
 using AccDataType = float;
-using CDataType = {DATA_TYPE_MAP[self.config.problem.datatype_values[2]]};
+using CDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map['matrix_c']]};
 
 // Layout configurations
-using ALayout = {LAYOUT_MAP[self.config.problem.layout_values[0]]};
-using BLayout = {LAYOUT_MAP[self.config.problem.layout_values[1]]};
-using CLayout = {LAYOUT_MAP[self.config.problem.layout_values[2]]};
+using ALayout = {LAYOUT_MAP[self.config.problem.layout_map['matrix_a']]};
+using BLayout = {LAYOUT_MAP[self.config.problem.layout_map['matrix_b']]};
+using CLayout = {LAYOUT_MAP[self.config.problem.layout_map['matrix_c']]};
 """
 
         (self.output_dir / "gemm_common.hpp").write_text(content)
@@ -358,15 +351,15 @@ struct GemmKernel {{
             logging.warning(
                 f"Dimension alignment failed [{trait}]: {', '.join(alignment_issues)}. "
                 f"Tile dimensions {tile_m}x{tile_n}x{tile_k} must be divisible by "
-                f"[warp×tile] {warp_m}x{warp_n}x{warp_k} × {warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
+                f"[warpxtile] {warp_m}x{warp_n}x{warp_k} x {warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
             )
             return False
 
         # LDS capacity verification
         matrix_a_size = (tile_m * tile_k) * \
-            size_of(self.config.problem.datatype_values[0])
+            element_size(self.config.problem.datatype_map['matrix_a'])
         matrix_b_size = (tile_n * tile_k) * \
-            size_of(self.config.problem.datatype_values[1])
+            element_size(self.config.problem.datatype_map['matrix_b'])
         total_tile_in_lds = matrix_a_size + matrix_b_size
 
         max_tile_size = 2**16 if pipeline == "compv4" else 2**15
@@ -374,15 +367,15 @@ struct GemmKernel {{
             logging.warning(
                 f"LDS capacity exceeded [{trait}]: Total required {total_tile_in_lds:,}B ({total_tile_in_lds/1024:.1f}KB) > "
                 f"maximum allowed {max_tile_size:,}B ({max_tile_size/1024}KB). Breakdown:\n"
-                f"- Matrix A ({self.config.problem.datatype_values[0]}): {tile_m}x{tile_k} = {matrix_a_size:,}B\n"
-                f"- Matrix B ({self.config.problem.datatype_values[1]}): {tile_n}x{tile_k} = {matrix_b_size:,}B"
+                f"- Matrix A ({self.config.problem.datatype_map['matrix_a']}): {tile_m}x{tile_k} = {matrix_a_size:,}B\n"
+                f"- Matrix B ({self.config.problem.datatype_map['matrix_b']}): {tile_n}x{tile_k} = {matrix_b_size:,}B"
             )
             return False
 
         # Warp combination validation
-        warp_tile_key = f"{self.config.problem.datatype_values[0]}_{self.config.problem.datatype_values[1]}_{self.config.problem.datatype_values[2]}"
+        warp_tile_key = f"{self.config.problem.datatype_map['matrix_a']}_{self.config.problem.datatype_map['matrix_b']}_{self.config.problem.datatype_map['matrix_c']}"
         current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
-        allowed_combinations = warp_tile_combinations.get(warp_tile_key, [])
+        allowed_combinations = warp_tile_supported_combinations.get(warp_tile_key, [])
 
         if current_combination not in allowed_combinations:
             logging.warning(
@@ -455,7 +448,9 @@ struct GemmDispatcher {
             if(structured_sparsity){{  // SMFMA"""
             for tile in tile_params:
                 if self.is_tile_valid(tile, trait):
-                    sparse = self.config.problem.datatype_values[0] == 'fp16' and \
+                    sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
+                        self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
+                        self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
                         ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
                          (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
                     content += f"""

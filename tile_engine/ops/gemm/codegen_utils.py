@@ -153,7 +153,8 @@ HOT_LOOP_TRUE = {'mem': RUN_MEM,
 def BOOL_MAP(b_): return {True: 'true', False: 'false'}[bool(b_)]
 
 
-warp_tile_combinations = {
+# To Do: add some more supported combinations
+warp_tile_supported_combinations = {
     'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
     'bf16_bf16_bf16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
     # last 2 were not supported by MI300 architecture.
@@ -161,13 +162,21 @@ warp_tile_combinations = {
     'bf8_bf8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32], [16, 16, 128], [32, 32, 64]]
 }
 
+# To Do: remove some unsupported combinations
+trait_unsupported_combinations = {
+            ("compv3", "cshuffle", "interwave"),
+            ("compv3", "default", "interwave"),
+            ("compv4", "cshuffle", "interwave"),
+            ("compv4", "default", "interwave")
+        }
 
-def size_of(data_type):
-    if data_type == 'fp16' or data_type == 'bf16':
+def element_size(data_type: str) -> float:
+    data_type = data_type.lower()
+    if data_type in {'fp16', 'bf16'}:
         return 2
-    elif data_type == 'int8' or data_type == 'fp8' or data_type == 'bf8':
+    elif data_type in {'int8', 'fp8', 'bf8'}:
         return 1
-    elif data_type == 'int4':  # TODO:: needs to confirm
+    elif data_type == 'int4':
         return 0.5
     else:
-        return 4
+        raise ValueError(f"Unsupported data type: {data_type}")
