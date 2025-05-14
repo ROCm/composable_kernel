@@ -11,6 +11,7 @@
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/host/stream_utils.hpp"
 #include "ck_tile/core/utility/env.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
 
@@ -142,7 +143,23 @@ struct GemmKernel
     using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
     using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
-    static constexpr bool PersistentKernel   = GemmPipeline::UsePersistentKernel;
+
+    // Get the persistent kernel if the pipeline has it available
+    struct has_persistent_kernel
+    {
+        // Helper alias template moved inside the struct
+        template <typename T>
+        using has_persistent_type = decltype(T::UsePersistentKernel);
+
+        static constexpr bool value = []() {
+            // Correctly use is_detected with the helper alias template
+            if constexpr(is_detected<has_persistent_type, GemmPipeline>{})
+                return GemmPipeline::UsePersistentKernel;
+            else
+                return false;
+        }();
+    };
+    static constexpr bool PersistentKernel = has_persistent_kernel::value;
 
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
