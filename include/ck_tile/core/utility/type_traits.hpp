@@ -143,12 +143,14 @@ struct is_specialization_of<RefTemplate<Args...>, RefTemplate> : std::true_type
 namespace detail {
 
 template <bool IsWithinBounds, std::size_t Idx, typename Tuple, typename DefaultType>
-struct tuple_element_or_default_dispatch {
+struct tuple_element_or_default_dispatch
+{
     using type = DefaultType;
 };
 
 template <std::size_t Idx, typename Tuple, typename DefaultType>
-struct tuple_element_or_default_dispatch<true, Idx, Tuple, DefaultType> {
+struct tuple_element_or_default_dispatch<true, Idx, Tuple, DefaultType>
+{
     using type = std::tuple_element_t<Idx, Tuple>;
 };
 
@@ -157,11 +159,13 @@ struct tuple_element_or_default_dispatch<true, Idx, Tuple, DefaultType> {
 template <typename Tuple_, std::size_t Idx, typename DefaultType>
 struct tuple_element_or_default
 {
-    using Tuple = remove_cvref_t<Tuple_>;
+    using Tuple                            = remove_cvref_t<Tuple_>;
     static constexpr bool is_within_bounds = Idx < std::tuple_size_v<Tuple>;
-    using type = typename detail::tuple_element_or_default_dispatch<is_within_bounds, Idx, Tuple, DefaultType>::type;
+    using type                             = typename detail::
+        tuple_element_or_default_dispatch<is_within_bounds, Idx, Tuple, DefaultType>::type;
 };
 template <typename Tuple_, std::size_t Idx, typename DefaultType>
-using tuple_element_or_default_t = typename tuple_element_or_default<Tuple_, Idx, DefaultType>::type;
+using tuple_element_or_default_t =
+    typename tuple_element_or_default<Tuple_, Idx, DefaultType>::type;
 
 } // namespace ck_tile

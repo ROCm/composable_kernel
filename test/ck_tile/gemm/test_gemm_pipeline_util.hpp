@@ -89,7 +89,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using CDataType                    = std::tuple_element_t<6, Tuple>;
     static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
     static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
-    static constexpr bool Persistent   = ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
+    static constexpr bool Persistent =
+        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
     // TODO: expose tile size through test t-param ?
 
     template <bool PadM, bool PadN, bool PadK>
@@ -132,7 +133,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
         static constexpr bool StructuredSparsity = false;
-        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
+        using GemmUniversalTraits                = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,

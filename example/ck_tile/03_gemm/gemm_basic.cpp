@@ -20,7 +20,7 @@ template <typename ADataType,
           typename BLayout,
           typename CLayout,
           bool Persistent = false,
-          typename = std::enable_if_t<!Persistent>>
+          typename        = std::enable_if_t<!Persistent>>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.

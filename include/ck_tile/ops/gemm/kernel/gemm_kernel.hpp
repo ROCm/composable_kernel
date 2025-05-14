@@ -147,12 +147,10 @@ struct GemmKernel
     // Get the persistent kernel if the pipeline has it available
     struct has_persistent_kernel
     {
-        // Helper alias template moved inside the struct
         template <typename T>
         using has_persistent_type = decltype(T::UsePersistentKernel);
 
         static constexpr bool value = []() {
-            // Correctly use is_detected with the helper alias template
             if constexpr(is_detected<has_persistent_type, GemmPipeline>{})
                 return GemmPipeline::UsePersistentKernel;
             else
@@ -783,10 +781,11 @@ struct GemmKernel
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
     {
         const auto grid_size = __builtin_amdgcn_readfirstlane(get_grid_size());
-        const auto num_tiles = __builtin_amdgcn_readfirstlane(TilePartitioner::GridSize(kargs.M, kargs.N));
-        const auto num_work  = __builtin_amdgcn_readfirstlane(num_tiles * kargs.k_batch);
-        auto block_id        = __builtin_amdgcn_readfirstlane(get_block_id());
-        
+        const auto num_tiles =
+            __builtin_amdgcn_readfirstlane(TilePartitioner::GridSize(kargs.M, kargs.N));
+        const auto num_work = __builtin_amdgcn_readfirstlane(num_tiles * kargs.k_batch);
+        auto block_id       = __builtin_amdgcn_readfirstlane(get_block_id());
+
         while(block_id < num_work)
         {
             // Get the tile index for this block
@@ -794,9 +793,9 @@ struct GemmKernel
             const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(tile_idx);
             const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
             const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
-            
+
             // Get the SplitK offset for this block
-            const auto k_batch  = __builtin_amdgcn_readfirstlane(block_id / num_tiles);
+            const auto k_batch = __builtin_amdgcn_readfirstlane(block_id / num_tiles);
             const SplitKBatchOffset splitk_batch_offset(kargs, k_batch);
             const ADataType* a_ptr =
                 static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
@@ -810,7 +809,8 @@ struct GemmKernel
             if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
                 __shared__ char smem_ptr_1[GetSmemSize()];
-                if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
+                if constexpr(!(EpiloguePipeline::MemoryOperation ==
+                                   memory_operation_enum::atomic_add &&
                                EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                                is_any_of<CDataType, fp16_t, bf16_t>::value))
                 {
@@ -827,7 +827,8 @@ struct GemmKernel
             }
             else
             {
-                if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
+                if constexpr(!(EpiloguePipeline::MemoryOperation ==
+                                   memory_operation_enum::atomic_add &&
                                EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                                is_any_of<CDataType, fp16_t, bf16_t>::value))
                 {

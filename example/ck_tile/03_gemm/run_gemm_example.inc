@@ -180,15 +180,28 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float ave_time;
     if(persistent)
     {
-        ave_time = gemm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, true>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+        ave_time =
+            gemm_calc<ADataType,
+                      BDataType,
+                      AccDataType,
+                      CDataType,
+                      ALayout,
+                      BLayout,
+                      CLayout,
+                      true>(args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
     }
     else
     {
-        ave_time = gemm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout, false>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+        ave_time =
+            gemm_calc<ADataType,
+                      BDataType,
+                      AccDataType,
+                      CDataType,
+                      ALayout,
+                      BLayout,
+                      CLayout,
+                      false>(args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
     }
-        
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -203,9 +216,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
               << " B_Type=" << DataTypeTraits<BDataType>::name
               << " C_Type=" << DataTypeTraits<CDataType>::name
               << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
-              << " Persistent=" << (persistent ? "on" : "off")
-              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
+              << " Persistent=" << (persistent ? "on" : "off") << " : " << ave_time << " ms, "
+              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     return ave_time;
 }

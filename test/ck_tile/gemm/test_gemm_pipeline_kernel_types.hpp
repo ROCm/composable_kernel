@@ -22,8 +22,8 @@ using Mem       = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType:
 using CompV3    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
 using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
 
-using True      = std::true_type;
-using False     = std::false_type;
+using True  = std::true_type;
+using False = std::false_type;
 
 // clang-format off
 using KernelTypesMem = ::testing::Types<
