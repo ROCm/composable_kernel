@@ -1,0 +1,17 @@
+#!/bin/bash
+## GPU visibility
+export HIP_VISIBLE_DEVICES=0
+DRIVER="../build/bin/ckProfiler"
+OP=$1
+DATATYPE=$2
+LAYOUT=$3
+VERIFY=$4
+INIT=$5
+LOG=$6
+TIME=$7
+ 
+########  op  datatype  layout  verify  init  log  time  M___ N___ K___  O__  BatchCount
+ $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  960  1024 1024  1024  8   
+ $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME 1920  2048 2048  2048  8  
+ $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME 3840  4096 4096  4096  4   
+ $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME 7680  8192 8192  8192  2
