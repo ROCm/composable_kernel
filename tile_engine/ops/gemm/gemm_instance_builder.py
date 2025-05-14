@@ -25,12 +25,27 @@ DATA_TYPE_MAP = {'fp32'  : 'float',
 LAYOUT_MAP = {'r' : 'ck_tile::tensor_layout::gemm::RowMajor',
               'c' : 'ck_tile::tensor_layout::gemm::ColumnMajor'}   
 
-warp_tile_combinations = {
-        'fp16' : [[32,32,8], [16,16,16], [32,32,16], [16,16,32], [4,64,16], [64,4,16]],
-        'bf16' : [[32,32,8], [16,16,16], [32,32,16], [16,16,32], [4,64,16], [64,4,16]],
-        'fp8' : [[32,32,16], [32,32,32], [16,16,64], [16,16,32], [16,16,128], [32,32,64]], #last 2 were not supported by MI300 architecture.
-        'bf8' : [[32,32,16], [32,32,32], [16,16,64], [16,16,32], [16,16,128], [32,32,64]]
-    }        
+
+warp_tile_combinations_map = {
+        "gfx90a": {
+            'fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'bf16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'fp8': [[32, 32, 16], [32, 32, 32]],
+            'bf8': [[32, 32, 16], [32, 32, 32]]
+        },
+        "gfx942": {
+            'fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'bf16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'fp8': [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64]],
+            'bf8': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32]]
+        },
+        "gfx950": {
+            'fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'bf16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'fp8': [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64], [16, 16, 128], [32, 32, 64]],
+            'bf8': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32], [16, 16, 128], [32, 32, 64]]
+        }
+    }      
 
 def sizeOf(data_type):
     if data_type == 'fp16' or data_type == 'bf16':
@@ -185,10 +200,14 @@ class GemmConfig:
         self.matrix_cfg : Dict[str, Any] = {}
         self.impl_cfg : Dict[str, Any] = {}
         for key, value in config_data.items():
-            if key in ["datatype", "layout_a", "layout_b", "layout_c"]:
+            if key in ["architecture", "datatype", "layout_a", "layout_b", "layout_c"]:
                 self.matrix_cfg[key] = value
             else:
                 self.impl_cfg[key] = value
+    
+    @property
+    def architecture(self) -> str:
+        return self.matrix_cfg["architecture"]["values"][0]
     
     @property
     def datatype(self) -> str:
@@ -218,7 +237,7 @@ class GemmCodeGenerator:
     def _validate_config(self):
         """Validate matrix and implementation configurations"""
         # Matrix config validation
-        for param in ["datatype", "layout_a", "layout_b", "layout_c"]:
+        for param in ["architecture", "datatype", "layout_a", "layout_b", "layout_c"]:
             if len(self.config.matrix_cfg[param]["values"]) != 1:
                 raise ValueError(f"Matrix config {param} must have exactly one value")
         
@@ -513,9 +532,9 @@ struct GemmKernel {{
             if total_tile_in_lds > max_tile_size:
                 raise ValueError(f'Total tile size should not exceed {max_tile_size / 1024}KB of LDS. '
                                 f'{tile_m} * {tile_n} * {tile_k} > {max_tile_size / 1024}KB')
-
-            if [warp_tile_m, warp_tile_n, warp_tile_k] in warp_tile_combinations[self.config.datatype]:
-                return  True
+            arch = self.config.architecture
+            if [warp_tile_m, warp_tile_n, warp_tile_k] in warp_tile_combinations_map[arch][self.config.datatype]:
+               return  True
         return False
 
     def _generate_dispatcher(self):
