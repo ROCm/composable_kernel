@@ -56,12 +56,14 @@ bool run_mfma_test(ck::index_t init)
     return pass;
 }
 
+const ck::index_t common_init = -3; // set to "< 0" for test-specific initializations
+
 TEST(MFMA, FP8MFMA16x16x128)
 {
     using ALayout = ck::tensor_layout::gemm::ColumnMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::ColumnMajor;
-    auto AB_init  = 5;
+    auto AB_init  = (common_init < 0) ? 5 : common_init;
     auto pass     = run_mfma_test<ALayout,
                               BLayout,
                               CLayout,
@@ -78,7 +80,7 @@ TEST(MFMA, FP4MFMA16x16x128)
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-    auto AB_init = 4;
+    auto AB_init = (common_init < 0) ? 5 : common_init;
     auto pass =
         run_mfma_test<ALayout, BLayout, CLayout, f4_t, f4_t, float, ck::MFMA_F8F6F4::F32_16x16x128>(
             AB_init);
@@ -91,7 +93,7 @@ TEST(MFMA, FP6MFMA16x16x128)
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-    auto AB_init = 0;
+    auto AB_init = (common_init < 0) ? 5 : common_init;
     auto pass =
         run_mfma_test<ALayout, BLayout, CLayout, f6_t, f6_t, float, ck::MFMA_F8F6F4::F32_16x16x128>(
             AB_init);
@@ -99,13 +101,13 @@ TEST(MFMA, FP6MFMA16x16x128)
 }
 #endif
 
-#if 0
 TEST(MFMA, FP8MFMA32x32x64)
 {
     using ALayout = ck::tensor_layout::gemm::ColumnMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::ColumnMajor;
-    auto AB_init  = 5;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
     auto pass =
         run_mfma_test<ALayout, BLayout, CLayout, f8_t, f8_t, float, ck::MFMA_F8F6F4::F32_32x32x64>(
             AB_init);
@@ -117,17 +119,28 @@ TEST(MFMA, FP4MFMA32x32x64)
     using ALayout = ck::tensor_layout::gemm::RowMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
-    auto AB_init  = 4;
-    auto pass     = run_mfma_test<ALayout,
-                              BLayout,
-                              CLayout,
-                              f4x2_pk_t,
-                              f4x2_pk_t,
-                              half_t,
-                              ck::MFMA_F8F6F4::F32_32x32x64>(AB_init);
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass =
+        run_mfma_test<ALayout, BLayout, CLayout, f4_t, f4_t, half_t, ck::MFMA_F8F6F4::F32_32x32x64>(
+            AB_init);
     EXPECT_TRUE(pass);
 }
 
+TEST(MFMA, FP6MFMA32x32x64)
+{
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass =
+        run_mfma_test<ALayout, BLayout, CLayout, f6_t, f6_t, half_t, ck::MFMA_F8F6F4::F32_32x32x64>(
+            AB_init);
+    EXPECT_TRUE(pass);
+}
+
+#if 0
 /**
  * @brief Run the test for the given MX MFMA instruction
  *
@@ -191,7 +204,8 @@ TEST(MXMFMA, MXFP8MFMA16x16x128)
     using ALayout = ck::tensor_layout::gemm::RowMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
-    auto AB_init  = 5;
+
+    auto AB_init  = (common_init < 0) ? 5 : common_init;
     auto pass     = run_mxmfma_test<ALayout,
                                 BLayout,
                                 CLayout,
@@ -207,7 +221,8 @@ TEST(MXMFMA, MXFP8MFMA32x32x64)
     using ALayout = ck::tensor_layout::gemm::RowMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
-    auto AB_init  = 5;
+    
+    auto AB_init  = (common_init < 0) ? 5 : common_init;
     auto pass     = run_mxmfma_test<ALayout,
                                 BLayout,
                                 CLayout,
@@ -223,7 +238,8 @@ TEST(MXMFMA, MXFP4MFMA16x16x128)
     using ALayout = ck::tensor_layout::gemm::RowMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
-    auto AB_init  = 4;
+
+    auto AB_init  = (common_init < 0) ? 5 : common_init;
     auto pass     = run_mxmfma_test<ALayout,
                                 BLayout,
                                 CLayout,
@@ -239,7 +255,8 @@ TEST(MXMFMA, MXFP4MFMA32x32x64)
     using ALayout = ck::tensor_layout::gemm::RowMajor;
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
-    auto AB_init  = 4;
+    
+    auto AB_init  = (common_init < 0) ? 5 : common_init;
     auto pass     = run_mxmfma_test<ALayout,
                                 BLayout,
                                 CLayout,

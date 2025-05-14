@@ -157,11 +157,10 @@ struct GeneratorTensor_2<ck::f6x32_pk_t>
     template <typename... Is>
     ck::f6x32_pk_t operator()(Is...)
     {
-
         ck::f6x32_pk_t r;
         ck::static_for<0, 32, 1>{}([&](auto i) {
-            r.pack(ck::type_convert<ck::f6_t>((std::rand() % (max_value - min_value)) + min_value),
-                   static_cast<ck::index_t>(i));
+            float tmp = (std::rand() % (max_value - min_value)) + min_value;
+            r.pack(ck::type_convert<ck::f6_t>(tmp), static_cast<ck::index_t>(i));
         });
 
         return r;
@@ -487,7 +486,7 @@ template <ck::index_t Dim>
 struct GeneratorTensor_Sequential<ck::f4x2_pk_t, Dim>
 {
     template <typename... Ts>
-    ck::f4x2_t operator()(Ts... Xs) const
+    ck::f4x2_pk_t operator()(Ts... Xs) const
     {
         std::array<ck::index_t, sizeof...(Ts)> dims = {{static_cast<ck::index_t>(Xs)...}};
 

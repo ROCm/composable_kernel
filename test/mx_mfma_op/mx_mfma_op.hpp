@@ -1417,24 +1417,20 @@ struct TestMFMA
             b_n_k.GenerateTensorValue(GeneratorTensor_1<PackedBType>{1.0f});
             break;
         case 2:
-            // expect small round off errors
+            // expect small round off errors that lead to FP8MFMA32x32x64 failures
             a_m_k.GenerateTensorValue(GeneratorTensor_3<PackedAType>{-5, 5});
             b_n_k.GenerateTensorValue(GeneratorTensor_3<PackedBType>{-5, 5});
             break;
         case 3:
-            // expect small round off errors
+            // expect small round off errors that lead to FP8MFMA32x32x64 failures
             a_m_k.GenerateTensorValue(GeneratorTensor_4<PackedAType>(-1, 3));
             b_n_k.GenerateTensorValue(GeneratorTensor_4<PackedBType>(1, 3));
             break;
-        case 4:
-            // FP4 values case
-            a_m_k.GenerateTensorValue(GeneratorTensor_2<PackedAType>{-4, 5});
-            b_n_k.GenerateTensorValue(GeneratorTensor_2<PackedBType>{-4, 5});
-            break;
+
         default:
-            // all initial values are representable in FP8, BF8
-            a_m_k.GenerateTensorValue(GeneratorTensor_2<PackedAType>{-5, 6});
-            b_n_k.GenerateTensorValue(GeneratorTensor_2<PackedBType>{-5, 6});
+            // all initial values are representable in FP8/6, BF8/6 FP4 is missing 5
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<PackedAType>{-6, 7}); // Z[-6,6]
+            b_n_k.GenerateTensorValue(GeneratorTensor_2<PackedBType>{-6, 7});
 
             break;
         }
@@ -1577,7 +1573,7 @@ struct TestMFMA
             {
                 for(int j = 0; j < params.N; ++j)
                 {
-                    std::cout << std::setw(11) << std::fixed << std::setprecision(6)
+                    std::cout << std::setw(10) << std::fixed << std::setprecision(4)
                               << type_convert<float>(c_device(i, j));
                 }
                 std::cout << std::endl;
@@ -1589,7 +1585,7 @@ struct TestMFMA
             {
                 for(int j = 0; j < params.N; ++j)
                 {
-                    std::cout << std::setw(11) << std::fixed << std::setprecision(6)
+                    std::cout << std::setw(10) << std::fixed << std::setprecision(4)
                               << type_convert<float>(c_host(i, j));
                 }
                 std::cout << std::endl;
