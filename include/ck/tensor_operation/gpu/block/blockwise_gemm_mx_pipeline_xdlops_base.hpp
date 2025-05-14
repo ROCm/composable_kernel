@@ -384,8 +384,8 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                 Number<KPack / APackedSize>{}),
                                      make_tuple(Number<KPack / APackedSize * MXdlPack>{},
                                                 Number<KRepeat * MRepeat * KPack / APackedSize>{},
-                                                Number<KPack / APackedSize>{},
                                                 Number<MRepeat * KPack / APackedSize>{},
+                                                Number<KPack / APackedSize>{},
                                                 I1));
 
     // B[N0, N1, N2, KPack]
@@ -397,13 +397,17 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                 Number<KPack / BPackedSize>{}),
                                      make_tuple(Number<KPack / BPackedSize * NXdlPack>{},
                                                 Number<KRepeat * NRepeat * KPack / BPackedSize>{},
-                                                Number<KPack / BPackedSize>{},
                                                 Number<NRepeat * KPack / BPackedSize>{},
+                                                Number<KPack / BPackedSize>{},
                                                 I1));
 
     // C[M, N, NumRegXdlops]
-    static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<MRepeat/MXdlPack>{}, Number<NRepeat/NXdlPack>{}, Number<MXdlPack>{}, Number<NXdlPack>{}, xdlops_gemm.GetRegSizePerXdlops()));
+    static constexpr auto c_thread_desc_ =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
+                                                       Number<NRepeat / NXdlPack>{},
+                                                       Number<MXdlPack>{},
+                                                       Number<NXdlPack>{},
+                                                       xdlops_gemm.GetRegSizePerXdlops()));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<ADataType,
                                                          ComputeTypeA,
