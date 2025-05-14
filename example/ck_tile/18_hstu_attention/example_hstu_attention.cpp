@@ -84,7 +84,7 @@ auto create_args(int argc, char* argv[])
         .insert("context_len", "6", "sequence length at the begin of the query sequence the should be included for attention")
         .insert("minfull_len", "6", "sequence length at the end of the query sequence that should be included for attention")
 	.insert("seed", "13579", "seed by the uniform or normal distribution generator")
-        .insert("save_mask", "1", "save the mask tensor to disk by the CPU validation codes")
+        .insert("save_mask", "0", "save the mask tensor to disk by the CPU validation codes")
         .insert("perf", "0", "weather measure execution time or not");
     // clang-format on
 
