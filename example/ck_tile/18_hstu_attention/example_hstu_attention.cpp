@@ -40,7 +40,7 @@ void dumpBufferToFile(const char* fileName, T* data, size_t dataNumItems)
     {
         outFile.write(reinterpret_cast<char*>(data), dataNumItems * sizeof(T));
         outFile.close();
-        printf("Wrote output to file %s\n", fileName);
+        printf("Write output to file %s\n", fileName);
     }
     else
     {
@@ -84,6 +84,7 @@ auto create_args(int argc, char* argv[])
         .insert("context_len", "6", "sequence length at the begin of the query sequence the should be included for attention")
         .insert("minfull_len", "6", "sequence length at the end of the query sequence that should be included for attention")
 	.insert("seed", "13579", "seed by the uniform or normal distribution generator")
+        .insert("save_mask", "1", "save the mask tensor to disk by the CPU validation codes")
         .insert("perf", "0", "weather measure execution time or not");
     // clang-format on
 
@@ -197,6 +198,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int seed          = arg_parser.get_int("seed");
     bool measure_perf = static_cast<bool>(arg_parser.get_int("perf"));
 
+    bool save_mask = static_cast<bool>(arg_parser.get_int("save_mask"));
+
     std::string str_of_targets   = arg_parser.get_str("targets");
     std::vector<int> num_targets = get_integers_from_string(str_of_targets);
 
@@ -260,7 +263,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     else
     {
         assert(1 == seq_lengths.size());
-        seqlen = seq_lengths[0];
+        seqlen     = seq_lengths[0];
+        max_seqlen = seqlen;
 
         if(!num_targets.empty())
         {
@@ -309,6 +313,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, num_head, hdim_v});
     ck_tile::HostTensor<InOutDataType> o_host_ref(
         std::array<ck_tile::index_t, 4>{batches_for_alloc, seqlen, num_head, hdim_v});
+
+    ck_tile::HostTensor<int8_t> mask_host(
+        save_mask ? std::array<ck_tile::index_t, 4>{num_batch, num_head, max_seqlen, max_seqlen}
+                  : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
 
     ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(q_host);
     ck_tile::FillNormalDistribution<InOutDataType>{0.f, 1.f, seed}(k_host);
@@ -447,6 +455,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                               k_host,
                                                               v_host,
                                                               o_host_ref,
+                                                              mask_host,
                                                               num_batch,
                                                               1.0f / std::sqrt(params.hdim_qk),
                                                               is_jagged ? max_seqlen : seqlen,
@@ -464,6 +473,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         // dumpBufferToFile("output_dev.dat", o_host.data(), o_host.get_element_space_size());
         // dumpBufferToFile("output_host.dat", o_host_ref.data(), o_host.get_element_space_size());
+
+        if(save_mask)
+            dumpBufferToFile("ck_hstu_mask.dat", mask_host.data(), mask_host.get_element_space_size());
 
         auto [rtol, atol] = get_elimit<InOutDataType>();
 
