@@ -18,7 +18,7 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_moe_mx_gemm2.hpp"
 #include "ck/library/utility/check_err.hpp"
-
+#include "ck/library/utility/fill.hpp"
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 
 template <ck::index_t... Is>
@@ -315,8 +315,12 @@ int main(int argc, char* argv[])
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     case 2:
-        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        // a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{1.0, 1.0});
+        // b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{1.0, 1.0});
+        ck::utils::FillConstant<A0DataType>{ck::type_convert<A0DataType>(ck::float2_t(1.0f))}(
+            a0_t_k_k);
+        ck::utils::FillConstant<B0DataType>{ck::type_convert<B0DataType>(ck::float2_t(1.0f))}(
+            b0_e_n_k);
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
@@ -359,6 +363,78 @@ int main(int argc, char* argv[])
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
+
+#if 1
+    printf("a0_t_k_k:\n");
+    for(int t = 0; t < tokens; ++t)
+    {
+        for(int tk = 0; tk < topk; ++tk)
+        {
+            for(int k = 0; k < K; ++k)
+            {
+                if(k % 2 == 0)
+                {
+                    printf("%f ", ck::type_convert<float>(a0_t_k_k(t, tk, k).data >> 4 & 0xf));
+                }
+                else
+                {
+                    printf("%f ", ck::type_convert<float>(a0_t_k_k(t, tk, k).data & 0xf));
+                }
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
+
+    printf("a1_t_k_k:\n");
+    for(int t = 0; t < tokens; ++t)
+    {
+        for(int tk = 0; tk < topk; ++tk)
+        {
+            for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
+            {
+                printf("%f ", ck::type_convert<float>(a1_t_k_k(t, tk, k)));
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
+
+    printf("b0_e_n_k:\n");
+    for(int e = 0; e < experts; ++e)
+    {
+        for(int n = 0; n < N; ++n)
+        {
+            for(int k = 0; k < K; ++k)
+            {
+                if(k % 2 == 0)
+                {
+                    printf("%f ", ck::type_convert<float>(b0_e_n_k(e, k, n).data >> 4 & 0xf));
+                }
+                else
+                {
+                    printf("%f ", ck::type_convert<float>(b0_e_n_k(e, k, n).data & 0xf));
+                }
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
+
+    printf("b1_e_n_k:\n");
+    for(int e = 0; e < experts; ++e)
+    {
+        for(int n = 0; n < N; ++n)
+        {
+            for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
+            {
+                printf("%f ", ck::type_convert<float>(b1_e_n_k(e, k, n)));
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
+#endif
 
     // do GEMM
     auto device_op = DeviceOpInstance{};

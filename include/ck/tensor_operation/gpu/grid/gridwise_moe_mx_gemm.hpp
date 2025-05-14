@@ -1310,7 +1310,7 @@ struct GridwiseMoeGemmMX
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
+            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K / APackedSize;
         });
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));

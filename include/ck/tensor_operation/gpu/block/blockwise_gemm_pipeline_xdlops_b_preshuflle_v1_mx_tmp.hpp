@@ -778,6 +778,34 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
                                 b_scale_thread_bufs[I0][Number<b_scale_offset + s>{}];
                         });
 
+#if 0
+                        printf("bidx: %u, bidy: %u, tidx: %u, a_thread_vec: %02x, %02x, %02x, %02x, b_thread_vec: %02x, %02x, %02x, %02x,"
+                               "a_scale_thread_vec: %02x, b_scale_vec: %02x\n",
+                               blockIdx.x,
+                               blockIdx.y,
+                               threadIdx.x,
+
+                               *(reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<0>{}]))),
+                               *(reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<1>{}]))),
+                               *(reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<2>{}]))),
+                               *(reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<3>{}]))),
+                               *(reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeB>()[Number<0>{}]))),
+                               *(reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeB>()[Number<1>{}]))),
+                               *(reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeB>()[Number<2>{}]))),
+                               *(reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeB>()[Number<3>{}]))),
+
+                            //    type_convert<float>(a_thread_vec.template AsType<ComputeTypeA>()[Number<0>{}].unpack(Number<0>{})),
+                            //    type_convert<float>(a_thread_vec.template AsType<ComputeTypeA>()[Number<0>{}].unpack(Number<1>{})),
+                            //    type_convert<float>(a_thread_vec.template AsType<ComputeTypeA>()[Number<1>{}].unpack(Number<0>{})),
+                            //    type_convert<float>(a_thread_vec.template AsType<ComputeTypeA>()[Number<1>{}].unpack(Number<1>{})),
+                            //    type_convert<float>(b_thread_vec.template AsType<ComputeTypeB>()[Number<0>{}].unpack(Number<0>{})),
+                            //    type_convert<float>(b_thread_vec.template AsType<ComputeTypeB>()[Number<0>{}].unpack(Number<1>{})),
+                            //    type_convert<float>(b_thread_vec.template AsType<ComputeTypeB>()[Number<1>{}].unpack(Number<0>{})),
+                            //    type_convert<float>(b_thread_vec.template AsType<ComputeTypeB>()[Number<1>{}].unpack(Number<1>{})),
+                               *(reinterpret_cast<const uint8_t*>(&(a_scale_thread_vec.template AsType<AScaleDataType>()[Number<0>{}]))),
+                               *(reinterpret_cast<const uint8_t*>(&(b_scale_thread_vec.template AsType<BScaleDataType>()[Number<0>{}]))));
+#endif
+
                         using mfma_input_type_a =
                             typename vector_type<ComputeTypeA,
                                                  xdlops_gemm.K1PerXdlops / APackedSize>::type;
@@ -796,8 +824,29 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
                             b_scale_thread_vec.template AsType<BScaleDataType>(),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                     });
+#if 0
+                    printf("bidx: %u, bidx: %u, tidx: %u, c_thread_buf: %f, %f, %f, %f\n",
+                        blockIdx.x,
+                        blockIdx.y,
+                        threadIdx.x,
+                        (c_thread_buf[Number<0>{}]),
+                        (c_thread_buf[Number<1>{}]),
+                        (c_thread_buf[Number<2>{}]),
+                        (c_thread_buf[Number<3>{}]));
+#endif
                 });
             });
+#if 0
+            printf("bidx: %u, bidx: %u, tidx: %u, c_thread_buf: %f, %f, %f, %f\n",
+                blockIdx.x,
+                blockIdx.y,
+                threadIdx.x,
+                type_convert<float>(c_thread_buf.GetVectorTypeReference(Number<0>{}).template AsType<float>()[Number<0>{}]),
+                type_convert<float>(c_thread_buf.GetVectorTypeReference(Number<0>{}).template AsType<float>()[Number<1>{}]),
+                type_convert<float>(c_thread_buf.GetVectorTypeReference(Number<0>{}).template AsType<float>()[Number<2>{}]),
+                type_convert<float>(c_thread_buf.GetVectorTypeReference(Number<0>{}).template AsType<float>()[Number<3>{}]));
+
+#endif
         }
     }
 

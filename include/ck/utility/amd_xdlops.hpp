@@ -762,6 +762,7 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
 
         using arg_type = int32x8_t;
 
+#if 1
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], 0, 0, 0, 0},
@@ -773,6 +774,43 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 scale_a,
                 0, // OPSEL
                 scale_b);
+#else
+        asm volatile("v_mfma_scale_f32_16x16x128_f8f6f4 %0, %1, %2, %3, %4, %5 "
+                     "op_sel:[0,0]"
+                     "op_sel_hi:[0,0]"
+                     "cbsz:4"
+                     " blgp:4"
+                     : "+v"(reg_c.template AsType<float4_t>()(Number<0>{}))
+                     : "v"(bit_cast<int32x4_t>(arg_a)),
+                       "v"(bit_cast<int32x4_t>(arg_b)),
+                       "v"(reg_c.template AsType<float4_t>()[Number<0>{}]),
+                       "v"(scale_a),
+                       "v"(scale_b));
+#endif
+
+#if 1
+        printf("bidx: %u, bidy: %u, tid: %u, A: %08x, %08x, %08x, %08x,"
+               "B:%08x, %08x, %08x, %08x, a_scale: %08x, b_scale: %08x, "
+               "reg_c: %f, %f, %f, %f\n",
+               blockIdx.x,
+               blockIdx.y,
+               threadIdx.x,
+               bit_cast<uint32_t>(arg_a[0]),
+               bit_cast<uint32_t>(arg_a[1]),
+               bit_cast<uint32_t>(arg_a[2]),
+               bit_cast<uint32_t>(arg_a[3]),
+               bit_cast<uint32_t>(arg_b[0]),
+               bit_cast<uint32_t>(arg_b[1]),
+               bit_cast<uint32_t>(arg_b[2]),
+               bit_cast<uint32_t>(arg_b[3]),
+               *(reinterpret_cast<const uint32_t*>(&(scale_a))),
+               *(reinterpret_cast<const uint32_t*>(&(scale_b))),
+               reg_c.template AsType<float>()[Number<0>{}],
+               reg_c.template AsType<float>()[Number<1>{}],
+               reg_c.template AsType<float>()[Number<2>{}],
+               reg_c.template AsType<float>()[Number<3>{}]);
+#endif
+
 #else
         ignore = reg_a;
         ignore = scale_a;
