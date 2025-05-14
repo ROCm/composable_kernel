@@ -298,7 +298,7 @@ struct BlockUniversalGemmAsBsCr
         using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
 
         ALdsTile a_warp_tile_;
-        ALdsTile b_warp_tile_;
+        BLdsTile b_warp_tile_;
 
         template <typename ASmemBlockWindow, typename BSmemBlockWindow>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,

@@ -187,7 +187,8 @@ struct TransformConvBwdDataToGemm_v1
           WTilde_{static_cast<IndexType>(transform_conv_bwd_data_to_gemm_base.WTilde_)},
           ZDot_{static_cast<IndexType>(transform_conv_bwd_data_to_gemm_base.ZDot_)},
           YDot_{static_cast<IndexType>(transform_conv_bwd_data_to_gemm_base.YDot_)},
-          XDot_{static_cast<IndexType>(transform_conv_bwd_data_to_gemm_base.XDot_)}
+          XDot_{static_cast<IndexType>(transform_conv_bwd_data_to_gemm_base.XDot_)},
+          batch_k_{transform_conv_bwd_data_to_gemm_base.batch_k_}
     {
     }
 
@@ -203,7 +204,8 @@ struct TransformConvBwdDataToGemm_v1
                                   const ConvSpatialDimsType& conv_filter_dilations,
                                   const ConvSpatialDimsType& input_left_pads,
                                   const ConvSpatialDimsType& input_right_pads,
-                                  const ConvSpatialDimsType& tildes)
+                                  const ConvSpatialDimsType& tildes,
+                                  const index_t batch_k = 1)
         : Hi_{c_g_n_c_wis_lengths[HIdx]},
           Wi_{c_g_n_c_wis_lengths[WIdx]},
           Ho_{a_g_n_k_wos_lengths[HIdx]},
@@ -231,7 +233,8 @@ struct TransformConvBwdDataToGemm_v1
           InRightPadH_{input_right_pads[HIdx - NonSpatialDimsNum]},
           InRightPadW_{input_right_pads[WIdx - NonSpatialDimsNum]},
           IdxYTilde_{tildes[YIdx - NonSpatialDimsNum]},
-          IdxXTilde_{tildes[XIdx - NonSpatialDimsNum]}
+          IdxXTilde_{tildes[XIdx - NonSpatialDimsNum]},
+          batch_k_{batch_k}
     {
         static_assert(is_same_v<ConvSpatialDimsType, std::array<IndexType, NDimSpatial>> ||
                       is_same_v<ConvSpatialDimsType, ck::Array<IndexType, NDimSpatial>>);
@@ -616,20 +619,22 @@ struct TransformConvBwdDataToGemm_v1
                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
                          Filter1x1Stride1Pad0)
         {
-            const index_t AK0 = math::integer_divide_ceil(K_, AK1);
+            const index_t K0PerBlock = GemmKPerBlock / AK1;
+            const index_t AK0 =
+                math::integer_divide_ceil(K_, AK1 * K0PerBlock * batch_k_) * K0PerBlock;
 
             // A: output tensor
             const auto out_gemmak0_gemmmraw_gemmak1_grid_desc = transform_tensor_descriptor(
                 out_grid_desc,
                 make_tuple(make_pass_through_transform(N_ * Do_ * Ho_ * Wo_),
-                           make_unmerge_transform(make_tuple(AK0, AK1))),
+                           make_unmerge_transform(make_tuple(AK0 * batch_k_, AK1))),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
 
             const auto out_gemmak0_gemmm_gemmak1_grid_desc =
                 ck::tensor_operation::device::PadTensorDescriptor(
                     out_gemmak0_gemmmraw_gemmak1_grid_desc,
-                    make_tuple(AK0, GemmMPerBlock, AK1),
+                    make_tuple(AK0 * batch_k_, GemmMPerBlock, AK1),
                     Sequence<false, DoPadGemmM, false>{});
 
             return out_gemmak0_gemmm_gemmak1_grid_desc;
@@ -719,11 +724,15 @@ struct TransformConvBwdDataToGemm_v1
                         make_tuple(GemmKPerBlock, GemmMPerBlock),
                         Sequence<true, DoPadGemmM>{});
 
-                const index_t AK0 = out_gemmk_gemmm_padded_grid_desc.GetLength(I0) / AK1;
+                const index_t K0PerBlock = GemmKPerBlock / AK1;
+                const index_t AK0 =
+                    math::integer_divide_ceil(out_gemmk_gemmm_padded_grid_desc.GetLength(I0),
+                                              AK1 * K0PerBlock * batch_k_) *
+                    K0PerBlock;
 
                 const auto out_gemmak0_gemmm_gemmak1_grid_desc = transform_tensor_descriptor(
                     out_gemmk_gemmm_padded_grid_desc,
-                    make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                    make_tuple(make_unmerge_transform(make_tuple(AK0 * batch_k_, AK1)),
                                make_pass_through_transform(
                                    out_gemmk_gemmm_padded_grid_desc.GetLength(I1))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -816,11 +825,15 @@ struct TransformConvBwdDataToGemm_v1
                         make_tuple(GemmKPerBlock, GemmMPerBlock),
                         Sequence<true, DoPadGemmM>{});
 
-                const index_t AK0 = out_gemmk_gemmm_padded_grid_desc.GetLength(I0) / AK1;
+                const index_t K0PerBlock = GemmKPerBlock / AK1;
+                const index_t AK0 =
+                    math::integer_divide_ceil(out_gemmk_gemmm_padded_grid_desc.GetLength(I0),
+                                              AK1 * K0PerBlock * batch_k_) *
+                    K0PerBlock;
 
                 const auto out_gemmak0_gemmm_gemmak1_grid_desc = transform_tensor_descriptor(
                     out_gemmk_gemmm_padded_grid_desc,
-                    make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
+                    make_tuple(make_unmerge_transform(make_tuple(AK0 * batch_k_, AK1)),
                                make_pass_through_transform(
                                    out_gemmk_gemmm_padded_grid_desc.GetLength(I1))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -850,21 +863,23 @@ struct TransformConvBwdDataToGemm_v1
                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
                          Filter1x1Stride1Pad0)
         {
-            const index_t BK0 = math::integer_divide_ceil(K_, BK1);
+            const index_t K0PerBlock = GemmKPerBlock / BK1;
+            const index_t BK0 =
+                math::integer_divide_ceil(K_, BK1 * K0PerBlock * batch_k_) * K0PerBlock;
 
             // B: weight tensor
-            const auto wei_gemmbk0_gemmnraw_gemmbk1_grid_desc =
-                transform_tensor_descriptor(make_naive_tensor_descriptor_packed(make_tuple(K_, C_)),
-                                            make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                       make_pass_through_transform(C_)),
-                                            make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+            const auto wei_gemmbk0_gemmnraw_gemmbk1_grid_desc = transform_tensor_descriptor(
+                make_naive_tensor_descriptor_packed(make_tuple(K_, C_)),
+                make_tuple(make_unmerge_transform(make_tuple(BK0 * batch_k_, BK1)),
+                           make_pass_through_transform(C_)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
             make_naive_tensor_descriptor(make_tuple(N_ * Do_ * Ho_ * Wo_, C_), make_tuple(I0, I1));
 
             const auto wei_gemmbk0_gemmn_gemmbk1_grid_desc =
                 ck::tensor_operation::device::PadTensorDescriptor(
                     wei_gemmbk0_gemmnraw_gemmbk1_grid_desc,
-                    make_tuple(BK0, GemmNPerBlock, BK1),
+                    make_tuple(BK0 * batch_k_, GemmNPerBlock, BK1),
                     Sequence<false, DoPadGemmN, false>{});
 
             return wei_gemmbk0_gemmn_gemmbk1_grid_desc;
@@ -925,11 +940,15 @@ struct TransformConvBwdDataToGemm_v1
                         make_tuple(GemmKPerBlock, GemmNPerBlock),
                         Sequence<true, DoPadGemmN>{});
 
-                const index_t BK0 = wei_gemmk_gemmn_padded_grid_desc.GetLength(I0) / BK1;
+                const index_t K0PerBlock = GemmKPerBlock / BK1;
+                const index_t BK0 =
+                    math::integer_divide_ceil(wei_gemmk_gemmn_padded_grid_desc.GetLength(I0),
+                                              BK1 * K0PerBlock * batch_k_) *
+                    K0PerBlock;
 
                 const auto wei_gemmbk0_gemmn_gemmbk1_grid_desc = transform_tensor_descriptor(
                     wei_gemmk_gemmn_padded_grid_desc,
-                    make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                    make_tuple(make_unmerge_transform(make_tuple(BK0 * batch_k_, BK1)),
                                make_pass_through_transform(
                                    wei_gemmk_gemmn_padded_grid_desc.GetLength(I1))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -1006,11 +1025,15 @@ struct TransformConvBwdDataToGemm_v1
                         make_tuple(GemmKPerBlock, GemmNPerBlock),
                         Sequence<true, DoPadGemmN>{});
 
-                const index_t BK0 = wei_gemmk_gemmn_padded_grid_desc.GetLength(I0) / BK1;
+                const index_t K0PerBlock = GemmKPerBlock / BK1;
+                const index_t BK0 =
+                    math::integer_divide_ceil(wei_gemmk_gemmn_padded_grid_desc.GetLength(I0),
+                                              BK1 * K0PerBlock * batch_k_) *
+                    K0PerBlock;
 
                 const auto wei_gemmbk0_gemm_gemmbk1_grid_desc = transform_tensor_descriptor(
                     wei_gemmk_gemmn_padded_grid_desc,
-                    make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
+                    make_tuple(make_unmerge_transform(make_tuple(BK0 * batch_k_, BK1)),
                                make_pass_through_transform(
                                    wei_gemmk_gemmn_padded_grid_desc.GetLength(I1))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
@@ -1355,6 +1378,7 @@ struct TransformConvBwdDataToGemm_v1
     IndexType ZTilde_, YTilde_, XTilde_;
     IndexType DTilde_, HTilde_, WTilde_;
     IndexType ZDot_, YDot_, XDot_;
+    index_t batch_k_;
 };
 
 } // namespace tensor_operation

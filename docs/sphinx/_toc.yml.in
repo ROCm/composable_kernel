@@ -32,10 +32,10 @@ subtrees:
     title: Composable Kernel custom types
   - file: reference/Composable_Kernel_vector_utilities.rst
     title: Composable Kernel vector utilities
-  - file: reference/Composable-Kernel-API-reference.rst
-    title: Composable Kernel API reference
   - file: reference/Composable-Kernel-wrapper.rst
-    title: Composable Kernel Wrapper
+    title: Composable Kernel wrapper
+  - file: doxygen/html/annotated.rst
+    title: Composable Kernel class list
 
 - caption: About
   entries:
