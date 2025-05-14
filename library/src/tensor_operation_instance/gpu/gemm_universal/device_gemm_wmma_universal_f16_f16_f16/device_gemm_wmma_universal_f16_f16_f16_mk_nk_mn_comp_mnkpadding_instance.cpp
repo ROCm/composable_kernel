@@ -9,13 +9,14 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_default_instances(
+void add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_mnkpadding_instances(
     std::vector<std::unique_ptr<
         DeviceGemmV2<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances)
 {
     add_device_operation_instances(
-        instances, device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_instances<GemmDefault>{});
+        instances,
+        device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_instances<GemmMNKPadding>{});
 }
 
 } // namespace instance
