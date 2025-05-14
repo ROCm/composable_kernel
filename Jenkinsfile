@@ -339,7 +339,7 @@ def cmake_build(Map conf=[:]){
         sh cmd
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            if (setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE){
+            if ((setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE) || params.BUILD_INSTANCES_ONLY){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
                 sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
                 sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
@@ -348,6 +348,13 @@ def cmake_build(Map conf=[:]){
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
                     sh "ninja check"
+                }
+                if(params.BUILD_INSTANCES_ONLY){
+                    // build deb packages
+                    echo "Build packages"
+                    sh 'ninja -j64 package'
+                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
+                    stash includes: "composablekernel-**.deb", name: "packages"
                 }
             }
             else{
@@ -441,18 +448,8 @@ def buildHipClangJob(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 20, unit: 'HOURS')
                 {
-                    //check whether to run performance tests on this node
-                    def arch = check_arch()
                     cmake_build(conf)
-                    dir("build"){
-                        if (params.BUILD_INSTANCES_ONLY && arch == 2 ){
-                            // build deb packages
-                            echo "Build packages"
-                            sh 'ninja -j64 package'
-                            sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
-                            stash includes: "composablekernel-**.deb", name: "packages"
-                        }
-                    }
+
                 }
             }
         }
@@ -1193,7 +1190,7 @@ pipeline {
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
+                                           -D CMAKE_CXX_FLAGS=" -O3 -ftime-trace" .. && ninja -j64 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
