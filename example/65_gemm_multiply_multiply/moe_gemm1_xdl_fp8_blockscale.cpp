@@ -129,7 +129,7 @@ static constexpr ck::index_t Nswizzle    = false;
 static constexpr ck::index_t ActOP       = 0; // 0: gelu_and_mul, 1: silu_and_mul
 static constexpr bool MulRoutedWeight    = false;
 
-#if 1
+#if 0
 static constexpr ck::index_t MPerBlock = 32;
 static constexpr ck::index_t NPerBlock   = 128;
 static constexpr ck::index_t MNPerXDL    = 16;
@@ -169,7 +169,7 @@ using DeviceOpInstance                   = ck::tensor_operation::device::DeviceM
                 CShuffleMXDLPerWave,    CShuffleNXDLPerWave,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, true, MulRoutedWeight, int32_t, A0DataType>;
 #else
-static constexpr ck::index_t MPerBlock = 128; using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
+static constexpr ck::index_t MPerBlock = 64; using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
                Row, Col, DsLayout, ELayout,
                A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,   GemmSpec,   
@@ -177,10 +177,10 @@ static constexpr ck::index_t MPerBlock = 128; using DeviceOpInstance = ck::tenso
                MPerBlock,   128,    128,
                16,   16,
                16,   16,
-               4,    4,
+               4,    2,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               2,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
+               4,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, true, MulRoutedWeight, int32_t, A0DataType>;
 #endif
 // clang-format on

@@ -195,12 +195,20 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
     {
         constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves * 2;
-
+        constexpr auto num_buffer_load_inst_b =
+            HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves * 2;
+        constexpr auto mfma_interleave = MPerXDL == 32 ? 1 : 2;
         // B global
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            if constexpr(MPerBlock >= 128 && NPerBlock >= 64)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x008, 2 * mfma_interleave, 0);
+            }
+            else
+            {
+                __builtin_amdgcn_sched_group_barrier(0x008, mfma_interleave, 0);
+            }
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         });
 
@@ -214,11 +222,12 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
         });
 
         // A local
-        static_for<0, num_ds_read_inst_a / 2, 1>{}([&](auto i) {
-            ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-        });
+        static_for<0, MPerXDL == 32 ? num_ds_read_inst_a / 2 : num_ds_read_inst_a, 1>{}(
+            [&](auto i) {
+                ignore = i;
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                     // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, MPerXDL == 32 ? 2 : 1, 0); // DS read
+            });
     }
 
     template <bool HasMainLoop,
