@@ -38,6 +38,10 @@ TEST(FP4, ConvertFP32Nearest)
     // convert maximal float to fp4 and back, check if clipped to 6.0
     ASSERT_NEAR(
         max_fp4, type_convert<float>(f4_convert_rne(std::numeric_limits<float>::max())), abs_tol);
+
+    // convert 7.0 to fp4 and back, check if clipped to 6.0
+    ASSERT_NEAR(max_fp4, type_convert<float>(f4_convert_rne(7.0f)), 0.0);
+
     // positive norm float value to fp4 and back, check if holds
     float pos_float = 1.0f;
     ASSERT_NEAR(pos_float, type_convert<float>(f4_convert_rne(pos_float)), abs_tol);

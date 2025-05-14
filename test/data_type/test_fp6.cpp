@@ -34,6 +34,10 @@ TEST(FP6, ConvertFP32Nearest)
     ASSERT_NEAR(0.0f, type_convert<float>(f6_convert_rne(0.0f)), 0.0f);
     // convert maximal f6_t to float and check if equal to max_fp6
     ASSERT_NEAR(max_fp6, type_convert<float>(f6_convert_rne(max_fp6)), 0.0f);
+
+    // convert maximal 8.0 to fp6 and check if equal to max_fp6
+    ASSERT_NEAR(max_fp6, type_convert<float>(f6_convert_rne(8.0f)), 0.0f);
+
     // convert maximal float to fp6 and back, check if clipped to max_fp6
     ASSERT_NEAR(
         max_fp6, type_convert<float>(f6_convert_rne(std::numeric_limits<float>::max())), 0.0f);
