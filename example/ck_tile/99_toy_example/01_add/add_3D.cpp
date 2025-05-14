@@ -6,13 +6,13 @@
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("b", "4", "b dimension")
-        .insert("m", "10240", "m dimension")
-        .insert("n", "4096", "n dimension")
+    arg_parser.insert("b", "16", "b dimension")
+        .insert("m", "8192", "m dimension")
+        .insert("n", "8192", "n dimension")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
-        .insert("warmup", "200", "cold iter")
-        .insert("repeat", "1000", "hot iter");
+        .insert("warmup", "1", "cold iter")
+        .insert("repeat", "2", "hot iter");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -81,6 +81,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        b,
                                        m,
                                        n));
+    
+    // using Kernel = ck_tile::AddTemplate<Porblem, 4, 4096, 4096>;
+
+    // float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+    //                                ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+    //                                    Kernel{},
+    //                                    kGridSize,
+    //                                    kBlockSize,
+    //                                    0,
+    //                                    static_cast<XDataType*>(x_buf_a.GetDeviceBuffer()),
+    //                                    static_cast<XDataType*>(x_buf_b.GetDeviceBuffer()),
+    //                                    static_cast<YDataType*>(y_buf.GetDeviceBuffer())
+    //                                    ));
+
 
     std::size_t num_btype = 2 * sizeof(XDataType) * b * m * n + sizeof(YDataType) * b * m * n;
 

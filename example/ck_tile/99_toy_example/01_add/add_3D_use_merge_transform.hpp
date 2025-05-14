@@ -85,6 +85,126 @@ struct AddDefaultPolicy
     }
 };
 
+// Templated implementation with compile-time dimensions
+template <typename Problem_, index_t B_val, index_t M_val, index_t N_val, typename Policy_ = AddDefaultPolicy>
+struct AddTemplate
+{
+    using Problem = ck_tile::remove_cvref_t<Problem_>;
+    using Policy  = ck_tile::remove_cvref_t<Policy_>;
+
+    using XDataType       = ck_tile::remove_cvref_t<typename Problem::XDataType>;
+    using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
+    using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
+
+    CK_TILE_DEVICE void operator()(
+        const XDataType* p_x_a, const XDataType* p_x_b, YDataType* p_y) const
+    {
+        using S = typename Problem::BlockShape;
+
+        // Create 3D tensor views with compile-time dimensions
+        const auto x_b_m_n_a = make_naive_tensor_view<address_space_enum::global,
+                                                      memory_operation_enum::set,
+                                                      amd_buffer_coherence_enum::slc>(
+            p_x_a,
+            make_tuple(number<B_val>{}, number<M_val>{}, number<N_val>{}),
+            make_tuple(number<M_val * N_val>{}, number<N_val>{}, number<1>{}),
+            number<S::Vector_N>{},
+            number<1>{});
+
+        const auto x_b_m_n_b = make_naive_tensor_view<address_space_enum::global,
+                                                      memory_operation_enum::set,
+                                                      amd_buffer_coherence_enum::slc>(
+            p_x_b, 
+            make_tuple(number<B_val>{}, number<M_val>{}, number<N_val>{}),
+            make_tuple(number<M_val * N_val>{}, number<N_val>{}, number<1>{}),
+            number<S::Vector_N>{}, 
+            number<1>{});
+
+        const auto y_b_m_n = make_naive_tensor_view<address_space_enum::global,
+                                                    memory_operation_enum::set,
+                                                    amd_buffer_coherence_enum::slc>(
+            p_y, 
+            make_tuple(number<B_val>{}, number<M_val>{}, number<N_val>{}),
+            make_tuple(number<M_val * N_val>{}, number<N_val>{}, number<1>{}),
+            number<S::Vector_N>{}, 
+            number<1>{});
+
+        // Now can use make_merge_transform with compile-time constants
+        const auto x_m_n_a = transform_tensor_descriptor(
+            x_b_m_n_a,
+            make_tuple(
+                make_merge_transform(make_tuple(number<B_val>{}, number<M_val>{})),
+                make_pass_through_transform(number<N_val>{})
+            ),
+            make_tuple(sequence<0, 1>{}, sequence<2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        const auto x_m_n_b = transform_tensor_descriptor(
+            x_b_m_n_b,
+            make_tuple(
+                make_merge_transform(make_tuple(number<B_val>{}, number<M_val>{})),
+                make_pass_through_transform(number<N_val>{})
+            ),
+            make_tuple(sequence<0, 1>{}, sequence<2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        const auto y_m_n = transform_tensor_descriptor(
+            y_b_m_n,
+            make_tuple(
+                make_merge_transform(make_tuple(number<B_val>{}, number<M_val>{})),
+                make_pass_through_transform(number<N_val>{})
+            ),
+            make_tuple(sequence<0, 1>{}, sequence<2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        // Calculate origin in flattened space
+        const auto iM = get_block_id() * S::Block_M;
+
+        // Create tile windows
+        auto x_window_a = make_tile_window(x_m_n_a,
+                                           make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                           {iM, 0},
+                                           Policy::template MakeXBlockTileDistribution<Problem>());
+
+        auto x_window_b = make_tile_window(x_m_n_b,
+                                           make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                           {iM, 0},
+                                           Policy::template MakeXBlockTileDistribution<Problem>());
+
+        auto y_window = make_tile_window(y_m_n,
+                                         make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                         {iM, 0},
+                                         Policy::template MakeXBlockTileDistribution<Problem>());
+
+        // Calculate iterations needed
+        index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N_val, S::Block_N));
+
+        // Process tiles
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        {
+            const auto xa  = load_tile(x_window_a);
+            const auto xb  = load_tile(x_window_b);
+            auto y_compute = load_tile(y_window);
+
+            constexpr auto spans = decltype(xa)::get_distributed_spans();
+            sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
+                    constexpr auto i_j_idx = ck_tile::make_tuple(idx0, idx1);
+                    const auto x           = ck_tile::type_convert<ComputeDataType>(xa[i_j_idx]);
+                    const auto y           = ck_tile::type_convert<ComputeDataType>(xb[i_j_idx]);
+                    y_compute(i_j_idx)     = x + y;
+                });
+            });
+
+            store_tile(y_window, cast_tile<YDataType>(y_compute));
+            move_tile_window(x_window_a, {0, S::Block_N});
+            move_tile_window(x_window_b, {0, S::Block_N});
+            move_tile_window(y_window, {0, S::Block_N});
+        }
+    }
+};
+
 template <typename Problem_, typename Policy_ = AddDefaultPolicy>
 struct Add
 {
@@ -100,81 +220,54 @@ struct Add
     {
         using S = typename Problem::BlockShape;
 
-        // Create 3D tensor views first
-        const auto x_b_m_n_a = make_naive_tensor_view<address_space_enum::global,
-                                                      memory_operation_enum::set,
-                                                      amd_buffer_coherence_enum::slc>(
-            p_x_a,
-            make_tuple(B, M, N),
-            make_tuple(M * N, N, 1),
-            number<S::Vector_N>{},
-            number<1>{});
-
-        const auto x_b_m_n_b = make_naive_tensor_view<address_space_enum::global,
-                                                      memory_operation_enum::set,
-                                                      amd_buffer_coherence_enum::slc>(
-            p_x_b, 
-            make_tuple(B, M, N), 
-            make_tuple(M * N, N, 1), 
-            number<S::Vector_N>{}, 
-            number<1>{});
-
-        const auto y_b_m_n = make_naive_tensor_view<address_space_enum::global,
+    
+        // Create flattened 2D view by combining B and M dimensions
+        const index_t M_flattened = B * M;
+    
+        const auto x_m_n_a = make_naive_tensor_view<address_space_enum::global,
                                                     memory_operation_enum::set,
                                                     amd_buffer_coherence_enum::slc>(
-            p_y, 
-            make_tuple(B, M, N), 
-            make_tuple(M * N, N, 1), 
+            p_x_a,
+            make_tuple(M_flattened, N),
+            make_tuple(N, 1),
+            number<S::Vector_N>{},
+            number<1>{}); // raw data, shape of tensor, stride of tensor, lastGarunteedVectorLength,
+                        // lastGarunteedVectorStride
+
+        const auto x_m_n_b = make_naive_tensor_view<address_space_enum::global,
+                                                    memory_operation_enum::set,
+                                                    amd_buffer_coherence_enum::slc>(
+            p_x_b, 
+            make_tuple(M_flattened, N), 
+            make_tuple(N, 1), 
             number<S::Vector_N>{}, 
             number<1>{});
 
-        // Now transform the 3D tensor views to 2D using make_merge_transform
-        // This merges the B and M dimensions
-        const auto x_m_n_a = transform_tensor_descriptor(
-            x_b_m_n_a,
-            make_tuple(
-            make_merge_transform(make_tuple(number<B>{}, number<M>{})),
-            make_pass_through_transform(number<N>{})
-            ),
-            make_tuple(sequence<0, 1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        const auto x_m_n_b = transform_tensor_descriptor(
-            x_b_m_n_b,
-            make_tuple(
-            make_merge_transform(make_tuple(number<B>{}, number<M>{})),
-            make_pass_through_transform(number<N>{})
-            ),
-            make_tuple(sequence<0, 1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        const auto y_m_n = transform_tensor_descriptor(
-            y_b_m_n,
-            make_tuple(
-            make_merge_transform(make_tuple(number<B>{}, number<M>{})),
-            make_pass_through_transform(number<N>{})
-            ),
-            make_tuple(sequence<0, 1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-
+        const auto y_m_n = make_naive_tensor_view<address_space_enum::global,
+                                                memory_operation_enum::set,
+                                                amd_buffer_coherence_enum::slc>(
+            p_y, 
+            make_tuple(M_flattened, N), 
+            make_tuple(N, 1), 
+            number<S::Vector_N>{}, 
+            number<1>{});
 
         const auto iM = get_block_id() * S::Block_M; // origin of the block along
 
         auto x_window_a = make_tile_window(x_m_n_a,
-                                           make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                                           {iM, 0},
-                                           Policy::template MakeXBlockTileDistribution<Problem>());
+                                        make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                        {iM, 0},
+                                        Policy::template MakeXBlockTileDistribution<Problem>());
 
         auto x_window_b = make_tile_window(x_m_n_b,
-                                           make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                                           {iM, 0},
-                                           Policy::template MakeXBlockTileDistribution<Problem>());
+                                        make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                        {iM, 0},
+                                        Policy::template MakeXBlockTileDistribution<Problem>());
 
         auto y_window = make_tile_window(y_m_n,
-                                         make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                                         {iM, 0},
-                                         Policy::template MakeXBlockTileDistribution<Problem>());
+                                        make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                        {iM, 0},
+                                        Policy::template MakeXBlockTileDistribution<Problem>());
 
         index_t num_n_tile_iteration =
             __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_N));
@@ -200,6 +293,7 @@ struct Add
             move_tile_window(x_window_b, {0, S::Block_N});
             move_tile_window(y_window, {0, S::Block_N});
         }
+        
     }
 };
 
