@@ -1118,9 +1118,15 @@ struct MfmaSelector
     }
 
     template <>
-    constexpr auto GetMfma<f8_t, 32, 32>()
+    constexpr auto GetMfma<f8_t, 32, 32, f8_t, true, false>()
     {
         return MfmaInstr::mfma_f32_32x32x16f8f8;
+    }
+
+    template <>
+    constexpr auto GetMfma<f8_t, 32, 32, f8_t, false, false>()
+    {
+        return MfmaInstr::mfma_f32_32x32x64f8f6f4;
     }
 
     template <>
@@ -1136,9 +1142,15 @@ struct MfmaSelector
     }
 
     template <>
-    constexpr auto GetMfma<f8_t, 16, 16>()
+    constexpr auto GetMfma<f8_t, 16, 16, f8_t, true, false>()
     {
         return MfmaInstr::mfma_f32_16x16x32f8f8;
+    }
+
+    template <>
+    constexpr auto GetMfma<f8_t, 16, 16, f8_t, false, false>()
+    {
+        return MfmaInstr::mfma_f32_16x16x128f8f6f4;
     }
 
     template <>
@@ -1166,39 +1178,75 @@ struct MfmaSelector
     }
 
     template <>
-    constexpr auto GetMfma<bf8_t, 32, 32>()
+    constexpr auto GetMfma<bf8_t, 32, 32, bf8_t, true, false>()
     {
         return MfmaInstr::mfma_f32_32x32x16bf8bf8;
     }
 
     template <>
-    constexpr auto GetMfma<bf8_t, 16, 16>()
+    constexpr auto GetMfma<bf8_t, 32, 32, bf8_t, false, false>()
+    {
+        return MfmaInstr::mfma_f32_32x32x64f8f6f4;
+    }
+
+    template <>
+    constexpr auto GetMfma<bf8_t, 16, 16, bf8_t, true, false>()
     {
         return MfmaInstr::mfma_f32_16x16x32bf8bf8;
     }
 
     template <>
-    constexpr auto GetMfma<f8_t, 32, 32, bf8_t>()
+    constexpr auto GetMfma<bf8_t, 16, 16, bf8_t, false, false>()
+    {
+        return MfmaInstr::mfma_f32_16x16x128f8f6f4;
+    }
+
+    template <>
+    constexpr auto GetMfma<f8_t, 32, 32, bf8_t, true, false>()
     {
         return MfmaInstr::mfma_f32_32x32x16f8bf8;
     }
 
     template <>
-    constexpr auto GetMfma<f8_t, 16, 16, bf8_t>()
+    constexpr auto GetMfma<f8_t, 32, 32, bf8_t, false, false>()
+    {
+        return MfmaInstr::mfma_f32_32x32x64f8f6f4;
+    }
+
+    template <>
+    constexpr auto GetMfma<f8_t, 16, 16, bf8_t, true, false>()
     {
         return MfmaInstr::mfma_f32_16x16x32f8bf8;
     }
 
     template <>
-    constexpr auto GetMfma<bf8_t, 32, 32, f8_t>()
+    constexpr auto GetMfma<f8_t, 16, 16, bf8_t, false, false>()
+    {
+        return MfmaInstr::mfma_f32_16x16x128f8f6f4;
+    }
+
+    template <>
+    constexpr auto GetMfma<bf8_t, 32, 32, f8_t, true, false>()
     {
         return MfmaInstr::mfma_f32_32x32x16bf8f8;
     }
 
     template <>
-    constexpr auto GetMfma<bf8_t, 16, 16, f8_t>()
+    constexpr auto GetMfma<bf8_t, 32, 32, f8_t, false, false>()
+    {
+        return MfmaInstr::mfma_f32_32x32x64f8f6f4;
+    }
+
+    template <>
+    constexpr auto GetMfma<bf8_t, 16, 16, f8_t, true, false>()
     {
         return MfmaInstr::mfma_f32_16x16x32bf8f8;
+    }
+
+    template <>
+    constexpr auto GetMfma<bf8_t, 16, 16, f8_t, false, false>()
+    {
+        return MfmaInstr::mfma_f32_16x16x128f8f6f4;
     }
 
     static constexpr auto selected_mfma = mfma_type<GetMfma<base_type,
@@ -1530,12 +1578,14 @@ struct XdlopsGemm
         return TransposeC ? CIndex4D{blk_td, I0, blk_id, I0} : CIndex4D{I0, blk_id, I0, blk_td};
     }
 
-    // Falls back to single rate instruction on gfx950 if KPack <= 4; no change on gfx942-
+    // Falls back to single rate instruction on gfx950 if KPack is single rate; no change on gfx942-
+    // when base_type is either f8_t or bf8_t, additional_type will always be either f8_t or bf8_t
     static constexpr auto mfma = MfmaSelector < base_type, MPerXdlops, NPerXdlops, additional_type,
                           (((is_same<base_type, half_t>::value ||
                              is_same<base_type, bhalf_t>::value) &&
                             KPack <= 4) ||
-                           (is_same<base_type, int8_t>::value && KPack <= 8))
+                           (is_same<base_type, int8_t>::value && KPack <= 8) ||
+                           ((is_same<base_type, f8_t>::value || is_same<base_type, bf8_t>::value) && KPack < 32))
                               ? true
                               : false,
                           is_scale_mfma > {};
