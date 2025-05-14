@@ -40,6 +40,7 @@ struct reference_hstu_attention
                     const HostTensor<InOutDataType>& k_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& v_batch_seq_nhead_hdim,
                     HostTensor<InOutDataType>& o_batch_seq_nhead_hdim,
+                    HostTensor<int8_t>& mask_batch_nhead_seq_seq,
                     int num_batch,
                     float alpha,
                     int max_seqlen,
@@ -87,6 +88,14 @@ struct reference_hstu_attention
         assert(hdim_qk == k_batch_seq_nhead_hdim.get_lengths()[3]);
         assert(hdim_v == o_batch_seq_nhead_hdim.get_lengths()[3]);
 
+        bool save_mask = false;
+
+        if(static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[0]) == num_batch &&
+           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[1]) == num_head &&
+           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[2]) == max_seqlen &&
+           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[3]) == max_seqlen)
+            save_mask = true;
+
         // check num_tagets
         assert(num_tagets.empty() || num_targets.size() == num_batch);
 
@@ -110,6 +119,15 @@ struct reference_hstu_attention
                     return ck_tile::make_hstu_block_mask_without_local<HstuMask>(
                         seqlen, contextual_seqlen, num_target);
             }();
+
+            if(save_mask)
+            {
+                // initialize the mask
+                for(int sq = 0; sq < max_seqlen; sq++)
+                    for(int sk = 0; sk < max_seqlen; sk++)
+                        mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) =
+                            static_cast<int8_t>(mask.IsTokenPairInsideMask(sq, sk));
+            }
 
             // for all rows in the batch
             for(int sq = 0; sq < seqlen; sq++)
