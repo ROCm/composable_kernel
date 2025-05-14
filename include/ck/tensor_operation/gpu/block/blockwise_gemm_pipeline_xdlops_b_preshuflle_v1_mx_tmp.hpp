@@ -318,7 +318,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
         // restore col id and advance to the next set of scales
         // NWaves * NPerXDL * NRepeat == NPerBlock
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                               make_multi_index(0, ScalesPerKBlockSize));
+                                               make_multi_index(-NPerBlock, ScalesPerKBlockSize));
 
         __builtin_amdgcn_sched_barrier(0);
 

@@ -212,6 +212,11 @@ struct GridwiseMoeGemmMX
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
     static constexpr index_t MWave   = MPerBlock / MPerXdl / MXdlPerWave;
+    static constexpr auto ScalesPerXdlopsRun =
+        (KPack * mfma_selector::selected_mfma.num_input_blks) / ScaleBlockSize;
+    static constexpr auto ScalesPerXdlopsRunPerThread =
+        ScalesPerXdlopsRun / mfma_selector::selected_mfma.num_input_blks;
+
     // static constexpr index_t NumTokens = 1;
     static constexpr index_t SortedTileSize = MPerBlock;
 
@@ -1246,9 +1251,12 @@ struct GridwiseMoeGemmMX
 
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
             make_tuple(IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
-                       math::integer_divide_ceil(problem.K, ScaleBlockSize),
-                       1),
-            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize), 1, 1));
+                       math::integer_divide_ceil(problem.K, ScaleBlockSize) /
+                           ScalesPerXdlopsRunPerThread,
+                       ScalesPerXdlopsRunPerThread),
+            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize),
+                       ScalesPerXdlopsRunPerThread,
+                       1));
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
             make_tuple(problem.K, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize), 1));
@@ -1460,7 +1468,7 @@ struct GridwiseMoeGemmMX
             true,
             MXdlPerWave,
             KRepeat>(
-            a_scale_grid_desc_am_ak, make_multi_index(0, 0, thread_offset_k), scale_gather_offsets);
+            a_scale_grid_desc_am_ak, make_multi_index(0, thread_offset_k, 0), scale_gather_offsets);
 
         // B scale load
         auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl + waveId_n * NPerXdl;

@@ -155,7 +155,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
 // clang-format on
 
 #else
-static constexpr ck::index_t MPerBlock = 16;
+static constexpr ck::index_t MPerBlock = 128;
 static constexpr bool MulRoutedWeight  = true;
 
 // clang-format off
@@ -163,14 +163,14 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     A0Layout,    B0Layout,    DsLayout,    ELayout, 
     A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
     AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
-    ScaleBlockSize,      64,   
-    MPerBlock,   16,    128,
+    ScaleBlockSize,      256,   
+    MPerBlock,   128,    128,
     32,   32,
     16,   16,
-    1,    1,
-    S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
-    S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
-    1,    1,   S<1, 8, 1, 8>, S<2, 1, 1, 1>,
+    8,    2,
+    S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
+    S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
+    1,    1,   S<1, 16, 1, 16>, S<2, 1, 1, 1>,
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, 0, false, false, MulRoutedWeight, false, ck::index_t, A0DataType>;
 // clang-format on
 #endif
@@ -183,14 +183,14 @@ int main(int argc, char* argv[])
 
     // per expert:
     // GEMM shape
-    constexpr ck::index_t sorted_tile_num = 2;
-    constexpr ck::index_t valid_tile_num  = 2;
+    constexpr ck::index_t sorted_tile_num = 8;
+    constexpr ck::index_t valid_tile_num  = 8;
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
 
     ck::index_t N       = 6144;
     ck::index_t K       = 4096;
-    ck::index_t experts = 2;
+    ck::index_t experts = 8;
     ck::index_t tokens  = 832;
     ck::index_t topk    = 2;
 
@@ -341,6 +341,24 @@ int main(int argc, char* argv[])
         d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
+    case 5:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
+        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        break;
+    case 6:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
+        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        break;
     default:
         a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
@@ -378,7 +396,7 @@ int main(int argc, char* argv[])
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
 
-#if 1
+#if 0
     printf("a0_t_k_k:\n");
     for(int t = 0; t < tokens; ++t)
     {

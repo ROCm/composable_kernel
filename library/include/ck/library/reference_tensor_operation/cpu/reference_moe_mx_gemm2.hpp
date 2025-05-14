@@ -89,10 +89,6 @@ struct ReferenceMoeMXGemm2 : public device::BaseOperator
             auto f_mk_kn_mn = [&](auto m, auto n) {
                 const int K                   = arg.a_t_k_k_.mDesc.GetLengths()[2];
                 const ck::index_t SCALE_BLOCK = K / arg.b_e_n_k_scale_.mDesc.GetLengths()[1];
-                if(m == 0 && n == 0)
-                {
-                    printf("SCALE_BLOCK: %d\n", SCALE_BLOCK);
-                }
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};

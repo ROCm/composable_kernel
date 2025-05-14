@@ -762,7 +762,7 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
 
         using arg_type = int32x8_t;
 
-#if 0
+#if 1
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], 0, 0, 0, 0},
@@ -788,9 +788,9 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                        "v"(scale_b));
 #endif
 
-#if 1
+#if 0
         printf("bidx: %u, bidy: %u, tid: %u, A: %08x, %08x, %08x, %08x,"
-               "B:%08x, %08x, %08x, %08x, a_scale: %08x, b_scale: %08x, "
+               "B:%08x, %08x, %08x, %08x, a_scale: %.f, b_scale: %.f, "
                "reg_c: %f, %f, %f, %f\n",
                blockIdx.x,
                blockIdx.y,
@@ -803,8 +803,10 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                bit_cast<uint32_t>(arg_b[1]),
                bit_cast<uint32_t>(arg_b[2]),
                bit_cast<uint32_t>(arg_b[3]),
-               *(reinterpret_cast<const uint32_t*>(&(scale_a))),
-               *(reinterpret_cast<const uint32_t*>(&(scale_b))),
+               //    *(reinterpret_cast<const uint32_t*>(&(scale_a))),
+               //    *(reinterpret_cast<const uint32_t*>(&(scale_b))),
+               type_convert<float>(scale_a),
+               type_convert<float>(scale_b),
                reg_c.template AsType<float>()[Number<0>{}],
                reg_c.template AsType<float>()[Number<1>{}],
                reg_c.template AsType<float>()[Number<2>{}],

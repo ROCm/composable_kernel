@@ -529,8 +529,8 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
         // loop over tensor and copy
         constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
 
-        static_for<0, scale_gather_num, 1>{}([&](auto gather_idx) { // MRepeate
-            static_for<0, KRepeat, 1>{}([&](auto k0) {
+        static_for<0, scale_gather_num, 1>{}([&](auto gather_idx) { // MRepeat
+            static_for<0, KRepeat, 1>{}([&](auto k0) {              // KRepeat
                 constexpr auto current_dst_origin =
                     to_multi_index(dst_slice_origin_idx) + make_multi_index(gather_idx, k0, 0);
                 MoveSrcSliceWindow(src_desc, make_multi_index(0, 0, 0));
@@ -584,9 +584,14 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
                                                src_coord_,
                                                make_tensor_coordinate_step(src_desc, forward_step));
                     }
+
+                    MoveSrcSliceWindow(
+                        src_desc,
+                        make_multi_index(
+                            0, 4, 0)); // hacky fix: 4 means xdlops_gemm.KPerXdlops / ScaleBlockSize
                 });
             });
-            MoveSrcSliceWindow(src_desc, make_multi_index(0, -KRepeat, 0));
+            MoveSrcSliceWindow(src_desc, make_multi_index(0, -(KRepeat * 4), 0));
         });
 
         // printf("blockIdx.y: %d, tid: %d, dst_buf<%f>\n",
