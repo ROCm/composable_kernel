@@ -149,6 +149,26 @@ struct GeneratorTensor_2
 };
 
 template <>
+struct GeneratorTensor_2<ck::f6x32_pk_t>
+{
+    int min_value = 0;
+    int max_value = 1;
+
+    template <typename... Is>
+    ck::f6x32_pk_t operator()(Is...)
+    {
+
+        ck::f6x32_pk_t r;
+        ck::static_for<0, 32, 1>{}([&](auto i) {
+            r.pack(ck::type_convert<ck::f6_t>((std::rand() % (max_value - min_value)) + min_value),
+                   static_cast<ck::index_t>(i));
+        });
+
+        return r;
+    }
+};
+
+template <>
 struct GeneratorTensor_2<ck::bhalf_t>
 {
     int min_value = 0;
@@ -358,6 +378,26 @@ struct GeneratorTensor_3<ck::f4x2_pk_t>
     }
 };
 
+template <>
+struct GeneratorTensor_3<ck::f6x32_pk_t>
+{
+    float min_value = 0;
+    float max_value = 1;
+
+    template <typename... Is>
+    ck::f6x32_pk_t operator()(Is...)
+    {
+        ck::f6x32_pk_t r;
+        ck::static_for<0, 32, 1>{}([&](auto i) {
+            float rnd  = float(std::rand()) / float(RAND_MAX);
+            float fp32 = min_value + rnd * (max_value - min_value);
+            r.pack(ck::type_convert<ck::f6_t>(fp32), static_cast<ck::index_t>(i));
+        });
+
+        return r;
+    }
+};
+
 template <typename T>
 struct GeneratorTensor_4
 {
@@ -373,6 +413,28 @@ struct GeneratorTensor_4
         float tmp = distribution(generator);
 
         return ck::type_convert<T>(tmp);
+    }
+};
+
+template <>
+struct GeneratorTensor_4<ck::f6x32_pk_t>
+{
+    std::mt19937 generator;
+    std::normal_distribution<float> distribution;
+
+    GeneratorTensor_4(float mean, float stddev, unsigned int seed = 1)
+        : generator(seed), distribution(mean, stddev){};
+
+    template <typename... Is>
+    ck::f6x32_pk_t operator()(Is...)
+    {
+        ck::f6x32_pk_t r;
+        ck::static_for<0, 32, 1>{}([&](auto i) {
+            r.pack(ck::type_convert<ck::f6_t>(distribution(generator)),
+                   static_cast<ck::index_t>(i));
+        });
+
+        return r;
     }
 };
 

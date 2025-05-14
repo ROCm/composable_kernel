@@ -304,17 +304,13 @@ __device__ AFragT load_A_row_major(AType const* input_ptr)
     // FP6/4   Col {0, 32} |  {0, 32, 64, 96}
     auto startCoord2D = std::make_pair(threadIdx.x % BLOCK_M, (threadIdx.x / BLOCK_M) * chunk_size);
 
-    // auto minorStepCoord2D = std::make_pair(0u, 1u);          // read rows
     auto majorStepCoord2D = std::make_pair(0, chunk_offset); // read a chunk from a row
 
     // Flatten to 1D row_major offsets.
     auto row_major = [](auto const& coord, auto ld) { return coord.first * ld + coord.second; };
 
-    using ARawT = typename scalar_type<AFragT>::type;
-    CK_PRINT<AFragT, ARawT>();
-
+    using ARawT         = typename scalar_type<AFragT>::type;
     using AScalarChunkT = vector_type<ARawT, scalar_type<AFragT>::vector_size / num_chunks>::type;
-    CK_PRINT<AScalarChunkT>();
 
     union
     {
@@ -500,12 +496,27 @@ __device__ BFragT load_B_col_major(BType const* input_ptr)
     // Reg 3 [8:15]      |     K26K27 |     K58K59  |     K90K91 |    K122K123 |  v[13]    ||    Reg 3 [8:15]      |     K26K27 |     K58K59  |  v[13] |
     // Reg 3 [16:23]     |     K28K29 |     K60K61  |     K92K93 |    K124K125 |  v[14]    ||    Reg 3 [16:23]     |     K28K29 |     K60K61  |  v[14] |
     // Reg 3 [24:31]     |     K30K31 |     K62K63  |     K94K95 |    K126K127 |  v[15]    ||    Reg 3 [24:31]     |     K30K31 |     K62K63  |  v[15] |
+
+    // Register Mapping for 16x128 for FP6:                                                ||    Register Mapping for 32x64 for FP6:
+    // Size              |   BLOCK_N  |   BLOCK_N   |   BLOCK_N  |   BLOCK_N   |           ||    Size              |   BLOCK_N  |   BLOCK_N   |        |
+    // N                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    N                 | 0  ...  31 |  0  ...  31 | Vector |
+    // Thread Id         | 0  ...  15 | 16  ...  31 | 32  ... 47 | 48  ...  63 | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|
+    // Register Element  |------------|-------------|------------|-------------|-----------||    Register Element  |------------|-------------|--------|
+    // Reg 0-2 [0:95]    | K =  0-15  |  K = 32-47  |  K = 64-79 | K = 96-111  |  v[0]     ||    Reg 0-2 [0:95]    | K =  0-15  |  K = 32-47  |  v[0]  |
+    // Reg 3-5 [0:95]    | K = 16-31  |  K = 48-63  |  K = 80-95 | K = 112-127 |  v[0]     ||    Reg 3-5 [0:95]    | K = 16-31  |  K = 48-63  |  v[0]  |
+
     // clang-format on
 
     static constexpr int32_t WAVE_SIZE = 64;
 
+    // FP8 chunk_size = 16, num_chunks = 2, packed_size = 1
+    // FP4 chunk_size = 32, num_chunks = 1, packed_size = 2
+    // FP6 chunk_size = 32, num_chunks = 1, packed_size = 32
+
+    constexpr index_t num_chunks = is_packed_type_v<BType> ? 1 : 2;
+
     // Here we want to load from cols of B in chunks of 16 elements each.
-    static constexpr uint32_t chunk_size = 16;
+    constexpr uint32_t chunk_size = is_packed_type_v<BType> ? 32 : 16;
 
     // each chunk is separated by an offset
     static constexpr uint32_t chunk_offset = chunk_size * WAVE_SIZE / BLOCK_N; // 32 or 64
@@ -513,44 +524,36 @@ __device__ BFragT load_B_col_major(BType const* input_ptr)
     // To start the loading process, let's visualize in 2D coords.
     // Each thread will load 32 elements.
     // We need to know where they start, and where the next elements are.
-    auto startCoord2D =
-        std::make_pair((threadIdx.x / BLOCK_N) * chunk_size, // Row {0, 16} |  {0, 16, 32, 48}
-                       threadIdx.x % BLOCK_N);               // Col {0-31}  |  {0-15}
+    // FP8/6/4 Col {0-31}  |  {0-15}
+    // FP8     Row {0, 16} |  {0, 16, 32, 48}
+    // FP6/4   Row {0, 32} |  {0, 32, 64, 96}
+    auto startCoord2D = std::make_pair((threadIdx.x / BLOCK_N) * chunk_size, threadIdx.x % BLOCK_N);
 
     // Flatten to 1D col_major offsets.
     auto col_major = [](auto const& coord, auto ld) { return coord.first + coord.second * ld; };
 
-    // auto minorStepCoord2D = std::make_pair(1u, 0u);       // read cols
     auto majorStepCoord2D = std::make_pair(chunk_offset, 0); // read a chunk from a col
 
-    // BLOCK_K is a stride in B matrix
-    auto startOffset = col_major(
-        startCoord2D, BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1));
-    // auto kMinorOffset = col_major(minorStepCoord2D, BLOCK_K /
-    // (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1));
-    auto kMajorOffset =
-        col_major(majorStepCoord2D,
-                  BLOCK_K / (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1));
-
-    using BRawT        = typename scalar_type<BFragT>::type;
-    using BScalarFragT = vector_type<BRawT, chunk_size>::type;
-
-    constexpr index_t num_chunks =
-        (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 1 : 2);
+    using BRawT         = typename scalar_type<BFragT>::type;
+    using BScalarChunkT = vector_type<BRawT, scalar_type<BFragT>::vector_size / num_chunks>::type;
 
     union
     {
         BFragT frag;
-        BScalarFragT chunks[num_chunks];
+        BScalarChunkT chunks[num_chunks];
     } fragB{};
 
-    const BScalarFragT* fragPtr;
+    const BScalarChunkT* fragPtr;
 
-    for(index_t chunk = 0; chunk < num_chunks; chunk++)
+    // BLOCK_K is a stride in B matrix
+    auto startOffset  = col_major(startCoord2D, BLOCK_K) / packed_size_v<BType>;
+    auto kMajorOffset = col_major(majorStepCoord2D, BLOCK_K) / packed_size_v<BType>;
+
+    for(index_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++)
     {
-        fragPtr =
-            reinterpret_cast<BScalarFragT const*>(input_ptr + startOffset + chunk * kMajorOffset);
-        fragB.chunks[chunk] = *fragPtr;
+        fragPtr                 = reinterpret_cast<BScalarChunkT const*>(input_ptr + startOffset +
+                                                         chunk_idx * kMajorOffset);
+        fragB.chunks[chunk_idx] = *fragPtr;
     }
 
     return fragB.frag;
@@ -949,7 +952,7 @@ __global__ void matmul(const typename packed_type<AType>::type* a,
     }
     else
     {
-        fragA = load_A_col_major<AType, AFragT, BLOCK_M, BLOCK_K>(a);
+        fragA = load_A_col_major<PackedAType, AFragT, BLOCK_M, BLOCK_K>(a);
     }
 
     if constexpr(is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
@@ -1404,7 +1407,7 @@ struct TestMFMA
         switch(init)
         {
         case 0:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{0.015625f});
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{0.625f});
             // NOTE: not all numbers are representable in FP8, BF8, etc.
             b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<PackedBType, 1>{});
             break;
@@ -1502,6 +1505,96 @@ struct TestMFMA
                      std::is_same<CDataType, half_t>::value)
         {
             res = ck::utils::check_err(c_device.mData, c_host.mData);
+#if 1
+
+            std::cout << "A:" << std::endl;
+            for(int i = 0; i < params.M; ++i)
+            {
+                for(int j = 0; j < params.K; ++j)
+                {
+                    if constexpr(is_same_v<PackedAType, f4x2_pk_t>)
+                    {
+                        if(j % 2 == 1)
+                            std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                      << type_convert<float>(
+                                             f4_t(a(i, j).template unpack<>(Number<1>{})));
+                        else
+                            std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                      << type_convert<float>(
+                                             f4_t(a(i, j).template unpack<>(Number<0>{})));
+                    }
+                    else if constexpr(is_packed_type_v<PackedAType>)
+                    {
+                        std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                  << type_convert<float>(
+                                         a(i, j).unpack(j % PackedAType::packed_size));
+                    }
+                    else
+                    {
+                        std::cout << std::setw(11) << std::fixed << std::setprecision(7)
+                                  << type_convert<float>(a(i, j));
+                    }
+                }
+
+                std::cout << std::endl;
+            }
+
+            std::cout << "B:" << std::endl;
+            for(int i = 0; i < params.K; ++i)
+            {
+                for(int j = 0; j < params.N; ++j)
+                {
+                    if constexpr(is_same_v<PackedBType, f4x2_pk_t>)
+                    {
+                        if(i % 2 == 1)
+                            std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                      << type_convert<float>(
+                                             f4_t(b(i, j).template unpack<>(Number<1>{})));
+                        else
+                            std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                      << type_convert<float>(
+                                             f4_t(b(i, j).template unpack<>(Number<0>{})));
+                    }
+                    else if constexpr(is_packed_type_v<PackedBType>)
+                    {
+                        std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                  << type_convert<float>(
+                                         b(i, j).unpack(i % PackedBType::packed_size));
+                    }
+                    else
+                    {
+                        std::cout << std::setw(11) << std::fixed << std::setprecision(7)
+                                  << type_convert<float>(b(i, j));
+                    }
+                }
+
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+
+            std::cout << "C_device:" << std::endl;
+            for(int i = 0; i < params.M; ++i)
+            {
+                for(int j = 0; j < params.N; ++j)
+                {
+                    std::cout << std::setw(11) << std::fixed << std::setprecision(6)
+                              << type_convert<float>(c_device(i, j));
+                }
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+
+            std::cout << "C_host:" << std::endl;
+            for(int i = 0; i < params.M; ++i)
+            {
+                for(int j = 0; j < params.N; ++j)
+                {
+                    std::cout << std::setw(11) << std::fixed << std::setprecision(6)
+                              << type_convert<float>(c_host(i, j));
+                }
+                std::cout << std::endl;
+            }
+#endif
         }
         else
         {

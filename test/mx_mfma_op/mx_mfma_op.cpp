@@ -91,7 +91,7 @@ TEST(MFMA, FP6MFMA16x16x128)
     using BLayout = ck::tensor_layout::gemm::ColumnMajor;
     using CLayout = ck::tensor_layout::gemm::RowMajor;
 
-    auto AB_init = 4;
+    auto AB_init = 0;
     auto pass =
         run_mfma_test<ALayout, BLayout, CLayout, f6_t, f6_t, float, ck::MFMA_F8F6F4::F32_16x16x128>(
             AB_init);
