@@ -502,7 +502,22 @@ TEST(FP4, TestAllValues)
         float fp = type_convert<float>(f4_t(e2m1BitsOCP[i]));
         ASSERT_EQ(fp, e2m1ValuesOCP[i]);
 
-        uint8_t fp4 = type_convert<f4_t>(e2m1ValuesOCP[i]);
+        f4_t fp4 = type_convert<f4_t>(e2m1ValuesOCP[i]);
+
+        printf("fp4 Bits: 0b");
+        for(int j = 3; j >= 0; --j)
+        {
+            printf("%c", (fp4 & (1 << j)) ? '1' : '0');
+        }
+        printf("\n");
+
+        printf("e2m1BitsOCP[i] Bits: 0b");
+        for(int j = 3; j >= 0; --j)
+        {
+            printf("%c", (e2m1BitsOCP[i] & (1 << j)) ? '1' : '0');
+        }
+        printf("\n");
+
         ASSERT_EQ(fp4 & 0xF, e2m1BitsOCP[i] & 0xF);
 
         // Print the binary representation
