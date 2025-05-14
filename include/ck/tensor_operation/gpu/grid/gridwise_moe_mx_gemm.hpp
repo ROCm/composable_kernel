@@ -211,6 +211,7 @@ struct GridwiseMoeGemmMX
     static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
+    static constexpr index_t MWave   = MPerBlock / MPerXdl / MXdlPerWave;
     // static constexpr index_t NumTokens = 1;
     static constexpr index_t SortedTileSize = MPerBlock;
 
@@ -512,9 +513,7 @@ struct GridwiseMoeGemmMX
     __host__ __device__ static constexpr auto
     MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
     {
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-
-        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWaves, MPerXdl>(ABlockDesc_AK0_M_AK1{});
+        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWave, MPerXdl>(ABlockDesc_AK0_M_AK1{});
     }
 
     template <typename BBlockDesc_BK0_N_BK1>
@@ -942,8 +941,6 @@ struct GridwiseMoeGemmMX
 
     __device__ static constexpr auto GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
-        constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
             make_naive_tensor_descriptor_packed(
                 make_tuple(I1,
@@ -1249,8 +1246,9 @@ struct GridwiseMoeGemmMX
 
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
             make_tuple(IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
-                       math::integer_divide_ceil(problem.K, ScaleBlockSize)),
-            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize), 1));
+                       math::integer_divide_ceil(problem.K, ScaleBlockSize),
+                       1),
+            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize), 1, 1));
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
             make_tuple(problem.K, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize), 1));
@@ -1431,20 +1429,40 @@ struct GridwiseMoeGemmMX
 
         auto a_thread_offset_m = get_thread_local_1d_id() % MPerXdl + waveId_m * MPerXdl;
 
-        auto a_scale_thread_copy =
-            ThreadwiseTensorSliceTransfer_v2<AScaleDataType,
-                                             AScaleDataType,
-                                             decltype(a_scale_grid_desc_am_ak),
-                                             decltype(BlockwiseGemmPipe::a_scale_thread_desc_copy),
-                                             Sequence<1, 1>, // SliceLengths
-                                             Sequence<0, 1>, // DimAccessOrder
-                                             1,              // SrcVectorDim
-                                             1,              // SrcScalarPerVector
-                                             1,              // SrcScalarStrideInVector
-                                             true>(
-                a_scale_grid_desc_am_ak,
-                make_multi_index(block_m_id * MPerBlock + a_thread_offset_m, thread_offset_k));
+        // get each thread's offset int the scale tensor
+        const index_t token_scale_pos = block_m_id * MPerBlock;
+        if(token_scale_pos >= max_token_id || token0 >= problem.NumTokens)
+            return;
 
+        StaticallyIndexedArray<index_t, MXdlPerWave> scale_gather_offsets;
+        static_for<0, MXdlPerWave, 1>{}([&](auto m0) {
+            const index_t fused_token =
+                p_sorted_token_ids[token_scale_pos + m0 * MPerXdl * MWave + a_thread_offset_m];
+            index_t token_offset = fused_token & 0xffffff;
+            if constexpr(!IsInputGemm)
+            {
+                token_offset = token_offset * problem.TopK + (fused_token >> 24);
+            }
+            scale_gather_offsets(m0) =
+                token_offset * math::integer_divide_ceil(problem.K, ScaleBlockSize);
+        });
+
+        auto a_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2_gather<
+            AScaleDataType,
+            AScaleDataType,
+            decltype(a_scale_grid_desc_am_ak),
+            decltype(BlockwiseGemmPipe::a_scale_thread_desc),
+            Sequence<1, 1, 1>, // SliceLengths
+            Sequence<0, 1, 2>, // DimAccessOrder
+            2,                 // SrcVectorDim
+            1,                 // SrcScalarPerVector
+            1,                 // SrcScalarStrideInVector
+            true,
+            MXdlPerWave,
+            KRepeat>(
+            a_scale_grid_desc_am_ak, make_multi_index(0, 0, thread_offset_k), scale_gather_offsets);
+
+        // B scale load
         auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl + waveId_n * NPerXdl;
 
         auto b_scale_thread_copy =
@@ -1536,8 +1554,6 @@ struct GridwiseMoeGemmMX
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
-
-            constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
@@ -2254,8 +2270,6 @@ struct GridwiseMoeGemmMX
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
-
-            constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =

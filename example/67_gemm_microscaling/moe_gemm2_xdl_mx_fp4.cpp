@@ -315,17 +315,31 @@ int main(int argc, char* argv[])
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     case 2:
-        // a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{1.0, 1.0});
-        // b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{1.0, 1.0});
-        ck::utils::FillConstant<A0DataType>{ck::type_convert<A0DataType>(ck::float2_t(1.0f))}(
-            a0_t_k_k);
-        ck::utils::FillConstant<B0DataType>{ck::type_convert<B0DataType>(ck::float2_t(1.0f))}(
-            b0_e_n_k);
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
         d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        break;
+    case 3:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
+        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
+        d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
+        break;
+    case 4:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
+        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
+        d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     default:
         a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
@@ -372,13 +386,16 @@ int main(int argc, char* argv[])
         {
             for(int k = 0; k < K; ++k)
             {
+                auto f4x2 = a0_t_k_k(t, tk, k).data;
                 if(k % 2 == 0)
                 {
-                    printf("%f ", ck::type_convert<float>(a0_t_k_k(t, tk, k).data >> 4 & 0xf));
+                    ck::f4_t f4 = (f4x2 >> 4) & 0xf;
+                    printf("%f ", ck::type_convert<float>(f4));
                 }
                 else
                 {
-                    printf("%f ", ck::type_convert<float>(a0_t_k_k(t, tk, k).data & 0xf));
+                    ck::f4_t f4 = (f4x2 >> 0) & 0xf;
+                    printf("%f ", ck::type_convert<float>(f4));
                 }
             }
             printf("\n");
@@ -407,13 +424,16 @@ int main(int argc, char* argv[])
         {
             for(int k = 0; k < K; ++k)
             {
+                auto f4x2 = b0_e_n_k(e, k, n).data;
                 if(k % 2 == 0)
                 {
-                    printf("%f ", ck::type_convert<float>(b0_e_n_k(e, k, n).data >> 4 & 0xf));
+                    ck::f4_t f4 = f4x2 >> 4 & 0xf;
+                    printf("%f ", ck::type_convert<float>(f4));
                 }
                 else
                 {
-                    printf("%f ", ck::type_convert<float>(b0_e_n_k(e, k, n).data & 0xf));
+                    ck::f4_t f4 = f4x2 >> 0 & 0xf;
+                    printf("%f ", ck::type_convert<float>(f4));
                 }
             }
             printf("\n");

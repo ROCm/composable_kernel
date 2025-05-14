@@ -279,34 +279,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
         // Prefetch a_scales to buf 0
-        static_for<0, MRepeat, 1>{}([&](auto m0) {
-            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
-                    constexpr auto a_scale_offset =
-                        a_scale_thread_desc.CalculateOffset(make_tuple(m0, k0, s));
-                    // auto a_scale_thread_buf_copy =
-                    //     make_static_buffer<AddressSpaceEnum::Vgpr, AScaleDataType>(
-                    //         a_scale_thread_desc_copy.GetElementSpaceSize());
-                    // a_scale_thread_copy.Run(a_scale_grid_desc,
-                    //                         a_scale_grid_buf,
-                    //                         a_scale_thread_desc_copy,
-                    //                         make_tuple(I0, I0),
-                    //                         a_scale_thread_buf_copy);
-
-                    a_scale_thread_bufs(I0)(Number<a_scale_offset>{}) =
-                        type_convert<AScaleDataType>(1.0f);
-                    a_scale_thread_copy.MoveSrcSliceWindow(
-                        a_scale_grid_desc,
-                        make_multi_index(0, xdlops_gemm.KPerXdlops / ScaleBlockSize));
-                });
-            });
-            a_scale_thread_copy.MoveSrcSliceWindow(
-                a_scale_grid_desc, make_multi_index(MWaves * MPerXDL, -ScalesPerKBlockSize));
-        });
+        a_scale_thread_copy.Run(a_scale_grid_desc,
+                                a_scale_grid_buf,
+                                a_scale_thread_desc,
+                                make_tuple(I0, I0, I0),
+                                a_scale_thread_bufs(I0));
 
         // restore row id and advance to the next set of scales
         a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                               make_multi_index(-MPerBlock, ScalesPerKBlockSize));
+                                               make_multi_index(0, ScalesPerKBlockSize, 0));
 
         // Prefetch b_scales to buf 0
         static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -314,17 +295,17 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
                 static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
                     constexpr auto b_scale_offset =
                         b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, s));
-                    // auto b_scale_thread_buf_copy =
-                    //     make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
-                    //         b_scale_thread_desc_copy.GetElementSpaceSize());
-                    // b_scale_thread_copy.Run(b_scale_grid_desc,
-                    //                         b_scale_grid_buf,
-                    //                         b_scale_thread_desc_copy,
-                    //                         make_tuple(I0, I0),
-                    //                         b_scale_thread_buf_copy);
+                    auto b_scale_thread_buf_copy =
+                        make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
+                            b_scale_thread_desc_copy.GetElementSpaceSize());
+                    b_scale_thread_copy.Run(b_scale_grid_desc,
+                                            b_scale_grid_buf,
+                                            b_scale_thread_desc_copy,
+                                            make_tuple(I0, I0),
+                                            b_scale_thread_buf_copy);
 
                     b_scale_thread_bufs(I0)(Number<b_scale_offset>{}) =
-                        type_convert<BScaleDataType>(1.0f);
+                        b_scale_thread_buf_copy[Number<0>{}];
                     b_scale_thread_copy.MoveSrcSliceWindow(
                         b_scale_grid_desc,
                         make_multi_index(0, xdlops_gemm.KPerXdlops / ScaleBlockSize));
@@ -337,7 +318,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
         // restore col id and advance to the next set of scales
         // NWaves * NPerXDL * NRepeat == NPerBlock
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
-                                               make_multi_index(-NPerBlock, ScalesPerKBlockSize));
+                                               make_multi_index(0, ScalesPerKBlockSize));
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -349,34 +330,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
         // Prefetch a_scales to buf 1
-        static_for<0, MRepeat, 1>{}([&](auto m0) {
-            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
-                    constexpr auto a_scale_offset =
-                        a_scale_thread_desc.CalculateOffset(make_tuple(m0, k0, s));
-                    // auto a_scale_thread_buf_copy =
-                    //     make_static_buffer<AddressSpaceEnum::Vgpr, AScaleDataType>(
-                    //         a_scale_thread_desc_copy.GetElementSpaceSize());
-                    // a_scale_thread_copy.Run(a_scale_grid_desc,
-                    //                         a_scale_grid_buf,
-                    //                         a_scale_thread_desc_copy,
-                    //                         make_tuple(I0, I0),
-                    //                         a_scale_thread_buf_copy);
-
-                    a_scale_thread_bufs(I1)(Number<a_scale_offset>{}) =
-                        type_convert<AScaleDataType>(1.0f);
-                    a_scale_thread_copy.MoveSrcSliceWindow(
-                        a_scale_grid_desc,
-                        make_multi_index(0, xdlops_gemm.KPerXdlops / ScaleBlockSize));
-                });
-            });
-            a_scale_thread_copy.MoveSrcSliceWindow(
-                a_scale_grid_desc, make_multi_index(MWaves * MPerXDL, -ScalesPerKBlockSize));
-        });
+        a_scale_thread_copy.Run(a_scale_grid_desc,
+                                a_scale_grid_buf,
+                                a_scale_thread_desc,
+                                make_tuple(I0, I0, I0),
+                                a_scale_thread_bufs(I1));
 
         // restore row id and advance to the next set of scales
         a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
-                                               make_multi_index(-MPerBlock, ScalesPerKBlockSize));
+                                               make_multi_index(0, ScalesPerKBlockSize, 0));
 
         // Prefetch b_scales to buf 1
         static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -384,17 +346,17 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
                 static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
                     constexpr auto b_scale_offset =
                         b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, s));
-                    // auto b_scale_thread_buf_copy =
-                    //     make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
-                    //         b_scale_thread_desc_copy.GetElementSpaceSize());
-                    // b_scale_thread_copy.Run(b_scale_grid_desc,
-                    //                         b_scale_grid_buf,
-                    //                         b_scale_thread_desc_copy,
-                    //                         make_tuple(I0, I0),
-                    //                         b_scale_thread_buf_copy);
+                    auto b_scale_thread_buf_copy =
+                        make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
+                            b_scale_thread_desc_copy.GetElementSpaceSize());
+                    b_scale_thread_copy.Run(b_scale_grid_desc,
+                                            b_scale_grid_buf,
+                                            b_scale_thread_desc_copy,
+                                            make_tuple(I0, I0),
+                                            b_scale_thread_buf_copy);
 
                     b_scale_thread_bufs(I1)(Number<b_scale_offset>{}) =
-                        type_convert<BScaleDataType>(1.0f);
+                        b_scale_thread_buf_copy[Number<0>{}];
                     b_scale_thread_copy.MoveSrcSliceWindow(
                         b_scale_grid_desc,
                         make_multi_index(0, xdlops_gemm.KPerXdlops / ScaleBlockSize));
@@ -538,35 +500,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
                     });
 
                     // Prefetch a_scales
-                    static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        static_for<0, KRepeat, 1>{}([&](auto k0) {
-                            static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
-                                constexpr auto a_scale_offset =
-                                    a_scale_thread_desc.CalculateOffset(make_tuple(m0, k0, s));
-                                // auto a_scale_thread_buf_copy =
-                                //     make_static_buffer<AddressSpaceEnum::Vgpr, AScaleDataType>(
-                                //         a_scale_thread_desc_copy.GetElementSpaceSize());
-                                // a_scale_thread_copy.Run(a_scale_grid_desc,
-                                //                         a_scale_grid_buf,
-                                //                         a_scale_thread_desc_copy,
-                                //                         make_tuple(I0, I0),
-                                //                         a_scale_thread_buf_copy);
-
-                                a_scale_thread_bufs(mfma_reg_buf)(Number<a_scale_offset>{}) =
-                                    type_convert<AScaleDataType>(1.0f);
-                                a_scale_thread_copy.MoveSrcSliceWindow(
-                                    a_scale_grid_desc,
-                                    make_multi_index(0, xdlops_gemm.KPerXdlops / ScaleBlockSize));
-                            });
-                        });
-                        a_scale_thread_copy.MoveSrcSliceWindow(
-                            a_scale_grid_desc,
-                            make_multi_index(MWaves * MPerXDL, -ScalesPerKBlockSize));
-                    });
+                    a_scale_thread_copy.Run(a_scale_grid_desc,
+                                            a_scale_grid_buf,
+                                            a_scale_thread_desc,
+                                            make_tuple(I0, I0, I0),
+                                            a_scale_thread_bufs(mfma_reg_buf));
 
                     // restore row id and advance to the next set of scales
                     a_scale_thread_copy.MoveSrcSliceWindow(
-                        a_scale_grid_desc, make_multi_index(-MPerBlock, ScalesPerKBlockSize));
+                        a_scale_grid_desc, make_multi_index(0, ScalesPerKBlockSize, 0));
 
                     // Prefetch b_scales
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -574,17 +516,17 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1_mx_tmp<BlockGemmPipelineSched
                             static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
                                 constexpr auto b_scale_offset =
                                     b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, s));
-                                // auto b_scale_thread_buf_copy =
-                                //     make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
-                                //         b_scale_thread_desc_copy.GetElementSpaceSize());
-                                // b_scale_thread_copy.Run(b_scale_grid_desc,
-                                //                         b_scale_grid_buf,
-                                //                         b_scale_thread_desc_copy,
-                                //                         make_tuple(I0, I0),
-                                //                         b_scale_thread_buf_copy);
+                                auto b_scale_thread_buf_copy =
+                                    make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
+                                        b_scale_thread_desc_copy.GetElementSpaceSize());
+                                b_scale_thread_copy.Run(b_scale_grid_desc,
+                                                        b_scale_grid_buf,
+                                                        b_scale_thread_desc_copy,
+                                                        make_tuple(I0, I0),
+                                                        b_scale_thread_buf_copy);
 
                                 b_scale_thread_bufs(mfma_reg_buf)(Number<b_scale_offset>{}) =
-                                    type_convert<BScaleDataType>(1.0f);
+                                    b_scale_thread_buf_copy[Number<0>{}];
                                 b_scale_thread_copy.MoveSrcSliceWindow(
                                     b_scale_grid_desc,
                                     make_multi_index(0, xdlops_gemm.KPerXdlops / ScaleBlockSize));
