@@ -53,14 +53,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     ScaleBlockSize,   // ScaleBlockSize: Scaling block size
     256,              // BlockSize: Thread block size
     128,              // MPerBlock
-    128,              // NPerBlock
+    256,              // NPerBlock
     KPerBlock,        // KPerBlock
     32,               // AK1
     32,               // BK1
     16,               // MPerXDL
     16,               // NPerXDL
     4,                // MXdlPerWave
-    4,                // NXdlPerWave
+    8,                // NXdlPerWave
     S<8, 32, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
