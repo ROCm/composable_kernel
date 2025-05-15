@@ -323,12 +323,11 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                 }
                 else
                 {
-                    throw std::runtime_error("todo: only v1 & v2 support now");
+                    throw std::runtime_error("todo: only v1 & v3 support now");
                 }
             }
             else
             {
-                // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -347,6 +346,27 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                                                               MemoryDataOp,
                                                               minimum_occupancy,
                                                               TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   false,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   false,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Even>;
                         RunKernel(kernel);
                     }
                 }

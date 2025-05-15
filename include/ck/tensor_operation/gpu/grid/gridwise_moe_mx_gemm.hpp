@@ -8,8 +8,6 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-// #include
-// "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_mx_selector.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_mx_moe_selector.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1_gather.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
@@ -1961,6 +1959,19 @@ struct GridwiseMoeGemmMX
             problem.N,
             problem.NPadded,
             problem.StrideC);
+
+        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
+            make_tuple(IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
+                       math::integer_divide_ceil(problem.K, ScaleBlockSize) /
+                           ScalesPerXdlopsRunPerThread,
+                       ScalesPerXdlopsRunPerThread),
+            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize),
+                       ScalesPerXdlopsRunPerThread,
+                       1));
+        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
+            make_tuple(problem.N, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
+            make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize), 1));
+
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
@@ -2015,10 +2026,12 @@ struct GridwiseMoeGemmMX
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
+            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K / APackedSize;
         });
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
+        const index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
+            problem.N * math::integer_divide_ceil(problem.K, ScaleBlockSize));
 
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
@@ -2029,6 +2042,13 @@ struct GridwiseMoeGemmMX
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
             b_grid_desc_bpreshuffled.GetElementSpaceSize());
+
+        const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
+        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_scale_grid + expert_id * expert_scale_stride,
+            b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
@@ -2095,9 +2115,11 @@ struct GridwiseMoeGemmMX
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
         auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared1),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
@@ -2119,6 +2141,68 @@ struct GridwiseMoeGemmMX
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
+
+        // a and b scale processing
+        const auto wave_idx = BlockwiseGemmPipe::GetWaveIdx();
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        static constexpr auto mfma = BlockwiseGemmPipe::xdlops_gemm.mfma;
+
+        auto thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
+                               mfma.selected_mfma.num_threads_per_blk;
+
+        auto a_thread_offset_m = get_thread_local_1d_id() % MPerXdl + waveId_m * MPerXdl;
+
+        // get each thread's offset int the scale tensor
+        const index_t token_scale_pos = block_m_id * MPerBlock;
+        if(token_scale_pos >= max_token_id || token0 >= problem.NumTokens)
+            return;
+
+        StaticallyIndexedArray<index_t, MXdlPerWave> scale_gather_offsets;
+        static_for<0, MXdlPerWave, 1>{}([&](auto m0) {
+            const index_t fused_token =
+                p_sorted_token_ids[token_scale_pos + m0 * MPerXdl * MWave + a_thread_offset_m];
+            index_t token_offset = fused_token & 0xffffff;
+            if constexpr(!IsInputGemm)
+            {
+                token_offset = token_offset * problem.TopK + (fused_token >> 24);
+            }
+            scale_gather_offsets(m0) =
+                token_offset * math::integer_divide_ceil(problem.K, ScaleBlockSize);
+        });
+
+        auto a_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2_gather<
+            AScaleDataType,
+            AScaleDataType,
+            decltype(a_scale_grid_desc_am_ak),
+            decltype(BlockwiseGemmPipe::a_scale_thread_desc),
+            Sequence<1, 1, 1>, // SliceLengths
+            Sequence<0, 1, 2>, // DimAccessOrder
+            2,                 // SrcVectorDim
+            1,                 // SrcScalarPerVector
+            1,                 // SrcScalarStrideInVector
+            true,
+            MXdlPerWave,
+            KRepeat>(
+            a_scale_grid_desc_am_ak, make_multi_index(0, thread_offset_k, 0), scale_gather_offsets);
+
+        // B scale load
+        auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl + waveId_n * NPerXdl;
+
+        auto b_scale_thread_copy =
+            ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
+                                             BScaleDataType,
+                                             decltype(b_scale_grid_desc_bn_ak),
+                                             decltype(BlockwiseGemmPipe::b_scale_thread_desc_copy),
+                                             Sequence<1, 1>, // SliceLengths
+                                             Sequence<0, 1>, // DimAccessOrder
+                                             1,              // SrcVectorDim
+                                             1,              // SrcScalarPerVector
+                                             1,
+                                             true>(
+                b_scale_grid_desc_bn_ak,
+                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, thread_offset_k));
 
         if constexpr(IsInputGemm)
         {
@@ -2161,7 +2245,6 @@ struct GridwiseMoeGemmMX
         }
         else
         {
-
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
@@ -2170,11 +2253,18 @@ struct GridwiseMoeGemmMX
                 a_block_bufs,
                 a_block_slice_copy_step,
                 b_grid_desc_bpreshuffled,
+                b_block_desc_bk0_n_bk1,
                 b_blockwise_copy,
                 b_grid_buf,
                 b_block_bufs,
                 b_block_slice_copy_step,
                 c_thread_buf,
+                a_scale_grid_desc_am_ak,
+                a_scale_thread_copy,
+                a_scale_grid_buf,
+                b_scale_grid_desc_bn_ak,
+                b_scale_thread_copy,
+                b_scale_grid_buf,
                 num_k_block_main_loop);
         }
 
