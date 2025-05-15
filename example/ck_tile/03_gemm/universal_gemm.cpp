@@ -177,7 +177,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                            ck_tile::memory_operation_enum::set>{});
         }
-        #if 0
         else
         {
             Run(has_hot_loop_,
@@ -185,7 +184,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                            ck_tile::memory_operation_enum::atomic_add>{});
         }
-        #endif
     };
 
     if(has_hot_loop)
@@ -196,7 +194,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             RunSplitk(ck_tile::bool_constant<true>{},
                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
         }
-        #if 0
         else if(tail_num == ck_tile::TailNumber::Odd)
         {
             RunSplitk(ck_tile::bool_constant<true>{},
@@ -207,7 +204,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             RunSplitk(ck_tile::bool_constant<true>{},
                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
         }
-        #endif
         else
         {
             std::ostringstream err;
@@ -256,7 +252,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     }
     else
     {
-        #if 0
         if(tail_num == ck_tile::TailNumber::Full)
         {
             RunSplitk(ck_tile::bool_constant<false>{},
@@ -273,7 +268,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
         }
         else
-        #endif
         {
             std::ostringstream err;
             err << "Num K loop must be larger than number of prefetech stages."
@@ -322,7 +316,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
             return run_gemm_example_with_layouts<GemmConfig,APrecType, BPrecType, CPrecType>(
                 argc, argv, Row{}, Col{}, Row{});
         }
-#if 0
         else if(a_layout == "R" && b_layout == "R")
         {
             return run_gemm_example_with_layouts<GemmConfig,APrecType, BPrecType, CPrecType>(
@@ -339,7 +332,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
             return run_gemm_example_with_layouts<GemmConfig,APrecType, BPrecType, CPrecType>(
                 argc, argv, Col{}, Col{}, Row{});
         }
-#endif
         else
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices!");
@@ -362,7 +354,6 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_prec_type<GemmConfig, ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
-#if 0
     else if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<GemmConfig, ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
@@ -385,7 +376,6 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<GemmConfig, ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }
-#endif
 #endif
     else
     {

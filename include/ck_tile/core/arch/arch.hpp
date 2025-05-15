@@ -70,7 +70,7 @@ CK_TILE_DEVICE index_t get_lane_id() { return __lane_id(); }
 
 CK_TILE_DEVICE index_t get_warp_id()
 {
-    return threadIdx.x / get_warp_size();
+    return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
 }
 
 CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }

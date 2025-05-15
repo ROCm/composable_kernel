@@ -11,9 +11,9 @@ LOG=$6
 TIME=$7
  
 N=$8
-########  op  datatype  layout  verify  init  log  time  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME   $N  256 1024 1 1   14   14     1 1       1 1      0 0       0 0
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME   $N  512 1024 1 1   14   14     1 1       1 1      0 0       0 0
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME   $N  128  128 3 3   28   28     1 1       1 1      1 1       1 1
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME   $N  512  128 1 1   28   28     1 1       1 1      0 0       0 0
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME   $N  128  128 3 3   56   56     2 2       1 1      1 1       1 1
+########  op  datatype  layout layout  layout  verify  init  log  time  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
+ $DRIVER $OP $DATATYPE $LAYOUT $LAYOUT $LAYOUT $VERIFY $INIT $LOG $TIME   $N  256 1024 1 1   14   14     1 1       1 1      0 0       0 0
+ $DRIVER $OP $DATATYPE $LAYOUT $LAYOUT $LAYOUT $VERIFY $INIT $LOG $TIME   $N  512 1024 1 1   14   14     1 1       1 1      0 0       0 0
+ $DRIVER $OP $DATATYPE $LAYOUT $LAYOUT $LAYOUT $VERIFY $INIT $LOG $TIME   $N  128  128 3 3   28   28     1 1       1 1      1 1       1 1
+ $DRIVER $OP $DATATYPE $LAYOUT $LAYOUT $LAYOUT $VERIFY $INIT $LOG $TIME   $N  512  128 1 1   28   28     1 1       1 1      0 0       0 0
+ $DRIVER $OP $DATATYPE $LAYOUT $LAYOUT $LAYOUT $VERIFY $INIT $LOG $TIME   $N  128  128 3 3   56   56     2 2       1 1      1 1       1 1

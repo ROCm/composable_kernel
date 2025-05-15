@@ -12,10 +12,10 @@ TIME=$7
  
 OPTYPE=$8
 N=$9
-########  op  datatype  layout  verify  init  log  time  op_type N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE $N  256 1024 1 1   14   14     1 1       1 1      0 0       0 0
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE $N  512 1024 1 1   14   14     1 1       1 1      0 0       0 0
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE $N  128  128 3 3   28   28     1 1       1 1      1 1       1 1
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE $N  512  128 1 1   28   28     1 1       1 1      0 0       0 0
- $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE $N  128  128 3 3   56   56     2 2       1 1      1 1       1 1
+########  op  datatype  layout  verify  init  log  time  op_type Dim G N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
+ $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE 2   1 $N  256 1024 1 1   14   14     1 1       1 1      0 0       0 0
+ $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE 2   1 $N  512 1024 1 1   14   14     1 1       1 1      0 0       0 0
+ $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE 2   1 $N  128  128 3 3   28   28     1 1       1 1      1 1       1 1
+ $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE 2   1 $N  512  128 1 1   28   28     1 1       1 1      0 0       0 0
+ $DRIVER $OP $DATATYPE $LAYOUT $VERIFY $INIT $LOG $TIME  $OPTYPE 2   1 $N  128  128 3 3   56   56     2 2       1 1      1 1       1 1
 
