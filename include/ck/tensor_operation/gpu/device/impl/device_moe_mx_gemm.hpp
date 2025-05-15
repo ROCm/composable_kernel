@@ -72,7 +72,6 @@ template <typename ALayout,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
           bool MulRoutedWeight                        = true,
-          bool PerTokenQuant                          = true,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = ADataType,
           typename ComputeTypeB                       = BDataType>
@@ -146,7 +145,6 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                           NSwizzle,
                           IsInputGemm,
                           MulRoutedWeight,
-                          PerTokenQuant,
                           IndexType,
                           ComputeTypeA,
                           ComputeTypeB>;
@@ -532,7 +530,7 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
             {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
-        str << "DeviceMoeGEmm"
+        str << "DeviceMoeGEmmMx"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
             << std::string(ALayout::name)[0]
