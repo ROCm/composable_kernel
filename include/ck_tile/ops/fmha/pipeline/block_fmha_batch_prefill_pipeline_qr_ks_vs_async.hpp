@@ -497,19 +497,20 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                         apply_logits_transform(s_acc.thread_buf_[i]);
                     }
 #else
-                    static_for<0, s_acc.thread_buf_.size(), 1>{}([&](auto idx) {
+                    for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
+                    {
 #if(defined(__gfx90a__) || defined(__gfx94__)) &&                                               \
     (CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN && \
      CK_TILE_ATTENTION_USE_SOFTSIGN_ASM)
                         // Avoid data hazard if v_mfma is followed by inline asm consumer
                         // instructions. In this case, compiler won't add s_nop for us
-                        if constexpr((idx + 1) == s_acc.thread_buf_.size() / 2)
+                        if(i == s_acc.thread_buf_.size() / 2)
                         {
                             __builtin_amdgcn_sched_barrier(0);
                         }
 #endif
-                        apply_logits_transform(s_acc.thread_buf_[idx]);
-                    });
+                        apply_logits_transform(s_acc.thread_buf_[i]);
+                    }
 #endif
                 }
                 else
