@@ -421,49 +421,6 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                         a_thread_desc_,
                         make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
                         a_thread_buf);
-#if defined(__gfx950__) && 0
-                    printf(
-                        "Tid: %02d, a_thread_buf: %02x %02x %02x %02x %02x %02x %02x %02x| %02x "
-                        "%02x %02x %02x %02x %02x %02x %02x| %02x %02x %02x %02x %02x %02x %02x "
-                        "%02x| %02x %02x %02x %02x %02x %02x %02x %02x|\n",
-                        get_thread_local_1d_id(),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<0>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<1>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<2>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<3>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<0 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<1 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<2 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<3 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 0>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 1>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 2>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 3>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 0 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 1 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 2 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8 + 3 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 0>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 1>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 2>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 3>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 0 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 1 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 2 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 3 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 8 + 0>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 8 + 1>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 8 + 2>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16 + 8 + 3>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(
-                            &(a_thread_buf[Number<16 + 8 + 0 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(
-                            &(a_thread_buf[Number<16 + 8 + 1 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(
-                            &(a_thread_buf[Number<16 + 8 + 2 + 4>{}]))),
-                        *(reinterpret_cast<const uint8_t*>(
-                            &(a_thread_buf[Number<16 + 8 + 3 + 4>{}]))));
-#endif
                 });
             });
         });
@@ -813,6 +770,25 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                     });
                 });
             });
+            
+#if defined(__gfx950__) || defined(__gfx942__) && 0 
+                    printf(
+                        "Tid: %03d, c: %.0f %.0f %.0f %.0f | %.0f %.0f %.0f %.0f | %.0f %.0f %.0f %.0f |\n",
+                        get_thread_local_1d_id(),
+                        c_thread_buf[Number<0>{}],
+                        c_thread_buf[Number<1>{}],
+                        c_thread_buf[Number<2>{}],
+                        c_thread_buf[Number<3>{}],
+                        c_thread_buf[Number<0 + 4>{}],
+                        c_thread_buf[Number<1 + 4>{}],
+                        c_thread_buf[Number<2 + 4>{}],
+                        c_thread_buf[Number<3 + 4>{}],
+                        c_thread_buf[Number<8 + 0>{}],
+                        c_thread_buf[Number<8 + 1>{}],
+                        c_thread_buf[Number<8 + 2>{}],
+                        c_thread_buf[Number<8 + 3>{}]);
+#endif
+            
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {
