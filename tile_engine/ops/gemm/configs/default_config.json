@@ -56,9 +56,9 @@
             "step": 1
         },
         "warp_n": {
-            "values": [
-                4
-            ]
+            "max": 4,
+            "min": 1,
+            "step": 1
         },
         "warp_k": {
             "values": [
