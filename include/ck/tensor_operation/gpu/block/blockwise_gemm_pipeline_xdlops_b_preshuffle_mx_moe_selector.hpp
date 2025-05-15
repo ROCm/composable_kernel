@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuflle_v1_moe_mx.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuflle_gufusion_v1_moe_mx.hpp"
 
 namespace ck {
 
@@ -71,7 +72,28 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
     {
         if constexpr(GUFusion)
         {
-            return nullptr;
+            return return BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v1_moe_mx<
+                BlkGemmPipeSche,
+                ThreadBlockSize,
+                ScaleBlockSize,
+                ADataType,
+                AScaleDataType,
+                BDataType,
+                BScaleDataType,
+                ATileDesc,
+                BTileDesc,
+                AMmaTileDesc,
+                BMmaTileDesc,
+                ABlockTransferSrcScalarPerVector,
+                BBlockTransferSrcScalarPerVector,
+                MPerBlock,
+                NPerBlock,
+                KPerBlock,
+                MPerXDL,
+                NPerXDL,
+                MRepeat,
+                NRepeat,
+                KPack>{};;
         }
         else
         {

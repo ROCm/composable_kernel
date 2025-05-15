@@ -58,7 +58,7 @@ template <index_t ThreadBlockSize,
           index_t MRepeat, // MXdlPerWave
           index_t NRepeat, // NXdlPerWave
           index_t KPack>
-struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v1_mx_tmp<BlockGemmPipelineScheduler::Intrawave,
+struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v1_moe_mx<BlockGemmPipelineScheduler::Intrawave,
                                                           ThreadBlockSize,
                                                           ScaleBlockSize,
                                                           ADataType,
