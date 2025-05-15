@@ -138,35 +138,37 @@ class GemmProfiler
     }
 
     template <typename Timer>
-    static float execute_kernel(const ck_tile::stream_config& stream,
-                                const std::function<void()>& kernel_launch)
+    static float time_kernel(const ck_tile::stream_config& stream,
+                             const std::function<void()>& kernel_launch_func)
     {
         Timer timer;
 
+        // flush cache
         auto flush_cache = [&] {
 #if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
-            __builtin_amdgcn_s_dcache_wb();
-            __builtin_amdgcn_s_dcache_inv();
+            asm volatile("s_dcache_wb; s_dcache_inv; s_icache_inv" ::: "memory");
 #endif
         };
 
-        // Cold iterations
+        // Cold runs - excludes from final timing measurement
         for(int i = 0; i < stream.cold_niters_; ++i)
         {
             timer.start(stream.stream_id_);
-            kernel_launch();
+            kernel_launch_func();
             timer.stop(stream.stream_id_);
         }
 
-        // Warm iterations with measurement
+        // Hot runs - actual performance measurement
         std::vector<float> measured_times;
         for(int i = 0; i < stream.nrepeat_; ++i)
         {
             timer.start(stream.stream_id_);
-            kernel_launch();
+            kernel_launch_func();
             timer.stop(stream.stream_id_);
             measured_times.push_back(timer.duration());
-            flush_cache();
+            // Periodic cache flushing
+            if(i % 4 == 0)
+                flush_cache();
         }
 
         return std::accumulate(measured_times.begin(), measured_times.end(), 0.0f) /
@@ -200,16 +202,16 @@ class GemmProfiler
 
         KernelInstance kernel_instance{description, problem, {-1.0f, -1.0f, -1.0f}};
 
-        auto kernel_launch = [&] { Kernel::launch(args, stream); };
+        auto kernel_launch_func = [&] { Kernel::launch(args, stream); };
 
         float avg_time = 0.f;
         if(stream.is_gpu_timer_)
         {
-            avg_time = execute_kernel<ck_tile::gpu_timer>(stream, kernel_launch);
+            avg_time = time_kernel<ck_tile::gpu_timer>(stream, kernel_launch_func);
         }
         else
         {
-            avg_time = execute_kernel<ck_tile::cpu_timer>(stream, kernel_launch);
+            avg_time = time_kernel<ck_tile::cpu_timer>(stream, kernel_launch_func);
         }
 
         std::size_t flop     = std::size_t(2) * args.M * args.N * args.K;
