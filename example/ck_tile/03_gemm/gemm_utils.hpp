@@ -55,13 +55,13 @@ struct GemmConfigBase
     static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
-
+template<typename PrecType>
 struct GemmConfig_1 : public GemmConfigBase
 {
     // Memory friendly for Interwave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 32;
-    static constexpr ck_tile::index_t K_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 4;
     static constexpr ck_tile::index_t N_Warp = 1;
@@ -69,18 +69,19 @@ struct GemmConfig_1 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 8;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
 
     static constexpr bool DoubleSmemBuffer = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
 };
 
+template<typename PrecType>
 struct GemmConfig_1_1 : public GemmConfigBase
 {
     // Memory friendly for Interwave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 32;
-    static constexpr ck_tile::index_t K_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 4;
     static constexpr ck_tile::index_t N_Warp = 1;
@@ -88,19 +89,20 @@ struct GemmConfig_1_1 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 8;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
 
     static constexpr bool DoubleSmemBuffer = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
     static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
+template<typename PrecType>
 struct GemmConfig_2 : public GemmConfigBase
 {
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -108,7 +110,7 @@ struct GemmConfig_2 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 32 : 128;
 
     static constexpr bool DoubleSmemBuffer = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
@@ -116,12 +118,13 @@ struct GemmConfig_2 : public GemmConfigBase
     static constexpr int kBlockPerCu                         = 2;
 };
 
+template<typename PrecType>
 struct GemmConfig_2_1 : public GemmConfigBase
 {
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -129,7 +132,7 @@ struct GemmConfig_2_1 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 32 : 128;
 
     static constexpr bool DoubleSmemBuffer = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
@@ -137,12 +140,13 @@ struct GemmConfig_2_1 : public GemmConfigBase
     static constexpr int kBlockPerCu = 2;
 };
 
+template<typename PrecType>
 struct GemmConfig_2_2 : public GemmConfigBase
 {
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -150,21 +154,40 @@ struct GemmConfig_2_2 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 16 : 64;
 
     static constexpr bool DoubleSmemBuffer = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
-    //static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
-    //static constexpr int kBlockPerCu = 2;
 };
 
+template<typename PrecType>
+struct GemmConfig_2_3 : public GemmConfigBase
+{
+    // Compute friendly for Intrawave scheduler
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 16 : 64;
+
+    static constexpr bool DoubleSmemBuffer = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+};
+
+template<typename PrecType>
 struct GemmConfig_3 : public GemmConfigBase
 {
     // Compute friendly for Intrawave scheduler
     // Using the ping pong reader in the lds level
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -172,19 +195,20 @@ struct GemmConfig_3 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 16 : 64;
 
     static constexpr bool DoubleSmemBuffer = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
 };
 
+template<typename PrecType>
 struct GemmConfig_3_1 : public GemmConfigBase
 {
     // Compute friendly for Intrawave scheduler
     // Using the ping pong reader in the lds level
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -192,11 +216,32 @@ struct GemmConfig_3_1 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 16 : 64;
 
     static constexpr bool DoubleSmemBuffer = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
     static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
+};
+
+template<typename PrecType>
+struct GemmConfig_3_2 : public GemmConfigBase
+{
+    // Compute friendly for Intrawave scheduler
+    // Using the ping pong reader in the lds level
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 16 : 64;
+
+    static constexpr bool DoubleSmemBuffer = true;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
 };
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
