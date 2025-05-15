@@ -4,14 +4,16 @@ CK Tile Engine GEMM is used to generate and run GEMM kernels with different comb
 
 # Kernel Configurations
 
-user can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file. For reference please see `./configs/user_provided_config.json`. The Tile engine also has default kernel configuration to expand the range of kernel configuration which is saved in `./configs/default_config.json`.
+User can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file. For reference please see `./configs/user_provided_config.json`. The Tile engine also has default kernel configuration to expand the range of kernel configuration which is saved in `./configs/default_config.json`.
 
 ## Build Instructions
 ``` bash
 # in the root of composable kernel create build directory
 mkdir build && cd build
 # build composable kernel
-sh ../script/cmake-ck-dev.sh  ../ <arch> # replace <arch> with the appropriate architecture (example gfx942) or leave blank
+## replace <arch> with the appropriate architecture (example gfx942) or leave blank
+## "USE_CUSTOM_CONFIG=ON" for default configuration, "USE_CUSTOM_CONFIG=ON" for user provided configuration
+sh ../script/cmake-ck-dev.sh  ../ <arch> -D USE_CUSTOM_CONFIG=ON 
 # generate the executable
 make tile_engine_gemm -j
 ```
