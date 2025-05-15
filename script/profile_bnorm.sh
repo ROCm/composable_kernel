@@ -9,5 +9,5 @@ INIT=$4
 TIME=$5
 USE=$6
  
-########  op  datatype UseSavedMean  verify  init  log  time   inOutLengths(nhwc)   reduceDims  verify
- $DRIVER $OP $DATATYPE $USE             $VERIFY $INIT $LOG $TIME  -D 64,64,280,82       -R 0        $VERIFY
+########  op  datatype UseSavedMean  init   time   inOutLengths(nhwc)   reduceDims  verify
+ $DRIVER $OP $DATATYPE $USE          $INIT  $TIME  -D 64,64,280,82       -R 1,2,3        $VERIFY

@@ -157,34 +157,11 @@ print_log_header $grouped_gemm_fixed_nk_log $env_type $branch $host_name
 ./profile_grouped_gemm_fixed_nk.sh grouped_gemm_fixed_nk 2 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fixed_nk_log
 ./profile_grouped_gemm_fixed_nk.sh grouped_gemm_fixed_nk 3 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fixed_nk_log
 
-#run grouped_gemm_multiply_tile_loop tests	
-export grouped_gemm_multiply_tile_loop_log="perf_grouped_gemm_multiply_tile_loop.log"	
-print_log_header $grouped_gemm_multiply_tile_loop_log $env_type $branch $host_name	
-./profile_grouped_gemm.sh grouped_gemm_multiply_tile_loop 0 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_multiply_tile_loop_log
-
 #run grouped_gemm_tile_loop tests	
 export grouped_gemm_tile_loop_log="perf_grouped_gemm_tile_loop.log"	
 print_log_header $grouped_gemm_tile_loop_log $env_type $branch $host_name	
 ./profile_grouped_gemm.sh grouped_gemm_tile_loop 0 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_tile_loop_log
 ./profile_grouped_gemm.sh grouped_gemm_tile_loop 0 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_tile_loop_log
-
-#run groupnorm tests	
-export groupnorm_log="perf_groupnorm.log"	
-print_log_header $groupnorm_log $env_type $branch $host_name	
-./profile_groupnorm.sh groupnorm 0 $verify 1 0 1 2>&1 | tee -a $groupnorm_log
-./profile_groupnorm.sh groupnorm 1 $verify 1 0 1 2>&1 | tee -a $groupnorm_log
-
-#run permute_scale tests	
-export permute_scale_log="perf_permute_scale.log"	
-print_log_header $permute_scale_log $env_type $branch $host_name	
-./profile_permute_scale.sh permute_scale 0 $verify 1 0 1 2>&1 | tee -a $permute_scale_log
-./profile_permute_scale.sh permute_scale 1 $verify 1 0 1 2>&1 | tee -a $permute_scale_log
-
-#run transpose tests	
-export transpose_log="perf_transpose.log"	
-print_log_header $transpose_log $env_type $branch $host_name	
-./profile_transpose.sh transpose 0 $verify 1 0 1 2>&1 | tee -a $transpose_log
-./profile_transpose.sh transpose 1 $verify 1 0 1 2>&1 | tee -a $transpose_log
 
 #run avg_pool2d_bwd tests	
 export avg_pool2d_bwd_log="perf_avg_pool2d_bwd.log"	
@@ -226,36 +203,6 @@ print_log_header $bnorm_infer_log $env_type $branch $host_name
 ./profile_bnorm.sh bnorm_infer 5 $verify 0 1 0 2>&1 | tee -a $bnorm_infer_log
 ./profile_bnorm.sh bnorm_infer 6 $verify 0 1 0 2>&1 | tee -a $bnorm_infer_log
 
-#run groupnorm_bwd_data tests	
-export groupnorm_bwd_data_log="perf_groupnorm_bwd_data.log"	
-print_log_header $groupnorm_bwd_data_log $env_type $branch $host_name	
-./profile_groupnorm.sh groupnorm_bwd_data 0 $verify 1 0 1 2>&1 | tee -a $groupnorm_bwd_data_log
-./profile_groupnorm.sh groupnorm_bwd_data 1 $verify 1 0 1 2>&1 | tee -a $groupnorm_bwd_data_log
-
-#run groupnorm_bwd_gamma_beta tests	
-export groupnorm_bwd_gamma_beta_log="perf_groupnorm_bwd_gamma_beta.log"	
-print_log_header $groupnorm_bwd_gamma_beta_log $env_type $branch $host_name	
-./profile_groupnorm.sh groupnorm_bwd_gamma_beta 0 $verify 1 0 1 2>&1 | tee -a $groupnorm_bwd_gamma_beta_log
-./profile_groupnorm.sh groupnorm_bwd_gamma_beta 1 $verify 1 0 1 2>&1 | tee -a $groupnorm_bwd_gamma_beta_log
-
-#run layernorm_bwd_data tests	
-export layernorm_bwd_data_log="perf_layernorm_bwd_data.log"	
-print_log_header $layernorm_bwd_data_log $env_type $branch $host_name	
-./profile_layernorm.sh layernorm_bwd_data 0 $verify 1 0 1 2>&1 | tee -a $layernorm_bwd_data_log
-./profile_layernorm.sh layernorm_bwd_data 1 $verify 1 0 1 2>&1 | tee -a $layernorm_bwd_data_log
-
-#run layernorm_bwd_gamma_beta tests	
-export layernorm_bwd_gamma_beta_log="perf_layernorm_bwd_gamma_beta.log"	
-print_log_header $layernorm_bwd_gamma_beta_log $env_type $branch $host_name	
-./profile_layernorm.sh layernorm_bwd_gamma_beta 0  $verify 1 0 1 2>&1 | tee -a $layernorm_bwd_gamma_beta_log
-./profile_layernorm.sh layernorm_bwd_gamma_beta 1  $verify 1 0 1 2>&1 | tee -a $layernorm_bwd_gamma_beta_log
-
-#run layernorm_fwd tests	
-export layernorm_fwd_log="perf_layernorm_fwd.log"	
-print_log_header $layernorm_fwd_log $env_type $branch $host_name	
-./profile_layernorm.sh layernorm_fwd 0 $verify 1 0 1 2>&1 | tee -a $layernorm_fwd_log
-./profile_layernorm.sh layernorm_fwd 1 $verify 1 0 1 2>&1 | tee -a $layernorm_fwd_log
-
 #run max_pool2d_bwd tests	
 export max_pool2d_bwd_log="perf_max_pool2d_bwd.log"	
 print_log_header $max_pool2d_bwd_log $env_type $branch $host_name	
@@ -294,10 +241,3 @@ print_log_header $pool3d_fwd_log $env_type $branch $host_name
 ./profile_pool3d_fwd.sh pool3d_fwd 5 $verify 1 0 1 1 2>&1 | tee -a $pool3d_fwd_log
 ./profile_pool3d_fwd.sh pool3d_fwd 7 $verify 1 0 1 1 2>&1 | tee -a $pool3d_fwd_log
 
-#run softmax tests	
-export softmax_log="perf_softmax.log"	
-print_log_header $softmax_log $env_type $branch $host_name	
-./profile_softmax.sh softmax 0 $verify 1 0 1 2>&1 | tee -a $softmax_log
-./profile_softmax.sh softmax 1 $verify 1 0 1 2>&1 | tee -a $softmax_log
-./profile_softmax.sh softmax 2 $verify 1 0 1 2>&1 | tee -a $softmax_log
-./profile_softmax.sh softmax 3 $verify 1 0 1 2>&1 | tee -a $softmax_log
