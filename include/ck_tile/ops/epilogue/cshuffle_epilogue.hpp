@@ -41,6 +41,12 @@ struct CShuffleEpilogueProblem
     static constexpr index_t kKPerXdl                      = kKPerXdl_;
     static constexpr index_t isCTransposed                 = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
+    // NumMXdlPerWavePerShuffle used for in each shuffle iteration how many xdl tiles in M
+    // dimensions per wave
+    static constexpr index_t NumMXdlPerWavePerShuffle = 1;
+    // NumNXdlPerWavePerShuffle used for in each shuffle iteration how many xdl tiles in N
+    // dimensions per wave
+    static constexpr index_t NumNXdlPerWavePerShuffle = 2;
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -65,10 +71,8 @@ struct CShuffleEpilogue
     static constexpr index_t kNPerXdl                      = Problem::kNPerXdl;
     static constexpr index_t kKPerXdl                      = Problem::kKPerXdl;
     static constexpr index_t isCTransposed                 = Problem::isCTransposed;
-
-    static constexpr index_t NumMXdlPerWavePerShuffle = 1;
-    static constexpr index_t NumNXdlPerWavePerShuffle = 2;
-
+    static constexpr index_t NumMXdlPerWavePerShuffle      = Problem::NumMXdlPerWavePerShuffle;
+    static constexpr index_t NumNXdlPerWavePerShuffle      = Problem::NumNXdlPerWavePerShuffle;
     static constexpr index_t kMPerIteration = kMPerXdl * kMWave * NumMXdlPerWavePerShuffle;
     static constexpr index_t kNPerIteration = kNPerXdl * kNWave * NumNXdlPerWavePerShuffle;
 
@@ -189,6 +193,7 @@ struct CShuffleEpilogue
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
+        block_sync_lds();
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             constexpr auto idx_y_start = SFC::get_index(iAccess);
 
@@ -206,7 +211,6 @@ struct CShuffleEpilogue
 
             const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
 
-            block_sync_lds();
             store_tile(in_lds_window, c_warptile_in_tensor_casted);
             block_sync_lds();
 
