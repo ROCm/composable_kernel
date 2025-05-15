@@ -1505,7 +1505,7 @@ struct GridwiseMoeGemmMX
                                        get_warp_local_1d_id() % NWave,
                                        0,
                                        KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
-            const BScaleType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2 / BPackedSize;
+            const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2;
             const auto b_scale_grid_buf_up      = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_b_scale_grid_up + expert_id * expert_scale_stride,
                 b_scale_grid_desc_bn_ak.GetElementSpaceSize());
@@ -1532,6 +1532,7 @@ struct GridwiseMoeGemmMX
                     a_block_buf,
                     a_block_slice_copy_step,
                     b_grid_desc_bpreshuffled,
+                    b_block_desc_bk0_n_bk1,
                     b_blockwise_copy,
                     b_blockwise_copy_up,
                     b_grid_buf,
@@ -1639,14 +1640,14 @@ struct GridwiseMoeGemmMX
                                 else if(ActivationOperation == Activation::gelu_and_mul)
                                 {
                                     float gate = c_thread_buf[cidx];
-                                    float up   = c_thread_buf_up[cidx];
-                                    if constexpr(MulRoutedWeight)
-                                    {
-                                        gate = gate * topk_weights.AsType<float>()[m4];
-                                        up   = up * topk_weights.AsType<float>()[m4];
-                                    }
-                                    tensor_operation::element_wise::Gelu{}(gate, gate);
-                                    c_thread_buf_fp32(cidx) = gate * up;
+                                    // float up   = c_thread_buf_up[cidx];
+                                    // if constexpr(MulRoutedWeight)
+                                    // {
+                                    //     gate = gate * topk_weights.AsType<float>()[m4];
+                                    //     up   = up * topk_weights.AsType<float>()[m4];
+                                    // }
+                                    // tensor_operation::element_wise::Gelu{}(gate, gate);
+                                    c_thread_buf_fp32(cidx) = gate ;//* up;
                                 }
                             }
                             else
@@ -2225,6 +2226,23 @@ struct GridwiseMoeGemmMX
                                        get_warp_local_1d_id() % NWave,
                                        0,
                                        KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+            const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2;
+            const auto b_scale_grid_buf_up      = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                p_b_scale_grid_up + expert_id * expert_scale_stride,
+                b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+            auto b_scale_thread_copy_up =
+                    ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
+                                                    BScaleDataType,
+                                                    decltype(b_scale_grid_desc_bn_ak),
+                                                    decltype(BlockwiseGemmPipe::b_scale_thread_desc_copy),
+                                                    Sequence<1, 1>, // SliceLengths
+                                                    Sequence<0, 1>, // DimAccessOrder
+                                                    1,              // SrcVectorDim
+                                                    1,              // SrcScalarPerVector
+                                                    1,
+                                                    true>(
+                    b_scale_grid_desc_bn_ak,
+                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, thread_offset_k));
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
@@ -2233,6 +2251,7 @@ struct GridwiseMoeGemmMX
                 a_block_bufs,
                 a_block_slice_copy_step,
                 b_grid_desc_bpreshuffled,
+                b_block_desc_bk0_n_bk1,
                 b_blockwise_copy,
                 b_blockwise_copy_up,
                 b_grid_buf,
@@ -2241,6 +2260,14 @@ struct GridwiseMoeGemmMX
                 b_block_slice_copy_step,
                 c_thread_buf,
                 c_thread_buf_up,
+                a_scale_grid_desc_am_ak,
+                a_scale_thread_copy,
+                a_scale_grid_buf,
+                b_scale_grid_desc_bn_ak,
+                b_scale_thread_copy,
+                b_scale_thread_copy_up,
+                b_scale_grid_buf,
+                b_scale_grid_buf_up,
                 num_k_block_main_loop);
         }
         else
