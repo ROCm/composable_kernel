@@ -22,7 +22,7 @@ using CElementOp = PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffleV3<
+using DeviceGemmV2Instance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffleV3<
         ALayout,   BLayout,  CLayout,   
         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
@@ -42,18 +42,6 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffl
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
-using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
-                                                                             BLayout,
-                                                                             CLayout,
-                                                                             ADataType,
-                                                                             BDataType,
-                                                                             CDataType,
-                                                                             AccDataType,
-                                                                             AElementOp,
-                                                                             BElementOp,
-                                                                             CElementOp>;
+#include "run_gemm_example_v2.inc"
 
-#include "run_gemm_example.inc"
-
-int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
-
+int main(int argc, char* argv[]) { return !run_gemm_splitk_example(argc, argv); }

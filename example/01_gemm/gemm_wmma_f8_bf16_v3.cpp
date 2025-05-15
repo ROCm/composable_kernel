@@ -10,6 +10,8 @@ using BDataType        = ck::f8_t;
 using AccDataType      = float;
 using CShuffleDataType = ck::bhalf_t;
 using CDataType        = ck::bhalf_t;
+using ComputeTypeA     = ck::f8_t;
+using ComputeTypeB     = ck::f8_t;
 
 using ALayout = Col;
 using BLayout = Row;
@@ -22,37 +24,34 @@ using CElementOp = PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffleV3<
+using DeviceGemmV2Instance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffleV3<
         ALayout,   BLayout,  CLayout,   
         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
-        32,
-        16, 16, 
-        64, 8, 8,
+        128,
+        64, 64, 
+        32, 8, 8,
         16,   16,
-        1,    1, 
-        S<2, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
-        2, 8, 8, 1,
-        S<2, 16, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
-        1, 1, 4, 0, 1, 1,
-        S<1, 16, 1, 2>,   8,
-        ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
+        2,    2, 
+        S<4, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        2, 8, 8, 0,
+        S<4, 32, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
+        1, 2, 4, 1, 1, 1,
+        S<1, 32, 1, 2>,   8,
+        ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3, ComputeTypeA, ComputeTypeB>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceComputeType  = ck::f8_t;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        CDataType,
+                                                                        AccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        CElementOp,
+                                                                        ReferenceComputeType,
+                                                                        ReferenceComputeType>;
 
-using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
-                                                                             BLayout,
-                                                                             CLayout,
-                                                                             ADataType,
-                                                                             BDataType,
-                                                                             CDataType,
-                                                                             AccDataType,
-                                                                             AElementOp,
-                                                                             BElementOp,
-                                                                             CElementOp>;
+#include "run_gemm_example_v2.inc"
 
-#include "run_gemm_example.inc"
-
-int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
+int main(int argc, char* argv[]) { return !run_gemm_splitk_example(argc, argv); }
