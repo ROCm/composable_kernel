@@ -58,7 +58,7 @@ bool run_mfma_test(ck::index_t init)
     return pass;
 }
 
-const ck::index_t common_init = -3; // set to "< 0" for test-specific initializations
+const ck::index_t common_init = -4; // set to "< 0" for test-specific initializations
 
 TEST(MFMA, FP8MFMA16x16x128)
 {
@@ -295,6 +295,108 @@ TEST(MXMFMA, MXFP8MFMA32x32x64)
                                 CLayout,
                                 f8_t,
                                 f8_t,
+                                half_t,
+                                ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXBF8MFMA16x16x128)
+{
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass    = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                bf8_t,
+                                bf8_t,
+                                float,
+                                ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXBF8MFMA32x32x64)
+{
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass    = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                bf8_t,
+                                bf8_t,
+                                half_t,
+                                ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXFP6MFMA16x16x128)
+{
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass    = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                f6_t,
+                                f6_t,
+                                float,
+                                ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXFP6MFMA32x32x64)
+{
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass    = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                f6_t,
+                                f6_t,
+                                half_t,
+                                ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXBF6MFMA16x16x128)
+{
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass    = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                bf6_t,
+                                bf6_t,
+                                float,
+                                ck::MFMA_F8F6F4::SCALE_F32_16x16x128>(AB_init);
+    EXPECT_TRUE(pass);
+}
+
+TEST(MXMFMA, MXBF6MFMA32x32x64)
+{
+    using ALayout = ck::tensor_layout::gemm::RowMajor;
+    using BLayout = ck::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck::tensor_layout::gemm::RowMajor;
+
+    auto AB_init = (common_init < 0) ? 5 : common_init;
+    auto pass    = run_mxmfma_test<ALayout,
+                                BLayout,
+                                CLayout,
+                                bf6_t,
+                                bf6_t,
                                 half_t,
                                 ck::MFMA_F8F6F4::SCALE_F32_32x32x64>(AB_init);
     EXPECT_TRUE(pass);
