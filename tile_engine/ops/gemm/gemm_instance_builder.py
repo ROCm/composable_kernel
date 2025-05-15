@@ -376,18 +376,20 @@ struct GemmKernel {{
         # Warp combination validation
         warp_tile_key = f"{self.config.problem.datatype_map['matrix_a']}_{self.config.problem.datatype_map['matrix_b']}_{self.config.problem.datatype_map['matrix_c']}"
         current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
-        
+
         gpu_name = get_gpu_name_by_id(0)
         gpu_warp_tile_key = warp_tile_supported_combinations.get(gpu_name, {})
         if not gpu_warp_tile_key:
-            logging.warning(f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
+            logging.warning(
+                f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
             return True
-        
+
         allowed_combinations = gpu_warp_tile_key.get(warp_tile_key, [])
         if not allowed_combinations:
-            logging.warning(f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
+            logging.warning(
+                f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
             return True
-        
+
         if current_combination not in allowed_combinations:
             logging.warning(
                 f"Trait: [{trait}], Invalid warp combination: {current_combination} not in allowed list. "
