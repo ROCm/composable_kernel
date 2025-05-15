@@ -370,6 +370,7 @@ struct vector_type<T, 6, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
+    typedef T d3_t __attribute__((ext_vector_type(3)));
     typedef T d6_t __attribute__((ext_vector_type(6)));
 
     using type = d6_t;
@@ -379,6 +380,7 @@ struct vector_type<T, 6, typename ck::enable_if_t<is_native_type<T>()>>
         d6_t d6_;
         StaticallyIndexedArray<d1_t, 6> d1x6_;
         StaticallyIndexedArray<d2_t, 3> d2x3_;
+        StaticallyIndexedArray<d3_t, 2> d3x2_;
         StaticallyIndexedArray<d6_t, 1> d6x1_;
     } data_;
 
@@ -389,7 +391,8 @@ struct vector_type<T, 6, typename ck::enable_if_t<is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d6_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d3_t>::value || is_same<X, d6_t>::value,
                       "Something went wrong, please check src and dst types.");
 
         if constexpr(is_same<X, d1_t>::value)
@@ -399,6 +402,10 @@ struct vector_type<T, 6, typename ck::enable_if_t<is_native_type<T>()>>
         else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x3_;
+        }
+        else if constexpr(is_same<X, d3_t>::value)
+        {
+            return data_.d3x2_;
         }
         else if constexpr(is_same<X, d6_t>::value)
         {
@@ -413,7 +420,8 @@ struct vector_type<T, 6, typename ck::enable_if_t<is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value || is_same<X, d6_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d3_t>::value || is_same<X, d6_t>::value,
                       "Something went wrong, please check src and dst types.");
 
         if constexpr(is_same<X, d1_t>::value)
@@ -423,6 +431,10 @@ struct vector_type<T, 6, typename ck::enable_if_t<is_native_type<T>()>>
         else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x3_;
+        }
+        else if constexpr(is_same<X, d3_t>::value)
+        {
+            return data_.d3x2_;
         }
         else if constexpr(is_same<X, d6_t>::value)
         {
