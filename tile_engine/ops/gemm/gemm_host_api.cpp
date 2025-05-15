@@ -173,7 +173,7 @@ void run(const ck_tile::ArgParser& arg_parser)
                        structured_sparsity,
                        trait,
                        gemm_args,
-                       ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+                       ck_tile::stream_config{nullptr, false, 0, n_warmup, n_repeat});
 
     return;
 }

@@ -213,14 +213,14 @@ def get_gpu_name_by_id(gpu_id: int = 0) -> str:
             check=True
         )
         
-        arch_pattern = r'gfx\d{3}[a-z]?'
+        arch_pattern = r'gfx\d{3,4}[a-z]?'
         match = re.search(arch_pattern, result.stdout.lower())
         return match.group() if match else ""
         
     except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        print(f"[System Error] {str(e)}")
+        print(f"System Error: {str(e)}, when get the name of gpu:{gpu_id}")
         return ""
     except Exception as e:
-        print(f"[Runtime Exception] {str(e)}")
+        print(f"Runtime Exception: {str(e)}, when get the name of gpu:{gpu_id}")
         return ""
 

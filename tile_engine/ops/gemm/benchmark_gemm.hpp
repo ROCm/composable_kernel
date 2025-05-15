@@ -11,6 +11,7 @@
 #include <iomanip>
 
 #include "ck/host_utility/device_prop.hpp"
+#include "ck_tile/host/timer.hpp"
 
 enum class Metric
 {
@@ -136,6 +137,42 @@ class GemmProfiler
         return "Unknown";
     }
 
+    template <typename Timer>
+    static float execute_kernel(const ck_tile::stream_config& stream,
+                                const std::function<void()>& kernel_launch)
+    {
+        Timer timer;
+
+        auto flush_cache = [&] {
+#if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
+            __builtin_amdgcn_s_dcache_wb();
+            __builtin_amdgcn_s_dcache_inv();
+#endif
+        };
+
+        // Cold iterations
+        for(int i = 0; i < stream.cold_niters_; ++i)
+        {
+            timer.start(stream.stream_id_);
+            kernel_launch();
+            timer.stop(stream.stream_id_);
+        }
+
+        // Warm iterations with measurement
+        std::vector<float> measured_times;
+        for(int i = 0; i < stream.nrepeat_; ++i)
+        {
+            timer.start(stream.stream_id_);
+            kernel_launch();
+            timer.stop(stream.stream_id_);
+            measured_times.push_back(timer.duration());
+            flush_cache();
+        }
+
+        return std::accumulate(measured_times.begin(), measured_times.end(), 0.0f) /
+               measured_times.size();
+    }
+
     template <typename Kernel>
     void benchmark_kernel(ck_tile::DeviceMem& c_m_n_dev_buf,
                           ck_tile::HostTensor<CDataType>& c_m_n_host_result,
@@ -163,22 +200,30 @@ class GemmProfiler
 
         KernelInstance kernel_instance{description, problem, {-1.0f, -1.0f, -1.0f}};
 
-        float avg_time = Kernel::launch(args, stream);
-        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+        auto kernel_launch = [&] { Kernel::launch(args, stream); };
+
+        float avg_time = 0.f;
+        if(stream.is_gpu_timer_)
+        {
+            avg_time = execute_kernel<ck_tile::gpu_timer>(stream, kernel_launch);
+        }
+        else
+        {
+            avg_time = execute_kernel<ck_tile::cpu_timer>(stream, kernel_launch);
+        }
 
         std::size_t flop     = std::size_t(2) * args.M * args.N * args.K;
         std::size_t num_byte = sizeof(ADataType) * args.M * args.K +
                                sizeof(BDataType) * args.N * args.K +
                                sizeof(CDataType) * args.M * args.N;
-        float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
-        float gb_per_sec = num_byte / 1.E6 / avg_time;
 
         kernel_instance.perf_result.latency   = avg_time;
-        kernel_instance.perf_result.tflops    = tflops;
-        kernel_instance.perf_result.bandwidth = gb_per_sec;
+        kernel_instance.perf_result.tflops    = static_cast<float>(flop) / 1.E9 / avg_time;
+        kernel_instance.perf_result.bandwidth = num_byte / 1.E6 / avg_time;
 
         std::cout << kernel_instance << std::endl;
 
+        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool verified_correct =
             !verify || compare(args.K, args.k_batch, c_m_n_dev_result, c_m_n_host_result);
 

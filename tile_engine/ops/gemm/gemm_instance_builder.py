@@ -127,7 +127,7 @@ using CLayout = {LAYOUT_MAP[self.config.problem.layout_map['matrix_c']]};
 
     def _generate_all_trait_files(self):
         """Generate all kernel traits into files."""
-        if not self.all_trait_names:  # Check if the list is empty
+        if not self.all_trait_names:
             self._generate_all_traits()
         for trait in self.all_trait_names:
             self._generate_trait_file(trait)
@@ -177,7 +177,7 @@ struct GemmKernel {{
     static constexpr bool kPadN = {pad_n};
     static constexpr bool kPadK = {pad_k};
 
-    static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s) {{
+    static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;
         static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
@@ -249,7 +249,7 @@ struct GemmKernel {{
                 throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
             }}
 
-            if(s.log_level_ > 0)
+            if(stream.log_level_ > 0)
             {{
                 std::cout << "Launching kernel with args:"
                       << " grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
@@ -257,7 +257,7 @@ struct GemmKernel {{
                       << std::endl;
             }}
 
-            ave_time = ck_tile::launch_kernel(s,
+            ave_time = ck_tile::launch_kernel(stream,
                                           ck_tile::make_kernel<blocks.x, kBlockPerCu>(
                                               Kernel{{}}, grids, blocks, 0, kargs));
             return ave_time;
@@ -423,7 +423,7 @@ struct GemmDispatcher {
                                                      ck_tile::HostTensor<CDataType>&,
                                                      int,
                                                      ck_tile::GemmHostArgs&,
-                                                     const ck_tile::stream_config&)>>
+                                                     const ck_tile::stream_config& stream)>>
             kernel_map;
         return kernel_map;
     }
