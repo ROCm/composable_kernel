@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -114,4 +114,46 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
     }
 }
 
+template <typename... Callables, typename PreProcessFunc>
+CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
+                                            PreProcessFunc preprocess,
+                                            Callables&&... callables)
+{
+    if(!s.time_kernel_)
+    {
+        preprocess();
+        launch_and_check(s, std::forward<Callables>(callables)...);
+        return 0;
+    }
+
+    auto time_launches = [&](auto timer) {
+        // warmup
+        for(int i = 0; i < s.cold_niters_; i++)
+        {
+            launch_and_check(s, std::forward<Callables>(callables)...);
+        }
+
+        timer.start(s.stream_id_);
+        for(int i = 0; i < s.nrepeat_; i++)
+        {
+            preprocess();
+            launch_and_check(s, std::forward<Callables>(callables)...);
+        }
+        timer.stop(s.stream_id_);
+
+        hipDeviceProp_t deviceProps;
+        HIP_CHECK_ERROR(hipGetDeviceProperties(&deviceProps, 0));
+        float preprocess_offset = deviceProps.multiProcessorCount == 80 ? 0.005 : 0.01;
+        return (timer.duration() - preprocess_offset * s.nrepeat_) / s.nrepeat_;
+    };
+
+    if(s.flush_cache)
+    {
+        return time_launches(gpu_timer{});
+    }
+    else
+    {
+        return time_launches(cpu_timer{});
+    }
+}
 } // namespace ck_tile
