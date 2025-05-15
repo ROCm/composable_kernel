@@ -2710,7 +2710,6 @@ __device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
     {
         static_assert(false, "not implemented");
     }
-    return;
 }
 
 } // namespace ck_tile

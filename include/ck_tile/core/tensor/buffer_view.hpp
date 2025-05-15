@@ -5,7 +5,11 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
+#if __clang_major__ == 20
+#include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
+#else
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
+#endif
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
@@ -13,8 +17,8 @@
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
-#include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 
 namespace ck_tile {
 
@@ -140,7 +144,7 @@ struct buffer_view<address_space_enum::generic,
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto tranpose_get(index_t i,
+    CK_TILE_DEVICE constexpr auto transpose_get(index_t i,
                                                index_t linear_offset,
                                                bool is_valid_element,
                                                bool_constant<oob_conditional_check> = {}) const
@@ -378,6 +382,29 @@ struct buffer_view<address_space_enum::global,
         }
     }
 
+    /*
+    In the global memory address space, we do not support the transpose instruction in the buffer
+    view. Will report compilation error when developer wants to use it.
+    */
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr auto transpose_get(index_t i,
+                                               index_t linear_offset,
+                                               bool is_valid_element,
+                                               bool_constant<oob_conditional_check> = {}) const
+    {
+        static_assert(false, "Error: transpose load not supported in global memory space.");
+        ignore = i;
+        ignore = linear_offset;
+        ignore = is_valid_element;
+        return;
+    }
+
+
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
               bool oob_conditional_check = true,
@@ -460,28 +487,6 @@ struct buffer_view<address_space_enum::global,
 
         amd_async_buffer_load_with_oob_raw<remove_cvref_t<T>, t_per_x, Coherence>(
             smem, cached_buf_res_, i, linear_offset, bool_constant<pre_nop>{});
-    }
-
-    /*
-    In the global memory address space, we do not support the transpose instruction in the buffer
-    view. Will report compilation error when developer wants to use it.
-    */
-    template <typename X,
-              bool oob_conditional_check = true,
-              typename std::enable_if<
-                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
-                  bool>::type = false>
-    CK_TILE_DEVICE constexpr auto tranpose_get(index_t i,
-                                               index_t linear_offset,
-                                               bool is_valid_element,
-                                               bool_constant<oob_conditional_check> = {}) const
-    {
-        static_assert(false, "Error: transpose load not supported in global memory space.");
-        ignore = i;
-        ignore = linear_offset;
-        ignore = is_valid_element;
-        return;
     }
 
     // i is offset of T, not X. i should be aligned to X
@@ -893,11 +898,6 @@ struct buffer_view<address_space_enum::lds,
         smem_load<sizeof(X)>{}(dst, v_offset * sizeof(T), i_offset * sizeof(T));
     }
 
-/*
-The transpose_get will call the instruction of DS_READ_B(NUM OF Bytes)_TR_B(Per DataSize) in the
-shared memory space and that is only available in the MI350 hardware.
-*/
-#if defined(__gfx950__)
     template <typename X,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
@@ -934,27 +934,7 @@ shared memory space and that is only available in the MI350 hardware.
             }
         }
     }
-#else
-    // In other hardware arch scenario it is not supported.
-    template <typename X,
-              bool oob_conditional_check = true,
-              typename std::enable_if<
-                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
-                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
-                  bool>::type = false>
-    CK_TILE_DEVICE constexpr auto tranpose_get(index_t i,
-                                               index_t linear_offset,
-                                               bool is_valid_element,
-                                               bool_constant<oob_conditional_check> = {}) const
-    {
-        static_assert(false, "Error: transpose load not supported in global memory space.");
-        ignore = i;
-        ignore = linear_offset;
-        ignore = is_valid_element;
-        return;
-    }
-#endif
-
+    
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,
