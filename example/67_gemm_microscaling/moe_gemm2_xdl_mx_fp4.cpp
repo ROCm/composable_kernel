@@ -164,12 +164,12 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
     AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
     ScaleBlockSize,      256,   
-    MPerBlock,   128,    256,
+    MPerBlock,   128,    128,
     32,   32,
     16,   16,
     8,    2,
-    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
-    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
+    S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
+    S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
     2,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, 0, false, false, MulRoutedWeight, ck::index_t, A0DataType>;
 // clang-format on
@@ -306,13 +306,13 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-1, 1});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_2<A1DataType>{0, 1});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_2<B1DataType>{0, 1});
         d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
         d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
-        d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-1, 1});
         break;
     case 2:
         a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
