@@ -11,6 +11,7 @@
 #include <array>
 #include <cstring>
 #include <functional>
+#include <cmath>
 #include <numeric>
 #include <ostream>
 #include <string>
@@ -72,6 +73,7 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
                 "note when squant=1, this value will be modified by range_q/k")
+        .insert("logits_soft_cap", "0", "attention logits soft capping value.")
         .insert("range_q", "16", "per-tensor quantization range of q. used if squant=1.")
         .insert("range_k", "16", "per-tensor quantization range of k. used if squant=1.")
         .insert("range_v", "16", "per-tensor quantization range of v. used if squant=1.")
@@ -415,6 +417,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float scale_s = arg_parser.get_float("scale_s");
     if(scale_s == .0f)
         scale_s = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
+
+    const float logits_soft_cap = arg_parser.get_float("logits_soft_cap");
 
     std::string squant_str = arg_parser.get_str("squant");
     bool squant            = [&]() {
@@ -850,6 +854,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else // fmha_fwd_traits or fmha_splitkv_traits
         {
             traits.is_group_mode       = (mode == mode_enum::group);
+            traits.has_logits_soft_cap = 0.f < logits_soft_cap;
             traits.mask_type           = mask.type;
             traits.bias_type           = bias.type;
             traits.has_lse             = lse;
@@ -1006,6 +1011,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             args.scale_s = scale_s;
             args.scale_p = scale_p;
             args.scale_o = scale_o;
+
+            args.logits_soft_cap = logits_soft_cap;
 
             args.stride_bias =
                 (bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead) : stride_bias);
@@ -1374,6 +1381,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::identity{},
             ck_tile::scales(scale_s));
+
+        if(0.f < logits_soft_cap)
+        {
+            ck_tile::reference_unary_elementwise<SaccDataType, SaccDataType, SaccDataType>(
+                s_host_ref, s_host_ref, [logits_soft_cap](SaccDataType logits) {
+                    return ck_tile::type_convert<SaccDataType>(
+                        logits_soft_cap *
+                        std::tanhf(ck_tile::type_convert<float>(logits / logits_soft_cap)));
+                });
+        }
 
         if(bias.type == bias_enum::elementwise_bias)
         {

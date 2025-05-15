@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,19 +57,20 @@ __global__ void
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_ds_grid,
-                                                  p_e_grid,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  cde_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_etile_map);
+    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
+        p_a_grid,
+        p_b_grid,
+        p_ds_grid,
+        p_e_grid,
+        p_shared,
+        a_element_op,
+        b_element_op,
+        cde_element_op,
+        a_grid_desc_ak0_m_ak1,
+        b_grid_desc_bk0_n_bk1,
+        ds_grid_desc_mblock_mperblock_nblock_nperblock,
+        e_grid_desc_mblock_mperblock_nblock_nperblock,
+        block_2_etile_map);
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -257,7 +258,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CDEElementwiseOperation,
-        InMemoryDataOperationEnum::Set,
         NumGemmKPrefetchStage,
         BlockSize,
         MPerBlock,

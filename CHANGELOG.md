@@ -16,10 +16,14 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added GEMM pipeline for microscaling (MX) data types
 * Added support for FP16 2:4 structured sparsity to universal GEMM.
 * Added support for Split K for grouped convolution backward data.
+* Added logit soft-capping support for fMHA forward kernels.
 
 ### Optimized
 
-None
+
+* Optimize the gemm multiply multiply preshuffle & lds bypass with Pack of KGroup and better instruction layout. (#2166)
+* Added Vectorize Transpose optimization for CK Tile (#2131)
+
 
 ### Fixes
 
