@@ -1,5 +1,7 @@
 {
-   
+    "architecture": {
+        "values": ["gfx90a"]
+    },
     "layout_a": {
       "values": ["r"]
     },
