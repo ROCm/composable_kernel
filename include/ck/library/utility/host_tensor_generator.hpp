@@ -483,6 +483,25 @@ struct GeneratorTensor_4
 };
 
 template <>
+struct GeneratorTensor_4<ck::f4x2_pk_t>
+{
+    std::mt19937 generator;
+    std::normal_distribution<float> distribution;
+
+    GeneratorTensor_4(float mean, float stddev, unsigned int seed = 1)
+        : generator(seed), distribution(mean, stddev){};
+
+    template <typename... Is>
+    ck::f4x2_pk_t operator()(Is...)
+    {
+        float fp32_tmp0 = distribution(generator);
+        float fp32_tmp1 = distribution(generator);
+
+        return ck::f4x2_pk_t{ck::type_convert<ck::f4x2_t>(ck::float2_t{fp32_tmp0, fp32_tmp1})};
+    }
+};
+
+template <>
 struct GeneratorTensor_4<ck::f6x32_pk_t>
 {
     std::mt19937 generator;
