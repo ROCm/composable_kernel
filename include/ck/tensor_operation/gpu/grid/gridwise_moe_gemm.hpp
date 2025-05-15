@@ -2027,11 +2027,14 @@ struct GridwiseMoeGemm
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);
 
+        const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
+            (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
+            KPerBlock);
+
         // Blockwise GEMM pipeline
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
         auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
-        decltype(c_thread_buf) c_thread_buf_up;
 
         StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                                   float,
@@ -2039,13 +2042,12 @@ struct GridwiseMoeGemm
                                   c_thread_buf.s_per_v,
                                   true>
             c_thread_buf_fp32;
+        decltype(c_thread_buf) c_thread_buf_up;
 
-        const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
-            (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-            KPerBlock);
 
         if constexpr(IsInputGemm)
         {
+#ifdef DEBUG_SPILL
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_b_grid_up + expert_id * expert_stride / BPackedSize,
@@ -2082,6 +2084,23 @@ struct GridwiseMoeGemm
                 c_thread_buf,
                 c_thread_buf_up,
                 num_k_block_main_loop);
+#else
+            (void)c_thread_buf_up;
+            blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
+                a_grid_desc_ak0_m_ak1,
+                a_block_desc_ak0_m_ak1,
+                a_blockwise_copy,
+                a_grid_buf,
+                a_block_bufs,
+                a_block_slice_copy_step,
+                b_grid_desc_bpreshuffled,
+                b_blockwise_copy,
+                b_grid_buf,
+                b_block_bufs,
+                b_block_slice_copy_step,
+                c_thread_buf,
+                num_k_block_main_loop);
+#endif
         }
         else
         {
@@ -2126,17 +2145,17 @@ struct GridwiseMoeGemm
             constexpr auto M2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I4);
             constexpr auto M3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I5);
             constexpr auto M4 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I6);
-            constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
 
-            // mul scales
-            const float* p_sorted_weights_0 = p_ds_grid[I0];
-            const float* p_scale_b          = p_ds_grid[I1];
 
             static_assert(M0 * M1 * M2 * M3 * M4 == MPerBlock);
             static_assert(M4 == 4);
             const index_t m1 = get_warp_local_1d_id() / NWave;
             const index_t m3 = threadIdx.x % get_warp_size() / MPerXdl;
-
+            constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
+#if 0
+            // mul scales
+            const float* p_sorted_weights_0 = p_ds_grid[I0];
+            const float* p_scale_b          = p_ds_grid[I1];
             if(p_sorted_weights_0 != nullptr && p_scale_b != nullptr)
             {
                 if constexpr(PerTokenQuant)
@@ -2306,7 +2325,55 @@ struct GridwiseMoeGemm
                     });
                 });
             }
+#endif
+#ifdef DEBUG_SPILL
+            vector_type<float, 4> topk_weights; // for gemm2 only
+            static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
+                static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
+                    static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
+                        const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
+                                            m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
+                        if constexpr(MulRoutedWeight)
+                        {
+                            topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
+                                p_ds_grid[I2] + m_pos);
+                        }
+                        static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
+                            constexpr index_t c_offset =
+                                blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
+                                    make_tuple(m0, n0, m2 * M4 + m4));
+                            constexpr auto cidx = Number<c_offset>{};
 
+                            c_thread_buf_fp32(cidx) = c_thread_buf[cidx] +
+                                                    c_thread_buf_up[cidx];
+                        });
+                    });
+                });
+            });
+#else
+            vector_type<float, 4> topk_weights; // for gemm2 only
+            static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
+                static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
+                    static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
+                        const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
+                                            m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
+                        if constexpr(MulRoutedWeight)
+                        {
+                            topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
+                                p_ds_grid[I2] + m_pos);
+                        }
+                        static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
+                            constexpr index_t c_offset =
+                                blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
+                                    make_tuple(m0, n0, m2 * M4 + m4));
+                            constexpr auto cidx = Number<c_offset>{};
+
+                            c_thread_buf_fp32(cidx) = c_thread_buf[cidx];
+                        });
+                    });
+                });
+            });
+#endif
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 

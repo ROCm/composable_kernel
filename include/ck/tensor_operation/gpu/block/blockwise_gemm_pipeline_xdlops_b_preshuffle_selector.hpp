@@ -174,6 +174,7 @@ constexpr auto BlockGemmBPreshufflePipeline_Selector()
         {
             if constexpr(GUFusion)
             {
+#ifdef DEBUG_SPILL
                 return BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<
                     BlkGemmPipeSche,
                     BlockSize,
@@ -195,6 +196,28 @@ constexpr auto BlockGemmBPreshufflePipeline_Selector()
                     MRepeat,
                     NRepeat,
                     KPack>{};
+#else
+                return BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlkGemmPipeSche,
+                                                BlockSize,
+                                                ADataType,
+                                                BDataType,
+                                                ComputeDataType,
+                                                AccDataType,
+                                                ATileDesc,
+                                                BTileDesc,
+                                                AMmaTileDesc,
+                                                BMmaTileDesc,
+                                                ABlockTransferSrcScalarPerVector,
+                                                BBlockTransferSrcScalarPerVector,
+                                                MPerBlock,
+                                                NPerBlock,
+                                                KPerBlock,
+                                                MPerXDL,
+                                                NPerXDL,
+                                                MRepeat,
+                                                NRepeat,
+                                                KPack>{};
+#endif
             }
             else 
             {

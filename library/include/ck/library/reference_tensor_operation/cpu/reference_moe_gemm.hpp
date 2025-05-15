@@ -169,7 +169,7 @@ struct ReferenceMoeGemm : public device::BaseOperator
 
                     arg.c_element_op_(v_c, v_acc);
                     arg.c_element_op_(v_c_up, v_acc_up);
-
+#if 0
                     if constexpr(ActivationType == 1)
                     {
                         v_c = v_c * arg.b_scale_e_n_(e, n) * arg.a_scale_t_(t);
@@ -194,6 +194,12 @@ struct ReferenceMoeGemm : public device::BaseOperator
                         v_c_up = v_c_up * arg.b_scale_e_n_(e, n + full_n) * arg.a_scale_t_(t);
                         arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
                     }
+#endif
+#ifdef DEBUG_SPILL
+                        arg.c_t_k_n_(t, topk_id, n) = v_c + v_c_up;
+#else
+                        arg.c_t_k_n_(t, topk_id, n) = v_c;
+#endif
                 }
             };
 
