@@ -352,7 +352,7 @@ struct GemmKernel {{
             logging.warning(
                 f"Trait: [{trait}], Dimension alignment failed: {', '.join(alignment_issues)}. "
                 f"Tile dimensions {tile_m}x{tile_n}x{tile_k} must be divisible by "
-                f"[warpxtile] {warp_m}x{warp_n}x{warp_k} x {warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
+                f"[warp]: {warp_m}x{warp_n}x{warp_k} x [warp_tile]: {warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
             )
             return False
 
