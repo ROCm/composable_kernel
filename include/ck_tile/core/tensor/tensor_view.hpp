@@ -161,7 +161,8 @@ struct tensor_view
     CK_TILE_HOST_DEVICE constexpr void
     async_get_vectorized_elements(CK_TILE_LDS_ADDR remove_cvref_t<DataType>* smem,
                                   const TensorCoord& coord,
-                                  index_t linear_offset) const
+                                  index_t linear_offset,
+                                  bool_constant<oob_conditional_check> = {}) const
     {
         return buf_.template async_get<X>(
             smem,
@@ -181,7 +182,8 @@ struct tensor_view
     async_get_vectorized_elements(CK_TILE_LDS_ADDR remove_cvref_t<DataType>* smem,
                                   const TensorCoord& coord,
                                   index_t linear_offset,
-                                  bool is_valid_element) const
+                                  bool is_valid_element,
+                                  bool_constant<oob_conditional_check> = {}) const
     {
         return buf_.template async_get<X>(smem,
                                           coord.get_offset() / PackedSize,

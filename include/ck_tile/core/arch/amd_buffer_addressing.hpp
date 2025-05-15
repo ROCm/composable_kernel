@@ -1775,7 +1775,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
         index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
         async_buffer_load<bytes, false>(smem,
                                         src_wave_buffer_resource,
-                                        src_thread_addr_offset,
+                                        v_offset,
                                         src_wave_addr_offset,
                                         src_immediate_addr_offset,
                                         0,
