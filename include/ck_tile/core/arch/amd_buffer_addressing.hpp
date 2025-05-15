@@ -13,7 +13,6 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
-#include "ck_tile/core/utility/ignore.hpp"
 
 // This attribute gives a hint to the compiler that a branch is likely to be taken.
 // Then, the compiler should remove if possible the associated s_cbranch_execz branch that would
@@ -2690,35 +2689,28 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
 template <typename T, index_t N, address_space_enum BufferAddressSpace>
 __device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
 {
-    using vector_t = thread_buffer<T, N>;
-#if defined(__gfx950__)
-    if constexpr(BufferAddressSpace == address_space_enum::lds)
+
+    if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::half_t>)
     {
-        if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::half_t>)
-        {
-            typedef __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16 llvm_fp16x4_t;
-            __attribute__((address_space(3))) llvm_fp16x4_t* lds_ptr =
-                reinterpret_cast<__attribute__((address_space(3))) llvm_fp16x4_t*>(
-                    reinterpret_cast<uintptr_t>(in_ptr));
-            return bit_cast<vector_t>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
-        }
-        else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::fp8_t>)
-        {
-            typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_fp8x8_t;
-            __attribute__((address_space(3))) llvm_fp8x8_t* lds_ptr =
-                reinterpret_cast<__attribute__((address_space(3))) llvm_fp8x8_t*>(
-                    reinterpret_cast<uintptr_t>(in_ptr));
-            return bit_cast<vector_t>(__builtin_amdgcn_ds_read_tr8_b64_v2i32(lds_ptr));
-        }
+        typedef __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16 llvm_fp16x4_t;
+        __attribute__((address_space(3))) llvm_fp16x4_t* lds_ptr =
+            reinterpret_cast<__attribute__((address_space(3))) llvm_fp16x4_t*>(
+                reinterpret_cast<uintptr_t>(in_ptr));
+        return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
+    }
+    else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::fp8_t>)
+    {
+        typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_fp8x8_t;
+        __attribute__((address_space(3))) llvm_fp8x8_t* lds_ptr =
+            reinterpret_cast<__attribute__((address_space(3))) llvm_fp8x8_t*>(
+                reinterpret_cast<uintptr_t>(in_ptr));
+        return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr8_b64_v2i32(lds_ptr));
     }
     else
     {
         static_assert(false, "not implemented");
     }
-#else
-    ignore = in_ptr;
-    return vector_t{0};
-#endif
+    return;
 }
 
 } // namespace ck_tile
