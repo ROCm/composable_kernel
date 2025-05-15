@@ -42,7 +42,7 @@ TEST(BF6, ConvertFP32Nearest)
                 type_convert<float>(bf6_convert_rne(std::numeric_limits<float>::infinity())),
                 0.0f);
 
-    // convert float |30| to bf6 and back, check if clipped to max_bf6
+    // convert float +/-30 to bf6 and back, check if clipped to +/-max_bf6
     ASSERT_NEAR(-max_bf6, type_convert<float>(bf6_convert_rne(-30.0f)), 0.0f);
     ASSERT_NEAR(max_bf6, type_convert<float>(bf6_convert_rne(30.0f)), 0.0f);
 

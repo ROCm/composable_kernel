@@ -313,8 +313,6 @@ struct packed_type
     static constexpr index_t packed_size = 1; // number of packed elements
 };
 
-// Check if the type has packed type specialization
-
 template <>
 struct packed_type<int4_t>
 {
@@ -346,6 +344,7 @@ struct packed_type<bf6_t>
 template <typename T>
 using packed_type_t = typename packed_type<T>::type;
 
+// Check if the type has packed type specialization
 template <typename T>
 inline constexpr bool has_packed_type_v = !is_same_v<packed_type_t<T>, T>;
 

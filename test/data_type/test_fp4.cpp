@@ -39,7 +39,7 @@ TEST(FP4, ConvertFP32Nearest)
     ASSERT_NEAR(
         max_fp4, type_convert<float>(f4_convert_rne(std::numeric_limits<float>::max())), abs_tol);
 
-    // convert |7.0| to fp4 and back, check if clipped to |6.0|
+    // convert +/-7.0 to fp4 and back, check if clipped to +/-6.0
     ASSERT_NEAR(-max_fp4, type_convert<float>(f4_convert_rne(-7.0f)), 0.0);
     ASSERT_NEAR(max_fp4, type_convert<float>(f4_convert_rne(7.0f)), 0.0);
 
@@ -508,21 +508,6 @@ TEST(FP4, TestAllValues)
         ASSERT_EQ(fp, e2m1ValuesOCP[i]);
 
         f4_t fp4 = type_convert<f4_t>(e2m1ValuesOCP[i]);
-
-        printf("fp4 Bits: 0b");
-        for(int j = 3; j >= 0; --j)
-        {
-            printf("%c", (fp4 & (1 << j)) ? '1' : '0');
-        }
-        printf("\n");
-
-        printf("e2m1BitsOCP[i] Bits: 0b");
-        for(int j = 3; j >= 0; --j)
-        {
-            printf("%c", (e2m1BitsOCP[i] & (1 << j)) ? '1' : '0');
-        }
-        printf("\n");
-
         ASSERT_EQ(fp4 & 0xF, e2m1BitsOCP[i] & 0xF);
 
         // Print the binary representation
