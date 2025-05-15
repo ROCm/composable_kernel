@@ -177,8 +177,32 @@ void add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_default_instances
     std::vector<std::unique_ptr<
         DeviceGemmV2<Row, Col, Row, BF16, I4, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
+void add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_kpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Row, Col, Row, BF16, I4, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+void add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_mnpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Row, Col, Row, BF16, I4, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+void add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_mnkpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Row, Col, Row, BF16, I4, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
 
 void add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_default_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Col, Col, Row, BF16, I4, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+void add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_kpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Col, Col, Row, BF16, I4, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+void add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_mnpadding_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Col, Col, Row, BF16, I4, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+void add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_mnkpadding_instances(
     std::vector<std::unique_ptr<
         DeviceGemmV2<Col, Col, Row, BF16, I4, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
