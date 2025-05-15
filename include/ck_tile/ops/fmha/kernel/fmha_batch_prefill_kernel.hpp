@@ -823,14 +823,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.seqlen_k / 16, kargs.hdim_q / 8, 16, 8),
+                make_tuple(kargs.num_total_pages / 16, kargs.hdim_q / 8, 16, 8),
                 make_tuple(kargs.hdim_q * 16, 16 * 8, 8, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
 	        const auto k_dram_transposed = transform_tensor_view(
 	            k_dram_naive,
-	            make_tuple(make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16)),
+	            make_tuple(make_merge_transform(ck_tile::make_tuple(kargs.num_total_pages / 16, 16)),
 	                       make_merge_transform(ck_tile::make_tuple(kargs.hdim_q / 8, 8))),
 	            ck_tile::make_tuple(ck_tile::sequence<0, 2>{}, ck_tile::sequence<1, 3>{}),
 	            ck_tile::make_tuple(ck_tile::sequence<0>{}, ck_tile::sequence<1>{}));
@@ -862,7 +862,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                 //     make_tuple(sequence<0>{}, sequence<1>{}));
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.seqlen_k / 16, kargs.hdim_v, 16),
+                    make_tuple(kargs.num_total_pages / 16, kargs.hdim_v, 16),
                     make_tuple(kargs.hdim_v * 16, 16, 1),
                     // make_tuple(kargs.seqlen_k, kargs.hdim_v),
                     // make_tuple(kargs.stride_v, 1),
@@ -872,7 +872,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 				const auto v_dram_transposed =
 					transform_tensor_view(v_dram_naive,
 										  make_tuple(make_pass_through_transform(kargs.hdim_v),
-								                     make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16))),
+								                     make_merge_transform(ck_tile::make_tuple(kargs.num_total_pages /16, 16))),
 										  make_tuple(sequence<1>{}, sequence<0, 2>{}),
 										  make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -900,7 +900,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     v_ptr,
                     // make_tuple(kargs.hdim_v, kargs.seqlen_k),
                     // make_tuple(kargs.stride_v, 1),
-                    make_tuple(kargs.seqlen_k / 16, kargs.hdim_v, 16),
+                    make_tuple(kargs.num_total_pages / 16, kargs.hdim_v, 16),
                     make_tuple(kargs.hdim_v * 16, 16, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
@@ -908,7 +908,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 				const auto v_dram_transposed =
 					transform_tensor_view(v_dram_naive,
 										  make_tuple(make_pass_through_transform(kargs.hdim_v),
-								                     make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16))),
+								                     make_merge_transform(ck_tile::make_tuple(kargs.num_total_pages /16, 16))),
 										  make_tuple(sequence<1>{}, sequence<0, 2>{}),
 										  make_tuple(sequence<0>{}, sequence<1>{}));
 
