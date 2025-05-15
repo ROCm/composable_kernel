@@ -1773,23 +1773,23 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     if constexpr(oob_conditional_check)
     {
         index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
-        async_buffer_load<bytes, pre_nop>(smem,
-                                          src_wave_buffer_resource,
-                                          src_thread_addr_offset,
-                                          src_wave_addr_offset,
-                                          src_immediate_addr_offset,
-                                          0,
-                                          bool_constant<pre_nop>{});
+        async_buffer_load<bytes, false>(smem,
+                                        src_wave_buffer_resource,
+                                        src_thread_addr_offset,
+                                        src_wave_addr_offset,
+                                        src_immediate_addr_offset,
+                                        0,
+                                        bool_constant<false>{});
     }
     else
     {
-        async_buffer_load<bytes, pre_nop>(smem,
-                                          src_wave_buffer_resource,
-                                          src_thread_addr_offset,
-                                          src_wave_addr_offset,
-                                          src_immediate_addr_offset,
-                                          0,
-                                          bool_constant<pre_nop>{});
+        async_buffer_load<bytes, false>(smem,
+                                        src_wave_buffer_resource,
+                                        src_thread_addr_offset,
+                                        src_wave_addr_offset,
+                                        src_immediate_addr_offset,
+                                        0,
+                                        bool_constant<false>{});
     }
 #else
     static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
