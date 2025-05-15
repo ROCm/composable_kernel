@@ -151,6 +151,8 @@ __device__ AFragT load_A_col_major(AType const* input_ptr)
     // Reg 7 [24:31]     |     K79    |     K95     |     K111   |     K127    |  v[31]    ||    Reg 7 [24:31]     |     K47    |     K63     |  v[31] |
     // clang-format on
 
+    static_assert(!is_packed_type_v<AType>, "Packed type is not supported");
+
     static constexpr int32_t WAVE_SIZE = 64;
 
     // Here we want to load from rows of A in chunks of 16 elements each.
@@ -996,21 +998,24 @@ template <typename AType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-__global__ void
-matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb, CType* c)
+__global__ void matmul(const packed_type_t<AType>* a,
+                       const ScaleType* xa,
+                       const packed_type_t<BType>* b,
+                       const ScaleType* xb,
+                       CType* c)
 {
+    using PackedAType            = packed_type_t<AType>;
+    constexpr auto packed_size_a = packed_size_v<AType>;
+    using PackedBType            = packed_type_t<BType>;
+    constexpr auto packed_size_b = packed_size_v<BType>;
+
     constexpr int WAVE_SIZE = 64;
     assert(threadIdx.x < WAVE_SIZE);
     assert(blockDim.x == 1 && blockDim.y == 1 && blockDim.z == 1);
 
-    using AFragT =
-        vector_type<AType,
-                    BLOCK_M * BLOCK_K / WAVE_SIZE /
-                        (ck::is_same_v<ck::remove_cvref_t<AType>, ck::f4x2_pk_t> ? 2 : 1)>::type;
-    using BFragT =
-        vector_type<BType,
-                    BLOCK_K * BLOCK_N / WAVE_SIZE /
-                        (ck::is_same_v<ck::remove_cvref_t<BType>, ck::f4x2_pk_t> ? 2 : 1)>::type;
+    using AFragT = vector_type<PackedAType, BLOCK_M * BLOCK_K / WAVE_SIZE / packed_size_a>::type;
+    using BFragT = vector_type<PackedBType, BLOCK_K * BLOCK_N / WAVE_SIZE / packed_size_b>::type;
+
     using CFragT        = vector_type<CType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
     using AccumFragT    = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>;
     using RawAccumFragT = vector_type<AccType, BLOCK_M * BLOCK_N / WAVE_SIZE>::type;
@@ -1028,9 +1033,13 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
     // Load the inputs.
     if constexpr(is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
     {
-        fragA =
-            load_mx_A_row_major<AType, AFragT, ScaleType, AScaleFragT, BLOCK_M, BLOCK_K, BLOCK_X>(
-                a, xa, fragXa);
+        fragA = load_mx_A_row_major<PackedAType,
+                                    AFragT,
+                                    ScaleType,
+                                    AScaleFragT,
+                                    BLOCK_M,
+                                    BLOCK_K,
+                                    BLOCK_X>(a, xa, fragXa);
     }
     else
     {
@@ -1043,9 +1052,13 @@ matmul(const AType* a, const ScaleType* xa, const BType* b, const ScaleType* xb,
     }
     else
     {
-        fragB =
-            load_mx_B_col_major<BType, BFragT, ScaleType, BScaleFragT, BLOCK_K, BLOCK_N, BLOCK_X>(
-                b, xb, fragXb);
+        fragB = load_mx_B_col_major<PackedBType,
+                                    BFragT,
+                                    ScaleType,
+                                    BScaleFragT,
+                                    BLOCK_K,
+                                    BLOCK_N,
+                                    BLOCK_X>(b, xb, fragXb);
     }
 
     // Scaled Matrix multiply-accumulate using MFMA units
@@ -1168,6 +1181,11 @@ template <typename DeviceMFMA,
           index_t BLOCK_X>
 struct TestMXMFMA
 {
+    using PackedAType                   = typename packed_type<ADataType>::type;
+    static constexpr auto packed_size_a = packed_type<ADataType>::packed_size;
+    using PackedBType                   = typename packed_type<BDataType>::type;
+    static constexpr auto packed_size_b = packed_type<BDataType>::packed_size;
+
     auto PrepareGemmTensors(const GemmParams& params, index_t init)
     {
         auto f_host_tensor_descriptor =
@@ -1184,11 +1202,11 @@ struct TestMXMFMA
                 }
             };
 
-        Tensor<ADataType> a_m_k(
+        Tensor<PackedAType> a_m_k(
             f_host_tensor_descriptor(params.M, params.K, params.StrideA, ALayout{}));
         Tensor<ScaleType> a_scales(
             f_host_tensor_descriptor(params.M, params.K / BLOCK_X, params.K / BLOCK_X, ALayout{}));
-        Tensor<BDataType> b_n_k(
+        Tensor<PackedBType> b_n_k(
             f_host_tensor_descriptor(params.K, params.N, params.StrideB, BLayout{}));
         Tensor<ScaleType> b_scales(
             f_host_tensor_descriptor(params.K / BLOCK_X, params.N, params.K / BLOCK_X, BLayout{}));
@@ -1200,51 +1218,44 @@ struct TestMXMFMA
         switch(init)
         {
         case 0:
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{0.015625f}}); // 1/6
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{1.0f});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{0.5f}});
             // NOTE: not all numbers are representable in FP8, BF8, etc.
             // 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 16 18 20 20 20 22 24 24 24 26 28 28 28 30 32
-            b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<BDataType, 1>{});
+            b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<PackedBType, 1>{});
             b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
             break;
         case 1:
             // results in C = {K}
-            a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1.0f});
+            a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{1.0f});
             a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{512.0f}});
-            b_n_k.GenerateTensorValue(GeneratorTensor_1<BDataType>{1.0f});
+            b_n_k.GenerateTensorValue(GeneratorTensor_1<PackedBType>{1.0f});
             b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f / 512}});
             break;
         case 2:
             // expect small round off errors
-            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
+            a_m_k.GenerateTensorValue(GeneratorTensor_3<PackedAType>{-2.0, 2.0});
             a_scales.GenerateTensorValue(
                 GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
-            b_n_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
+            b_n_k.GenerateTensorValue(GeneratorTensor_3<PackedBType>{-2.0, 2.0});
             b_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{126, 129});
             break;
         case 3:
             // expect small round off errors
-            a_m_k.GenerateTensorValue(GeneratorTensor_4<ADataType>(0, 1));
+            a_m_k.GenerateTensorValue(GeneratorTensor_4<PackedAType>(0, 1, time(nullptr)));
             a_scales.GenerateTensorValue(
                 GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
-            b_n_k.GenerateTensorValue(GeneratorTensor_4<BDataType>(0, 1));
+            b_n_k.GenerateTensorValue(GeneratorTensor_4<PackedBType>(0, 1, time(nullptr) / 2));
             b_scales.GenerateTensorValue(
                 GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
             break;
-        case 4:
-            a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1., 1.});
-            a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
-            b_n_k.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1., 1.});
-            b_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
-            break;
+
         default:
             // all initial values are representable in FP8, BF8
-            a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
+            a_m_k.GenerateTensorValue(GeneratorTensor_2<PackedAType>{-6, 7}); // Z[-6,6]
             a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{122, 129});                    // scales: [1/32,..., 2]
-            b_n_k.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+                GeneratorTensor_2<ScaleType>{122, 129}); // scales: [1/32,..., 2]
+            b_n_k.GenerateTensorValue(GeneratorTensor_2<PackedBType>{-6, 7}); // Z[-6,6]
             b_scales.GenerateTensorValue(
                 GeneratorTensor_2<ScaleType>{122, 129}); //  scales: [1/32,..., 2]
 
@@ -1289,9 +1300,9 @@ struct TestMXMFMA
 
         auto host_tensors = PrepareGemmTensors(params, init);
 
-        const Tensor<ADataType>& a        = std::get<0>(host_tensors);
+        const Tensor<PackedAType>& a      = std::get<0>(host_tensors);
         const Tensor<ScaleType>& a_scales = std::get<1>(host_tensors);
-        const Tensor<BDataType>& b        = std::get<2>(host_tensors);
+        const Tensor<PackedBType>& b      = std::get<2>(host_tensors);
         const Tensor<ScaleType>& b_scales = std::get<3>(host_tensors);
         Tensor<CDataType>& c_host         = std::get<4>(host_tensors);
         Tensor<CDataType>& c_device       = std::get<5>(host_tensors);
@@ -1305,6 +1316,117 @@ struct TestMXMFMA
                      std::is_same<CDataType, half_t>::value)
         {
             res = ck::utils::check_err(c_device.mData, c_host.mData);
+#if 1
+
+            std::cout << "A:" << std::endl;
+            for(int i = 0; i < params.M; ++i)
+            {
+                for(int j = 0; j < params.K; ++j)
+                {
+                    if constexpr(is_same_v<PackedAType, f4x2_pk_t>)
+                    {
+                        if(j % 2 == 1)
+                            std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                      << type_convert<float>(
+                                             f4_t(a(i, j).template unpack<>(Number<1>{})));
+                        else
+                            std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                      << type_convert<float>(
+                                             f4_t(a(i, j).template unpack<>(Number<0>{})));
+                    }
+                    else if constexpr(is_packed_type_v<PackedAType>)
+                    {
+                        std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                  << type_convert<float>(
+                                         a(i, j).unpack(j % PackedAType::packed_size));
+                    }
+                    else
+                    {
+                        std::cout << std::setw(11) << std::fixed << std::setprecision(7)
+                                  << type_convert<float>(a(i, j));
+                    }
+                }
+
+                std::cout << std::endl;
+            }
+
+            std::cout << "A Scales: " << std::endl;
+            for(int i = 0; i < params.M; ++i)
+            {
+                for(int j = 0; j < params.K / BLOCK_X; ++j)
+                {
+                    std::cout << std::setw(11) << std::fixed << std::setprecision(6)
+                              << type_convert<float>(a_scales(i, j));
+                }
+                std::cout << std::endl;
+            }
+
+            std::cout << "B:" << std::endl;
+            for(int i = 0; i < params.K; ++i)
+            {
+                for(int j = 0; j < params.N; ++j)
+                {
+                    if constexpr(is_same_v<PackedBType, f4x2_pk_t>)
+                    {
+                        if(i % 2 == 1)
+                            std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                      << type_convert<float>(
+                                             f4_t(b(i, j).template unpack<>(Number<1>{})));
+                        else
+                            std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                      << type_convert<float>(
+                                             f4_t(b(i, j).template unpack<>(Number<0>{})));
+                    }
+                    else if constexpr(is_packed_type_v<PackedBType>)
+                    {
+                        std::cout << std::setw(8) << std::fixed << std::setprecision(3)
+                                  << type_convert<float>(
+                                         b(i, j).unpack(i % PackedBType::packed_size));
+                    }
+                    else
+                    {
+                        std::cout << std::setw(11) << std::fixed << std::setprecision(7)
+                                  << type_convert<float>(b(i, j));
+                    }
+                }
+
+                std::cout << std::endl;
+            }
+            std::cout << "B Scales: " << std::endl;
+            for(int i = 0; i < params.K / BLOCK_X; ++i)
+            {
+                for(int j = 0; j < params.N; ++j)
+                {
+                    std::cout << std::setw(11) << std::fixed << std::setprecision(6)
+                              << type_convert<float>(b_scales(i, j));
+                }
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+
+            std::cout << "C_device:" << std::endl;
+            for(int i = 0; i < params.M; ++i)
+            {
+                for(int j = 0; j < params.N; ++j)
+                {
+                    std::cout << std::setw(10) << std::fixed << std::setprecision(4)
+                              << type_convert<float>(c_device(i, j));
+                }
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+
+            std::cout << "C_host:" << std::endl;
+            for(int i = 0; i < params.M; ++i)
+            {
+                for(int j = 0; j < params.N; ++j)
+                {
+                    std::cout << std::setw(10) << std::fixed << std::setprecision(4)
+                              << type_convert<float>(c_host(i, j));
+                }
+                std::cout << std::endl;
+            }
+#endif
         }
         else
         {
