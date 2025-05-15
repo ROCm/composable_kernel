@@ -1647,17 +1647,98 @@ CK_TILE_DEVICE void amd_buffer_load_raw_impl(thread_buffer<T, N>& dst,
     }
 }
 
+template <bool pre_nop>
+struct async_buffer_load<16, pre_nop>
+{
+    template <typename T>
+    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* value,
+                                   int32x4_t res /*buffer resource*/,
+                                   index_t v_offset,
+                                   index_t /*s_offset*/,
+                                   index_t i_offset /*max 0xFFF*/,
+                                   index_t /*flag*/       = 0,
+                                   bool_constant<pre_nop> = {})
+    {
+#if defined(__gfx950__)
+        __builtin_amdgcn_struct_buffer_load_lds(res, value, 4, i_offset, v_offset, 0, 0, 0);
+#else
+        ignore = value;
+        ignore = res;
+        ignore = v_offset;
+        ignore = i_offset;
+#endif
+    }
+};
+
+template <bool pre_nop>
+struct async_buffer_load<12, pre_nop>
+{
+    template <typename T>
+    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* value,
+                                   int32x4_t res /*buffer resource*/,
+                                   index_t v_offset,
+                                   index_t /*s_offset*/,
+                                   index_t i_offset /*max 0xFFF*/,
+                                   index_t /*flag*/       = 0,
+                                   bool_constant<pre_nop> = {})
+    {
+#if defined(__gfx950__)
+        __builtin_amdgcn_struct_buffer_load_lds(res, value, 3, i_offset, v_offset, 0, 0, 0);
+#else
+        ignore = value;
+        ignore = res;
+        ignore = v_offset;
+        ignore = i_offset;
+#endif
+    }
+};
+
+template <bool pre_nop>
+struct async_buffer_load<4, pre_nop>
+{
+    template <typename T>
+    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* value,
+                                   int32x4_t res /*buffer resource*/,
+                                   index_t v_offset,
+                                   index_t /*s_offset*/,
+                                   index_t i_offset /*max 0xFFF*/,
+                                   index_t /*flag*/       = 0,
+                                   bool_constant<pre_nop> = {})
+    {
+#if defined(__gfx950__)
+        __builtin_amdgcn_struct_buffer_load_lds(res, value, 1, i_offset, v_offset, 0, 0, 0);
+#else
+        ignore = value;
+        ignore = res;
+        ignore = v_offset;
+        ignore = i_offset;
+#endif
+    }
+};
+
 template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
           bool pre_nop                        = false>
-CK_TILE_DEVICE void amd_async_buffer_load_impl(T* smem,
+CK_TILE_DEVICE void amd_async_buffer_load_impl(CK_TILE_LDS_ADDR T* smem,
                                                int32x4_t src_wave_buffer_resource,
                                                index_t src_thread_addr_offset,
                                                index_t src_wave_addr_offset,
                                                index_t src_immediate_addr_offset = 0,
                                                bool_constant<pre_nop>            = {})
 {
+#if defined(__gfx950__)
+    constexpr index_t bytes = sizeof(T) * N;
+    static_assert(bytes == 4 || bytes == 12 || bytes == 16,
+                  "wrong! only support in dword, dwordx3, dwordx4");
+    async_buffer_load<bytes, pre_nop>(smem,
+                                      src_wave_buffer_resource,
+                                      src_thread_addr_offset,
+                                      src_wave_addr_offset,
+                                      src_immediate_addr_offset,
+                                      0,
+                                      bool_constant<pre_nop>{});
+#else
     static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
 
     async_buffer_load_dword_v(smem,
@@ -1667,6 +1748,7 @@ CK_TILE_DEVICE void amd_async_buffer_load_impl(T* smem,
                               src_immediate_addr_offset,
                               0,
                               bool_constant<pre_nop>{});
+#endif
 }
 
 template <typename T,
@@ -1681,6 +1763,32 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
                                           index_t flag                         = 0,
                                           bool_constant<oob_conditional_check> = {})
 {
+#if defined(__gfx950__)
+    constexpr index_t bytes = sizeof(T) * N;
+    static_assert(bytes == 4 || bytes == 12 || bytes == 16,
+                  "wrong! only support in dword, dwordx3, dwordx4");
+    if constexpr(oob_conditional_check)
+    {
+        index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
+        async_buffer_load<bytes, pre_nop>(smem,
+                                          src_wave_buffer_resource,
+                                          src_thread_addr_offset,
+                                          src_wave_addr_offset,
+                                          src_immediate_addr_offset,
+                                          0,
+                                          bool_constant<pre_nop>{});
+    }
+    else
+    {
+        async_buffer_load<bytes, pre_nop>(smem,
+                                          src_wave_buffer_resource,
+                                          src_thread_addr_offset,
+                                          src_wave_addr_offset,
+                                          src_immediate_addr_offset,
+                                          0,
+                                          bool_constant<pre_nop>{});
+    }
+#else
     static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
 
     if constexpr(oob_conditional_check)
@@ -1704,6 +1812,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
                                         src_immediate_addr_offset,
                                         static_cast<index_t>(coherence));
     }
+#endif
 }
 
 template <index_t N,

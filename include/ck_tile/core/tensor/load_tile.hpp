@@ -94,6 +94,23 @@ template <typename LdsTileWindow_,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
           bool pre_nop               = false>
+CK_TILE_DEVICE auto async_load_tile(LdsTileWindow_&& lds_tile,
+                                    const TileWindow_& tile_window,
+                                    number<i_access>                     = {},
+                                    bool_constant<oob_conditional_check> = {},
+                                    bool_constant<pre_nop>               = {})
+{
+    return tile_window.async_load(lds_tile,
+                                  number<i_access>{},
+                                  bool_constant<oob_conditional_check>{},
+                                  bool_constant<pre_nop>{});
+}
+
+template <typename LdsTileWindow_,
+          typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          bool pre_nop               = false>
 CK_TILE_DEVICE auto async_load_tile_raw(LdsTileWindow_&& lds_tile,
                                         const TileWindow_& tile_window,
                                         number<i_access>                     = {},
