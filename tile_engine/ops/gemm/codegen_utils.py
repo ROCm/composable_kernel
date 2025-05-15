@@ -7,6 +7,10 @@
 Mappings and utility functions for kernel code generation.
 """
 
+import subprocess
+import re
+from functools import lru_cache
+
 DATA_TYPE_MAP = {'fp32': 'float',
                  'fp16': 'ck_tile::half_t',
                  'bf16': 'ck_tile::bf16_t',
@@ -155,12 +159,25 @@ def BOOL_MAP(b_): return {True: 'true', False: 'false'}[bool(b_)]
 
 # To Do: add some more supported combinations
 warp_tile_supported_combinations = {
-    'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
-    'bf16_bf16_bf16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
-    # last 2 were not supported by MI300 architecture.
-    'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32], [16, 16, 128], [32, 32, 64]],
-    'bf8_bf8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32], [16, 16, 128], [32, 32, 64]]
-}
+        "gfx90a": {
+            'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32]],
+            'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32]]
+        },
+        "gfx942": {
+            'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64]],
+            'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32]]
+        },
+        "gfx950": {
+            'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+            'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64], [16, 16, 128], [32, 32, 64]],
+            'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32], [16, 16, 128], [32, 32, 64]]
+        }
+    }      
 
 # To Do: remove some unsupported combinations
 trait_unsupported_combinations = {
@@ -172,6 +189,7 @@ trait_unsupported_combinations = {
 
 
 def element_size(data_type: str) -> float:
+    """Calculate the size (in bytes) of a single element for given data type."""
     data_type = data_type.lower()
     if data_type in {'fp16', 'bf16'}:
         return 2
@@ -181,3 +199,28 @@ def element_size(data_type: str) -> float:
         return 0.5
     else:
         raise ValueError(f"Unsupported data type: {data_type}")
+
+@lru_cache(maxsize=1)
+def get_gpu_name_by_id(gpu_id: int = 0) -> str:
+    """Retrieve GPU name (e.g. gfx90a) by device ID"""
+    try:
+        cmd = ['rocm-smi', '--showproductname', '-d', str(gpu_id)]
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        
+        arch_pattern = r'gfx\d{3}[a-z]?'
+        match = re.search(arch_pattern, result.stdout.lower())
+        return match.group() if match else ""
+        
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        print(f"[System Error] {str(e)}")
+        return ""
+    except Exception as e:
+        print(f"[Runtime Exception] {str(e)}")
+        return ""
+

@@ -28,7 +28,8 @@ from codegen_utils import (
     BOOL_MAP,
     warp_tile_supported_combinations,
     trait_unsupported_combinations,
-    element_size
+    element_size,
+    get_gpu_name_by_id
 )
 import logging
 
@@ -329,7 +330,7 @@ struct GemmKernel {{
 
         if invalid_params:
             logging.warning(
-                f"Invalid warp configuration [{trait}]: {', '.join(invalid_params)}. "
+                f"Trait: [{trait}], Invalid warp configuratio: {', '.join(invalid_params)}. "
                 f"Parameter combination: warp=({warp_m},{warp_n},{warp_k}), "
                 f"warp_tile=({warp_tile_m},{warp_tile_n},{warp_tile_k})"
             )
@@ -349,7 +350,7 @@ struct GemmKernel {{
 
         if alignment_issues:
             logging.warning(
-                f"Dimension alignment failed [{trait}]: {', '.join(alignment_issues)}. "
+                f"Trait: [{trait}], Dimension alignment failed: {', '.join(alignment_issues)}. "
                 f"Tile dimensions {tile_m}x{tile_n}x{tile_k} must be divisible by "
                 f"[warpxtile] {warp_m}x{warp_n}x{warp_k} x {warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
             )
@@ -375,12 +376,21 @@ struct GemmKernel {{
         # Warp combination validation
         warp_tile_key = f"{self.config.problem.datatype_map['matrix_a']}_{self.config.problem.datatype_map['matrix_b']}_{self.config.problem.datatype_map['matrix_c']}"
         current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
-        allowed_combinations = warp_tile_supported_combinations.get(
-            warp_tile_key, [])
-
+        
+        gpu_name = get_gpu_name_by_id(0)
+        gpu_warp_tile_key = warp_tile_supported_combinations.get(gpu_name, {})
+        if not gpu_warp_tile_key:
+            logging.warning(f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
+            return True
+        
+        allowed_combinations = gpu_warp_tile_key.get(warp_tile_key, [])
+        if not allowed_combinations:
+            logging.warning(f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
+            return True
+        
         if current_combination not in allowed_combinations:
             logging.warning(
-                f"Invalid warp combination [{trait}]: {current_combination} not in allowed list. "
+                f"Trait: [{trait}], Invalid warp combination: {current_combination} not in allowed list. "
                 f"Valid combinations for data type '{warp_tile_key}': {allowed_combinations}"
             )
             return False
