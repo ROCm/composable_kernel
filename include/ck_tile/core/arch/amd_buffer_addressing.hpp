@@ -77,6 +77,9 @@ struct buffer_store;
 template <index_t bytes>
 struct buffer_store_if;
 
+template <index_t bytes, bool pre_nop = false>
+struct async_buffer_load;
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
 // TODO: strict aliasing rule seems fail when reinterpret_cast between vector type

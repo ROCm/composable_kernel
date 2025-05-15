@@ -748,7 +748,7 @@ struct tile_window_linear
             auto bottom_tensor_flag         = cached_flags_[IAccess];
 
             auto lds_bottom_tensor_thread_idx =
-                lds_tile.get_window_origin() + window_adaptor_thread_coord.get_bottom_index();
+                lds_tile.get_window_origin() + window_adaptor_coord.get_bottom_index();
 
             const auto lds_coord =
                 make_tensor_coordinate(lds_tile.get_bottom_tensor_view().get_tensor_descriptor(),
