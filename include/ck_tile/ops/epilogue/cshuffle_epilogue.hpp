@@ -66,11 +66,11 @@ struct CShuffleEpilogue
     static constexpr index_t kKPerXdl                      = Problem::kKPerXdl;
     static constexpr index_t isCTransposed                 = Problem::isCTransposed;
 
-    static constexpr index_t CShuffleMXdlPerWavePerShuffle = 1;
-    static constexpr index_t CShuffleNXdlPerWavePerShuffle = 2;
+    static constexpr index_t NumMXdlPerWavePerShuffle = 1;
+    static constexpr index_t NumNXdlPerWavePerShuffle = 2;
 
-    static constexpr index_t kMPerIteration = kMPerXdl * kMWave * CShuffleMXdlPerWavePerShuffle;
-    static constexpr index_t kNPerIteration = kNPerXdl * kNWave * CShuffleNXdlPerWavePerShuffle;
+    static constexpr index_t kMPerIteration = kMPerXdl * kMWave * NumMXdlPerWavePerShuffle;
+    static constexpr index_t kNPerIteration = kNPerXdl * kNWave * NumNXdlPerWavePerShuffle;
 
     using WG = WarpGemmMfmaDispatcher<ADataType,
                                       BTypeToUse,
@@ -106,19 +106,17 @@ struct CShuffleEpilogue
         if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {
             return make_naive_tensor_descriptor(
-                make_tuple(number<kMWave * kMPerXdl * CShuffleMXdlPerWavePerShuffle>{},
-                           number<kNWave * kNPerXdl * CShuffleNXdlPerWavePerShuffle>{}),
-                make_tuple(number<kNWave * kNPerXdl * CShuffleNXdlPerWavePerShuffle>{},
-                           number<1>{}));
+                make_tuple(number<kMWave * kMPerXdl * NumMXdlPerWavePerShuffle>{},
+                           number<kNWave * kNPerXdl * NumNXdlPerWavePerShuffle>{}),
+                make_tuple(number<kNWave * kNPerXdl * NumNXdlPerWavePerShuffle>{}, number<1>{}));
         }
         // M is contiguous dimension
         else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
         {
             return make_naive_tensor_descriptor(
-                make_tuple(number<kMWave * kMPerXdl * CShuffleMXdlPerWavePerShuffle>{},
-                           number<kNWave * kNPerXdl * CShuffleNXdlPerWavePerShuffle>{}),
-                make_tuple(number<1>{},
-                           number<kMWave * kMPerXdl * CShuffleMXdlPerWavePerShuffle>{}));
+                make_tuple(number<kMWave * kMPerXdl * NumMXdlPerWavePerShuffle>{},
+                           number<kNWave * kNPerXdl * NumNXdlPerWavePerShuffle>{}),
+                make_tuple(number<1>{}, number<kMWave * kMPerXdl * NumMXdlPerWavePerShuffle>{}));
         }
         else
         {
@@ -130,8 +128,8 @@ struct CShuffleEpilogue
     {
         constexpr auto block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<CShuffleMXdlPerWavePerShuffle, kMWave>,
-                                             sequence<CShuffleNXdlPerWavePerShuffle, kNWave>>,
+                                       tuple<sequence<NumMXdlPerWavePerShuffle, kMWave>,
+                                             sequence<NumNXdlPerWavePerShuffle, kNWave>>,
                                        tuple<sequence<1, 2>>,
                                        tuple<sequence<1, 1>>,
                                        sequence<1, 2>,
@@ -144,41 +142,39 @@ struct CShuffleEpilogue
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return kMWave * kNWave * kMPerXdl * kNPerXdl * CShuffleMXdlPerWavePerShuffle *
-               CShuffleNXdlPerWavePerShuffle * sizeof(ODataType);
+        return kMWave * kNWave * kMPerXdl * kNPerXdl * NumMXdlPerWavePerShuffle *
+               NumNXdlPerWavePerShuffle * sizeof(ODataType);
     }
 
     template <typename ODramWindow, typename OAccTile>
     CK_TILE_DEVICE auto
     operator()(ODramWindow& out_dram_window, const OAccTile& o_acc_tile, void* p_smem)
     {
-        constexpr auto LdsDistributionTileDistr =
-            make_static_tile_distribution(MakeLdsDistributionEncode());
+        constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
-        auto lds_tile_ = make_static_distributed_tensor<AccDataType>(LdsDistributionTileDistr);
+        auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
         auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
             static_cast<ODataType*>(p_smem), lds_block_desc);
 
-        auto in_lds_window = make_tile_window(
-            o_lds_block,
-            make_tuple(number<kMWave * kMPerXdl * CShuffleMXdlPerWavePerShuffle>{},
-                       number<kNWave * kNPerXdl * CShuffleNXdlPerWavePerShuffle>{}),
-            {0, 0},
-            LdsDistributionTileDistr);
+        auto in_lds_window =
+            make_tile_window(o_lds_block,
+                             make_tuple(number<kMWave * kMPerXdl * NumMXdlPerWavePerShuffle>{},
+                                        number<kNWave * kNPerXdl * NumNXdlPerWavePerShuffle>{}),
+                             {0, 0},
+                             LdsTileDistr);
 
-        auto out_lds_window = make_tile_window(
-            o_lds_block,
-            make_tuple(number<kMWave * kMPerXdl * CShuffleMXdlPerWavePerShuffle>{},
-                       number<kNWave * kNPerXdl * CShuffleNXdlPerWavePerShuffle>{}),
-            {0, 0});
+        auto out_lds_window =
+            make_tile_window(o_lds_block,
+                             make_tuple(number<kMWave * kMPerXdl * NumMXdlPerWavePerShuffle>{},
+                                        number<kNWave * kNPerXdl * NumNXdlPerWavePerShuffle>{}),
+                             {0, 0});
 
-        using SFC =
-            space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                sequence<0, 1>,
-                                sequence<kMPerXdl * kMWave * CShuffleMXdlPerWavePerShuffle,
-                                         kNPerXdl * kNWave * CShuffleNXdlPerWavePerShuffle>>;
+        using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+                                        sequence<0, 1>,
+                                        sequence<kMPerXdl * kMWave * NumMXdlPerWavePerShuffle,
+                                                 kNPerXdl * kNWave * NumNXdlPerWavePerShuffle>>;
         constexpr index_t num_access = SFC::get_num_of_access();
 
         using TileEncodingPattern =
@@ -197,19 +193,18 @@ struct CShuffleEpilogue
             constexpr auto idx_y_start = SFC::get_index(iAccess);
 
             constexpr auto mIter = number<idx_y_start.at(number<0>{}) /
-                                          (kMPerXdl * kMWave * CShuffleMXdlPerWavePerShuffle)>{};
+                                          (kMPerXdl * kMWave * NumMXdlPerWavePerShuffle)>{};
             constexpr auto nIter = number<idx_y_start.at(number<1>{}) /
-                                          (kNPerXdl * kNWave * CShuffleNXdlPerWavePerShuffle)>{};
+                                          (kNPerXdl * kNWave * NumNXdlPerWavePerShuffle)>{};
 
-            lds_tile_.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
-                merge_sequences(sequence<mIter * CShuffleMXdlPerWavePerShuffle,
-                                         nIter * CShuffleNXdlPerWavePerShuffle>{},
-                                c_warp_y_index_zeros),
+            lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
                 merge_sequences(
-                    sequence<CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle>{},
-                    c_warp_y_lengths));
+                    sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
+                    c_warp_y_index_zeros),
+                merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
+                                c_warp_y_lengths));
 
-            const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile_);
+            const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
 
             block_sync_lds();
             store_tile(in_lds_window, c_warptile_in_tensor_casted);
