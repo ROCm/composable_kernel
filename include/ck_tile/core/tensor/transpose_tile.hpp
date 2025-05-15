@@ -85,7 +85,12 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
 
     // SFC
     constexpr auto scalars_per_access_arr = generate_array(
-        [&](auto i) { return (i == y_dim_vec_in or i == y_dim_vec_out) ? y_lengths[i] : 1; },
+        [&](auto i) {
+            if constexpr(vec_length_in == 1)
+                return 1;
+            else
+                return (i == y_dim_vec_in || i == y_dim_vec_out) ? y_lengths[i] : 1;
+        },
         number<NDimY>{});
 
     constexpr auto scalars_per_access = TO_SEQUENCE(scalars_per_access_arr, NDimY);
@@ -103,13 +108,19 @@ CK_TILE_DEVICE void transpose_tile2d_impl_in_thread(OutTensor& out_tensor,
         // loop over SFC
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             // data index [y0, y1, ...] in the order of input tensor
-            constexpr auto idx_y = SFC_Y::get_index(iAccess);
-
-            constexpr index_t in_offset  = y_in_desc.calculate_offset(idx_y);
-            constexpr index_t out_offset = y_out_desc.calculate_offset(idx_y);
-
+            constexpr auto idx_y_start = SFC_Y::get_index(iAccess);
+            constexpr auto idx_y_in =
+                generate_tuple([&](auto ii) { return idx_y_start[ii].value; }, number<NDimY>{});
+            constexpr index_t in_offset = y_in_desc.calculate_offset(idx_y_in);
+            static_assert(in_offset % vec_length_in == 0);
+            constexpr auto idx_y_out_tmp =
+                generate_array([&](auto ii) { return idx_y_start[ii].value; }, number<NDimY>{});
+            constexpr auto idx_y_out =
+                container_reorder_given_new2old(idx_y_out_tmp, y_dim_out_to_in);
+            constexpr index_t out_offset = y_out_desc.calculate_offset(idx_y_out);
             if constexpr(vec_length_in == 1)
             {
+
                 out_tensor.get_thread_buffer()[number<out_offset>{}] =
                     in_tensor.get_thread_buffer()[number<in_offset>{}];
             }
