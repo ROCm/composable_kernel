@@ -15,14 +15,18 @@
 #define CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT CK_TILE_ATTENTION_LOGITS_SOFT_CAP_TANH
 #endif
 
+#ifndef CK_TILE_ATTENTION_USE_SOFTSIGN_ASM
+#define CK_TILE_ATTENTION_USE_SOFTSIGN_ASM 0
+#endif
+
 namespace ck_tile {
 namespace internal {
 __device__ inline float
 exp2_soft_sign_impl(float softmax_scale, float logits, float logits_soft_cap_rcp)
 {
-#if 0
-    return softmax_scale * logits * rcp<float>(1.f + abs(logits * logits_soft_cap_rcp));
-#else
+#if(defined(__gfx90a__) || defined(__gfx94__)) &&                                               \
+    (CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN && \
+     CK_TILE_ATTENTION_USE_SOFTSIGN_ASM)
     /// NOTICE: Make sure softmax_scale is stored in SGPR
     float result, numerator, denominator;
     asm volatile(
@@ -36,6 +40,8 @@ exp2_soft_sign_impl(float softmax_scale, float logits, float logits_soft_cap_rcp
           [logits] "v"(logits),
           [logits_soft_cap_rcp] "v"(logits_soft_cap_rcp));
     return result;
+#else
+    return softmax_scale * logits * rcp<float>(1.f + abs(logits * logits_soft_cap_rcp));
 #endif
 }
 } // namespace internal

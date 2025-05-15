@@ -6,8 +6,9 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_batch_prefill_pipeline_qr_ks_vs_async_default_policy.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
+#include "ck_tile/ops/fmha/block/variants.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_batch_prefill_pipeline_qr_ks_vs_async_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
@@ -497,10 +498,16 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     }
 #else
                     static_for<0, s_acc.thread_buf_.size(), 1>{}([&](auto idx) {
+#if(defined(__gfx90a__) || defined(__gfx94__)) &&                                               \
+    (CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN && \
+     CK_TILE_ATTENTION_USE_SOFTSIGN_ASM)
+                        // Avoid data hazard if v_mfma is followed by inline asm consumer
+                        // instructions. In this case, compiler won't add s_nop for us
                         if constexpr((idx + 1) == s_acc.thread_buf_.size() / 2)
                         {
                             __builtin_amdgcn_sched_barrier(0);
                         }
+#endif
                         apply_logits_transform(s_acc.thread_buf_[idx]);
                     });
 #endif
