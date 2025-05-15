@@ -169,6 +169,16 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
     static constexpr auto ScalesPerXdlopsRunPerThread =
         ScalesPerXdlopsRun / xdlops_gemm.mfma_instr.num_input_blks;
 
+    using mx_scale_t                        = e8m0_bexp_t;
+    static constexpr auto scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
+    static constexpr auto scale_pack_size_b = sizeof(BScaleDataType) / sizeof(mx_scale_t);
+    static_assert(KXdlPack * MXdlPack % scale_pack_size_a == 0,
+                  "A scale pack data type too large!");
+    static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
+                  "B scale pack data type too large!");
+    static constexpr auto a_scale_thread_vec_size = KXdlPack * MXdlPack / scale_pack_size_a;
+    static constexpr auto b_scale_thread_vec_size = KXdlPack * NXdlPack / scale_pack_size_b;
+
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
@@ -541,17 +551,19 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                               "Must have at least one scale per Xdlops "
                                               "per Thread.");
 
-                                vector_type<AScaleDataType, KXdlPack * MXdlPack> a_scale_thread_vec;
-                                vector_type<BScaleDataType, KXdlPack * NXdlPack> b_scale_thread_vec;
+                                vector_type<AScaleDataType, a_scale_thread_vec_size>
+                                    a_scale_thread_vec;
+                                vector_type<BScaleDataType, b_scale_thread_vec_size>
+                                    b_scale_thread_vec;
 
                                 // Pack scale_thread_buf into scale_thread_vec
-                                static_for<0, KXdlPack * MXdlPack, 1>{}([&](auto s) {
+                                static_for<0, a_scale_thread_vec_size, 1>{}([&](auto s) {
                                     a_scale_thread_vec.template AsType<AScaleDataType>()(s) =
                                         a_scale_thread_bufs(
                                             scale_comp_buf)[Number<a_scale_offset + s>{}];
                                 });
 
-                                static_for<0, KXdlPack * NXdlPack, 1>{}([&](auto s) {
+                                static_for<0, b_scale_thread_vec_size, 1>{}([&](auto s) {
                                     b_scale_thread_vec.template AsType<BScaleDataType>()(s) =
                                         b_scale_thread_bufs(
                                             scale_comp_buf)[Number<b_scale_offset + s>{}];
@@ -590,10 +602,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
                                             using mfma_scale_input_type_a =
                                                 typename vector_type<AScaleDataType,
-                                                                     KXdlPack * MXdlPack>::type;
+                                                                     a_scale_thread_vec_size>::type;
                                             using mfma_scale_input_type_b =
                                                 typename vector_type<BScaleDataType,
-                                                                     KXdlPack * NXdlPack>::type;
+                                                                     b_scale_thread_vec_size>::type;
 
                                             constexpr index_t c_offset =
                                                 c_thread_desc_.CalculateOffset(
@@ -741,16 +753,16 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                       "Must have at least one scale per Xdlops "
                                       "per Thread.");
 
-                        vector_type<AScaleDataType, KXdlPack * MXdlPack> a_scale_thread_vec;
-                        vector_type<BScaleDataType, KXdlPack * NXdlPack> b_scale_thread_vec;
+                        vector_type<AScaleDataType, a_scale_thread_vec_size> a_scale_thread_vec;
+                        vector_type<BScaleDataType, b_scale_thread_vec_size> b_scale_thread_vec;
 
                         // Pack scale_thread_buf into scale_thread_vec
-                        static_for<0, KXdlPack * MXdlPack, 1>{}([&](auto s) {
+                        static_for<0, a_scale_thread_vec_size, 1>{}([&](auto s) {
                             a_scale_thread_vec.template AsType<AScaleDataType>()(s) =
                                 a_scale_thread_bufs(I0)[Number<a_scale_offset + s>{}];
                         });
 
-                        static_for<0, KXdlPack * NXdlPack, 1>{}([&](auto s) {
+                        static_for<0, b_scale_thread_vec_size, 1>{}([&](auto s) {
                             b_scale_thread_vec.template AsType<BScaleDataType>()(s) =
                                 b_scale_thread_bufs(I0)[Number<b_scale_offset + s>{}];
                         });
@@ -784,10 +796,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
                                     using mfma_scale_input_type_a =
                                         typename vector_type<AScaleDataType,
-                                                             KXdlPack * MXdlPack>::type;
+                                                             a_scale_thread_vec_size>::type;
                                     using mfma_scale_input_type_b =
                                         typename vector_type<BScaleDataType,
-                                                             KXdlPack * NXdlPack>::type;
+                                                             b_scale_thread_vec_size>::type;
 
                                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(
                                         make_tuple(m0, n0, imxdl, inxdl, 0));
@@ -869,16 +881,16 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                       "Must have at least one scale per Xdlops "
                                       "per Thread.");
 
-                        vector_type<AScaleDataType, KXdlPack * MXdlPack> a_scale_thread_vec;
-                        vector_type<BScaleDataType, KXdlPack * NXdlPack> b_scale_thread_vec;
+                        vector_type<AScaleDataType, a_scale_thread_vec_size> a_scale_thread_vec;
+                        vector_type<BScaleDataType, b_scale_thread_vec_size> b_scale_thread_vec;
 
                         // Pack scale_thread_buf into scale_thread_vec
-                        static_for<0, KXdlPack * MXdlPack, 1>{}([&](auto s) {
+                        static_for<0, a_scale_thread_vec_size, 1>{}([&](auto s) {
                             a_scale_thread_vec.template AsType<AScaleDataType>()(s) =
                                 a_scale_thread_bufs(I1)[Number<a_scale_offset + s>{}];
                         });
 
-                        static_for<0, KXdlPack * NXdlPack, 1>{}([&](auto s) {
+                        static_for<0, b_scale_thread_vec_size, 1>{}([&](auto s) {
                             b_scale_thread_vec.template AsType<BScaleDataType>()(s) =
                                 b_scale_thread_bufs(I1)[Number<b_scale_offset + s>{}];
                         });
@@ -912,10 +924,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
                                     using mfma_scale_input_type_a =
                                         typename vector_type<AScaleDataType,
-                                                             KXdlPack * MXdlPack>::type;
+                                                             a_scale_thread_vec_size>::type;
                                     using mfma_scale_input_type_b =
                                         typename vector_type<BScaleDataType,
-                                                             KXdlPack * NXdlPack>::type;
+                                                             b_scale_thread_vec_size>::type;
 
                                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(
                                         make_tuple(m0, n0, imxdl, inxdl, 0));
@@ -951,16 +963,16 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                       "Must have at least one scale per Xdlops "
                                       "per Thread.");
 
-                        vector_type<AScaleDataType, KXdlPack * MXdlPack> a_scale_thread_vec;
-                        vector_type<BScaleDataType, KXdlPack * NXdlPack> b_scale_thread_vec;
+                        vector_type<AScaleDataType, a_scale_thread_vec_size> a_scale_thread_vec;
+                        vector_type<BScaleDataType, b_scale_thread_vec_size> b_scale_thread_vec;
 
                         // Pack scale_thread_buf into scale_thread_vec
-                        static_for<0, KXdlPack * MXdlPack, 1>{}([&](auto s) {
+                        static_for<0, a_scale_thread_vec_size, 1>{}([&](auto s) {
                             a_scale_thread_vec.template AsType<AScaleDataType>()(s) =
                                 a_scale_thread_bufs(I0)[Number<a_scale_offset + s>{}];
                         });
 
-                        static_for<0, KXdlPack * NXdlPack, 1>{}([&](auto s) {
+                        static_for<0, b_scale_thread_vec_size, 1>{}([&](auto s) {
                             b_scale_thread_vec.template AsType<BScaleDataType>()(s) =
                                 b_scale_thread_bufs(I0)[Number<b_scale_offset + s>{}];
                         });
@@ -994,10 +1006,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
                                     using mfma_scale_input_type_a =
                                         typename vector_type<AScaleDataType,
-                                                             KXdlPack * MXdlPack>::type;
+                                                             a_scale_thread_vec_size>::type;
                                     using mfma_scale_input_type_b =
                                         typename vector_type<BScaleDataType,
-                                                             KXdlPack * NXdlPack>::type;
+                                                             b_scale_thread_vec_size>::type;
 
                                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(
                                         make_tuple(m0, n0, imxdl, inxdl, 0));
@@ -1026,14 +1038,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
     static constexpr auto a_scale_thread_desc = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MRepeat / MXdlPack>{},
                    Number<KRepeat / KXdlPack>{},
-                   Number<ScalesPerXdlopsRunPerThread * KXdlPack * MXdlPack>{}));
+                   Number<ScalesPerXdlopsRunPerThread * a_scale_thread_vec_size>{}));
 
     // TODO: make this field protected when b_scale_thread_copy_ is moved
     // here
     static constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
         make_tuple(Number<NRepeat / NXdlPack>{},
                    Number<KRepeat / KXdlPack>{},
-                   Number<ScalesPerXdlopsRunPerThread * KXdlPack * NXdlPack>{}));
+                   Number<ScalesPerXdlopsRunPerThread * b_scale_thread_vec_size>{}));
 
     protected:
     using Base::a_thread_copy_;

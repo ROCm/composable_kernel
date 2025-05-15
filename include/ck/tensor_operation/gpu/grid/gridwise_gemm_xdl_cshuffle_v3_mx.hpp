@@ -1298,6 +1298,14 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
     // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
 
+    using mx_scale_t                           = e8m0_bexp_t;
+    static constexpr index_t scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
+    static constexpr index_t scale_pack_size_b = sizeof(BScaleDataType) / sizeof(mx_scale_t);
+    static_assert(KXdlPack * MXdlPack % scale_pack_size_a == 0,
+                  "A scale pack data type too large!");
+    static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
+                  "B scale pack data type too large!");
+
     template <typename AGridDesc_AK0_M_K1,
               typename AScaleGridDesc_AM_AK,
               typename BGridDesc_BK0_N_K1,
@@ -1493,39 +1501,37 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         auto a_thread_offset_m = waveId_m;
 
-        auto a_scale_thread_copy =
-            ThreadwiseTensorSliceTransfer_v2<AScaleDataType,
-                                             AScaleDataType,
-                                             decltype(a_scale_grid_desc_am_ak),
-                                             decltype(BlockwiseGemmPipe::a_scale_thread_desc),
-                                             Sequence<1, 1, KXdlPack * MXdlPack>, // SliceLengths
-                                             Sequence<0, 1, 2>,                   // DimAccessOrder
-                                             2,                                   // SrcVectorDim
-                                             KXdlPack * MXdlPack, // SrcScalarPerVector
-                                             1,                   // SrcScalarStrideInVector
-                                             true>(
-                a_scale_grid_desc_am_ak,
-                make_multi_index(block_m_id * MPerBlock / MPerXdl / MXdlPack + a_thread_offset_m,
-                                 0,
-                                 thread_offset_shuffled));
+        auto a_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
+            AScaleDataType,
+            AScaleDataType,
+            decltype(a_scale_grid_desc_am_ak),
+            decltype(BlockwiseGemmPipe::a_scale_thread_desc),
+            Sequence<1, 1, KXdlPack * MXdlPack / scale_pack_size_a>, // SliceLengths
+            Sequence<0, 1, 2>,                                       // DimAccessOrder
+            2,                                                       // SrcVectorDim
+            KXdlPack * MXdlPack / scale_pack_size_a,                 // SrcScalarPerVector
+            1,                                                       // SrcScalarStrideInVector
+            true>(a_scale_grid_desc_am_ak,
+                  make_multi_index(block_m_id * MPerBlock / MPerXdl / MXdlPack + a_thread_offset_m,
+                                   0,
+                                   thread_offset_shuffled / scale_pack_size_a));
 
         auto b_thread_offset_n = waveId_n;
 
-        auto b_scale_thread_copy =
-            ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
-                                             BScaleDataType,
-                                             decltype(b_scale_grid_desc_bn_ak),
-                                             decltype(BlockwiseGemmPipe::b_scale_thread_desc),
-                                             Sequence<1, 1, KXdlPack * NXdlPack>, // SliceLengths
-                                             Sequence<0, 1, 2>,                   // DimAccessOrder
-                                             2,                                   // SrcVectorDim
-                                             KXdlPack * MXdlPack, // SrcScalarPerVector
-                                             1,
-                                             true>(
-                b_scale_grid_desc_bn_ak,
-                make_multi_index(block_n_id * NPerBlock / NPerXdl / NXdlPack + b_thread_offset_n,
-                                 0,
-                                 thread_offset_shuffled));
+        auto b_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
+            BScaleDataType,
+            BScaleDataType,
+            decltype(b_scale_grid_desc_bn_ak),
+            decltype(BlockwiseGemmPipe::b_scale_thread_desc),
+            Sequence<1, 1, KXdlPack * NXdlPack / scale_pack_size_b>, // SliceLengths
+            Sequence<0, 1, 2>,                                       // DimAccessOrder
+            2,                                                       // SrcVectorDim
+            KXdlPack * MXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
+            1,                                                       // SrcScalarStrideInVector
+            true>(b_scale_grid_desc_bn_ak,
+                  make_multi_index(block_n_id * NPerBlock / NPerXdl / NXdlPack + b_thread_offset_n,
+                                   0,
+                                   thread_offset_shuffled / scale_pack_size_b));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,
@@ -1809,12 +1815,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(make_tuple(
             problem.M / (MXdlPack * MPerXdl),
             math::integer_divide_ceil(problem.K, ScaleBlockSize) / (KXdlPack * 64 / MPerXdl),
-            64 * KXdlPack * MXdlPack));
+            64 * KXdlPack * MXdlPack / scale_pack_size_a));
 
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor_packed(make_tuple(
             problem.N / (NXdlPack * NPerXdl),
             math::integer_divide_ceil(problem.K, ScaleBlockSize) / (KXdlPack * 64 / NPerXdl),
-            64 * KXdlPack * NXdlPack));
+            64 * KXdlPack * NXdlPack / scale_pack_size_b));
 
         Run<decltype(a_grid_desc_ak0_m_ak1),
             decltype(a_scale_grid_desc_am_ak),

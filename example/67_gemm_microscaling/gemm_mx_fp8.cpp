@@ -83,6 +83,7 @@ int main(int argc, char* argv[])
                                ADataType,
                                BDataType,
                                XDataType,
+                               XDataType,
                                CDataType,
                                ALayout,
                                BLayout,
