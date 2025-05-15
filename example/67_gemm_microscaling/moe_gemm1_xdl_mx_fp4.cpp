@@ -115,8 +115,6 @@ struct MulABScaleExpertWeight
     }
 };
 
-static constexpr bool MulRoutedWeight = true;
-
 using CDEElementOp = MulABScaleExpertWeight; // combine MulRoutedWeight = true
 
 // using CDEElementOp = MulABScale; // combine MulRoutedWeight = true
@@ -163,6 +161,9 @@ using CDEElementOp = MulABScaleExpertWeight;
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
 constexpr ck::index_t ScaleBlockSize = 32; // scaling block size
+static constexpr ck::index_t Nswizzle    = false;
+static constexpr ck::index_t ActOP       = 0; // 0: gelu_and_mul, 1: silu_and_mul
+static constexpr bool MulRoutedWeight    = false;
 
 #if 0
 static constexpr ck::index_t MPerBlock = 128;
@@ -180,8 +181,7 @@ static constexpr ck::index_t EVec          = 2;
 static constexpr ck::index_t D0Vec         = 1;
 static constexpr ck::index_t D1Vec         = 1;
 static constexpr ck::index_t D2Vec         = 1;
-static constexpr bool MulRoutedWeight      = true;
-using DeviceOpInstance                     = ck::tensor_operation::device::DeviceMoeGemm
+using DeviceOpInstance                     = ck::tensor_operation::device::DeviceMoeGemmMX
     // clang-format off
         <      Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
@@ -193,12 +193,11 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
                S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
                2,    2,   S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, 0, false, false, MulRoutedWeight, false, ck::index_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Act_OP, Nswizzle, false, MulRoutedWeight, ck::index_t, A0DataType>;
 // clang-format on
 
 #else
 static constexpr ck::index_t MPerBlock = 128;
-static constexpr bool MulRoutedWeight  = true;
 
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmMX<
@@ -213,8 +212,8 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmMX<
             S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
             2,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Act_OP, Nswizzle, true, MulRoutedWeight, ck::index_t, A0DataType>;
-// clang-format on
 #endif
+// clang-format on
 
 int main(int argc, char* argv[])
 {
@@ -283,22 +282,9 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
     max_token_id.mData = {valid_size};
     // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
-        int eids[sorted_tile_num]{};
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        if(i < valid_tile_num)
-        {
-            eids[i] = (i * experts) / valid_tile_num;
-        }
-        else
-        {
-            eids[i] = 3;
-        }
-    }
-
-    for(int i = 0; i < sorted_tile_num; i++)
-    {
-        expert_ids.mData[i] = eids[i];
+        expert_ids.mData[i] = i / ck::math::integer_divide_ceil(valid_tile_num, experts);
     }
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
@@ -333,7 +319,7 @@ int main(int argc, char* argv[])
         HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
 
     std::cout << "a0_t_k: " << a0_t_k.mDesc << std::endl;
-    std::cout << "a1_t_k: " << a1_t_k_k.mDesc << std::endl;
+    std::cout << "a1_t_k: " << a1_t_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
     std::cout << "b1_e_n_k: " << b1_e_n_k.mDesc << std::endl;
     std::cout << "d2_e_n: " << d2_e_n.mDesc << std::endl;
@@ -398,7 +384,7 @@ int main(int argc, char* argv[])
 #if 1
     preShuffleBuffer(b0_e_n_k.mData.data(),
                      b0_preshuffled.mData.data(),
-                     N * experts,
+                     N * 2 * experts,
                      K,
                      device_op.GetPreShuffleParameters());
 #else
