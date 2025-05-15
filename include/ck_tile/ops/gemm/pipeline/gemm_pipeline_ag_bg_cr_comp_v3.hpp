@@ -408,8 +408,8 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             // prefetch
             // global read 0
-            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            Base::GlobalPrefetchAsync(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetchAsync(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -438,8 +438,8 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
             }
 
-            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            Base::GlobalPrefetchAsync(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetchAsync(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
             block_sync_lds();
             block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
@@ -477,8 +477,10 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                         Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
                     }
 
-                    Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-                    Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                    Base::GlobalPrefetchAsync(
+                        a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+                    Base::GlobalPrefetchAsync(
+                        b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
