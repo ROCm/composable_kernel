@@ -7,6 +7,7 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
 
 #include "block_gemm_areg_bsmem_creg_v2_hack_0.hpp"
+#include "block_gemm_areg_bsmem_creg_v2_hack_1.hpp"
 
 namespace ck_tile {
 
@@ -416,6 +417,64 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
             return BlockGemmARegBSmemCRegV2Hack_0<GemmProblem, BlockGemmPolicy>{};
         else
             return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemm()
+    {
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::QKVDataType,
+                             typename Problem::QKVDataType,
+                             typename Problem::GemmAccDataType,
+                             Problem::kNumGemm1Warps * get_warp_size(),
+                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                    Problem::BlockFmhaShape::kN1,
+                                                    Problem::BlockFmhaShape::kK1>,
+                                           typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
+
+        auto warp_gemm = [&]() {
+            if constexpr(std::is_same_v<typename Problem::QKVDataType, fp8_t> &&
+                         std::is_same_v<typename Problem::GemmAccDataType, float>)
+            {
+                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
+                // return
+                // WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+                //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
+                //         Problem::PDataType, typename Problem::VDataType>>>{};
+            }
+            else
+            {
+                return WarpGemmMfmaDispatcher<
+                    typename Problem::QKVDataType,
+                    typename Problem::QKVDataType,
+                    typename Problem::GemmAccDataType,
+                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                    true>{};
+            }
+        }();
+
+        using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;
+
+        using BlockGemmPolicy =
+            BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::QKVDataType,
+                                                 typename Problem::QKVDataType,
+                                                 typename Problem::GemmAccDataType,
+                                                 typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                                 WarpGemm>;
+        return BlockGemmARegBSmemCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentO()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
     template <typename Problem>
