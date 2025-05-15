@@ -1258,7 +1258,7 @@ struct GridwiseMoeGemmMX
                        ScalesPerXdlopsRunPerThread,
                        1));
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(problem.K, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
+            make_tuple(problem.N, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
             make_tuple(math::integer_divide_ceil(problem.K, ScaleBlockSize), 1));
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
@@ -1486,16 +1486,6 @@ struct GridwiseMoeGemmMX
                                              true>(
                 b_scale_grid_desc_bn_ak,
                 make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, thread_offset_k));
-
-        if(blockIdx.x == 8 && blockIdx.y == 0)
-        {
-            printf("blkx: %u, blky:%u, tidx: %u, (x, y):(%d, %d)\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   threadIdx.x,
-                   (block_n_id * NPerBlock + b_thread_offset_n),
-                   thread_offset_k);
-        }
 
         if constexpr(IsInputGemm)
         {

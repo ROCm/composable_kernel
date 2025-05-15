@@ -788,7 +788,7 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                        "v"(scale_b));
 #endif
 
-#if 1
+#if 0
         if(blockIdx.x == 8 && blockIdx.y == 0)
             printf("bidx: %u, bidy: %u, tid: %u, A: %08x, %08x, %08x, %08x,"
                    "B:%08x, %08x, %08x, %08x, a_scale: %.f, b_scale: %.f, "
