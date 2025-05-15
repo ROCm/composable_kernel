@@ -788,29 +788,30 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                        "v"(scale_b));
 #endif
 
-#if 0
-        printf("bidx: %u, bidy: %u, tid: %u, A: %08x, %08x, %08x, %08x,"
-               "B:%08x, %08x, %08x, %08x, a_scale: %.f, b_scale: %.f, "
-               "reg_c: %f, %f, %f, %f\n",
-               blockIdx.x,
-               blockIdx.y,
-               threadIdx.x,
-               bit_cast<uint32_t>(arg_a[0]),
-               bit_cast<uint32_t>(arg_a[1]),
-               bit_cast<uint32_t>(arg_a[2]),
-               bit_cast<uint32_t>(arg_a[3]),
-               bit_cast<uint32_t>(arg_b[0]),
-               bit_cast<uint32_t>(arg_b[1]),
-               bit_cast<uint32_t>(arg_b[2]),
-               bit_cast<uint32_t>(arg_b[3]),
-               //    *(reinterpret_cast<const uint32_t*>(&(scale_a))),
-               //    *(reinterpret_cast<const uint32_t*>(&(scale_b))),
-               type_convert<float>(scale_a),
-               type_convert<float>(scale_b),
-               reg_c.template AsType<float>()[Number<0>{}],
-               reg_c.template AsType<float>()[Number<1>{}],
-               reg_c.template AsType<float>()[Number<2>{}],
-               reg_c.template AsType<float>()[Number<3>{}]);
+#if 1
+        if(blockIdx.x == 8 && blockIdx.y == 0)
+            printf("bidx: %u, bidy: %u, tid: %u, A: %08x, %08x, %08x, %08x,"
+                   "B:%08x, %08x, %08x, %08x, a_scale: %.f, b_scale: %.f, "
+                   "reg_c: %f, %f, %f, %f\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   threadIdx.x,
+                   bit_cast<uint32_t>(arg_a[0]),
+                   bit_cast<uint32_t>(arg_a[1]),
+                   bit_cast<uint32_t>(arg_a[2]),
+                   bit_cast<uint32_t>(arg_a[3]),
+                   bit_cast<uint32_t>(arg_b[0]),
+                   bit_cast<uint32_t>(arg_b[1]),
+                   bit_cast<uint32_t>(arg_b[2]),
+                   bit_cast<uint32_t>(arg_b[3]),
+                   //    *(reinterpret_cast<const uint32_t*>(&(scale_a))),
+                   //    *(reinterpret_cast<const uint32_t*>(&(scale_b))),
+                   type_convert<float>(scale_a),
+                   type_convert<float>(scale_b),
+                   reg_c.template AsType<float>()[Number<0>{}],
+                   reg_c.template AsType<float>()[Number<1>{}],
+                   reg_c.template AsType<float>()[Number<2>{}],
+                   reg_c.template AsType<float>()[Number<3>{}]);
 #endif
 
 #else

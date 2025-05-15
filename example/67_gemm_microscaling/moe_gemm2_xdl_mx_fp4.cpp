@@ -474,6 +474,20 @@ int main(int argc, char* argv[])
     }
 #endif
 
+    printf("b1_e_n_k:\n");
+    for(int e = 0; e < experts; ++e)
+    {
+        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
+        {
+            for(int n = 0; n < N; ++n)
+            {
+                printf("%.2f ", ck::type_convert<float>(b1_e_n_k(e, k, n)));
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
+
     // do GEMM
     auto device_op = DeviceOpInstance{};
 

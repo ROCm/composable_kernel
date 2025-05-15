@@ -324,6 +324,15 @@ struct ThreadwiseTensorSliceTransfer_v2
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize,
                                                    is_src_valid);
 
+            if(blockIdx.x == 8 && blockIdx.y == 0)
+            {
+                printf("blkx: %u, blky: %u, tidx: %u, b_scale_offset: %d\n",
+                       blockIdx.x,
+                       blockIdx.y,
+                       threadIdx.x,
+                       src_coord_.GetOffset());
+            }
+
             // copy data from src_vector into dst_buf
             static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
                 constexpr index_t dst_offset =

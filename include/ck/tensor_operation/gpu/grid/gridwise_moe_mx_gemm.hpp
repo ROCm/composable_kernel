@@ -1487,6 +1487,16 @@ struct GridwiseMoeGemmMX
                 b_scale_grid_desc_bn_ak,
                 make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, thread_offset_k));
 
+        if(blockIdx.x == 8 && blockIdx.y == 0)
+        {
+            printf("blkx: %u, blky:%u, tidx: %u, (x, y):(%d, %d)\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   threadIdx.x,
+                   (block_n_id * NPerBlock + b_thread_offset_n),
+                   thread_offset_k);
+        }
+
         if constexpr(IsInputGemm)
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
