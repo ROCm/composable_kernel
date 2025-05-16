@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -48,6 +48,15 @@ enum struct TailNumber
     // prefetchstages
     Full,
 };
+
+enum SchedulerGroup : uint32_t
+{
+    SCHED_GROUP_MFMA      = 0x008, // Matrix FMA instructions
+    SCHED_GROUP_VMEM      = 0x020, // Global memory operations
+    SCHED_GROUP_LDS_READ  = 0x100, // LDS read operations
+    SCHED_GROUP_LDS_WRITE = 0x200  // LDS write operations
+};
+
 template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
