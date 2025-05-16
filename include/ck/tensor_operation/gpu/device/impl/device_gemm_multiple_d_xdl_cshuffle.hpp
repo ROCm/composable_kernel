@@ -860,35 +860,37 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
 #endif
         if(desc.has_main_k_block_loop)
         {
-            GridwiseGemm::template Run<true>(p_a_grid,
-                                             p_b_grid,
-                                             p_ds_grid,
-                                             p_e_grid,
-                                             p_shared_block,
-                                             desc.a_element_op,
-                                             desc.b_element_op,
-                                             desc.cde_element_op,
-                                             desc.a_grid_desc_ak0_m_ak1,
-                                             desc.b_grid_desc_bk0_n_bk1,
-                                             desc.ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                             desc.e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                             desc.block_2_etile_map);
+            GridwiseGemm::template Run<true, InMemoryDataOperationEnum::Set>(
+                p_a_grid,
+                p_b_grid,
+                p_ds_grid,
+                p_e_grid,
+                p_shared_block,
+                desc.a_element_op,
+                desc.b_element_op,
+                desc.cde_element_op,
+                desc.a_grid_desc_ak0_m_ak1,
+                desc.b_grid_desc_bk0_n_bk1,
+                desc.ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                desc.e_grid_desc_mblock_mperblock_nblock_nperblock,
+                desc.block_2_etile_map);
         }
         else
         {
-            GridwiseGemm::template Run<false>(p_a_grid,
-                                              p_b_grid,
-                                              p_ds_grid,
-                                              p_e_grid,
-                                              p_shared_block,
-                                              desc.a_element_op,
-                                              desc.b_element_op,
-                                              desc.cde_element_op,
-                                              desc.a_grid_desc_ak0_m_ak1,
-                                              desc.b_grid_desc_bk0_n_bk1,
-                                              desc.ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                              desc.e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                              desc.block_2_etile_map);
+            GridwiseGemm::template Run<false, InMemoryDataOperationEnum::Set>(
+                p_a_grid,
+                p_b_grid,
+                p_ds_grid,
+                p_e_grid,
+                p_shared_block,
+                desc.a_element_op,
+                desc.b_element_op,
+                desc.cde_element_op,
+                desc.a_grid_desc_ak0_m_ak1,
+                desc.b_grid_desc_bk0_n_bk1,
+                desc.ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                desc.e_grid_desc_mblock_mperblock_nblock_nperblock,
+                desc.block_2_etile_map);
         }
     }
 };
