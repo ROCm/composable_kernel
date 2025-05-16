@@ -84,7 +84,6 @@ struct f6_pk_t
     __host__ __device__ f6_pk_t(const T& v) : data{}
     {
         static_for<0, packed_size, 1>{}(
-
             [&](auto i) { pack(v[static_cast<index_t>(i)], static_cast<index_t>(i)); });
     }
 
