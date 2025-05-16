@@ -497,33 +497,36 @@ struct scalar_type<bool>
 };
 
 template <typename T>
-struct element_type
+struct pack_info
 {
     private:
-    static constexpr auto get_element_type()
+    static constexpr auto get_pack_info()
     {
         using U = remove_cvref_t<T>;
         if constexpr(std::is_same_v<U, pk_i4_t>)
-            return int4_t{};
+            return ck::Tuple<ck::Number<2>, int4_t>{};
         else if constexpr(std::is_same_v<U, f4x2_pk_t>)
-            return f4_t{};
+            return ck::Tuple<ck::Number<2>, f4_t>{};
         else if constexpr(std::is_same_v<U, f6x16_pk_t>)
-            return f6_t{};
+            return ck::Tuple<ck::Number<16>, f6_t>{};
         else if constexpr(std::is_same_v<U, bf6x16_pk_t>)
-            return bf6_t{};
+            return ck::Tuple<ck::Number<16>, bf6_t>{};
         else if constexpr(std::is_same_v<U, f6x32_pk_t>)
-            return f6_t{};
+            return ck::Tuple<ck::Number<32>, f6_t>{};
         else if constexpr(std::is_same_v<U, bf6x32_pk_t>)
-            return bf6_t{};
+            return ck::Tuple<ck::Number<32>, bf6_t>{};
         else
-            return T{};
+            return ck::Tuple<ck::Number<1>, T>{};
     }
 
     public:
-    using type = decltype(get_element_type());
+    using element_type              = remove_cvref_t<decltype(get_pack_info().At(ck::Number<1>{}))>;
+    static constexpr auto pack_size = static_cast<index_t>(get_pack_info().At(ck::Number<0>{}));
 };
 template <typename T>
-using element_type_t = typename element_type<T>::type;
+using element_type_t = typename pack_info<T>::element_type;
+template <typename T>
+inline constexpr index_t pack_size_v = pack_info<T>::pack_size;
 
 #if defined(_WIN32)
 using int64_t = long long;

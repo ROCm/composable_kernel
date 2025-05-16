@@ -40,6 +40,7 @@ static constexpr auto ScaleBlockSize = 32;
 
 template <BlockGemmPipelineScheduler BlkGemmPipeSched, GemmSpecialization GemmSpec>
 using device_gemm_mx_xdl_bf8_f8_f16_mk_kn_mn_instances = std::tuple<
+#if 0 // TODO: Fix v1
     // clang-format off
         //#########################| ALayout| BLayout| CLayout|AData|AScale|BData|BScale| CData| AccData| Cshuffle|           A|           B|           C|          GEMM|    Scale Block| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|    Block-wiseGemm|               Block-wiseGemm|
         //#########################|        |        |        | Type|  Data| Type|  Data|  Type|    Type|     Type| Elementwise| Elementwise| Elementwise|Specialization|           Size|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|          Pipeline|                     Pipeline|
@@ -51,6 +52,7 @@ using device_gemm_mx_xdl_bf8_f8_f16_mk_kn_mn_instances = std::tuple<
       DeviceGemmMX_Xdl_CShuffleV3<       Row,     Row,     Row,   BF8,  E8M0,   F8,  E8M0,  F16,     F32,      F16, PassThrough, PassThrough, PassThrough,      GemmSpec, ScaleBlockSize,   256,   128,   128,   128,  16,   4,  32,   32,    2,    2,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,         0,     S<32, 8, 1>,     S<0, 2, 1>,    S<0, 2, 1>,              1,             16,              4,         0,           1,           1,                   S<1, 32, 1, 8>,               8,  BlkGemmPipeSched,  BlockGemmPipelineVersion::v1>,
       DeviceGemmMX_Xdl_CShuffleV3<       Row,     Row,     Row,   BF8,  E8M0,   F8,  E8M0,  F16,     F32,      F16, PassThrough, PassThrough, PassThrough,      GemmSpec, ScaleBlockSize,   128,    16,    32,   512,  16,   8,  16,   16,    1,    1,     S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,         0,     S<64, 2, 1>,     S<0, 2, 1>,    S<0, 2, 1>,              1,             16,              8,         0,           1,           1,                   S<1, 16, 1, 8>,               4,  BlkGemmPipeSched,  BlockGemmPipelineVersion::v1>
     // clang-format on
+#endif
     >;
 
 } // namespace instance
