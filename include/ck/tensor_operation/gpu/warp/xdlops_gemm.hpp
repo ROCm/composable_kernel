@@ -1621,7 +1621,7 @@ struct XdlopsGemm
 
     // Falls back to single rate instruction on gfx950 if KPack is single rate; no change on gfx942-
     // when base_type is either f8_t or bf8_t, additional_type will always be either f8_t or bf8_t,
-    // except Use singal rate mfma instruction for this special case A (f8_t) * B (pk_i4_t)
+    // except Use single rate mfma instruction for this special case A (f8_t) * B (pk_i4_t)
     static constexpr bool is_single_rate_mfma =
         (((is_same<base_type, half_t>::value || is_same<base_type, bhalf_t>::value) &&
           KPack <= 4) ||
