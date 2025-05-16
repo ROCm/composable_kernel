@@ -50,6 +50,8 @@ void run(const ck_tile::ArgParser& arg_parser)
     int n_repeat                 = arg_parser.get_int("repeat");
     int verify                   = arg_parser.get_int("v");
     ck_tile::index_t init_method = arg_parser.get_int("init");
+    bool flush_cache             = arg_parser.get_bool("flush_cache");
+    int rotating_count           = arg_parser.get_int("rotating_count");
     bool structured_sparsity     = arg_parser.get_bool("structured_sparsity");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
@@ -162,14 +164,16 @@ void run(const ck_tile::ArgParser& arg_parser)
                                      stride_C);
     }
 
-    gemm_kernel_launch(c_m_n_dev_buf,
-                       c_m_n_host_result,
-                       c_m_n_dev_result,
-                       verify,
-                       structured_sparsity,
-                       trait,
-                       gemm_args,
-                       ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+    gemm_kernel_launch(
+        c_m_n_dev_buf,
+        c_m_n_host_result,
+        c_m_n_dev_result,
+        verify,
+        structured_sparsity,
+        trait,
+        gemm_args,
+        ck_tile::stream_config{
+            nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
 
     return;
 }
