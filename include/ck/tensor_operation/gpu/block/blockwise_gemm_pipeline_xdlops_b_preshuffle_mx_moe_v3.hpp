@@ -187,11 +187,22 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
         KPerBlock / ScaleBlockSize; // How many mx-vectors per K block
 
     //> How many mx-vectors in each row/col is processed in one call to xdlops_gemm.Run()
-    static constexpr auto ScalesPerXdlopsRun = (KPack * xdlops_gemm.K0PerXdlops) / ScaleBlockSize;
+    static constexpr auto ScalesPerXdlopsRun =
+        (APackedSize * KPack * xdlops_gemm.K0PerXdlops) / ScaleBlockSize;
 
     //> How many scales a thread must read to accommodate one call to xdlops_gemm.Run()
     static constexpr auto ScalesPerXdlopsRunPerThread =
         ScalesPerXdlopsRun / xdlops_gemm.mfma_instr.num_input_blks;
+
+    using mx_scale_t                        = e8m0_bexp_t;
+    static constexpr auto scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
+    static constexpr auto scale_pack_size_b = sizeof(BScaleDataType) / sizeof(mx_scale_t);
+    static_assert(KXdlPack * MXdlPack % scale_pack_size_a == 0,
+                  "A scale pack data type too large!");
+    static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
+                  "B scale pack data type too large!");
+    static constexpr auto a_scale_thread_vec_size = KXdlPack * MXdlPack / scale_pack_size_a;
+    static constexpr auto b_scale_thread_vec_size = KXdlPack * NXdlPack / scale_pack_size_b;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {

@@ -82,6 +82,7 @@ struct MulABScaleExpertWeight
 
 using CDEElementOp = MulABScaleExpertWeight;
 
+// B preshuffle
 void preShuffleBuffer(const F4* src, F4* dst, int N, int K, int NXdl)
 {
     int KPack = 32;
@@ -109,6 +110,54 @@ void preShuffleBuffer(const F4* src, F4* dst, int N, int K, int NXdl)
                               k1 * KPack * NLane + n1 * KPack + k2;
 
             dst[outputIndex / 2] = src[(n * K + k) / 2];
+        }
+    }
+}
+
+// A, B Scale preshuffle
+template <bool KLast>
+void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
+{
+    int MNXdlPack = 2;
+    int KXdlPack  = 2;
+
+    int XdlMNThread = 16;
+    int XdlKThread  = 64 / XdlMNThread;
+
+    int K0 = K / KXdlPack / XdlKThread; // KRepeat
+
+    // The 4 16x128 building blocks will be packed into 1 32x256 for F4
+    // The 8 16x16x128 mfma will be packed into 1 32x32x256 for F4
+
+    // unfold the MN32xK(256/32) scale buffer
+    //    4            16             2           2
+    // To XdlKThread-> XdlMNThread -> KXdlPack -> MNXdlPack
+    // Then, MNRepeat->KRepeat
+
+    for(int n = 0; n < MN; ++n)
+    {
+        for(int k = 0; k < K; ++k)
+        {
+            int n0    = n / (XdlMNThread * MNXdlPack); // i MNRepeat
+            int tempn = n % (XdlMNThread * MNXdlPack);
+            int n1    = tempn % XdlMNThread; // i XdlMNThread
+            int n2    = tempn / XdlMNThread; // i MNXdlPack
+
+            int k0    = k / (XdlKThread * KXdlPack); // i KRepeat
+            int tempk = k % (XdlKThread * KXdlPack);
+            int k1    = tempk % XdlKThread; // i XdlKThread
+            int k2    = tempk / XdlKThread; // i KXdlPack
+
+            int outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
+                              k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
+                              k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
+                              k2 * MNXdlPack + n2;
+            // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f, n2 +
+            // k2 * MNXdlPack)));
+            if constexpr(KLast)
+                dst[outputIndex] = src[n * K + k];
+            else
+                dst[outputIndex] = src[k * MN + n];
         }
     }
 }
@@ -286,20 +335,27 @@ int main(int argc, char* argv[])
     Tensor<B1DataType> b1_e_n_k(
         HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N},
                              {(N * Scale_Stride_BN), 1, Scale_Stride_BN}));
+    // B preshuffle
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
-    Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
-    Tensor<D1DataType> d1_e_n(HostTensorDescriptor({experts, N}, {1, StrideDs[1]}));
+
+    // A, B Scale preshuffle
+    Tensor<A1DataType> a_scale_sorted(HostTensorDescriptor(
+        {sorted_size, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
+    Tensor<A1DataType> a_scale_preshuffled(HostTensorDescriptor(
+        {sorted_size, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
+    Tensor<B1DataType> b_scale_preshuffled(
+        HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N},
+                             {N * Scale_Stride_BN, 1, Scale_Stride_BN}));
     Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
+
     e_t_n_device_result.SetZero();
     std::cout << "a0_t_k_k: " << a0_t_k_k.mDesc << std::endl;
     std::cout << "a1_t_k_k: " << a1_t_k_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
     std::cout << "b1_e_n_k: " << b1_e_n_k.mDesc << std::endl;
     std::cout << "d2_e_n: " << d2_e_n.mDesc << std::endl;
-    std::cout << "d1_e_n: " << d1_e_n.mDesc << std::endl;
-    std::cout << "d0_t_n: " << d0_t_n.mDesc << std::endl;
     std::cout << "e_t_n: " << e_t_n_host_result.mDesc << std::endl;
 
     switch(init_method)
@@ -310,8 +366,6 @@ int main(int argc, char* argv[])
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-1, 1});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_2<A1DataType>{0, 1});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_2<B1DataType>{0, 1});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
-        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-1, 1});
         break;
     case 2:
@@ -319,8 +373,6 @@ int main(int argc, char* argv[])
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
-        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     case 3:
@@ -328,8 +380,6 @@ int main(int argc, char* argv[])
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
-        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     case 4:
@@ -337,8 +387,6 @@ int main(int argc, char* argv[])
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
-        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-2, 2});
         break;
     case 5:
@@ -346,8 +394,6 @@ int main(int argc, char* argv[])
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
-        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     case 6:
@@ -355,8 +401,6 @@ int main(int argc, char* argv[])
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
-        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     default:
@@ -364,8 +408,6 @@ int main(int argc, char* argv[])
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0.0, 1.0});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0.0, 1.0});
-        d0_t_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{}); // will to remove
-        d1_e_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{}); // will to remove
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) *
@@ -373,22 +415,42 @@ int main(int argc, char* argv[])
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
     DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.mDesc.GetElementSpaceSize());
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k_k.mDesc.GetElementSpaceSize() / 2);
-    DeviceMem a1_device_buf(sizeof(A1DataType) * a1_t_k_k.mDesc.GetElementSpaceSize());
+    DeviceMem a1_device_buf(sizeof(A1DataType) * a_scale_sorted.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.mDesc.GetElementSpaceSize() / 2);
     DeviceMem b1_device_buf(sizeof(B1DataType) * b1_e_n_k.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_t_n.mDesc.GetElementSpaceSize());
-    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_e_n.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
+
+    // A scale sorted
+    for(int i = 0; i < sorted_size; i++)
+    {
+        int tokenid = sorted_token_ids.mData[i] & 0x00FFFFFF;
+        int topkid  = (sorted_token_ids.mData[i] >> 24) & 0x000000FF;
+
+        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; k++)
+        {
+            if(tokenid = = tokens)
+            {
+                a_scale_sorted(i, k) = 0;
+            }
+            else
+            {
+                a_scale_sorted(i, k) = a1_t_k_k(tokenid, topkid, k);
+            }
+        }
+    }
+
+    preShuffleBuffer<ck::is_same_v<A0Layout, Row>>(
+        a_scale_sorted.mData.data(), a_scale_preshuffled.mData.data(), sorted_size, K);
+    preShuffleBuffer<ck::is_same_v<B0Layout, Row>>(
+        b1_e_n_k.mData.data(), b_scale_preshuffled.mData.data(), N * experts, K);
 
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
     a0_device_buf.ToDevice(a0_t_k_k.mData.data());
-    a1_device_buf.ToDevice(a1_t_k_k.mData.data());
-    b1_device_buf.ToDevice(b1_e_n_k.mData.data());
-    d0_device_buf.ToDevice(d0_t_n.mData.data());
-    d1_device_buf.ToDevice(d1_e_n.mData.data());
+    a1_device_buf.ToDevice(a_scale_preshuffled.mData.data());
+    b1_device_buf.ToDevice(b_scale_preshuffled.mData.data());
     d2_device_buf.ToDevice(d2_e_n.mData.data());
     e_device_buf.ToDevice(e_t_n_device_result.mData.data());
 
