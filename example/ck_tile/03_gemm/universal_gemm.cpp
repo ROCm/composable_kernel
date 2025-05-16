@@ -391,15 +391,15 @@ int main(int argc, char* argv[])
 {
     try
     {
-        run_gemm_example<GemmConfig_1>(argc, argv);
-        run_gemm_example<GemmConfig_1_1>(argc, argv);
-        run_gemm_example<GemmConfig_2>(argc, argv);
+        //run_gemm_example<GemmConfig_1>(argc, argv);
+        //run_gemm_example<GemmConfig_1_1>(argc, argv);
+        //run_gemm_example<GemmConfig_2>(argc, argv);
         //run_gemm_example<GemmConfig_2_1>(argc, argv); xx
         run_gemm_example<GemmConfig_2_2>(argc, argv);
         run_gemm_example<GemmConfig_2_3>(argc, argv);
-        run_gemm_example<GemmConfig_3>(argc, argv);
+        //run_gemm_example<GemmConfig_3>(argc, argv);
         //run_gemm_example<GemmConfig_3_1>(argc, argv); xx
-        run_gemm_example<GemmConfig_3_2>(argc, argv);
+        //run_gemm_example<GemmConfig_3_2>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {
