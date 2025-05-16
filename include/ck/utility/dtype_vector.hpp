@@ -397,7 +397,7 @@ struct vector_type<T, 6, typename ck::enable_if_t<is_native_type<T>()>>
 
         if constexpr(is_same<X, d1_t>::value)
         {
-            return data_.d1x7_;
+            return data_.d1x6_;
         }
         else if constexpr(is_same<X, d2_t>::value)
         {
@@ -426,7 +426,7 @@ struct vector_type<T, 6, typename ck::enable_if_t<is_native_type<T>()>>
 
         if constexpr(is_same<X, d1_t>::value)
         {
-            return data_.d1x7_;
+            return data_.d1x6_;
         }
         else if constexpr(is_same<X, d2_t>::value)
         {
