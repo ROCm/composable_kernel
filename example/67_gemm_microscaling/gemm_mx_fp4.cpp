@@ -23,19 +23,16 @@ using AElementOp = PassThrough; // elementwise transformation for A matrix
 using BElementOp = PassThrough; // elementwise transformation for B matrix
 using CElementOp = PassThrough; // elementwise transformation for C matrix
 
+constexpr ck::index_t DataPackedSize = 2;  // Packed representation of data
 constexpr ck::index_t ScaleBlockSize = 32; // scaling block size
-constexpr ck::index_t KPerBlock      = 256;
+constexpr ck::index_t KPerBlock      = 256 / DataPackedSize; // 256 f4 = 128 fp4x2
 
 constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
 constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
 constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v3;
-// v3 should be performant one, However
-//     1. some bug existed cause memory access fault in some cases, MNK=2k2k2k
-//     2. Register spill observed, most likely unpack the e8m0 from single register then feed to
-//     scaled mfma.
 
 // AB DataType: f4x2_pk_t
-// Mathmatically, all numbers are represented as f4.
+// Mathmatically, all numbers are represented as f4x2.
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
     ALayout,          // ALayout
     BLayout,          // BLayout
@@ -56,8 +53,8 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     128,              // MPerBlock
     256,              // NPerBlock
     KPerBlock,        // KPerBlock
-    32,               // AK1
-    32,               // BK1
+    16,               // AK1
+    16,               // BK1
     16,               // MPerXDL
     16,               // NPerXDL
     4,                // MXdlPerWave
@@ -66,15 +63,15 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
     2,                // ABlockTransferSrcVectorDim
-    32,               // ABlockTransferSrcScalarPerVector
-    32,               // ABlockTransferDstScalarPerVector_AK1
+    16,               // ABlockTransferSrcScalarPerVector
+    16,               // ABlockTransferDstScalarPerVector_AK1
     false,            // ABlockLdsExtraM
     S<8, 32, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
     S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
     2,                // BBlockTransferSrcVectorDim
-    32,               // BBlockTransferSrcScalarPerVector
-    32,               // BBlockTransferDstScalarPerVector_BK1
+    16,               // BBlockTransferSrcScalarPerVector
+    16,               // BBlockTransferDstScalarPerVector_BK1
     false,            // BBlockLdsExtraN
     2,                // CShuffleMXdlPerWavePerShuffle
     2,                // CShuffleNXdlPerWavePerShuffle
