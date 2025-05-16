@@ -87,7 +87,6 @@ using CDEElementOp = MulABScaleExpertWeight; // combine MulRoutedWeight = true
 
 // using CDEElementOp = MulABScale; // combine MulRoutedWeight = true
 
-#if 1
 void preShuffleBuffer(const F4* src, F4* dst, int N, int K, int NXdl)
 {
     int KPack = 32;
@@ -118,7 +117,6 @@ void preShuffleBuffer(const F4* src, F4* dst, int N, int K, int NXdl)
         }
     }
 }
-#endif
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -172,12 +170,12 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmMX<
             A0Layout,    B0Layout,    DsLayout,    ELayout, 
             A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
             AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
-            ScaleBlockSize,  256, MPerBlock,  128,  256,
+            ScaleBlockSize,  256, MPerBlock,  128,  128,
             32,   32,
             16,   16,
             8,    2,
-            S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
-            S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
+            S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
+            S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
             2,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, true, MulRoutedWeight, ck::index_t, A0DataType>;
 #endif
@@ -319,14 +317,7 @@ int main(int argc, char* argv[])
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0.0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
-    // for (auto i = 0; i< 256; i++){
-    //     ck::f4x2_pk_t v_pk{};
-        
-    //     a0_t_k.mData[i] =v_pk.pack(ck::type_convert<ck::f4_t>(0.5), ck::type_convert<ck::f4_t>(0.5));
-    //     for (auto j = 0; i< 256; i++){
-    //         b0_e_n_k.mData[i * 256 + j] = v_pk.pack(ck::type_convert<ck::f4_t>(0.5), ck::type_convert<ck::f4_t>(0.5));
-    //     }
-    // }
+
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) *
                                    sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
@@ -392,60 +383,6 @@ int main(int argc, char* argv[])
                                   k1 * KPack * NLane + n1 * KPack + k2;
 
                 b0_preshuffled(e, outputIndex % K, outputIndex / K) = b0_e_n_k(e, k, n);
-            }
-        }
-    }
-#endif
-
-#if CK_USE_PK4_LAYOUT_SHUFFLE
-    // vector pk_i4x4 permute
-    for(int e = 0; e < experts; e++)
-    {
-        for(int i = 0; i < N * 2; i++)
-        {
-            for(int j = 0; j < K; j += 8)
-            {
-                int input[8];
-
-                for(int k = 0; k < 4; k++)
-                {
-                    int i4x2         = b0_preshuffled(e, j + k * 2, i).data;
-                    input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
-                    input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
-                }
-
-                // permute 01234567->20643175
-                {
-                    int hi   = input[2];
-                    int lo   = input[0];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 0, i) = i4x2;
-                }
-
-                {
-                    int hi   = input[6];
-                    int lo   = input[4];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 2, i) = i4x2;
-                }
-
-                {
-                    int hi   = input[3];
-                    int lo   = input[1];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 4, i) = i4x2;
-                }
-
-                {
-                    int hi   = input[7];
-                    int lo   = input[5];
-                    int i4x2 = (hi << 4) | lo;
-
-                    b0_preshuffled(e, j + 6, i) = i4x2;
-                }
             }
         }
     }
@@ -569,7 +506,6 @@ int main(int argc, char* argv[])
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)
                    ? 0
                    : 1;
-        printf("checked.\n");
         if (status == 0){
             printf("Validation Pass.\n");
         }

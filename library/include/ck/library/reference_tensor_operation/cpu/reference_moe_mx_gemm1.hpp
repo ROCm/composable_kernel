@@ -120,7 +120,6 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                                 f4 = (a_f4x2 >> 4) & 0xf;
                             v_a = type_convert<ComputeTypeA>(f4) *
                                   type_convert<ComputeTypeA>(a_scale);
-                            // printf("v_a=%1.f, a_scale=%1.f. sb: %d.\n", type_convert<float>(f4), type_convert<float>(a_scale), k / SCALE_BLOCK);
                         }
                         else
                         {
@@ -152,7 +151,6 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                                   type_convert<ComputeTypeB>(b_scale);
                             v_b_up = type_convert<ComputeTypeB>(f4_up) *
                                   type_convert<ComputeTypeB>(b_scale_up);
-                            // printf("v_b=%1.f, b_scale=%1.f\n", type_convert<float>(f4), type_convert<float>(b_scale));
                         }
                         else
                         {
@@ -185,8 +183,8 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                     }
                     else if constexpr(ActivationType == 0)
                     {
-                        // tensor_operation::element_wise::Gelu{}(v_c, v_c);
-                        arg.c_t_k_n_(t, topk_id, n) = v_c ;//* v_c_up;
+                        tensor_operation::element_wise::Gelu{}(v_c, v_c);
+                        arg.c_t_k_n_(t, topk_id, n) = v_c * v_c_up;
                     }
                 }
             };
