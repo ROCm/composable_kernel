@@ -220,14 +220,6 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            static constexpr index_t APackedSize = []() {
-                if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
-                             is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
-                    return 2;
-                else
-                    return 1;
-            }();
-
             if(stream_config.log_level_ > 0)
             {
                 arg.Print();
