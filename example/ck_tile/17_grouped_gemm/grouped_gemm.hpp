@@ -85,10 +85,10 @@ inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gem
 template <typename ALayout, typename BLayout, typename CLayout>
 float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
-                   void* p_workspace_);
+                   void* kargs_ptr);
 
 template <typename ALayout, typename BLayout, typename CLayout>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
-                            void* p_workspace_,
+                            void* kargs_ptr,
                             bool splitk = false);

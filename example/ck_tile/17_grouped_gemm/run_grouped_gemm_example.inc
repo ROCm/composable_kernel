@@ -76,12 +76,11 @@ float invoke_gemm(int n_warmup,
                                                        arg.k_batch});
         }
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
-        ck_tile::hip_check_error(
-            hipMemcpyWithStream(kargs_ptr,
-                                kargs.data(),
-                                kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
-                                hipMemcpyHostToDevice,
-                                stream.stream_id_));
+        HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
+                                            kargs.data(),
+                                            kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
+                                            hipMemcpyHostToDevice,
+                                            stream.stream_id_));
         ave_time = grouped_gemm_tileloop<ALayout, BLayout, CLayout>(
             stream, group_count, kargs_ptr, splitk);
     }

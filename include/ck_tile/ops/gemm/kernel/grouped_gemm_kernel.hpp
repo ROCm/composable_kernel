@@ -89,7 +89,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         using ConstantPointer = const void CK_CONSTANT_ADDRESS_SPACE*;
         const auto kernel     = kentry<KernelBlockSize, 1, Kernel, ConstantPointer, index_t>;
         int occupancy;
-        hip_check_error(
+        HIP_CHECK_ERROR(
             hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
         const int grid_size = get_available_compute_units(s) * occupancy;
         return dim3(grid_size, 1, 1);
@@ -197,14 +197,14 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        if constexpr(!UsePersistentKernel)
-        {
-            this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
-        }
-        else
+        if constexpr(UsePersistentKernel)
         {
             RunGemmWithPipelineSelection(
                 a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        }
+        else
+        {
+            this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
         }
     }
 
@@ -251,9 +251,6 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
         const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
-
-        // const auto& c_block_tile = GemmPipeline{}.template operator()(
-        // a_block_window, b_block_window, num_loop, smem_ptr_0);
 
         const auto RunEpilogue = [&](auto& c_block_tile) {
             // Run Epilogue Pipeline

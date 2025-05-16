@@ -31,7 +31,7 @@ static inline index_t get_available_compute_units(const stream_config& s)
         return count;
     };
 
-    hip_check_error(hipExtStreamGetCUMask(s.stream_id_, MAX_MASK_DWORDS, &cu_mask[0]));
+    HIP_CHECK_ERROR(hipExtStreamGetCUMask(s.stream_id_, MAX_MASK_DWORDS, &cu_mask[0]));
 
     index_t num_cu = 0;
     for(uint32_t i = 0; i < MAX_MASK_DWORDS; i++)

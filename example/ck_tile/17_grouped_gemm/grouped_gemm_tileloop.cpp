@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -156,13 +156,11 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
     if(!splitk)
     {
-        std::cout << "Run without SplitK" << std::endl;
         Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                        ck_tile::memory_operation_enum::set>{});
     }
     else
     {
-        std::cout << "Run using SplitK" << std::endl;
         Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                        ck_tile::memory_operation_enum::atomic_add>{});
     }

@@ -28,10 +28,6 @@ class TestCkTileGroupedGemm : public ::testing::Test
     using PersistentType             = std::tuple_element_t<7, Tuple>;
     static constexpr bool Persistent = PersistentType::value;
 
-    // Get the kbatch value from ck_tile::number
-    using KBatchType             = std::tuple_element_t<8, Tuple>;
-    static constexpr auto KBatch = KBatchType::value;
-
     struct GroupedGemKernelParam
     {
         static const bool kPadM = false;
@@ -61,7 +57,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
     template <typename ALayout, typename BLayout, typename CLayout>
     void invoke_grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                              const ck_tile::stream_config& s,
-                             void* p_workspace_)
+                             void* kargs_ptr)
     {
         constexpr bool DoubleSmemBuffer = false;
         constexpr bool TransposeC       = false;
@@ -151,7 +147,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             const dim3 grids      = Kernel::GridSize(gemm_descs);
             constexpr dim3 blocks = Kernel::BlockSize();
 
-            ck_tile::hip_check_error(hipMemcpyWithStream(p_workspace_,
+            ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
                                                          kargs.data(),
                                                          get_workspace_size(gemm_descs),
                                                          hipMemcpyHostToDevice,
@@ -172,7 +168,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
                     grids,
                     blocks,
                     0,
-                    ck_tile::cast_pointer_to_constant_address_space(p_workspace_),
+                    ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
                     gemm_descs.size()));
             return ave_time;
         };
@@ -320,17 +316,16 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                        num_groups));
         };
 
-        if(!splitk)
+        if(splitk)
         {
-            std::cout << "Run without SplitK" << std::endl;
             Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
+                                           ck_tile::memory_operation_enum::atomic_add>{});
         }
         else
         {
-            std::cout << "Run using SplitK" << std::endl;
+
             Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
+                                           ck_tile::memory_operation_enum::set>{});
         }
     }
 
@@ -361,6 +356,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
              std::vector<int>& stride_As,
              std::vector<int>& stride_Bs,
              std::vector<int>& stride_Cs,
+             const int kbatch      = 1,
              const int group_count = 16)
     {
         using namespace ck_tile::literals;
@@ -435,7 +431,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             std::cout << "gemm[" << i << "]"
                       << " a_m_k: " << a_m_k_tensors[i].mDesc
                       << " b_k_n: " << b_k_n_tensors[i].mDesc
-                      << " c_m_n: " << c_m_n_tensors[i].mDesc << " KBatch: " << KBatch << std::endl;
+                      << " c_m_n: " << c_m_n_tensors[i].mDesc << " KBatch: " << kbatch << std::endl;
 
             ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
             ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
@@ -457,20 +453,13 @@ class TestCkTileGroupedGemm : public ::testing::Test
             void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
             gemm_descs.push_back(
-                {p_a, p_b, p_c, KBatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+                {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
         }
 
         ck_tile::DeviceMem gemm_workspace;
         gemm_workspace.Realloc(get_workspace_size(gemm_descs));
 
-        if(!Persistent)
-        {
-            invoke_grouped_gemm<ALayout, BLayout, CLayout>(
-                gemm_descs,
-                ck_tile::stream_config{nullptr, false, 1},
-                gemm_workspace.GetDeviceBuffer());
-        }
-        else
+        if constexpr(Persistent)
         {
             // Generate kernel arguments
             std::vector<ck_tile::GemmTransKernelArg> kargs;
@@ -499,6 +488,15 @@ class TestCkTileGroupedGemm : public ::testing::Test
             invoke_grouped_gemm_persistent<ALayout, BLayout, CLayout>(
                 stream, group_count, kargs_ptr, splitk);
         }
+        else
+        {
+            invoke_grouped_gemm<ALayout, BLayout, CLayout>(
+                gemm_descs,
+                ck_tile::stream_config{nullptr, false, 1},
+                gemm_workspace.GetDeviceBuffer());
+        }
+
+        // Copy results back to host for validation
         for(int i = 0; i < group_count; i++)
         {
             c_m_n_dev_buf[i]->FromDevice(c_m_n_tensors[i].data());
@@ -514,7 +512,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-            const auto rtol_atol = calculate_rtol_atol(Ks[i], KBatch, max_accumulated_value);
+            const auto rtol_atol = calculate_rtol_atol(Ks[i], kbatch, max_accumulated_value);
             pass &= ck_tile::check_err(c_m_n_tensors[i],
                                        c_m_n_host_ref,
                                        "Error: Incorrect results!",
