@@ -12,7 +12,7 @@ namespace ck_tile {
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 template <typename Problem>
-struct BaseGemmPipelineAgBgCrCompV4
+struct BaseGemmPipelineAgBgCrCompAsync
 {
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
@@ -50,9 +50,9 @@ struct BaseGemmPipelineAgBgCrCompV4
  * even when Compute Version 3's block size is twice that of Compute Version 4.
  */
 template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV4DefaultPolicy>
-struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompV4<Problem>
+struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Problem>
 {
-    using Base             = BaseGemmPipelineAgBgCrCompV4<Problem>;
+    using Base             = BaseGemmPipelineAgBgCrCompAsync<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -291,8 +291,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompV4<Problem
             Base::GlobalPrefetchAsync(
                 b_copy_lds_window1, b_copy_dram_window, b_dram_tile_window_step);
 
-            buffer_load_fence(a_number_of_access + b_number_of_access);
-
             constexpr auto ALdsTileDistr = decltype(make_static_tile_distribution(
                 BlockGemm::MakeABlockDistributionEncode())){};
             constexpr auto BLdsTileDistr = decltype(make_static_tile_distribution(
@@ -333,6 +331,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompV4<Problem
                     is_tile_window_linear_v<
                         decltype(b_lds_ld_window0)>)&&!(is_tile_window_linear_v<decltype(b_lds_ld_window1)>),
                 "LDS windows must not be linear");
+            buffer_load_fence(a_number_of_access + b_number_of_access);
+
+            block_sync_lds();
 
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
@@ -368,8 +369,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompV4<Problem
                         buffer_load_fence(a_number_of_access + b_number_of_access);
                         Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                         Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
-
-                        block_sync_lds();
 
                         Base::GlobalPrefetchAsync(
                             a_copy_lds_window0, a_copy_dram_window, a_dram_tile_window_step);
