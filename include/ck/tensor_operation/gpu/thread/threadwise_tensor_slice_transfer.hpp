@@ -245,8 +245,7 @@ struct ThreadwiseTensorSliceTransfer_v2
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
 
     static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
             return 2;
         else
             return 1;
@@ -1043,8 +1042,7 @@ struct ThreadwiseTensorSliceTransfer_v4
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
 
     static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
             return 2;
         else
             return 1;
@@ -1175,9 +1173,6 @@ struct ThreadwiseTensorSliceTransfer_v4
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
                                                        is_src_valid);
-                // printf("TID%03d GetOffset() / PackedSize = %d\n",
-                //        get_thread_local_1d_id(),
-                //        src_data_coord.GetOffset() / PackedSize);
             }
             else if constexpr(SrcBuffer::IsStaticBuffer())
             {
@@ -1510,8 +1505,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
     using Index = MultiIndex<nDim>;
 
     static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
+        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t>)
             return 2;
         else
             return 1;

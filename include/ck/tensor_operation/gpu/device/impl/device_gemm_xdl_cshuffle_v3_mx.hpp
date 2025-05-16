@@ -220,6 +220,14 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            static constexpr index_t APackedSize = []() {
+                if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
+                             is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
+                    return 2;
+                else
+                    return 1;
+            }();
+
             if(stream_config.log_level_ > 0)
             {
                 arg.Print();
@@ -296,14 +304,6 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             };
 
             // TODO: Check if this is the right algorithm for minimum_occupancy
-            static constexpr index_t APackedSize = []() {
-                if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
-                             is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
-                    return 2;
-                else
-                    return 1;
-            }();
-
             constexpr index_t minimum_occupancy =
                 BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave
                     ? (BlkGemmPipelineVer == BlockGemmPipelineVersion::v3 &&
@@ -340,7 +340,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                 // Tail number could be Odd or Even
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-#if 1
+#if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -420,7 +420,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-#if 1
+#if 0
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
                         const auto kernel =
@@ -442,6 +442,13 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                         Run(kernel);
                     }
 #endif
+                    const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        false,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy,
+                                                        TailNumber::Odd>;
+                        Run(kernel);
                 }
             }
 

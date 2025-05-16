@@ -35,6 +35,11 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     using ComputeTypeB = BDataType;
     using AccType      = float; // for now only support V_MFMA_SCALE_F32
 
+    static constexpr index_t APackedSize =
+        is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ? 2 : 1;
+    static constexpr index_t BPackedSize =
+        is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t> ? 2 : 1;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -51,19 +56,14 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t B_K1 = BTileDesc{}.GetLength(I2);
 
     static constexpr auto xdlops_gemm =
-        XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB, TransposeC, true>{};
+        XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack*APackedSize, ComputeTypeB, TransposeC, true>{};
 
     static constexpr index_t AMmaKStride = KPack;
     static constexpr index_t BMmaKStride = KPack;
 
     //> store rows/cols into thread registers in chunks of 16
     //> e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
-    static constexpr index_t APackedSize =
-        is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ? 2 : 1;
-    static constexpr index_t BPackedSize =
-        is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t> ? 2 : 1;
-
-    static constexpr index_t KThreadChunk = 16 * APackedSize / sizeof(ComputeTypeA);
+    static constexpr index_t KThreadChunk = 16  / sizeof(ComputeTypeA);
 
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
@@ -381,11 +381,11 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                 I1,
                                                 Number<MXdlPack>{},
                                                 Number<KRepeat>{},
-                                                Number<KPack / APackedSize>{}),
-                                     make_tuple(Number<KPack / APackedSize * MXdlPack>{},
-                                                Number<KRepeat * MRepeat * KPack / APackedSize>{},
-                                                Number<MRepeat * KPack / APackedSize>{},
-                                                Number<KPack / APackedSize>{},
+                                                Number<KPack>{}),
+                                     make_tuple(Number<KPack * MXdlPack>{},
+                                                Number<KRepeat * MRepeat * KPack>{},
+                                                Number<MRepeat * KPack>{},
+                                                Number<KPack>{},
                                                 I1));
 
     // B[N0, N1, N2, KPack]
@@ -394,11 +394,11 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                 I1,
                                                 Number<KRepeat>{},
                                                 Number<NXdlPack>{},
-                                                Number<KPack / BPackedSize>{}),
-                                     make_tuple(Number<KPack / BPackedSize * NXdlPack>{},
-                                                Number<KRepeat * NRepeat * KPack / BPackedSize>{},
-                                                Number<NRepeat * KPack / BPackedSize>{},
-                                                Number<KPack / BPackedSize>{},
+                                                Number<KPack>{}),
+                                     make_tuple(Number<KPack * NXdlPack>{},
+                                                Number<KRepeat * NRepeat * KPack>{},
+                                                Number<NRepeat * KPack>{},
+                                                Number<KPack>{},
                                                 I1));
 
     // C[M, N, NumRegXdlops]
