@@ -91,8 +91,14 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         constexpr index_t A_Buffer_Load_Inst_Num = kMPerBlock * kKPerBlock / BlockSize / KPerLoad;
         constexpr index_t A_LDS_Read_Inst_Num    = MIterPerWarp * KIterPerWarp;
         constexpr index_t B_Buffer_Load_Inst_Num = NIterPerWarp * KIterPerWarp;
-#endif
-#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
+        // constexpr index_t A_LDS_Read_Inst_Remain = A_LDS_Read_Inst_Num - A_Buffer_Load_Inst_Num;
+        ignore = A_Buffer_Load_Inst_Num;
+        ignore = A_LDS_Read_Inst_Num;
+        ignore = B_Buffer_Load_Inst_Num;
+
+        if constexpr (WG::kM == 16 && WG::kN == 16)
+        {
+//#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
         static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
@@ -114,11 +120,11 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
             __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
         });
+        }
+        else if constexpr (WG::kM == 32 && WG::kN == 32)
+        {
 
-#elif defined(USING_MFMA_32x32x16)
-        ignore = A_Buffer_Load_Inst_Num;
-        ignore = A_LDS_Read_Inst_Num;
-        ignore = B_Buffer_Load_Inst_Num;
+//#elif defined(USING_MFMA_32x32x16)
 #if 0
         static_for<0,
                    A_LDS_Read_Inst_Num / 2 - A_Buffer_Load_Inst_Num - B_Buffer_Load_Inst_Num,
@@ -153,7 +159,8 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         });
         __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
 #endif
-#endif
+    }
+//#endif
     }
 
     template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>

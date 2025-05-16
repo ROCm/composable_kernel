@@ -19,7 +19,14 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         using namespace ck_tile;
-#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
+       //         constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+
+        //using WG = remove_cvref_t<decltype(config.template at<0>())>;
+        constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
+        constexpr index_t NPerXdl = Problem::BlockGemmShape::WarpTile::at(I1);
+        if constexpr (MPerXdl == 16 && NPerXdl == 16)
+        {
+//#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
         /*reduce transform layers,compare with old ck*/
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -48,7 +55,10 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return a_lds_block_desc;
-#elif defined(USING_MFMA_32x32x16)
+        }
+        else
+        {
+//#elif defined(USING_MFMA_32x32x16)
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t kKPack     = GetSmemPackA<Problem>();
@@ -67,7 +77,8 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return a_lds_block_desc;
-#endif
+//#endif
+        }
 /*xor*/
 #if 0
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;

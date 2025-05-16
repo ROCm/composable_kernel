@@ -186,7 +186,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // Rmsnorm2d
         {
             ck_tile::HostTensor<InvRmsDataType> invRms_host_ref({m});
-
+            ck_tile::HostTensor<ck_tile::null_type> unquant_y_host_ref({m, n}, {stride, 1});
             // CAUSION: kernel use ComputeDataType version of x, but we use XDataType here for
             // simplicity
             ck_tile::reference_rmsnorm2d_fwd<XDataType,
@@ -194,7 +194,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                              ComputeDataType,
                                              YDataType,
                                              InvRmsDataType>(
-                x_host_ref, gamma_host, y_host, invRms_host_ref, epsilon);
+                x_host_ref, gamma_host, y_host, invRms_host_ref, unquant_y_host_ref, epsilon);
+
         }
 
         // yscale
