@@ -169,14 +169,20 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
           lcm_AK1_BK1 <= 4) ||
          (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
-         ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) && lcm_AK1_BK1 < 32))
+         ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
+          lcm_AK1_BK1 < 32))
             ? true
             : false;
-    static constexpr auto is_scale_mfma = false;
-    static constexpr auto mfma = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma, is_scale_mfma>{};
-    static constexpr index_t KPack = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
-    static constexpr index_t KGroup = mfma.selected_mfma.k_per_blk == 32 ? 2 : 1;
-    static constexpr index_t KLane = mfma.GetKPerXdlops() / mfma.GetK1PerXdlops();
+    static constexpr auto is_scale_mfma    = false;
+    static constexpr auto mfma             = MfmaSelector<ComputeTypeA,
+                                              MPerXdl,
+                                              NPerXdl,
+                                              ComputeTypeA,
+                                              is_single_rate_mfma,
+                                              is_scale_mfma>{};
+    static constexpr index_t KPack         = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
+    static constexpr index_t KGroup        = mfma.selected_mfma.k_per_blk == 32 ? 2 : 1;
+    static constexpr index_t KLane         = mfma.GetKPerXdlops() / mfma.GetK1PerXdlops();
     static constexpr index_t KPackPerGroup = KPack / KGroup;
     static constexpr index_t KRepeat       = KPerBlock / KLane / KPackPerGroup;
     static constexpr index_t NLane         = NPerXdl;

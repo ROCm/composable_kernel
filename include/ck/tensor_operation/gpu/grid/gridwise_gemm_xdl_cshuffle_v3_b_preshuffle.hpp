@@ -148,18 +148,21 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
 
-    static constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
-    static constexpr bool is_single_rate_mfma =
-        (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
-          lcm_AK1_BK1 <= 4) ||
-         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
-         ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) && lcm_AK1_BK1 < 32))
-            ? true
-            : false;
-    static constexpr auto is_scale_mfma = false;
-    static constexpr auto mfma = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeA, is_single_rate_mfma, is_scale_mfma>{};
+    // Use singal rate mfma instruction for this special case A (f8_t) * B (pk_i4_t)
+    // See example gemm_xdl_fp8_pk_i4_bpreshuffle_v3
+    // TODO: explore optimization opportunity by using new mfma instructions on gfx950
+    static constexpr auto lcm_AK1_BK1         = math::lcm(AK1Number, BK1Number);
+    static constexpr bool is_single_rate_mfma = true;
+    static constexpr auto is_scale_mfma       = false;
+    static constexpr auto mfma                = MfmaSelector<ComputeTypeA,
+                                              MPerXdl,
+                                              NPerXdl,
+                                              ComputeTypeA,
+                                              is_single_rate_mfma,
+                                              is_scale_mfma>{};
     static constexpr index_t KPack = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
     static constexpr index_t KLane = mfma.GetKPerXdlops() / mfma.GetK1PerXdlops();
+
     static constexpr index_t KRepeat = KPerBlock / KLane / KPack;
     static constexpr index_t NLane   = NPerXdl;
     static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
