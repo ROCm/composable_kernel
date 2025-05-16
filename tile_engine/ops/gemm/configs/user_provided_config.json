@@ -34,12 +34,16 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        256
+        256,
+        128,
+        64
       ]
     },
     "tile_n": {
       "values": [
-        256
+        256,
+        128,
+        64
       ]
     },
     "tile_k": {

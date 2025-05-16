@@ -118,6 +118,10 @@ inline auto create_args(int argc, char* argv[])
                 "2",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
                 "for validation on GPU. Default is 2, validation on GPU.")
+        .insert("log",
+                "false",
+                "Wether output kernel instance information or not. Possible values are true or "
+                "false. Default is false")
         .insert(
             "warmup", "50", "The number of iterations before benchmark the kernel. Default is 50.")
         .insert(

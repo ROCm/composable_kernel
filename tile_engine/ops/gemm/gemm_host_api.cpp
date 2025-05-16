@@ -48,6 +48,7 @@ void run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
+    bool log                     = arg_parser.get_int("log");
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     int verify                   = arg_parser.get_int("v");
@@ -173,7 +174,7 @@ void run(const ck_tile::ArgParser& arg_parser)
                        structured_sparsity,
                        trait,
                        gemm_args,
-                       ck_tile::stream_config{nullptr, false, 0, n_warmup, n_repeat});
+                       ck_tile::stream_config{nullptr, true, log, n_warmup, n_repeat});
 
     return;
 }

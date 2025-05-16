@@ -88,9 +88,16 @@ RUN_MEM = """
                 RunSplitk(ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
             }
-            // Variadic call using fold expression
+            
             auto check_tail = [&](auto... TNs) {
-                (try_run< BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
+                ([&]{
+                    if constexpr(BaseGemmPipeline::PrefetchStages > static_cast<int>(decltype(TNs)::value)) {
+                        if(tail_num == decltype(TNs)::value) {
+                            RunSplitk(ck_tile::bool_constant<true>{},
+                                    ck_tile::integral_constant<ck_tile::TailNumber, decltype(TNs)::value>{});
+                        }
+                    }
+                }(), ...);
             };
 
             check_tail(
@@ -200,28 +207,31 @@ def element_size(data_type: str) -> float:
     else:
         raise ValueError(f"Unsupported data type: {data_type}")
 
+GPU_NAME_PATTERN = re.compile(r'Name:\s*(gfx\d+\w*)')
 
 @lru_cache(maxsize=1)
 def get_gpu_name_by_id(gpu_id: int = 0) -> str:
     """Retrieve GPU name (e.g. gfx90a) by device ID"""
     try:
-        cmd = ['rocm-smi', '--showproductname', '-d', str(gpu_id)]
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+        output = subprocess.check_output(
+            ["rocminfo"],
             text=True,
-            check=True
+            stderr=subprocess.PIPE,
+            timeout=5
         )
-
-        arch_pattern = r'gfx\d{3,4}[a-z]?'
-        match = re.search(arch_pattern, result.stdout.lower())
-        return match.group() if match else ""
-
-    except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        print(f"System Error: {str(e)}, when get the name of gpu:{gpu_id}")
+        if matches := GPU_NAME_PATTERN.finditer(output):
+            gpu_list = [m.group(1) for m in matches]
+            return gpu_list[gpu_id] if gpu_id < len(gpu_list) else ""
+            
         return ""
+        
+    except subprocess.CalledProcessError as e:
+        print(f"GPU query failed (exit {e.returncode}): {e.stderr.strip()}")
+    except FileNotFoundError:
+        print("ROCm tools not installed (requires rocminfo)")
+    except subprocess.TimeoutExpired:
+        print("GPU query timeout (5s)")
     except Exception as e:
-        print(
-            f"Runtime Exception: {str(e)}, when get the name of gpu:{gpu_id}")
-        return ""
+        print(f"GPU detection error: {str(e)}")
+    
+    return ""

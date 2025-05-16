@@ -109,6 +109,7 @@ class GemmCodeGenerator:
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
+
 #include "ck_tile/core.hpp"
 
 // Data types
@@ -141,6 +142,8 @@ using CLayout = {LAYOUT_MAP[self.config.problem.layout_map['matrix_c']]};
         content = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#pragma once
+
 #include "gemm_common.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/epilogue.hpp"
@@ -159,15 +162,7 @@ namespace {trait} {{
                                 pad_m: str, pad_n: str, pad_k: str) -> str:
         """Generate the code block of kernel struct"""
         return f"""
-template <typename Pipeline, ck_tile::TailNumber TN>
-void try_run(ck_tile::TailNumber tn) {{
-    if constexpr (Pipeline::PrefetchStages > static_cast<int>(TN) - 1) {{
-        if (tn == TN) {{
-            RunSplitk(ck_tile::bool_constant<true>{{}},
-                ck_tile::integral_constant<ck_tile::TailNumber, TN>{{}});
-        }}
-    }}
-}}
+
 template <int TileM, int TileN, int TileK,
           int WarpM, int WarpN, int WarpK,
           int WarpTileM, int WarpTileN, int WarpTileK,

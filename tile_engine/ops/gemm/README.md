@@ -12,7 +12,7 @@ User can provide kernel configuration such as tile size, warp size, padding, pip
 mkdir build && cd build
 # build composable kernel
 ## replace <arch> with the appropriate architecture (example gfx942) or leave blank
-## "USE_CUSTOM_CONFIG=ON" for default configuration, "USE_CUSTOM_CONFIG=ON" for user provided configuration
+## "USE_CUSTOM_CONFIG=OFF" for default configuration, "USE_CUSTOM_CONFIG=ON" for user provided configuration
 sh ../script/cmake-ck-dev.sh  ../ <arch> -D USE_CUSTOM_CONFIG=ON 
 # generate the executable
 make tile_engine_gemm -j
@@ -29,22 +29,23 @@ rm -rf tile_engine/ && make tile_engine_gemm -j  # rebuild
                       -m    The value for m dimension. Default is 3840.
                       -n    The value for n dimension. Default is 4096.
                       -k    The value for k dimension. Default is 2048.
-              -stride_a    The stride value for tensor A. Default is 0.
-              -stride_b    The stride value for tensor B. Default is 0.
-              -stride_c    The stride value for tensor C  Default is 0.
+               -stride_a    The stride value for tensor A. Default is 0.
+               -stride_b    The stride value for tensor B. Default is 0.
+               -stride_c    The stride value for tensor C  Default is 0.
                 -split_k    The split value for k dimension. Default is 1.
                       -v    The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 for validation on GPU. Default is 2, validation on GPU.
-                -warmup    The number of iterations before benchmark the kernel. Default is 50.
-                -repeat    The number of iterations to benchmark the kernel. Default is 100.
+                    -log    Wether output kernel instance information or not. Possible values are true or false. Default is false.
+                 -warmup    The number of iterations before benchmark the kernel. Default is 50.
+                 -repeat    The number of iterations to benchmark the kernel. Default is 100.
                   -timer    The type of timer. Possible values are gpu timer or cpu timer. Default is gpu timer.
-                  -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
-                -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
-   -structured_sparsity    whether use sparsity kernel or not. Possible values are true or false. Default is false.
-              -pipeline    The type of pipeline. Possible values are compv3, compv4 or mem. Default is compv3.     
-              -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is cshuffle.
-                 -pad_m    Whether pad or not in m direction. Possible values are true or false. Default is false. 
-                 -pad_n    Whether pad or not in n direction. Possible values are true or false. Default is false. 
-                 -pad_k    Whether pad or not in k direction. Possible values are true or false. Default is false. 
+                   -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
+                 -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
+    -structured_sparsity    whether use sparsity kernel or not. Possible values are true or false. Default is false.
+               -pipeline    The type of pipeline. Possible values are compv3, compv4 or mem. Default is compv3.     
+               -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is cshuffle.
+                  -pad_m    Whether pad or not in m direction. Possible values are true or false. Default is false. 
+                  -pad_n    Whether pad or not in n direction. Possible values are true or false. Default is false. 
+                  -pad_k    Whether pad or not in k direction. Possible values are true or false. Default is false. 
 
 Note: pipeline, scheduler, epilogue, pad_m, pad_n, pad_k should be one of the options specified in user_provided_config.json 
 ```

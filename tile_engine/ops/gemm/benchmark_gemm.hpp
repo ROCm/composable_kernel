@@ -137,44 +137,6 @@ class GemmProfiler
         return "Unknown";
     }
 
-    template <typename Timer>
-    static float time_kernel(const ck_tile::stream_config& stream,
-                             const std::function<void()>& kernel_launch_func)
-    {
-        Timer timer;
-
-        // flush cache
-        auto flush_cache = [&] {
-#if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
-            asm volatile("s_dcache_wb; s_dcache_inv; s_icache_inv" ::: "memory");
-#endif
-        };
-
-        // Cold runs - excludes from final timing measurement
-        for(int i = 0; i < stream.cold_niters_; ++i)
-        {
-            timer.start(stream.stream_id_);
-            kernel_launch_func();
-            timer.stop(stream.stream_id_);
-        }
-
-        // Hot runs - actual performance measurement
-        std::vector<float> measured_times;
-        for(int i = 0; i < stream.nrepeat_; ++i)
-        {
-            timer.start(stream.stream_id_);
-            kernel_launch_func();
-            timer.stop(stream.stream_id_);
-            measured_times.push_back(timer.duration());
-            // Periodic cache flushing
-            if(i % 4 == 0)
-                flush_cache();
-        }
-
-        return std::accumulate(measured_times.begin(), measured_times.end(), 0.0f) /
-               measured_times.size();
-    }
-
     template <typename Kernel>
     void benchmark_kernel(ck_tile::DeviceMem& c_m_n_dev_buf,
                           ck_tile::HostTensor<CDataType>& c_m_n_host_result,
@@ -202,18 +164,7 @@ class GemmProfiler
 
         KernelInstance kernel_instance{description, problem, {-1.0f, -1.0f, -1.0f}};
 
-        auto kernel_launch_func = [&] { Kernel::launch(args, stream); };
-
-        float avg_time = 0.f;
-        if(stream.is_gpu_timer_)
-        {
-            avg_time = time_kernel<ck_tile::gpu_timer>(stream, kernel_launch_func);
-        }
-        else
-        {
-            avg_time = time_kernel<ck_tile::cpu_timer>(stream, kernel_launch_func);
-        }
-
+        float avg_time       = Kernel::launch(args, stream);
         std::size_t flop     = std::size_t(2) * args.M * args.N * args.K;
         std::size_t num_byte = sizeof(ADataType) * args.M * args.K +
                                sizeof(BDataType) * args.N * args.K +
@@ -223,7 +174,10 @@ class GemmProfiler
         kernel_instance.perf_result.tflops    = static_cast<float>(flop) / 1.E9 / avg_time;
         kernel_instance.perf_result.bandwidth = num_byte / 1.E6 / avg_time;
 
-        std::cout << kernel_instance << std::endl;
+        if(stream.log_level_ > 0)
+        {
+            std::cout << kernel_instance << std::endl;
+        }
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool verified_correct =
