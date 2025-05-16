@@ -26,9 +26,9 @@ template <typename ADataType,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           index_t ActivationType_ = 0,
-          bool MulRoutedWeight  = true,
-          typename ComputeTypeA = CDataType,
-          typename ComputeTypeB = ComputeTypeA>
+          bool MulRoutedWeight    = true,
+          typename ComputeTypeA   = CDataType,
+          typename ComputeTypeB   = ComputeTypeA>
 struct ReferenceMoeMXGemm1 : public device::BaseOperator
 {
     // Argument
@@ -91,7 +91,7 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
             const int full_n = arg.c_t_k_n_.mDesc.GetLengths()[2];
             arg.c_t_k_n_.SetZero();
             auto f_mk_kn_mn = [&](auto m, auto n) {
-                const int K = arg.a_t_k_.mDesc.GetLengths()[1];
+                const int K                   = arg.a_t_k_.mDesc.GetLengths()[1];
                 const ck::index_t SCALE_BLOCK = K / arg.b_e_n_k_scale_.mDesc.GetLengths()[1];
                 AccDataType v_acc{0};
                 AccDataType v_acc_up{0};
@@ -108,7 +108,7 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                 {
                     for(int k = 0; k < K; ++k)
                     {
-                        auto a_f4x2    = arg.a_t_k_(t, k).data;
+                        auto a_f4x2  = arg.a_t_k_(t, k).data;
                         auto a_scale = arg.a_t_k_scale_(t, k / SCALE_BLOCK);
                         if constexpr(is_same_v<ADataType, f4x2_pk_t>)
                         {
@@ -127,16 +127,15 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                                   type_convert<ComputeTypeA>(a_scale);
                             arg.a_element_op_(v_a, v_a);
                         }
-                        auto b_f4x2       = arg.b_e_n_k_(e, k, n).data;
-                        auto b_f4x2_up    = arg.b_e_n_k_(e, k, n + full_n).data;
-                        auto b_scale      = arg.b_e_n_k_scale_(e, k / SCALE_BLOCK, n);
-                        auto b_scale_up   = arg.b_e_n_k_scale_(e, k / SCALE_BLOCK, n + full_n);
+                        auto b_f4x2     = arg.b_e_n_k_(e, k, n).data;
+                        auto b_f4x2_up  = arg.b_e_n_k_(e, k, n + full_n).data;
+                        auto b_scale    = arg.b_e_n_k_scale_(e, k / SCALE_BLOCK, n);
+                        auto b_scale_up = arg.b_e_n_k_scale_(e, k / SCALE_BLOCK, n + full_n);
                         if constexpr(is_same_v<BDataType, f4x2_pk_t>)
                         {
-                            
 
-                            f4_t f4     = 0;
-                            f4_t f4_up  = 0;
+                            f4_t f4    = 0;
+                            f4_t f4_up = 0;
                             if(k % 2 == 1)
                             {
                                 f4    = (b_f4x2 >> 0) & 0xf;
@@ -150,14 +149,14 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                             v_b = type_convert<ComputeTypeB>(f4) *
                                   type_convert<ComputeTypeB>(b_scale);
                             v_b_up = type_convert<ComputeTypeB>(f4_up) *
-                                  type_convert<ComputeTypeB>(b_scale_up);
+                                     type_convert<ComputeTypeB>(b_scale_up);
                         }
                         else
                         {
                             v_b = type_convert<ComputeTypeB>(b_f4x2) *
                                   type_convert<ComputeTypeB>(b_scale);
                             v_b_up = type_convert<ComputeTypeB>(b_f4x2_up) *
-                                  type_convert<ComputeTypeB>(b_scale_up);
+                                     type_convert<ComputeTypeB>(b_scale_up);
                             arg.b_element_op_(v_b, v_b);
                             arg.b_element_op_(v_b_up, v_b_up);
                         }

@@ -58,44 +58,44 @@ template <index_t ThreadBlockSize,
           index_t MRepeat, // MXdlPerWave
           index_t NRepeat, // NXdlPerWave
           index_t KPack>
-struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipelineScheduler::Intrawave,
-                                                          ThreadBlockSize,
-                                                          ScaleBlockSize,
-                                                          ADataType,
-                                                          AScaleDataType,
-                                                          BDataType,
-                                                          BScaleDataType,
-                                                          ATileDesc,
-                                                          BTileDesc,
-                                                          AMmaTileDesc,
-                                                          BMmaTileDesc,
-                                                          ABlockTransferSrcScalarPerVector,
-                                                          BBlockTransferSrcScalarPerVector,
-                                                          MPerBlock,
-                                                          NPerBlock,
-                                                          KPerBlock,
-                                                          MPerXDL,
-                                                          NPerXDL,
-                                                          MRepeat,
-                                                          NRepeat,
-                                                          KPack>
-    : BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
-                                           ADataType,
-                                           BDataType,
-                                           ATileDesc,
-                                           BTileDesc,
-                                           AMmaTileDesc,
-                                           BMmaTileDesc,
-                                           ABlockTransferSrcScalarPerVector,
-                                           BBlockTransferSrcScalarPerVector,
-                                           MPerBlock,
-                                           NPerBlock,
-                                           KPerBlock,
-                                           MPerXDL,
-                                           NPerXDL,
-                                           MRepeat,
-                                           NRepeat,
-                                           KPack>
+struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
+    BlockGemmPipelineScheduler::Intrawave,
+    ThreadBlockSize,
+    ScaleBlockSize,
+    ADataType,
+    AScaleDataType,
+    BDataType,
+    BScaleDataType,
+    ATileDesc,
+    BTileDesc,
+    AMmaTileDesc,
+    BMmaTileDesc,
+    ABlockTransferSrcScalarPerVector,
+    BBlockTransferSrcScalarPerVector,
+    MPerBlock,
+    NPerBlock,
+    KPerBlock,
+    MPerXDL,
+    NPerXDL,
+    MRepeat,
+    NRepeat,
+    KPack> : BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
+                                                  ADataType,
+                                                  BDataType,
+                                                  ATileDesc,
+                                                  BTileDesc,
+                                                  AMmaTileDesc,
+                                                  BMmaTileDesc,
+                                                  ABlockTransferSrcScalarPerVector,
+                                                  BBlockTransferSrcScalarPerVector,
+                                                  MPerBlock,
+                                                  NPerBlock,
+                                                  KPerBlock,
+                                                  MPerXDL,
+                                                  NPerXDL,
+                                                  MRepeat,
+                                                  NRepeat,
+                                                  KPack>
 
 {
 
@@ -389,10 +389,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                              b_thread_bufs(I0));
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
         b_blockwise_copy_up.Run(b_grid_desc,
-                             b_grid_buf_up,
-                             b_block_desc_n0_n1_k0_k1,
-                             b_block_origin_idx,
-                             b_thread_bufs_up(I0));
+                                b_grid_buf_up,
+                                b_block_desc_n0_n1_k0_k1,
+                                b_block_origin_idx,
+                                b_thread_bufs_up(I0));
         b_blockwise_copy_up.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
         // Global prefetch A1
@@ -435,10 +435,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                         make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
                             b_scale_thread_desc_copy.GetElementSpaceSize());
                     b_scale_thread_copy_up.Run(b_scale_grid_desc,
-                                            b_scale_grid_buf_up,
-                                            b_scale_thread_desc_copy,
-                                            make_tuple(I0, I0),
-                                            b_scale_thread_buf_copy_up);
+                                               b_scale_grid_buf_up,
+                                               b_scale_thread_desc_copy,
+                                               make_tuple(I0, I0),
+                                               b_scale_thread_buf_copy_up);
 
                     b_scale_thread_bufs_up(I0)(Number<b_scale_offset>{}) =
                         b_scale_thread_buf_copy_up[Number<0>{}];
@@ -455,8 +455,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
         // restore col id and advance to the next set of scales
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                make_multi_index(-NPerBlock, ScalesPerKBlockSize));
-        b_scale_thread_copy_up.MoveSrcSliceWindow(b_scale_grid_desc,
-                                               make_multi_index(-NPerBlock, ScalesPerKBlockSize));
+        b_scale_thread_copy_up.MoveSrcSliceWindow(
+            b_scale_grid_desc, make_multi_index(-NPerBlock, ScalesPerKBlockSize));
 
         // Local prefill A1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I0)); // vmem->vgpr-> lds0
@@ -532,10 +532,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                                     make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
                                         b_scale_thread_desc_copy.GetElementSpaceSize());
                                 b_scale_thread_copy_up.Run(b_scale_grid_desc,
-                                                        b_scale_grid_buf_up,
-                                                        b_scale_thread_desc_copy,
-                                                        make_tuple(I0, I0),
-                                                        b_scale_thread_buf_copy_up);
+                                                           b_scale_grid_buf_up,
+                                                           b_scale_thread_desc_copy,
+                                                           make_tuple(I0, I0),
+                                                           b_scale_thread_buf_copy_up);
 
                                 b_scale_thread_bufs_up(local_read_buf)(Number<b_scale_offset>{}) =
                                     b_scale_thread_buf_copy_up[Number<0>{}];
@@ -574,10 +574,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                     b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                     b_blockwise_copy_up.Run(b_grid_desc,
-                                         b_grid_buf_up,
-                                         b_block_desc_n0_n1_k0_k1,
-                                         b_block_origin_idx,
-                                         b_thread_bufs_up(local_read_buf));
+                                            b_grid_buf_up,
+                                            b_block_desc_n0_n1_k0_k1,
+                                            b_block_origin_idx,
+                                            b_thread_bufs_up(local_read_buf));
                     b_blockwise_copy_up.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                     // A1 * B1
@@ -598,8 +598,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                                                          make_tuple(n0, I0, k0, ik))>{}];
                                     b_thread_vec_up.template AsType<ComputeTypeB>()(ik) =
                                         b_thread_bufs_up[mfma_reg_buf]
-                                                     [Number<b_thread_desc_.CalculateOffset(
-                                                         make_tuple(n0, I0, k0, ik))>{}];
+                                                        [Number<b_thread_desc_.CalculateOffset(
+                                                            make_tuple(n0, I0, k0, ik))>{}];
                                 });
 
                                 constexpr index_t a_scale_offset =
@@ -624,7 +624,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                                                            [Number<b_scale_offset + s>{}];
                                     b_scale_thread_vec_up.template AsType<BScaleDataType>()(s) =
                                         b_scale_thread_bufs_up[mfma_reg_buf]
-                                                           [Number<b_scale_offset + s>{}];
+                                                              [Number<b_scale_offset + s>{}];
                                 });
 
                                 using mfma_input_type_a =
@@ -725,10 +725,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                             make_static_buffer<AddressSpaceEnum::Vgpr, BScaleDataType>(
                                 b_scale_thread_desc_copy.GetElementSpaceSize());
                         b_scale_thread_copy_up.Run(b_scale_grid_desc,
-                                                b_scale_grid_buf_up,
-                                                b_scale_thread_desc_copy,
-                                                make_tuple(I0, I0),
-                                                b_scale_thread_buf_copy_up);
+                                                   b_scale_grid_buf_up,
+                                                   b_scale_thread_desc_copy,
+                                                   make_tuple(I0, I0),
+                                                   b_scale_thread_buf_copy_up);
 
                         b_scale_thread_bufs_up(I1)(Number<b_scale_offset>{}) =
                             b_scale_thread_buf_copy_up[Number<0>{}];
@@ -755,10 +755,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                                  b_thread_bufs(I1));
 
             b_blockwise_copy_up.Run(b_grid_desc,
-                                 b_grid_buf_up,
-                                 b_block_desc_n0_n1_k0_k1,
-                                 b_block_origin_idx,
-                                 b_thread_bufs_up(I1));
+                                    b_grid_buf_up,
+                                    b_block_desc_n0_n1_k0_k1,
+                                    b_block_origin_idx,
+                                    b_thread_bufs_up(I1));
 
             // A1 * B1
             static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -788,7 +788,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
 
                         vector_type<AScaleDataType, ScalesPerXdlopsRunPerThread> a_scale_thread_vec;
                         vector_type<BScaleDataType, ScalesPerXdlopsRunPerThread> b_scale_thread_vec;
-                        vector_type<BScaleDataType, ScalesPerXdlopsRunPerThread> b_scale_thread_vec_up;
+                        vector_type<BScaleDataType, ScalesPerXdlopsRunPerThread>
+                            b_scale_thread_vec_up;
 
                         // Pack b_scale_thread_buf into b_scale_thread_vec
                         static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
@@ -862,7 +863,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                             b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                 b_thread_bufs[I1][Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, k0, ik))>{}];
-                             b_thread_vec_up.template AsType<ComputeTypeB>()(ik) =
+                            b_thread_vec_up.template AsType<ComputeTypeB>()(ik) =
                                 b_thread_bufs_up[I1][Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, k0, ik))>{}];
                         });
@@ -875,7 +876,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
 
                         vector_type<AScaleDataType, ScalesPerXdlopsRunPerThread> a_scale_thread_vec;
                         vector_type<BScaleDataType, ScalesPerXdlopsRunPerThread> b_scale_thread_vec;
-                        vector_type<BScaleDataType, ScalesPerXdlopsRunPerThread> b_scale_thread_vec_up;
+                        vector_type<BScaleDataType, ScalesPerXdlopsRunPerThread>
+                            b_scale_thread_vec_up;
 
                         // Pack b_scale_thread_buf into b_scale_thread_vec
                         static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {
@@ -922,7 +924,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
                         vector_type<ComputeTypeB, KPack> b_thread_vec;
                         vector_type<ComputeTypeB, KPack> b_thread_vec_up;
-                        
 
                         static_for<0, KPack / ComputePackedSize, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
@@ -944,7 +945,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<BlockGemmPipe
 
                         vector_type<AScaleDataType, ScalesPerXdlopsRunPerThread> a_scale_thread_vec;
                         vector_type<BScaleDataType, ScalesPerXdlopsRunPerThread> b_scale_thread_vec;
-                        vector_type<BScaleDataType, ScalesPerXdlopsRunPerThread> b_scale_thread_vec_up;
+                        vector_type<BScaleDataType, ScalesPerXdlopsRunPerThread>
+                            b_scale_thread_vec_up;
 
                         // Pack b_scale_thread_buf into b_scale_thread_vec
                         static_for<0, ScalesPerXdlopsRunPerThread, 1>{}([&](auto s) {

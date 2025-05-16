@@ -95,7 +95,8 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
                 NPerXDL,
                 MRepeat,
                 NRepeat,
-                KPack>{};;
+                KPack>{};
+            ;
         }
         else
         {

@@ -126,10 +126,10 @@ using CDEElementOp = MulABScaleExpertWeight;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
-constexpr ck::index_t ScaleBlockSize = 32; // scaling block size
-static constexpr ck::index_t Nswizzle    = false;
-static constexpr ck::index_t ActOP       = 0; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr bool MulRoutedWeight    = false;
+constexpr ck::index_t ScaleBlockSize  = 32; // scaling block size
+static constexpr ck::index_t Nswizzle = false;
+static constexpr ck::index_t ActOP    = 0; // 0: gelu_and_mul, 1: silu_and_mul
+static constexpr bool MulRoutedWeight = false;
 
 #if 0
 static constexpr ck::index_t MPerBlock = 128;
@@ -269,12 +269,12 @@ int main(int argc, char* argv[])
     }
 
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
-    Tensor<A1DataType> a1_t_k(HostTensorDescriptor({tokens, (K + ScaleBlockSize - 1) / ScaleBlockSize},
-                             {Scale_Stride_AM, 1}));
+    Tensor<A1DataType> a1_t_k(HostTensorDescriptor(
+        {tokens, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<B1DataType> b1_e_n_k(
         HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N * 2},
-                             {(N * 2 *Scale_Stride_BN), 1, Scale_Stride_BN}));
+                             {(N * 2 * Scale_Stride_BN), 1, Scale_Stride_BN}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
     Tensor<D1DataType> d1_e_n(
@@ -375,7 +375,7 @@ int main(int argc, char* argv[])
                 int n1 = n % NLane;
 
                 int k0 = k / (KLane * KPack);
-                tempk = k % (KLane * KPack);
+                tempk  = k % (KLane * KPack);
                 int k1 = tempk / KPack;
                 int k2 = tempk % KPack;
 
@@ -390,32 +390,32 @@ int main(int argc, char* argv[])
 
     b0_device_buf.ToDevice(b0_preshuffled.mData.data());
 
-    auto invoker = device_op.MakeInvoker();
-    auto argument =
-        device_op.MakeArgument(sorted_token_ids_dev.GetDeviceBuffer(),
-                               expert_ids_dev.GetDeviceBuffer(),
-                               max_token_id_dev.GetDeviceBuffer(),
-                               a0_device_buf.GetDeviceBuffer(),
-                               a1_device_buf.GetDeviceBuffer(),
-                               b0_device_buf.GetDeviceBuffer(),
-                               b1_device_buf.GetDeviceBuffer(),
-                               std::array<const void*, NumDTensor>{nullptr, nullptr, d2_device_buf.GetDeviceBuffer()},
-                               e_device_buf.GetDeviceBuffer(),
-                               tokens,
-                               topk,
-                               sorted_size,
-                               N,
-                               K,
-                               StrideA,
-                               Scale_Stride_AM,
-                               StrideB,
-                               Scale_Stride_BN,
-                               StrideDs,
-                               StrideE,
-                               KBatch,
-                               a_element_op,
-                               b_element_op,
-                               cde_element_op);
+    auto invoker  = device_op.MakeInvoker();
+    auto argument = device_op.MakeArgument(
+        sorted_token_ids_dev.GetDeviceBuffer(),
+        expert_ids_dev.GetDeviceBuffer(),
+        max_token_id_dev.GetDeviceBuffer(),
+        a0_device_buf.GetDeviceBuffer(),
+        a1_device_buf.GetDeviceBuffer(),
+        b0_device_buf.GetDeviceBuffer(),
+        b1_device_buf.GetDeviceBuffer(),
+        std::array<const void*, NumDTensor>{nullptr, nullptr, d2_device_buf.GetDeviceBuffer()},
+        e_device_buf.GetDeviceBuffer(),
+        tokens,
+        topk,
+        sorted_size,
+        N,
+        K,
+        StrideA,
+        Scale_Stride_AM,
+        StrideB,
+        Scale_Stride_BN,
+        StrideDs,
+        StrideE,
+        KBatch,
+        a_element_op,
+        b_element_op,
+        cde_element_op);
 
     if(!device_op.IsSupportedArgument(argument))
     {
@@ -443,7 +443,8 @@ int main(int argc, char* argv[])
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s\n" << device_op.GetTypeString() << std::endl;
+                  << " GB/s\n"
+                  << device_op.GetTypeString() << std::endl;
     }
 
     if(do_verification)
@@ -454,20 +455,21 @@ int main(int argc, char* argv[])
 
         Tensor<CShuffleDataType> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
 
-        using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMoeMXGemm1<A0DataType,
-                                                                                   A1DataType,
-                                                                                   B0DataType,
-                                                                                   B1DataType,
-                                                                                   CShuffleDataType,
-                                                                                   D2DataType,
-                                                                                   AccDataType,
-                                                                                   PassThrough,
-                                                                                   PassThrough,
-                                                                                   PassThrough,
-                                                                                   ActOP,
-                                                                                   MulRoutedWeight>;
-        auto ref_moe_gemm           = ReferenceGemmInstance{};
-        auto ref_invoker            = ref_moe_gemm.MakeInvoker();
+        using ReferenceGemmInstance =
+            ck::tensor_operation::host::ReferenceMoeMXGemm1<A0DataType,
+                                                            A1DataType,
+                                                            B0DataType,
+                                                            B1DataType,
+                                                            CShuffleDataType,
+                                                            D2DataType,
+                                                            AccDataType,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            ActOP,
+                                                            MulRoutedWeight>;
+        auto ref_moe_gemm = ReferenceGemmInstance{};
+        auto ref_invoker  = ref_moe_gemm.MakeInvoker();
 
         auto ref_argument = ref_moe_gemm.MakeArgument(sorted_token_ids,
                                                       expert_ids,
@@ -497,16 +499,19 @@ int main(int argc, char* argv[])
             }
             for(int n = 0; n < N; ++n)
             {
-                e_t_n_host_result(t, topk_id, n) = ck::type_convert<EDataType>(c_t_k_n(t, topk_id, n));
+                e_t_n_host_result(t, topk_id, n) =
+                    ck::type_convert<EDataType>(c_t_k_n(t, topk_id, n));
             }
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-        auto status =  ck::utils::check_err(
-                   e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)
-                   ? 0
-                   : 1;
-        if (status == 0){
+        auto status =
+            ck::utils::check_err(
+                e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)
+                ? 0
+                : 1;
+        if(status == 0)
+        {
             printf("Validation Pass.\n");
         }
         return status;
