@@ -284,10 +284,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     case 1:
 
-        // a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
-        // b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
-        ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
-        ck::utils::FillConstant<BDataType>{b_data_element(1.0f)}(b_k_n);
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+        // ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
+        // ck::utils::FillConstant<BDataType>{b_data_element(1.0f)}(b_k_n);
 
         if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
         {

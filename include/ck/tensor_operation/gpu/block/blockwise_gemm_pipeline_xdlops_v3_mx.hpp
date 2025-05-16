@@ -226,11 +226,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             (num_ds_read_inst_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
 
         // stage 1
-        // Separate this part?
-        // constexpr auto num_mfma_per_ds_read = sizeof(ComputeDataType) / sizeof(ADataType) >
-        //                                               sizeof(ComputeDataType) / sizeof(BDataType)
-        //                                           ? sizeof(ComputeDataType) / sizeof(ADataType)
-        //                                           : sizeof(ComputeDataType) / sizeof(BDataType);
         constexpr auto num_mfma_stage1 = num_mfma_inst - (num_dsread_a_mfma + num_dsread_b_mfma);
         constexpr auto num_mfma_per_issue =
             num_mfma_stage1 / (num_buffer_load_inst_a + num_buffer_load_inst_b);
@@ -430,7 +425,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         // Local prefetch 1
         block_sync_lds();
         static_for<0, KRepeat, 1>{}([&](auto k) {
-            constexpr auto k_step = k * xdlops_gemm.KPerXdlops * (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+            constexpr auto k_step = k * xdlops_gemm.KPerXdlops/APackedSize * (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}([&](auto chunk) {
                     constexpr auto a_k_step_chunk =
@@ -643,7 +638,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     block_sync_lds();
                     static_for<0, KRepeat, 1>{}([&](auto k) {
                         constexpr auto k_step =
-                            k * xdlops_gemm.KPerXdlops * (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+                            k * xdlops_gemm.KPerXdlops/APackedSize * (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
                         static_for<0, MRepeat, 1>{}([&](auto m0) {
                             static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
                                 [&](auto chunk) {
@@ -825,7 +820,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step =
-                    k * xdlops_gemm.KPerXdlops * (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+                    k * xdlops_gemm.KPerXdlops/APackedSize * (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}([&](auto chunk) {
                         constexpr auto a_k_step_chunk =
@@ -1015,87 +1010,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                         typename vector_type<BScaleDataType,
                                                              b_scale_thread_vec_size>::type;
 
- #if defined(__gfx950__)
-                                    printf("Tid: %03d, AVec: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                           "Tid: %03d, ABuf: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                           "Tid: %03d, BVec: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                           "Tid: %03d, BBuf: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                           "Tid: %03d, AScale: %08x BScale: %08x\n",
-                                           get_thread_local_1d_id(),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<0>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<1>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<2>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<3>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<4>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<5>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<6>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<7>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<8+0>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<8+1>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<8+2>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<8+3>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<8+4>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<8+5>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<8+6>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()[Number<8+7>{}])),
-                                           get_thread_local_1d_id(),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<0>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<1>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<2>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<3>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<4>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<5>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<6>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<7>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+0>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+1>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+2>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+3>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+4>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+5>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+6>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+7>{}])),
-                                           get_thread_local_1d_id(),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<0>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<1>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<2>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<3>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<4>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<5>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<6>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<7>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<8+0>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<8+1>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<8+2>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<8+3>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<8+4>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<8+5>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<8+6>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()[Number<8+7>{}])),
-                                           get_thread_local_1d_id(),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<0>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<1>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<2>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<3>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<4>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<5>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<6>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<7>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<8+0>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<8+1>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<8+2>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<8+3>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<8+4>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<8+5>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<8+6>{}])),
-                                           *reinterpret_cast<const uint8_t*>(&(b_thread_buf[Number<8+7>{}])),
-                                           get_thread_local_1d_id(),
-                                           *reinterpret_cast<const uint32_t*>(&(a_scale_thread_vec
-                                            .template AsType<mfma_scale_input_type_a>()[Number<0>{}])),
-                                           *reinterpret_cast<const uint32_t*>(&(b_scale_thread_vec
-                                            .template AsType<mfma_scale_input_type_b>()[Number<0>{}])));
-
-#endif
                                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(
                                         make_tuple(m0, n0, imxdl, inxdl, 0));
 
