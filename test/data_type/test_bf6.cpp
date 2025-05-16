@@ -4,6 +4,7 @@
 #include "gtest/gtest.h"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
 
 using ck::bf6_convert_rne;
@@ -431,7 +432,10 @@ TEST(BF6, TestAllValues)
         // clang-format on
     };
 
-    printf("BF6 Table\n");
+    const bool ck_logging = ck::EnvIsEnabled(CK_ENV(CK_LOGGING));
+
+    if(ck_logging)
+        printf("BF6 Table\n");
     ck::static_for<0, 64, 1>{}([&](auto i) {
         float fp = type_convert<float>(bf6_t(e3m2BitsOCP[i]));
         ASSERT_EQ(fp, e3m2ValuesOCP[i]);
@@ -439,12 +443,15 @@ TEST(BF6, TestAllValues)
         bf6_t bf6 = type_convert<bf6_t>(e3m2ValuesOCP[i]);
         ASSERT_EQ(bf6 & 0x3F, e3m2BitsOCP[i] & 0x3F);
 
-        // Print the binary representation
-        printf("Bits: 0b");
-        for(int j = 5; j >= 0; --j)
+        if(ck_logging)
         {
-            printf("%c", (e3m2BitsOCP[i] & (1 << j)) ? '1' : '0');
+            // Print the binary representation
+            printf("Bits: 0b");
+            for(int j = 5; j >= 0; --j)
+            {
+                printf("%c", (e3m2BitsOCP[i] & (1 << j)) ? '1' : '0');
+            }
+            printf(", 0x%02X, Value: %f\n", e3m2BitsOCP[i], e3m2ValuesOCP[i]);
         }
-        printf(", 0x%02X, Value: %f\n", e3m2BitsOCP[i], e3m2ValuesOCP[i]);
     });
 }

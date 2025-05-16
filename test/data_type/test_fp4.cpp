@@ -5,6 +5,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
+#include "ck/utility/env.hpp"
 
 using ck::e8m0_bexp_t;
 using ck::f4_convert_rne;
@@ -502,20 +503,25 @@ TEST(FP4, TestAllValues)
         // clang-format on
     };
 
-    printf("FP4 Table\n");
+    const bool ck_logging = ck::EnvIsEnabled(CK_ENV(CK_LOGGING));
+
+    if(ck_logging)
+        printf("FP4 Table\n");
     ck::static_for<0, 16, 1>{}([&](auto i) {
         float fp = type_convert<float>(f4_t(e2m1BitsOCP[i]));
         ASSERT_EQ(fp, e2m1ValuesOCP[i]);
 
         f4_t fp4 = type_convert<f4_t>(e2m1ValuesOCP[i]);
         ASSERT_EQ(fp4 & 0xF, e2m1BitsOCP[i] & 0xF);
-
-        // Print the binary representation
-        printf("Bits: 0b");
-        for(int j = 3; j >= 0; --j)
+        if(ck_logging)
         {
-            printf("%c", (e2m1BitsOCP[i] & (1 << j)) ? '1' : '0');
+            // Print the binary representation
+            printf("Bits: 0b");
+            for(int j = 3; j >= 0; --j)
+            {
+                printf("%c", (e2m1BitsOCP[i] & (1 << j)) ? '1' : '0');
+            }
+            printf(", 0x%02X, Value: %f\n", e2m1BitsOCP[i], e2m1ValuesOCP[i]);
         }
-        printf(", 0x%02X, Value: %f\n", e2m1BitsOCP[i], e2m1ValuesOCP[i]);
     });
 }
