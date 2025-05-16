@@ -207,7 +207,9 @@ def element_size(data_type: str) -> float:
     else:
         raise ValueError(f"Unsupported data type: {data_type}")
 
+
 GPU_NAME_PATTERN = re.compile(r'Name:\s*(gfx\d+\w*)')
+
 
 @lru_cache(maxsize=1)
 def get_gpu_name_by_id(gpu_id: int = 0) -> str:
@@ -222,9 +224,9 @@ def get_gpu_name_by_id(gpu_id: int = 0) -> str:
         if matches := GPU_NAME_PATTERN.finditer(output):
             gpu_list = [m.group(1) for m in matches]
             return gpu_list[gpu_id] if gpu_id < len(gpu_list) else ""
-            
+
         return ""
-        
+
     except subprocess.CalledProcessError as e:
         print(f"GPU query failed (exit {e.returncode}): {e.stderr.strip()}")
     except FileNotFoundError:
@@ -233,5 +235,5 @@ def get_gpu_name_by_id(gpu_id: int = 0) -> str:
         print("GPU query timeout (5s)")
     except Exception as e:
         print(f"GPU detection error: {str(e)}")
-    
+
     return ""
