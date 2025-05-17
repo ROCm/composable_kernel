@@ -13,6 +13,7 @@
 #include "ck_tile/core/tensor/static_distributed_tensor.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
+#include "ck_tile/core/tensor/tile_window_base.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
@@ -33,7 +34,7 @@ template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
           index_t NumCoord>
-struct tile_window_with_static_distribution
+struct tile_window_with_static_distribution : public tile_window_base<BottomTensorView_>
 {
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
@@ -153,7 +154,6 @@ struct tile_window_with_static_distribution
         const TileDstr& tile_distribution)
         : bottom_tensor_view_{bottom_tensor_view},
           window_lengths_{window_lengths},
-          window_origin_{window_origin},
           tile_dstr_{tile_distribution},
           pre_computed_coords_{}
     {
@@ -179,6 +179,7 @@ struct tile_window_with_static_distribution
 #else
         // TODO: this use less register for FA, but more register for GEMM
         // need investigation
+        this->window_origin_ = window_origin;
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_distribution.get_ps_ys_to_xs_adaptor(),
             container_concat(detail::get_partition_index(tile_distribution),
@@ -227,7 +228,7 @@ struct tile_window_with_static_distribution
 
     CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
 
-    CK_TILE_DEVICE constexpr auto get_window_origin() const { return window_origin_; }
+    // CK_TILE_DEVICE constexpr auto get_window_origin() const { return this->window_origin_; }
 
     CK_TILE_DEVICE constexpr void
     set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
@@ -877,8 +878,8 @@ struct tile_window_with_static_distribution
     // [x0', x1', ... ] ==> [offset]
     // also move window-origin
     CK_TILE_DEVICE void move(const BottomTensorIndex& step)
-    {
-        window_origin_ += step;
+    {   
+        this->window_origin_ += step;
 
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             move_tensor_coordinate(bottom_tensor_view_.get_tensor_descriptor(),
@@ -889,7 +890,7 @@ struct tile_window_with_static_distribution
 
     CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
     {
-        window_origin_ = new_window_origin;
+        this->window_origin_ = new_window_origin;
 
 #if 0 // debug
       // TODO: this use more register for FA, but less register for GEMM
@@ -919,7 +920,7 @@ struct tile_window_with_static_distribution
 #endif
 
         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
-            window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
+            this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
 
         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
             bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
@@ -957,7 +958,7 @@ struct tile_window_with_static_distribution
     WindowLengths window_lengths_;
 
     // origin ([x0', x1', ...]) of window on bottom tensor
-    BottomTensorIndex window_origin_;
+    // BottomTensorIndex window_origin_;
 
     // Tile tensor distribution, which contains:
     //   1. adaptor for window: [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...]
@@ -1036,7 +1037,7 @@ CK_TILE_DEVICE void move_tile_window(
  * @tparam WindowLengths_       Spatial sizes of windowed view on tensor.
  */
 template <typename BottomTensorView_, typename WindowLengths_>
-struct tile_window_with_static_lengths
+struct tile_window_with_static_lengths : public tile_window_base<BottomTensorView_>
 {
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
@@ -1057,9 +1058,9 @@ struct tile_window_with_static_lengths
         const WindowLengths& window_lengths,
         const BottomTensorIndex& window_origin)
         : bottom_tensor_view_{bottom_tensor_view},
-          window_lengths_{window_lengths},
-          window_origin_{window_origin}
+          window_lengths_{window_lengths}
     {
+        this->window_origin_ = window_origin;
     }
 
     CK_TILE_DEVICE static constexpr index_t get_num_of_dimension() { return NDimBottomTensor; }
@@ -1068,11 +1069,11 @@ struct tile_window_with_static_lengths
 
     CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
 
-    CK_TILE_DEVICE constexpr auto get_window_origin() const { return window_origin_; }
+    // CK_TILE_DEVICE constexpr auto get_window_origin() const { return this->window_origin_; }
 
     CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
     {
-        window_origin_ = new_window_origin;
+        this->window_origin_ = new_window_origin;
     }
 
     CK_TILE_DEVICE constexpr void
@@ -1082,7 +1083,7 @@ struct tile_window_with_static_lengths
     }
 
     // move window-origin
-    CK_TILE_DEVICE void move(const BottomTensorIndex& step) { window_origin_ += step; }
+    CK_TILE_DEVICE void move(const BottomTensorIndex& step) { this->window_origin_ += step; }
 
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
@@ -1092,7 +1093,7 @@ struct tile_window_with_static_lengths
     WindowLengths window_lengths_;
 
     // origin ([x0', x1', ...]) of window on bottom tensor
-    BottomTensorIndex window_origin_;
+    // BottomTensorIndex window_origin_;
 };
 
 template <typename TensorView_, typename WindowLengths_>
