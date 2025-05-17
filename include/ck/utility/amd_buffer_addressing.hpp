@@ -847,7 +847,7 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
         src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
 
 #else
-    CK_PRINT<T, vector_t, scalar_t>();
+    // CK_PRINT<T, vector_t, scalar_t>();
     vector_t tmp{amd_buffer_load_impl<scalar_t, vector_size, coherence>(
         src_wave_buffer_resource, src_thread_addr_offset, 0)};
     return src_thread_element_valid ? tmp : vector_t(0);

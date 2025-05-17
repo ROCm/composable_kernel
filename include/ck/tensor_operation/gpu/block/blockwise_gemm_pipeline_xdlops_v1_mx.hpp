@@ -234,7 +234,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         // Global prefetch 1
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
-        CK_PRINT<decltype(b_blockwise_copy), decltype(b_grid_desc), decltype(b_grid_buf)>();
+        // CK_PRINT<decltype(b_blockwise_copy), decltype(b_grid_desc), decltype(b_grid_buf)>();
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
@@ -506,13 +506,13 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         if constexpr(TailNum == TailNumber::Full)
         {
             block_sync_lds();
-            CK_PRINT<KRepeat,
-                     xdlops_gemm.KPerXdlops,
-                     KPack,
-                     xdlops_gemm.K1PerXdlops,
-                     KThreadChunk,
-                     xdlops_gemm.mfma_instr.num_input_blks>();
-            CK_PRINT<KRepeat, NRepeat>();
+            // CK_PRINT<KRepeat,
+            //          xdlops_gemm.KPerXdlops,
+            //          KPack,
+            //          xdlops_gemm.K1PerXdlops,
+            //          KThreadChunk,
+            //          xdlops_gemm.mfma_instr.num_input_blks>();
+            // CK_PRINT<KRepeat, NRepeat>();
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step =
                     k * xdlops_gemm.KPerXdlops * (KPack / xdlops_gemm.K1PerXdlops);

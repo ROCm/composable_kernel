@@ -152,6 +152,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
+    static constexpr auto I8 = Number<8>{};
+    static constexpr auto I9 = Number<9>{};
 
     // K1 should be Number<...>
     static constexpr auto AK0Number = Number<KPerBlock / AK1Value>{};
@@ -163,21 +165,15 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     static constexpr bool is_single_rate_mfma = false;
     static constexpr auto is_scale_mfma       = true;
 
+    static constexpr auto MXdlPack = 2;
+    static constexpr auto NXdlPack = 2;
+    static constexpr auto KXdlPack = 2;
+
     //> KPack is at least the k_per_blk of selected mfma
     //
     // Should be a multiple of k_per_blk.
     // TODO: Move this to blockwise pipeline base
     // KPack in packed data types for pk A/B
-    static constexpr index_t KPack =
-        math::max(lcm_AK1_BK1,
-                  MfmaSelector<ComputeTypeA,
-                               MPerXdl,
-                               NPerXdl,
-                               ComputeTypeB,
-                               is_single_rate_mfma,
-                               is_scale_mfma>::selected_mfma.k_per_blk);
-
-    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
@@ -194,6 +190,18 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         else
             return 1;
     }();
+
+    static constexpr index_t KPack =
+        math::max(lcm_AK1_BK1,
+                  MfmaSelector<ComputeTypeA,
+                               MPerXdl,
+                               NPerXdl,
+                               ComputeTypeB,
+                               is_single_rate_mfma,
+                               is_scale_mfma>::selected_mfma.k_per_blk /
+                      APackedSize);
+
+    using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
@@ -250,7 +258,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         return math::integer_divide_ceil(N, NPerBlock);
     }
 
-    template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
+    template <index_t MNXdlPerWave,
+              index_t MNWaves,
+              index_t MNXdlPack,
+              index_t MNPerXdl,
+              typename TileDesc_K0_MN_K1>
     __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
     {
         constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
@@ -259,10 +271,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         return transform_tensor_descriptor(
             TileDesc_K0_MN_K1{},
             make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
-                       make_unmerge_transform(make_tuple(
-                           Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
+                       make_unmerge_transform(make_tuple(Number<MNXdlPerWave / MNXdlPack>{},
+                                                         Number<MNWaves>{},
+                                                         Number<MNXdlPack>{},
+                                                         Number<MNPerXdl>{}))),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+            make_tuple(Sequence<4>{}, Sequence<0, 1, 2, 3>{}));
     }
 
     __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
@@ -462,20 +476,22 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
-    MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
+    MakeAMmaTileDescriptor_M0_M1_M2_M3_K(const ABlockDesc_AK0_M_AK1&)
     {
         constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
 
-        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWaves, MPerXdl>(ABlockDesc_AK0_M_AK1{});
+        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWaves, MXdlPack, MPerXdl>(
+            ABlockDesc_AK0_M_AK1{});
     }
 
     template <typename BBlockDesc_BK0_N_BK1>
     __host__ __device__ static constexpr auto
-    MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
+    MakeBMmaTileDescriptor_N0_N1_N2_N3_K(const BBlockDesc_BK0_N_BK1&)
     {
         constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
 
-        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWaves, NPerXdl>(BBlockDesc_BK0_N_BK1{});
+        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWaves, NXdlPack, NPerXdl>(
+            BBlockDesc_BK0_N_BK1{});
     }
 
     __host__ __device__ static auto
@@ -633,10 +649,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                           bool is_reduce_ = false)
             : Problem{M_,
                       N_,
-                      K_,
-                      StrideA_,
+                      K_ / APackedSize,
+                      StrideA_ / APackedSize,
                       StrideScaleA_,
-                      StrideB_,
+                      StrideB_ / BPackedSize,
                       StrideScaleB_,
                       StrideC_,
                       k_batch_},
@@ -681,7 +697,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = k_id * karg.KRead / APackedSize;
+                a_k_split_offset = k_id * karg.KRead;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
@@ -696,33 +712,35 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             {
                 if constexpr(!PermuteB)
                 {
-                    b_k_split_offset = k_id * karg.KRead / BPackedSize;
+                    b_k_split_offset = k_id * karg.KRead;
                 }
                 else
                 {
                     const int k0_offset = karg.KRead * karg.N;
-                    b_k_split_offset    = k_id * k0_offset / BPackedSize;
+                    b_k_split_offset    = k_id * k0_offset;
                 }
             }
 
             // Calculate A scale offset
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_scale_k_split_offset = k_id * karg.KRead / ScaleBlockSize;
+                a_scale_k_split_offset = k_id * karg.KRead / (ScaleBlockSize / APackedSize);
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_scale_k_split_offset = k_id * karg.KRead / ScaleBlockSize * karg.StrideScaleA;
+                a_scale_k_split_offset =
+                    k_id * karg.KRead / (ScaleBlockSize / APackedSize) * karg.StrideScaleA;
             }
 
             // Calculate B scale offset
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_scale_k_split_offset = k_id * (karg.KRead / ScaleBlockSize) * karg.StrideScaleB;
+                b_scale_k_split_offset =
+                    k_id * (karg.KRead / (ScaleBlockSize / BPackedSize)) * karg.StrideScaleB;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_scale_k_split_offset = k_id * karg.KRead / ScaleBlockSize;
+                b_scale_k_split_offset = k_id * karg.KRead / (ScaleBlockSize / BPackedSize);
             }
 
             if(k_id < (karg.KBatch - 1))
@@ -764,39 +782,19 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr index_t LdsSize = 32 * 4 / (KPerBlock * sizeof(ADataType) / APackedSize);
-            constexpr auto MLdsLayer  = LdsSize < 1 ? 1 : LdsSize;
-            constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
-                make_tuple(
-                    AK0Number * Number<MLdsLayer>{}, Number<MPerBlock / MLdsLayer>{}, AK1Number),
-                make_tuple(AK1Number, Number<KPerBlock * MLdsLayer>{}, I1));
+            constexpr auto a_lds_block_desc =
+                make_naive_tensor_descriptor(make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
+                                             make_tuple(AK1Number, Number<KPerBlock>{}, I1));
 
             constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
                 a_lds_block_desc,
-                make_tuple(make_xor_with_modulo_transform(make_tuple(
-                               Number<MPerBlock / MLdsLayer>{}, Number<AK0Number * MLdsLayer>{})),
+                make_tuple(make_xor_with_modulo_transform(
+                               make_tuple(Number<MPerBlock>{}, Number<AK0Number>{})),
                            make_pass_through_transform(AK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
 
-            constexpr auto a_lds_block_desc_ak0_mldslayer_m_ak1 = transform_tensor_descriptor(
-                a_lds_block_desc_permuted,
-                make_tuple(make_unmerge_transform(make_tuple(AK0Number, Number<MLdsLayer>{})),
-                           make_pass_through_transform(Number<MPerBlock / MLdsLayer>{}),
-                           make_pass_through_transform(AK1Number)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}));
-
-            constexpr auto a_lds_block_desc_ak0_m_ak1 = transform_tensor_descriptor(
-                a_lds_block_desc_ak0_mldslayer_m_ak1,
-                make_tuple(make_pass_through_transform(AK0Number),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(Number<MPerBlock / MLdsLayer>{}, Number<MLdsLayer>{})),
-                           make_pass_through_transform(AK1Number)),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-
-            return a_lds_block_desc_ak0_m_ak1;
+            return a_lds_block_desc_permuted;
         }
         else // ColumnMajor A
         {
@@ -900,39 +898,19 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
-            constexpr index_t LdsSize   = 32 * 4 / (KPerBlock * sizeof(BDataType) / BPackedSize);
-            constexpr index_t NLdsLayer = LdsSize < 1 ? 1 : LdsSize;
-            constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
-                make_tuple(
-                    BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
-                make_tuple(BK1Number, Number<KPerBlock * NLdsLayer>{}, I1));
+            constexpr auto b_lds_block_desc =
+                make_naive_tensor_descriptor(make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
+                                             make_tuple(BK1Number, Number<KPerBlock>{}, I1));
 
             constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                 b_lds_block_desc,
-                make_tuple(make_xor_with_modulo_transform(make_tuple(
-                               Number<NPerBlock / NLdsLayer>{}, Number<BK0Number * NLdsLayer>{})),
+                make_tuple(make_xor_with_modulo_transform(
+                               make_tuple(Number<NPerBlock>{}, Number<BK0Number>{})),
                            make_pass_through_transform(BK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
 
-            constexpr auto b_lds_block_desc_bk0_nldslayer_n_bk1 = transform_tensor_descriptor(
-                b_lds_block_desc_permuted,
-                make_tuple(make_unmerge_transform(make_tuple(BK0Number, Number<NLdsLayer>{})),
-                           make_pass_through_transform(Number<NPerBlock / NLdsLayer>{}),
-                           make_pass_through_transform(BK1Number)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}));
-
-            constexpr auto b_lds_block_desc_bk0_n_bk1 = transform_tensor_descriptor(
-                b_lds_block_desc_bk0_nldslayer_n_bk1,
-                make_tuple(make_pass_through_transform(BK0Number),
-                           make_merge_transform_v3_division_mod(
-                               make_tuple(Number<NPerBlock / NLdsLayer>{}, Number<NLdsLayer>{})),
-                           make_pass_through_transform(BK1Number)),
-                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-
-            return b_lds_block_desc_bk0_n_bk1;
+            return b_lds_block_desc_permuted;
         }
         else // RowMajor B
         {
@@ -1050,9 +1028,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                 AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
                                 decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
-                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
+                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_M3_K(
                                     GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
-                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
+                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_N3_K(
                                     GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
                                 ABlockTransferSrcScalarPerVector,
                                 BBlockTransferSrcScalarPerVector,
@@ -1087,8 +1065,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned * sizeof(ADataType) / APackedSize +
-                          b_block_space_size_aligned * sizeof(BDataType) / BPackedSize),
+        return math::max((a_block_space_size_aligned * sizeof(ADataType) +
+                          b_block_space_size_aligned * sizeof(BDataType)),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
@@ -1099,7 +1077,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
-        static_assert(KPerBlock % ScaleBlockSize == 0,
+        static_assert(KPerBlock % (ScaleBlockSize / BPackedSize) == 0,
                       "KPerBlock should be multiple of ScaleBlockSize");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
@@ -1275,7 +1253,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 }
             }
         }
-
+#if 0
         // check gridwise gemm pipeline
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
@@ -1286,7 +1264,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 return false;
             }
         }
-
+#endif
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }
@@ -1323,6 +1301,14 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     // if arch = gfx942
     using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
     // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
+
+    using mx_scale_t                           = e8m0_bexp_t;
+    static constexpr index_t scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
+    static constexpr index_t scale_pack_size_b = sizeof(BScaleDataType) / sizeof(mx_scale_t);
+    static_assert(KXdlPack * MXdlPack % scale_pack_size_a == 0,
+                  "A scale pack data type too large!");
+    static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
+                  "B scale pack data type too large!");
 
     template <typename AGridDesc_AK0_M_K1,
               typename AScaleGridDesc_AM_AK,
@@ -1466,15 +1452,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared),
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
-        CK_PRINT<ck::Number<a_block_desc_ak0_m_ak1.GetElementSpaceSize()>>();
+            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) + a_block_space_size_aligned *
-                                                                            sizeof(ADataType) /
-                                                                            APackedSize),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
+            reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) +
+                                         a_block_space_size_aligned * sizeof(ADataType)),
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
@@ -1509,42 +1492,48 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         const auto waveId_m = wave_idx[I0];
         const auto waveId_n = wave_idx[I1];
 
-        static constexpr auto mfma = BlockwiseGemmPipe::xdlops_gemm.mfma;
+        // static constexpr auto mfma = BlockwiseGemmPipe::xdlops_gemm.mfma;
 
-        auto thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
-                               mfma.selected_mfma.num_threads_per_blk;
+        // auto thread_offset_k = (get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize) /
+        //                        mfma.selected_mfma.num_threads_per_blk;
 
-        auto a_thread_offset_m = get_thread_local_1d_id() % MPerXdl + waveId_m * MPerXdl;
+        // A wave access continuous memory
+        auto thread_offset_shuffled =
+            get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack;
 
-        auto a_scale_thread_copy =
-            ThreadwiseTensorSliceTransfer_v2<AScaleDataType,
-                                             AScaleDataType,
-                                             decltype(a_scale_grid_desc_am_ak),
-                                             decltype(BlockwiseGemmPipe::a_scale_thread_desc_copy),
-                                             Sequence<1, 1>, // SliceLengths
-                                             Sequence<0, 1>, // DimAccessOrder
-                                             1,              // SrcVectorDim
-                                             1,              // SrcScalarPerVector
-                                             1,              // SrcScalarStrideInVector
-                                             true>(
-                a_scale_grid_desc_am_ak,
-                make_multi_index(block_m_id * MPerBlock + a_thread_offset_m, thread_offset_k));
+        auto a_thread_offset_m = waveId_m;
 
-        auto b_thread_offset_n = get_thread_local_1d_id() % NPerXdl + waveId_n * NPerXdl;
+        auto a_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
+            AScaleDataType,
+            AScaleDataType,
+            decltype(a_scale_grid_desc_am_ak),
+            decltype(BlockwiseGemmPipe::a_scale_thread_desc),
+            Sequence<1, 1, KXdlPack * MXdlPack / scale_pack_size_a>, // SliceLengths
+            Sequence<0, 1, 2>,                                       // DimAccessOrder
+            2,                                                       // SrcVectorDim
+            KXdlPack * MXdlPack / scale_pack_size_a,                 // SrcScalarPerVector
+            1,                                                       // SrcScalarStrideInVector
+            true>(a_scale_grid_desc_am_ak,
+                  make_multi_index(block_m_id * MPerBlock / MPerXdl / MXdlPack + a_thread_offset_m,
+                                   0,
+                                   thread_offset_shuffled / scale_pack_size_a));
 
-        auto b_scale_thread_copy =
-            ThreadwiseTensorSliceTransfer_v2<BScaleDataType,
-                                             BScaleDataType,
-                                             decltype(b_scale_grid_desc_bn_ak),
-                                             decltype(BlockwiseGemmPipe::b_scale_thread_desc_copy),
-                                             Sequence<1, 1>, // SliceLengths
-                                             Sequence<0, 1>, // DimAccessOrder
-                                             1,              // SrcVectorDim
-                                             1,              // SrcScalarPerVector
-                                             1,
-                                             true>(
-                b_scale_grid_desc_bn_ak,
-                make_multi_index(block_n_id * NPerBlock + b_thread_offset_n, thread_offset_k));
+        auto b_thread_offset_n = waveId_n;
+
+        auto b_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
+            BScaleDataType,
+            BScaleDataType,
+            decltype(b_scale_grid_desc_bn_ak),
+            decltype(BlockwiseGemmPipe::b_scale_thread_desc),
+            Sequence<1, 1, KXdlPack * NXdlPack / scale_pack_size_b>, // SliceLengths
+            Sequence<0, 1, 2>,                                       // DimAccessOrder
+            2,                                                       // SrcVectorDim
+            KXdlPack * MXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
+            1,                                                       // SrcScalarStrideInVector
+            true>(b_scale_grid_desc_bn_ak,
+                  make_multi_index(block_n_id * NPerBlock / NPerXdl / NXdlPack + b_thread_offset_n,
+                                   0,
+                                   thread_offset_shuffled / scale_pack_size_b));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,
@@ -1573,27 +1562,32 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
+            static_assert(CShuffleMXdlPerWavePerShuffle % MXdlPack == 0 &&
+                              CShuffleNXdlPerWavePerShuffle % NXdlPack == 0,
+                          "wrong!");
 
             constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
             constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
-                blockwise_gemm_pipeline.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+                blockwise_gemm_pipeline.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3();
 
             // TODO: hacky, fix it!
             // c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp is only used to get lengths
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp =
-                blockwise_gemm_pipeline.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+                blockwise_gemm_pipeline.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3();
 
             constexpr auto M0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I0);
             constexpr auto N0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I1);
             constexpr auto M1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I2);
             constexpr auto N1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I3);
             constexpr auto M2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I4);
-            constexpr auto M3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I5);
-            constexpr auto M4 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I6);
-            constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
+            constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I5);
+            constexpr auto M3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I6);
+            constexpr auto M4 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
+            constexpr auto M5 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I8);
+            constexpr auto N3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I9);
 
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
@@ -1607,19 +1601,25 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 make_tuple(
                     make_freeze_transform(I0),
                     make_unmerge_transform(make_tuple(
-                        Number<CShuffleMXdlPerWavePerShuffle>{}, // M0 (MXdlPerWave) per shuffle
-                        M1,                                      // M1 = MWave
-                        M2,                                      // M2 * M3 * M4 = MPerXdl
-                        M3,
-                        M4)),
+                        Number<CShuffleMXdlPerWavePerShuffle / MXdlPack>{}, // M0 (MXdlPerWave) per
+                                                                            // shuffle
+                        M1,                                                 // M1 = MWave
+                        M2,                                                 // M2 = MXdlPack
+                        M3, // M3 * M4 * M5 = MPerXdl
+                        M4,
+                        M5)),
                     make_freeze_transform(I0),
                     make_unmerge_transform(make_tuple(
-                        Number<CShuffleNXdlPerWavePerShuffle>{}, // N0 (NXdlPerWave) per shuffle
-                        N1,                                      // N1 = NWave
-                        N2))),                                   // N2 = NPerXdl
+                        Number<CShuffleNXdlPerWavePerShuffle / NXdlPack>{}, // N0 (NXdlPerWave) per
+                                                                            // shuffle
+                        N1,                                                 // N1 = NWave
+                        N2,                                                 // N2 = NXdlPack
+                        N3))),                                              // N3 = NPerXdl
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                make_tuple(
-                    Sequence<>{}, Sequence<0, 2, 4, 5, 6>{}, Sequence<>{}, Sequence<1, 3, 7>{}));
+                make_tuple(Sequence<>{},
+                           Sequence<0, 2, 4, 6, 7, 8>{},
+                           Sequence<>{},
+                           Sequence<1, 3, 5, 9>{}));
 
             // calculate origin of thread output tensor on global memory
             //     blockwise GEMM c matrix starting index
@@ -1631,8 +1631,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             const auto m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor =
                 make_single_stage_tensor_adaptor(
-                    make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4))),
-                    make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                    make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4, M5))),
+                    make_tuple(Sequence<0, 1, 2, 3, 4, 5>{}),
                     make_tuple(Sequence<0>{}));
 
             const auto m_thread_data_on_block_idx =
@@ -1641,8 +1641,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             const auto n_thread_data_on_block_to_n0_n1_n2_adaptor =
                 make_single_stage_tensor_adaptor(
-                    make_tuple(make_merge_transform(make_tuple(N0, N1, N2))),
-                    make_tuple(Sequence<0, 1, 2>{}),
+                    make_tuple(make_merge_transform(make_tuple(N0, N1, N2, N3))),
+                    make_tuple(Sequence<0, 1, 2, 3>{}),
                     make_tuple(Sequence<0>{}));
 
             const auto n_thread_data_on_block_idx =
@@ -1650,36 +1650,39 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                     make_multi_index(n_thread_data_on_block));
 
             // shuffle: threadwise copy C from VGPR to LDS
-            auto c_thread_copy_vgpr_to_lds =
-                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
-                                                   CShuffleDataType,
-                                                   decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
-                                                   ck::tensor_operation::element_wise::PassThrough,
-                                                   Sequence<CShuffleMXdlPerWavePerShuffle,
-                                                            CShuffleNXdlPerWavePerShuffle,
-                                                            I1,
-                                                            I1,
-                                                            M2,
-                                                            I1,
-                                                            M4,
-                                                            I1>,
-                                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                   7,
-                                                   1,
-                                                   InMemoryDataOperationEnum::Set,
-                                                   1,
-                                                   true>{
-                    c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                    make_multi_index(0,
-                                     0,
-                                     m_thread_data_on_block_idx[I1],
-                                     n_thread_data_on_block_idx[I1],
-                                     m_thread_data_on_block_idx[I2],
-                                     m_thread_data_on_block_idx[I3],
-                                     m_thread_data_on_block_idx[I4],
-                                     n_thread_data_on_block_idx[I2]),
-                    ck::tensor_operation::element_wise::PassThrough{}};
+            auto c_thread_copy_vgpr_to_lds = ThreadwiseTensorSliceTransfer_v1r3<
+                AccDataType,
+                CShuffleDataType,
+                decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                ck::tensor_operation::element_wise::PassThrough,
+                Sequence<CShuffleMXdlPerWavePerShuffle / MXdlPack,
+                         CShuffleNXdlPerWavePerShuffle / NXdlPack,
+                         I1,
+                         I1,
+                         M2,
+                         N2,
+                         M3,
+                         I1,
+                         M5,
+                         I1>,
+                Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
+                9,
+                1,
+                InMemoryDataOperationEnum::Set,
+                1,
+                true>{c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                      make_multi_index(0,
+                                       0,
+                                       m_thread_data_on_block_idx[I1],
+                                       n_thread_data_on_block_idx[I1],
+                                       m_thread_data_on_block_idx[I2],
+                                       n_thread_data_on_block_idx[I2],
+                                       m_thread_data_on_block_idx[I3],
+                                       m_thread_data_on_block_idx[I4],
+                                       m_thread_data_on_block_idx[I5],
+                                       n_thread_data_on_block_idx[I3]),
+                      ck::tensor_operation::element_wise::PassThrough{}};
 
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
@@ -1709,12 +1712,23 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
-                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
-                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                  Sequence<CShuffleMXdlPerWavePerShuffle,
-                                           CShuffleNXdlPerWavePerShuffle,
+                SpaceFillingCurve<Sequence<MXdlPerWave / MXdlPack,
+                                           NXdlPerWave / NXdlPack,
                                            1,
                                            1,
+                                           MXdlPack,
+                                           NXdlPack,
+                                           M2,
+                                           1,
+                                           M4,
+                                           1>,
+                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>,
+                                  Sequence<CShuffleMXdlPerWavePerShuffle / MXdlPack,
+                                           CShuffleNXdlPerWavePerShuffle / NXdlPack,
+                                           1,
+                                           1,
+                                           MXdlPack,
+                                           NXdlPack,
                                            M2,
                                            1,
                                            M4,
@@ -1787,15 +1801,19 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
-        // A Scale grid
-        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
-            make_tuple(problem.M, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
-            make_tuple(problem.StrideScaleA, 1));
+        // A/B shuffled scale for better 8-bit scale access pattern
+        // MNRepeat -> KRepeat -> KThreadPerXdl -> MNThreadPerXdl -> KXdlPack -> MNXdlPack
+        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
+            make_tuple(problem.M / (MXdlPack * MPerXdl),
+                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
+                           (KXdlPack * 64 / MPerXdl),
+                       64 * KXdlPack * MXdlPack / scale_pack_size_a));
 
-        // B Scale grid transposed
-        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(problem.N, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
-            make_tuple(problem.StrideScaleB, 1));
+        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor_packed(
+            make_tuple(problem.N / (NXdlPack * NPerXdl),
+                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / BPackedSize)) /
+                           (KXdlPack * 64 / NPerXdl),
+                       64 * KXdlPack * NXdlPack / scale_pack_size_b));
 
         Run<decltype(a_grid_desc_ak0_m_ak1),
             decltype(a_scale_grid_desc_am_ak),
@@ -1966,7 +1984,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         auto b_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             bit_cast<BDataType*>(static_cast<char*>(p_shared_0) +
-                                 a_block_space_size_aligned * sizeof(ADataType) / APackedSize),
+                                 a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
@@ -1974,7 +1992,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         auto b_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             bit_cast<BDataType*>(bit_cast<char*>(p_shared_1) +
-                                 a_block_space_size_aligned * sizeof(ADataType) / APackedSize),
+                                 a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
@@ -2000,10 +2018,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         static constexpr auto K0PerXdlops = KPerXdlops / K1PerXdlops;
         static constexpr auto KPerThread  = KPerBlock / K0PerXdlops;
 
-        const index_t ScaleSliceSizeN         = NXdlPerWave;
-        static constexpr auto ScaleSliceSizeK = (KPerThread + ScaleBlockSize - 1) / ScaleBlockSize;
+        const index_t ScaleSliceSizeN = NXdlPerWave;
+        static constexpr auto ScaleSliceSizeK =
+            (KPerThread + (ScaleBlockSize / BPackedSize) - 1) / (ScaleBlockSize / BPackedSize);
         static constexpr auto KBlockScaleSliceSizeK =
-            (KPerBlock + ScaleBlockSize - 1) / ScaleBlockSize;
+            (KPerBlock + (ScaleBlockSize / BPackedSize) - 1) / (ScaleBlockSize / BPackedSize);
 
         constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
             make_tuple(Number<ScaleSliceSizeN>{}, Number<ScaleSliceSizeK>{}));
@@ -2029,7 +2048,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                              false>(
                 b_scale_grid_desc_bn_ak,
                 make_multi_index(block_n_id * NPerBlock + b_thread_offset_n,
-                                 b_thread_offset_k / ScaleBlockSize));
+                                 b_thread_offset_k / (ScaleBlockSize / BPackedSize)));
 
         constexpr auto b_scale_thread_slice_copy_step =
             make_tuple(make_multi_index(NWaves * NPerXdl, 0),
@@ -2068,7 +2087,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
-                blockwise_gemm_pipeline.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+                blockwise_gemm_pipeline.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3();
 
             // TODO: hacky, fix it!
             // c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp is only used to get lengths
@@ -2278,7 +2297,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
-            make_tuple(problem.N, math::integer_divide_ceil(problem.K, ScaleBlockSize)),
+            make_tuple(problem.N,
+                       math::integer_divide_ceil(problem.K, ScaleBlockSize / BPackedSize)),
             make_tuple(problem.StrideScaleB, 1));
 
         Run_2Lds<decltype(a_grid_desc_ak0_m_ak1),

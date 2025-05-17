@@ -103,10 +103,60 @@ bool parse_cmd_args(int argc,
     return true;
 }
 
+#if 1
+template <bool KLast>
+void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
+{
+    int MNXdlPack = 2;
+    int KXdlPack  = 2;
+
+    int XdlMNThread = 16;
+    int XdlKThread  = 64 / XdlMNThread;
+
+    int K0 = K / KXdlPack / XdlKThread; // KRepeat
+
+    // The 4 16x128 building blocks will be packed into 1 32x256 for F4
+    // The 8 16x16x128 mfma will be packed into 1 32x32x256 for F4
+
+    // unfold the MN32xK(256/32) scale buffer
+    //    4            16             2           2
+    // To XdlKThread-> XdlMNThread -> KXdlPack -> MNXdlPack
+    // Then, MNRepeat->KRepeat
+
+    for(int n = 0; n < MN; ++n)
+    {
+        for(int k = 0; k < K; ++k)
+        {
+            int n0    = n / (XdlMNThread * MNXdlPack); // i MNRepeat
+            int tempn = n % (XdlMNThread * MNXdlPack);
+            int n1    = tempn % XdlMNThread; // i XdlMNThread
+            int n2    = tempn / XdlMNThread; // i MNXdlPack
+
+            int k0    = k / (XdlKThread * KXdlPack); // i KRepeat
+            int tempk = k % (XdlKThread * KXdlPack);
+            int k1    = tempk % XdlKThread; // i XdlKThread
+            int k2    = tempk / XdlKThread; // i KXdlPack
+
+            int outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
+                              k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
+                              k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
+                              k2 * MNXdlPack + n2;
+            // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f, n2 +
+            // k2 * MNXdlPack)));
+            if constexpr(KLast)
+                dst[outputIndex] = src[n * K + k];
+            else
+                dst[outputIndex] = src[k * MN + n];
+        }
+    }
+}
+#endif
+
 template <typename DeviceOpInstance,
           typename ADataType,
           typename BDataType,
           typename XDataType,
+          typename XPackedDataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
@@ -183,6 +233,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     Tensor<XDataType> b_k_n_scale(f_host_tensor_descriptor(
         K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{})); // scales for B
 
+    Tensor<XDataType> a_shuffled_scale(f_host_tensor_descriptor(
+        M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{})); // scales for A
+    Tensor<XDataType> b_shuffled_scale(f_host_tensor_descriptor(
+        K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{})); // scales for B
+
     Tensor<CDataType> c_m_n_host_result(
         f_host_tensor_descriptor(M, N, StrideC, CLayout{})); // host verification
     Tensor<CDataType> c_m_n_device_result(
@@ -197,13 +252,26 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         std::cout << "c_m_n_device_result: " << c_m_n_device_result.mDesc << std::endl;
     }
 
+    auto a_data_element = [](float x) {
+        if constexpr(ck::is_same_v<ADataType, ck::f4x2_pk_t>)
+            return ck::type_convert<ADataType>(ck::float2_t(x));
+        else
+            return ck::type_convert<ADataType>(x);
+    };
+    auto b_data_element = [](float x) {
+        if constexpr(ck::is_same_v<BDataType, ck::f4x2_pk_t>)
+            return ck::type_convert<BDataType>(ck::float2_t(x));
+        else
+            return ck::type_convert<BDataType>(x);
+    };
+
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(ck::float2_t(1.0f))}(a_m_k);
+        ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(2.0f))}(b_k_n);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(.5f)}(b_k_n_scale);
+        ck::utils::FillConstant<BDataType>{b_data_element(2.0f)}(b_k_n);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
         if(config.verbosity > 0)
         {
             std::cout << "Init A = {1}" << std::endl;
@@ -218,18 +286,24 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+        // ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
+        // ck::utils::FillConstant<BDataType>{b_data_element(1.0f)}(b_k_n);
 
         if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
         {
             a_m_k_scale.GenerateTensorValue(
-                GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+                GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
             b_k_n_scale.GenerateTensorValue(
                 GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
         }
         else
         {
             ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
             ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
+            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
         }
 
         break;
@@ -242,47 +316,60 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
         break;
 
-    case 3:
-
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(ck::float2_t(1.0f))}(a_m_k);
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
-
-        if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
-        {
-            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
-        }
-        else
-        {
-            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
-            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
-        }
-
-        break;
-    case 4: // A random
-
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(ck::float2_t(1.0f))}(b_k_n);
-
-        if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
-        {
-            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-            ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
-        }
-        else
-        {
-            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
-            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
-        }
-
-        break;
-
     default:
         if(config.verbosity > 0)
         {
             std::cout << "NOTE: No input data initialization." << std::endl;
         }
     }
+
+#if 1
+    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(
+        a_m_k_scale.mData.data(), a_shuffled_scale.mData.data(), M, K / ScaleBlockSize);
+    preShuffleScaleBuffer<ck::is_same_v<BLayout, Col>>(
+        b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+#endif
+    // printf("a_scale:\n");
+    // for(ck::index_t i = 0; i < M; i++)
+    // {
+    //     for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
+    //     {
+    //         // a_m_k_scale(i, j) =
+    //         //     ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
+    //         a_m_k_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         a_shuffled_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k_scale(i, j)));
+    //     }
+    //     printf("\n");
+    // }
+    // printf("b_scale:\n");
+    // for(ck::index_t i = 0; i < N; i++)
+    // {
+    //     for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
+    //     {
+    // //         // b_k_n_scale(j, i) =
+    // //             // ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
+    //         // b_k_n_scale(j, i) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         // b_shuffled_scale(j, i) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&b_k_n_scale(j, i)));
+    //     }
+    //     printf("\n");
+    // }
+
+    // printf("a_shuffled_scale:\n");
+    // for(ck::index_t i = 0; i < M * K / ScaleBlockSize; i++)
+    // {
+    //     printf("%02x ", *reinterpret_cast<uint8_t*>(&(a_shuffled_scale.mData.data()[i])));
+    //     if(i % 64 == 63)
+    //         printf("\n");
+    // }
+    // printf("b_shuffled_scale:\n");
+    // for(ck::index_t i = 0; i < N * K / ScaleBlockSize; i++)
+    // {
+    //     printf("%02x ", *reinterpret_cast<uint8_t*>(&(b_shuffled_scale.mData.data()[i])));
+    //     if(i % 64 == 63)
+    //         printf("\n");
+    // }
 
     if(config.verbosity > 0)
         std::cout << "Device memory allocation..." << std::endl;
@@ -295,9 +382,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     if(config.verbosity > 0)
         std::cout << "Upload data to device..." << std::endl;
     a_device_buf.ToDevice(a_m_k.mData.data());
-    a_scale_device_buf.ToDevice(a_m_k_scale.mData.data());
+    a_scale_device_buf.ToDevice(a_shuffled_scale.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    b_scale_device_buf.ToDevice(b_k_n_scale.mData.data());
+    b_scale_device_buf.ToDevice(b_shuffled_scale.mData.data());
+
     if(config.verbosity > 0)
         std::cout << "Done." << std::endl;
 
@@ -310,9 +398,9 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     auto invoker   = device_op.MakeInvoker();
     auto argument =
         device_op.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                               static_cast<XDataType*>(a_scale_device_buf.GetDeviceBuffer()),
+                               static_cast<XPackedDataType*>(a_scale_device_buf.GetDeviceBuffer()),
                                static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                               static_cast<XDataType*>(b_scale_device_buf.GetDeviceBuffer()),
+                               static_cast<XPackedDataType*>(b_scale_device_buf.GetDeviceBuffer()),
                                static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
                                M,
                                N,
@@ -431,6 +519,7 @@ template <typename DeviceOpInstance,
           typename ADataType,
           typename BDataType,
           typename XDataType,
+          typename XPackedDataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
@@ -451,6 +540,7 @@ bool run_mx_gemm_example(int argc, char* argv[])
                        ADataType,
                        BDataType,
                        XDataType,
+                       XPackedDataType,
                        CDataType,
                        ALayout,
                        BLayout,

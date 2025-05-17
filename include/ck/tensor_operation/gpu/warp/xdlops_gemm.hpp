@@ -847,6 +847,8 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
 
     template <index_t MPerXdlops,
               index_t NPerXdlops,
+              index_t OpselA,
+              index_t OpselB,
               class FloatA,
               class ScaleA,
               class FloatB,
@@ -859,11 +861,12 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
                         FloatC& reg_c) const
     {
         // CK_PRINT<FloatA>();
-        static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this point.");
-        static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at this point.");
+        // static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this
+        // point."); static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at
+        // this point.");
 
-        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops>::Run(
-            a, utils::get_exponent_value(scale_a), b, utils::get_exponent_value(scale_b), reg_c);
+        intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops, OpselA, OpselB>::Run(
+            a, bit_cast<uint32_t>(scale_a), b, bit_cast<uint32_t>(scale_b), reg_c);
     }
 };
 
@@ -886,6 +889,8 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
 
     template <index_t MPerXdlops,
               index_t NPerXdlops,
+              index_t OpselA,
+              index_t OpselB,
               class FloatA,
               class ScaleA,
               class FloatB,
@@ -897,11 +902,18 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
                         const ScaleB& scale_b,
                         FloatC& reg_c) const
     {
-        static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this point.");
-        static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at this point.");
+        // if(get_thread_local_1d_id() == 0)
+        // {
+        //     printf("Before BitCast: Scale A: %08x, Scale B: %08x\n",
+        //            *reinterpret_cast<const uint32_t*>(&scale_a),
+        //            *reinterpret_cast<const uint32_t*>(&scale_b));
+        // }
+        // static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this
+        // point."); static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at
+        // this point.");
 
-        intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops>::Run(
-            a, utils::get_exponent_value(scale_a), b, utils::get_exponent_value(scale_b), reg_c);
+        intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops, OpselA, OpselB>::Run(
+            a, bit_cast<uint32_t>(scale_a), b, bit_cast<uint32_t>(scale_b), reg_c);
     }
 };
 
@@ -1344,6 +1356,49 @@ struct XdlopsGemm
                        Sequence<7>{}));
     }
 
+    // XDL output supporting C = A * B
+    // M3_N3 -> M3_M4_M5_N3
+    template <typename CDesc_M0_N0_M1_N1_M2_N2>
+    __host__ __device__ static constexpr auto MakeCDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(
+        const CDesc_M0_N0_M1_N1_M2_N2& c_desc_m0_n0_m1_n1_m2_n2)
+    {
+        const auto M0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I0);
+        const auto N0 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I1);
+        const auto M1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I2);
+        const auto N1 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I3);
+        const auto M2 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I4);
+        const auto N2 = c_desc_m0_n0_m1_n1_m2_n2.GetLength(I5);
+
+        return transform_tensor_descriptor(
+            c_desc_m0_n0_m1_n1_m2_n2,
+            make_tuple(make_pass_through_transform(M0),
+                       make_pass_through_transform(N0),
+                       make_pass_through_transform(M1),
+                       make_pass_through_transform(N1),
+                       make_pass_through_transform(M2),
+                       make_pass_through_transform(N2),
+                       make_unmerge_transform(make_tuple(Number<mfma_instr.num_groups_per_blk>{},
+                                                         Number<mfma_instr.num_input_blks>{},
+                                                         Number<mfma_instr.group_size>{})),
+                       make_pass_through_transform(Number<mfma_instr.num_threads_per_blk>{})),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2>{},
+                       Sequence<3>{},
+                       Sequence<4>{},
+                       Sequence<5>{},
+                       Sequence<6>{},
+                       Sequence<7>{}),
+            make_tuple(Sequence<0>{},
+                       Sequence<1>{},
+                       Sequence<2>{},
+                       Sequence<3>{},
+                       Sequence<4>{},
+                       Sequence<5>{},
+                       Sequence<6, 7, 8>{},
+                       Sequence<9>{}));
+    }
+
     // transposed XDL output supporting C' = B' * A'
     // M2_N2 -> M2_N2_N3_N4
     template <typename CDesc_M0_N0_M1_N1_M2_N2>
@@ -1449,7 +1504,13 @@ struct XdlopsGemm
         });
     }
 
-    template <class FloatA, class ScaleA, class FloatB, class ScaleB, class FloatC>
+    template <index_t OpselA,
+              index_t OpselB,
+              class FloatA,
+              class ScaleA,
+              class FloatB,
+              class ScaleB,
+              class FloatC>
     __device__ void Run(const FloatA& p_a_wave,
                         const ScaleA& a_scale_thread,
                         const FloatB& p_b_wave,
@@ -1459,12 +1520,12 @@ struct XdlopsGemm
         static_for<0, KPack / mfma_instr.k_per_blk, 1>{}([&](auto k) {
             if constexpr(!TransposeC)
             {
-                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                mfma_instr.template run<MPerXdlops, NPerXdlops, OpselA, OpselB>(
                     p_a_wave[k], a_scale_thread[k], p_b_wave[k], b_scale_thread[k], p_c_thread);
             }
             else
             {
-                mfma_instr.template run<MPerXdlops, NPerXdlops>(
+                mfma_instr.template run<MPerXdlops, NPerXdlops, OpselB, OpselA>(
                     p_b_wave[k], b_scale_thread[k], p_a_wave[k], a_scale_thread[k], p_c_thread);
             }
         });
