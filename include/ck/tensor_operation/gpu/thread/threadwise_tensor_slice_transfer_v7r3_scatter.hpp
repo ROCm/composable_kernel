@@ -288,12 +288,14 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                 oob_val = oob_val & is_src_valid;
                 if(i.value == ScatterWeightIdx)
                 {
+                    auto data_types = SrcDatas{};
+                    using DataType  = remove_cvref_t<decltype(data_types[i])>;
                     static_assert(SrcScalarPerVectors{}[Number<ScatterWeightIdx>{}] == 1,
                                   "scatter weight dim, should only one vec");
                     constexpr auto iScatter =
                         SrcSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
                     static_for<0, SrcScalarPerVector, 1>{}([&](auto j) {
-                        src_vectors(i).template AsType<float>()(j) =
+                        src_vectors(i).template AsType<DataType>()(j) =
                             scatter_weights(Number<iScatter>{});
                     });
                 }
@@ -547,8 +549,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                 using dst_vector_t      = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
                 IndexType dst_offset    = scatter_offset + (dst_coords_[i].GetOffset());
                 const bool is_dst_valid = dst_offset < dst_descs[i].GetElementSpaceSize();
-                // coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
-                //                                                             dst_coords_[i]);
                 constexpr InMemoryDataOperationEnum DstInMemOp =
                     static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(i.value));
                 dst_bufs(i).template Update<DstInMemOp, dst_vector_t>(
