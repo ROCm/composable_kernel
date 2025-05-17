@@ -610,7 +610,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
         RunWrite(dst_descs, dst_bufs, scatter_offsets);
     }
 
-        template <typename SrcBuffers,
+    template <typename SrcBuffers,
               typename DstBuffers,
               enable_if_t<SrcDescs::Size() == SrcBuffers::Size() &&
                               DstDescs::Size() == DstBuffers::Size(),

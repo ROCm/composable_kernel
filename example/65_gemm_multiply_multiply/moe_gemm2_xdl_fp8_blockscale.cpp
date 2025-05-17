@@ -67,8 +67,8 @@ struct MulABScaleExpertWeight
         e = ck::type_convert<EDataType>(c);
     }
     template <>
-    __host__ __device__ constexpr void operator()<EDataType, EDataType, float>(
-        EDataType& e, const EDataType& c, const float& d2) const
+    __host__ __device__ constexpr void
+    operator()<EDataType, EDataType, float>(EDataType& e, const EDataType& c, const float& d2) const
     {
         (void)d2;
         e = ck::type_convert<EDataType>(c);
@@ -79,7 +79,8 @@ struct MulABScaleExpertWeight
     operator()<float, float, float>(float& e, const float& c, const float& d2) const
     {
         // for reference cpu
-        e = ck::type_convert<EDataType>(c * d2);
+        (void)d2;
+        e = ck::type_convert<EDataType>(c);
     }
 };
 
@@ -187,24 +188,25 @@ int main(int argc, char* argv[])
     // experts = 8
     // per expert:
 
-    constexpr ck::index_t valid_tile_num  = 13; //13 for 128; 52 for 32; 4096 for ds  // > token * topk / MPerBlock
-    constexpr ck::index_t sorted_tile_num = valid_tile_num;// + 3;
-    ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
-    ck::index_t valid_size      = valid_tile_num * MPerBlock;
+    constexpr ck::index_t valid_tile_num =
+        52; // 13 for 128; 52 for 32; 4096 for ds  // > token * topk / MPerBlock
+    constexpr ck::index_t sorted_tile_num = valid_tile_num + 3;
+    ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size                = valid_tile_num * MPerBlock;
 #if 1
     // GEMM shape
-    ck::index_t N               = 6144;
-    ck::index_t K               = 4096;
-    ck::index_t experts         = 8;
-    ck::index_t tokens          = 1;
-    ck::index_t topk            = 2;
+    ck::index_t N       = 6144;
+    ck::index_t K       = 4096;
+    ck::index_t experts = 8;
+    ck::index_t tokens  = 832;
+    ck::index_t topk    = 2;
 #else
-    //deepseek
-    ck::index_t N               = 2048;
-    ck::index_t K               = 7160;
-    ck::index_t experts         = 256;
-    ck::index_t tokens          = 1;
-    ck::index_t topk            = 8;
+    // deepseek
+    ck::index_t N       = 2048;
+    ck::index_t K       = 7160;
+    ck::index_t experts = 256;
+    ck::index_t tokens  = 1;
+    ck::index_t topk    = 8;
 #endif
 
     if(argc == 1)
@@ -254,28 +256,9 @@ int main(int argc, char* argv[])
     max_token_id.mData = {valid_size, 0, 1, 2, 3, 4, 5, 6, 7, 8};
     // int eids[]         = {0, 1, 3, 3, 3};
     //  int eids[]         = {0, 1, 2, 3, 4, 5, 6, 7}; //, 3, 3, 3}; // {2, 1, 1, 2, 2, 2, 1, 2}
-    int eids[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
-    // int eids[sorted_tile_num]{};
-    // int e_select = 0;
-    // for(int i = 0; i < sorted_tile_num; i++)
-    // {
-    //     if (i < valid_tile_num){
-    //         eids[i] = e_select;
-    //         //std::rand() % experts;
-    //     }
-    //     else{
-    //         eids[i] = 3;
-    //     }
-    //     if (i > ((e_select + 1) * (sorted_tile_num / experts))){
-    //         e_select++;
-    //         if (e_select >= experts){
-    //             e_select = experts - 1;
-    //         }
-    //     }
-    // }
-
-    // int eids[]         = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-    //                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+    // int eids[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 3, 3, 3};
+    // int eids[]         = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    //                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     //                     2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
     //                     3, 3, 3, 3, 3, 3, 3, 3, 4, 4,
     //                     5, 5, 5, 5, 6, 6, 6, 6, 7, 7,
@@ -283,7 +266,7 @@ int main(int argc, char* argv[])
     //                     3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = eids[i];
+        expert_ids.mData[i] = i / ck::math::integer_divide_ceil(valid_tile_num, experts);
     }
     if(tokens * topk > valid_size)
     {
@@ -292,7 +275,7 @@ int main(int argc, char* argv[])
     }
     int token_per_tile = tokens * topk / valid_tile_num;
     int tokenid        = 0;
-    // sorted_token_ids.mData[0] = 0;
+
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
@@ -306,8 +289,8 @@ int main(int argc, char* argv[])
             sorted_token_ids.mData[i] = tokens;
         }
     }
-    expert_ids.savetxt("expert_ids.txt", "int");
-    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+    // expert_ids.savetxt("expert_ids.txt", "int");
+    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
     Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}));
     Tensor<A1DataType> a1_t_k_k(
         HostTensorDescriptor({tokens, topk, (K + Scale_Block_K - 1) / Scale_Block_K},
@@ -375,7 +358,7 @@ int main(int argc, char* argv[])
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
     }
-    
+
     DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) *
                                    sorted_token_ids.mDesc.GetElementSpaceSize());
     DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.mDesc.GetElementSpaceSize());
@@ -460,7 +443,8 @@ int main(int argc, char* argv[])
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s.\n"  << device_op.GetTypeString() << std::endl;
+                  << " GB/s.\n"
+                  << device_op.GetTypeString() << std::endl;
     }
 
     if(do_verification)
@@ -555,11 +539,13 @@ int main(int argc, char* argv[])
 #endif
         // e_t_n_device_result.savetxt("out.txt");
         // e_t_n_host_result.savetxt("ref.txt");
-        auto status = ck::utils::check_err(
-                   e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
-                   ? 0
-                   : 1;
-        if (status == 0){
+        auto status =
+            ck::utils::check_err(
+                e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
+                ? 0
+                : 1;
+        if(status == 0)
+        {
             printf("Validation Pass.\n");
         }
         return status;
