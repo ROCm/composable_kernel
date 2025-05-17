@@ -56,10 +56,10 @@ struct tile_window_base
         window_origin_ = new_window_origin;
 
         // Delegate to child if it implements extra logic
-        static_cast<TileWindowType_*>(this)->set_window_origin_extra(new_window_origin);
+        static_cast<TileWindowType_*>(this)->set_window_origin_extended(new_window_origin);
     }
     // Default no-op; can be overridden in child
-    CK_TILE_DEVICE void set_window_origin_extra(const BottomTensorIndex&) {}
+    CK_TILE_DEVICE void set_window_origin_extended(const BottomTensorIndex&) {}
 
     CK_TILE_DEVICE constexpr void
     set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
@@ -73,10 +73,10 @@ struct tile_window_base
         window_origin_ += step;
 
         // Delegate to child if it implements extra movement logic
-        static_cast<TileWindowType_*>(this)->move_extra(step);
+        static_cast<TileWindowType_*>(this)->move_extended(step);
     }
 
     // Default no-op; can be overridden in child
-    CK_TILE_DEVICE void move_extra(const BottomTensorIndex&) {}
+    CK_TILE_DEVICE void move_extended(const BottomTensorIndex&) {}
 };
 } // namespace ck_tile

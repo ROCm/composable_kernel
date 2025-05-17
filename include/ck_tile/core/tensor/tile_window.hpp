@@ -886,7 +886,7 @@ struct tile_window_with_static_distribution
     // }
 
     // Custom move behavior
-    CK_TILE_DEVICE void move_extra(const BottomTensorIndex& step)
+    CK_TILE_DEVICE void move_extended(const BottomTensorIndex& step)
     {
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             move_tensor_coordinate(this->bottom_tensor_view_.get_tensor_descriptor(),
@@ -959,7 +959,7 @@ struct tile_window_with_static_distribution
     //         });
     //     }
 
-    CK_TILE_DEVICE void set_window_origin_extra(const BottomTensorIndex&)
+    CK_TILE_DEVICE void set_window_origin_extended(const BottomTensorIndex&)
     {
         // TODO: this use less register for FA, but more register for GEMM
         // need investigation
@@ -1255,9 +1255,3 @@ inline constexpr bool is_tile_window_with_static_lengths_v =
     is_tile_window_with_static_lengths<T>::value;
 
 } // namespace ck_tile
-
-// To Do
-// 1. rename "extra" functions
-// 2. remove debug code
-// 3. remove comments
-// 4. migrate comments in parent struct
