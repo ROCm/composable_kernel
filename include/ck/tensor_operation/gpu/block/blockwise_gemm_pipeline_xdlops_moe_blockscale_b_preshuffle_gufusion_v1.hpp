@@ -362,10 +362,10 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
         b_scale_thread_copy_up.Run(b_scale_grid_desc,
-                                b_scale_grid_buf_up,
-                                b_scale_thread_desc,
-                                make_tuple(I0, I0),
-                                b_scale_thread_buf_up);
+                                   b_scale_grid_buf_up,
+                                   b_scale_thread_desc,
+                                   make_tuple(I0, I0),
+                                   b_scale_thread_buf_up);
 
         b_scale_thread_copy_up.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
@@ -427,10 +427,10 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
         b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
         b_scale_thread_copy_up.Run(b_scale_grid_desc,
-                                b_scale_grid_buf_up,
-                                b_scale_thread_desc,
-                                make_tuple(I0, I0),
-                                b_scale_thread_buf_up);
+                                   b_scale_grid_buf_up,
+                                   b_scale_thread_desc,
+                                   make_tuple(I0, I0),
+                                   b_scale_thread_buf_up);
 
         b_scale_thread_copy_up.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
 
@@ -452,12 +452,13 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                    make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                    a_block_buf,
-                                    a_thread_desc_,
-                                    make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                    a_thread_buf);
+                    a_thread_copy_.Run(
+                        a_block_desc_m0_m1_m2_k0_k1_k2,
+                        make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                        a_block_buf,
+                        a_thread_desc_,
+                        make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
+                        a_thread_buf);
                 });
             });
         });
@@ -560,7 +561,8 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                                     xdlops_gemm.template Run<>(
                                         a_thread_vec.template AsType<mfma_input_type>(),
                                         b_thread_vec_up.template AsType<mfma_input_type>(),
-                                        c_thread_buf_per_scale_up.GetVectorTypeReference(Number<0>{}));
+                                        c_thread_buf_per_scale_up.GetVectorTypeReference(
+                                            Number<0>{}));
                                 });
 
                                 constexpr index_t c_offset =
@@ -603,12 +605,13 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
                             static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                                make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                                a_block_buf,
-                                                a_thread_desc_,
-                                                make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                                a_thread_buf);
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                                    a_block_buf,
+                                    a_thread_desc_,
+                                    make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
+                                    a_thread_buf);
                             });
                         });
                     });
@@ -662,13 +665,13 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                     b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                            b_scale_thread_copy_step);
                     b_scale_thread_copy_up.Run(b_scale_grid_desc,
-                                            b_scale_grid_buf_up,
-                                            b_scale_thread_desc,
-                                            make_tuple(I0, I0),
-                                            b_scale_thread_buf_up);
+                                               b_scale_grid_buf_up,
+                                               b_scale_thread_desc,
+                                               make_tuple(I0, I0),
+                                               b_scale_thread_buf_up);
 
                     b_scale_thread_copy_up.MoveSrcSliceWindow(b_scale_grid_desc,
-                                                           b_scale_thread_copy_step);
+                                                              b_scale_thread_copy_step);
                 };
 
                 LoopFunc(I0, I1);
@@ -809,12 +812,13 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, KGroup, 1>{}([&](auto kg0) {
-                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                        a_block_buf,
-                                        a_thread_desc_,
-                                        make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                            a_block_buf,
+                            a_thread_desc_,
+                            make_tuple(m0, I0, I0, k0, I0, Number<kg0 * KPack / KGroup>{}),
+                            a_thread_buf);
                     });
                 });
             });

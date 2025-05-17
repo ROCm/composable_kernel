@@ -100,64 +100,64 @@ struct DeviceMoeGemmBlockScale
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
     using GridwiseGemm                  = GridwiseMoeGemmBlockScale<
-                         ALayout,
-                         BLayout,
-                         DsLayout,
-                         CLayout,
-                         ADataType,
-                         BDataType,
-                         GemmAccDataType,
-                         CShuffleDataType,
-                         DsDataType,
-                         CDataType,
-                         AElementwiseOperation,
-                         BElementwiseOperation,
-                         CElementwiseOperation,
-                         GemmSpec,
-                         BlockSize,
-                         ScaleBlockM,
-                         ScaleBlockN,
-                         ScaleBlockK,
-                         MPerBlock,
-                         NPerBlock,
-                         KPerBlock,
-                         AK1,
-                         BK1,
-                         MPerXDL,
-                         NPerXDL,
-                         MXdlPerWave,
-                         NXdlPerWave,
-                         ABlockTransferThreadClusterLengths_AK0_M_AK1,
-                         ABlockTransferThreadClusterArrangeOrder,
-                         ABlockTransferSrcAccessOrder,
-                         ABlockTransferSrcVectorDim,
-                         ABlockTransferSrcScalarPerVector,
-                         ABlockTransferDstScalarPerVector_AK1,
-                         false,
-                         ABlockLdsExtraM,
-                         BBlockTransferThreadClusterLengths_BK0_N_BK1,
-                         BBlockTransferThreadClusterArrangeOrder,
-                         BBlockTransferSrcAccessOrder,
-                         BBlockTransferSrcVectorDim,
-                         BBlockTransferSrcScalarPerVector,
-                         BBlockTransferDstScalarPerVector_BK1,
-                         false,
-                         BBlockLdsExtraN,
-                         CShuffleMXdlPerWavePerShuffle,
-                         CShuffleNXdlPerWavePerShuffle,
-                         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                         CDEShuffleBlockTransferScalarPerVectors,
-                         BlkGemmPipeSched,
-                         BlkGemmPipelineVer,
-                         ActivationOP,
-                         NSwizzle,
-                         IsInputGemm,
-                         MulRoutedWeight,
-                         IndexType,
-                         ComputeTypeA,
-                         ComputeTypeB,
-                         LDSTypeA,
-                         LDSTypeB>;
+        ALayout,
+        BLayout,
+        DsLayout,
+        CLayout,
+        ADataType,
+        BDataType,
+        GemmAccDataType,
+        CShuffleDataType,
+        DsDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GemmSpec,
+        BlockSize,
+        ScaleBlockM,
+        ScaleBlockN,
+        ScaleBlockK,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
+        false,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
+        false,
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CDEShuffleBlockTransferScalarPerVectors,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ActivationOP,
+        NSwizzle,
+        IsInputGemm,
+        MulRoutedWeight,
+        IndexType,
+        ComputeTypeA,
+        ComputeTypeB,
+        LDSTypeA,
+        LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -202,161 +202,76 @@ struct DeviceMoeGemmBlockScale
 
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
-            #if CK_USE_ASM_MOE_STAGE2_BLOCKSCALE
-                const auto RunKernel = [&](const auto& hsa, const auto& kernel_name) {
-                // printf("Loading hip kernel\n");
-                #ifndef MOE_STAGE2_ASM_DIR
-                    printf("Failed to get moe_asm_dir.\n");
-                    return;
-                #endif
-                hipModule_t module;
-                hipFunction_t kernel_func;
-                hip_check_error(hipModuleLoad(&module, (std::string(MOE_STAGE2_ASM_DIR) + hsa).c_str()));
-                hip_check_error(hipModuleGetFunction(&kernel_func, module, kernel_name.c_str()));
-                auto arg_size = sizeof(arg);
-                auto arg_ptr = arg;
-                // // RunKernel(impl_ptr);
-                void* config[]  = {reinterpret_cast<void*>(0x1),
-                    reinterpret_cast<void*>(&arg_ptr),
-                    reinterpret_cast<void*>(0x2),
-                    &arg_size,
-                    reinterpret_cast<void*>(0x3)};
-                if(stream_config.time_kernel_)
+#if CK_USE_ASM_MOE_BLOCKSCALE
+            const auto RunKernel = [&](const auto& hsa, const auto& kernel_name) {
+// printf("Loading hip kernel\n");
+#ifndef MOE_STAGE2_ASM_DIR
+                printf("Failed to get moe_asm_dir.\n");
+                return;
+#endif
+                if(stream_config.flush_cache)
                 {
-                               // warm up
-                    for(int i = 0; i < stream_config.cold_niters_; ++i)
-                    {
-                        hip_check_error(hipModuleLaunchKernel(kernel_func,
-                            gdx,
-                            gdy,
-                            1,
-                            256,
-                            1,
-                            1,
-                            0,
-                            stream_config.stream_id_,
-                            nullptr,
-                            reinterpret_cast<void**>(&config)));
-                        hip_check_error(hipGetLastError());
-                    }
-                    const int nrepeat = stream_config.nrepeat_;
-                    if(stream_config.flush_cache)
-                    {
 
-                        std::array<std::size_t, NumDTensor> DsSize;
+                    std::array<std::size_t, NumDTensor> DsSize;
 
-                        Argument arg_ = arg;
+                    Argument arg_ = arg;
 
-                        const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
-                            arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
-                        const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
-                            arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
+                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
+                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
+                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
+                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
 
-                        auto size_a_buffer =
-                            a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
-                        auto size_b_buffer =
-                            b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
+                    auto size_a_buffer =
+                        a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
+                    auto size_b_buffer =
+                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
 
-                        const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
-                            arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
+                    const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
+                        arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
 
-                        static_for<0, NumDTensor, 1>{}([&](auto i) {
-                            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-                            DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
-                        });
-                        ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
-                            arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer, DsSize);
-                        rotating_mem.Print();
+                    static_for<0, NumDTensor, 1>{}([&](auto i) {
+                        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                        DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
+                    });
+                    ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
+                        arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer, DsSize);
+                    rotating_mem.Print();
 
-                        auto run_flush_cache = [&]() {
-                            // flush icache
-                            ck::utility::flush_icache();
-                            // rotating mem
-                            rotating_mem.Next();
-                            // clear c mem
-                            if(arg_.KBatch > 1)
-                                hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
-                                                                0,
-                                                                arg_.M * arg_.N * sizeof(CDataType),
-                                                                stream_config.stream_id_));
-                        };
-                                                // time kernel
-                        hipEvent_t start, stop;
-                        hip_check_error(hipEventCreate(&start));
-                        hip_check_error(hipEventCreate(&stop));
-
-                        hip_check_error(hipDeviceSynchronize());
-                        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
-                        for(int i = 0; i < nrepeat; ++i)
-                        {
-                            run_flush_cache();
-                            hip_check_error(hipModuleLaunchKernel(kernel_func,
-                                                gdx,
-                                                gdy,
-                                                1,
-                                                256,
-                                                1,
-                                                1,
-                                                0,
-                                                stream_config.stream_id_,
-                                                nullptr,
-                                                reinterpret_cast<void**>(&config)));
-                        }
-                        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-                        hip_check_error(hipEventSynchronize(stop));
-                        float total_time = 0;
-                        hip_check_error(hipEventElapsedTime(&total_time, start, stop));  
-                        hip_check_error(hipEventDestroy(start));
-                        hip_check_error(hipEventDestroy(stop));
-                        ave_time = total_time / nrepeat;
-                    }
-                    else{                        
-                        // time kernel
-                        hipEvent_t start, stop;
-                        hip_check_error(hipEventCreate(&start));
-                        hip_check_error(hipEventCreate(&stop));
-
-                        hip_check_error(hipDeviceSynchronize());
-                        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
-                        for(int i = 0; i < nrepeat; ++i)
-                        {
-                        hip_check_error(hipModuleLaunchKernel(kernel_func,
-                                                gdx,
-                                                gdy,
-                                                1,
-                                                256,
-                                                1,
-                                                1,
-                                                0,
-                                                stream_config.stream_id_,
-                                                nullptr,
-                                                reinterpret_cast<void**>(&config)));
-                        }
-                        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-                        hip_check_error(hipEventSynchronize(stop));
-                        float total_time = 0;
-                        hip_check_error(hipEventElapsedTime(&total_time, start, stop));  
-                        hip_check_error(hipEventDestroy(start));
-                        hip_check_error(hipEventDestroy(stop));
-                        ave_time = total_time / nrepeat;
-                    }
+                    auto run_flush_cache = [&]() {
+                        // flush icache
+                        ck::utility::flush_icache();
+                        // rotating mem
+                        rotating_mem.Next();
+                        // clear c mem
+                        if(arg_.KBatch > 1)
+                            hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
+                                                             0,
+                                                             arg_.M * arg_.N * sizeof(CDataType),
+                                                             stream_config.stream_id_));
+                    };
+                    ave_time = launch_and_time_kernel_from_module_with_preprocess(
+                        stream_config,
+                        run_flush_cache,
+                        std::string(MOE_STAGE2_ASM_DIR) + hsa,
+                        kernel_name,
+                        dim3(gdx, gdy, gdz),
+                        dim3(BlockSize),
+                        0,
+                        arg);
                 }
-                else{
-                    hip_check_error(hipModuleLaunchKernel(kernel_func,
-                                            gdx,
-                                            gdy,
-                                            1,
-                                            256,
-                                            1,
-                                            1,
-                                            0,
-                                            stream_config.stream_id_,
-                                            nullptr,
-                                            reinterpret_cast<void**>(&config)));
+                else
+                {
+                    ave_time =
+                        launch_and_time_kernel_from_module(stream_config,
+                                                           std::string(MOE_STAGE2_ASM_DIR) + hsa,
+                                                           kernel_name,
+                                                           dim3(gdx, gdy, gdz),
+                                                           dim3(BlockSize),
+                                                           0,
+                                                           arg);
                 }
-
-                };
-            #else
+            };
+#else
             const auto RunKernel = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
@@ -420,9 +335,10 @@ struct DeviceMoeGemmBlockScale
                         stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
                 }
             };
-            #endif
+#endif
 
-            // constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) / BlockSize /
+            // constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) /
+            // BlockSize /
             //                                  4 * (1 + GridwiseGemm::NWave);
             // constexpr auto estimated_reg_b =
             //     NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2);
@@ -433,52 +349,86 @@ struct DeviceMoeGemmBlockScale
 
             constexpr index_t minimum_occupancy = 2;
 
-            constexpr auto MemoryDataOp = IsInputGemm  ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+            constexpr auto MemoryDataOp =
+                IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
 
-            #if CK_USE_ASM_MOE_STAGE2_BLOCKSCALE
+#if CK_USE_ASM_MOE_BLOCKSCALE
             (void)minimum_occupancy;
             (void)MemoryDataOp;
-            //get .co file name for ASM. select by version and shape.
+            // get .co file name for ASM. select by version and shape.
             std::string hsa_name = "";
             if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
             {
-                if constexpr(MPerBlock == 32)
+                if(IsInputGemm)
                 {
-                    hsa_name = std::string("moe_bs_stage2_v1_32x128x256");
+                    if constexpr(MPerBlock == 32)
+                    {
+                        hsa_name = std::string("moe_bs_stage1_v1_32x128x128");
+                    }
+                    else if constexpr(MPerBlock == 64)
+                    {
+                        hsa_name = std::string("moe_bs_stage1_v1_64x128x128");
+                    }
+                    else
+                    {
+                        printf("Faild: Gemm2 only support 32x128x128 or 64x128x1288.\n");
+                    }
                 }
-                else if constexpr(MPerBlock == 128){
-                    hsa_name = std::string("moe_bs_stage2_v1_128x128x128");
-                }
-                else{
-                    printf("Faild: only support 32x128x256 or 128x128x1288.\n");
+                else
+                {
+                    if constexpr(MPerBlock == 32)
+                    {
+                        hsa_name = std::string("moe_bs_stage2_v1_32x128x128");
+                    }
+                    else if constexpr(MPerBlock == 128)
+                    {
+                        hsa_name = std::string("moe_bs_stage2_v1_128x128x128");
+                    }
+                    else
+                    {
+                        printf("Faild: Gemm2 only support 32x128x128 or 128x128x1288.\n");
+                    }
                 }
             }
             else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
             {
-                if constexpr(MPerBlock == 128)
+                if(IsInputGemm)
                 {
-                    hsa_name = std::string("moe_bs_stage2_v3_128x128x128");
+                    if constexpr(MPerBlock == 64)
+                    {
+                        hsa_name = std::string("moe_bs_stage1_v3_64x128x128");
+                    }
+                    else
+                    {
+                        printf("Faild: v3 only support 64x128x1288.\n");
+                    }
                 }
-                // else if constexpr(MPerBlock == 32){
-                //     hsa_name = std::string("moe_bs_stage2_v3_32x128x256");
-                // }
-                else{
-                    printf("Faild: v3 only support 128x128x1288.\n");
+                else
+                {
+                    if constexpr(MPerBlock == 128)
+                    {
+                        hsa_name = std::string("moe_bs_stage2_v3_128x128x128");
+                    }
+                    else
+                    {
+                        printf("Faild: v3 only support 128x128x1288.\n");
+                    }
                 }
             }
-            else{
+            else
+            {
                 printf("Faild: only support v1 or v3.\n");
             }
-            //launch kernel
+            // launch kernel
             if(has_main_k_block_loop)
             {
                 if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                 {
-                    RunKernel(hsa_name+".co", hsa_name+"_odd_loop");
+                    RunKernel(hsa_name + ".co", std::string("odd_loop"));
                 }
                 else
                 {
-                    RunKernel(hsa_name+".co", hsa_name+"_even_loop");
+                    RunKernel(hsa_name + ".co", std::string("even_loop"));
                 }
             }
             else
@@ -486,14 +436,14 @@ struct DeviceMoeGemmBlockScale
                 // Tail number always 1
                 if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                 {
-                    RunKernel(hsa_name+".co", hsa_name+"_odd_noloop");
+                    RunKernel(hsa_name + ".co", std::string("odd_noloop"));
                 }
                 else
                 {
-                    RunKernel(hsa_name+".co", hsa_name+"_even_noloop");
+                    RunKernel(hsa_name + ".co", std::string("even_noloop"));
                 }
             }
-            #else
+#else
             if(has_main_k_block_loop)
             {
                 // Tail number always full
@@ -716,7 +666,7 @@ struct DeviceMoeGemmBlockScale
                                                       index_t StrideC,
                                                       const void* p_a_scale,
                                                       const void* p_b_scale,
-                                                    //   index_t KBatch,
+                                                      //   index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
@@ -739,7 +689,7 @@ struct DeviceMoeGemmBlockScale
                                           StrideC,
                                           static_cast<const AScaleDataType*>(p_a_scale),
                                           static_cast<const BScaleDataType*>(p_b_scale),
-                                          1, //KBatch,
+                                          1, // KBatch,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op);

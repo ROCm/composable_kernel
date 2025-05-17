@@ -38,7 +38,7 @@ using B0DataType       = F8;
 using B1DataType       = F32;
 using EDataType        = F16;
 using AccDataType      = F32;
-using CShuffleDataType = F32;
+using CShuffleDataType = EDataType;
 using D2DataType       = F32;
 using DsDataType       = ck::Tuple<D2DataType>;
 
@@ -49,7 +49,6 @@ using D0Layout = Row;
 using D1Layout = Col;
 using D2Layout = ELayout;
 using DsLayout = ck::Tuple<D2Layout>;
-
 
 struct MulABScaleExpertWeight
 {
@@ -65,8 +64,8 @@ struct MulABScaleExpertWeight
         e = ck::type_convert<EDataType>(c);
     }
     template <>
-    __host__ __device__ constexpr void operator()<EDataType, EDataType, float>(
-        EDataType& e, const EDataType& c, const float& d2) const
+    __host__ __device__ constexpr void
+    operator()<EDataType, EDataType, float>(EDataType& e, const EDataType& c, const float& d2) const
     {
         (void)d2;
         e = ck::type_convert<EDataType>(c);
@@ -81,8 +80,6 @@ struct MulABScaleExpertWeight
         e = ck::type_convert<EDataType>(c);
     }
 };
-
-using CDEElementOp = MulABScaleExpertWeight;
 
 void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int NXdl)
 {
@@ -116,8 +113,9 @@ void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int 
 }
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using AElementOp = PassThrough;
-using BElementOp = PassThrough;
+using AElementOp   = PassThrough;
+using BElementOp   = PassThrough;
+using CDEElementOp = MulABScaleExpertWeight;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -125,9 +123,9 @@ static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
 
-static constexpr ck::index_t Nswizzle    = false;
-static constexpr ck::index_t ActOP       = 0; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr bool MulRoutedWeight    = false;
+static constexpr ck::index_t Nswizzle = false;
+static constexpr ck::index_t ActOP    = 0; // 0: gelu_and_mul, 1: silu_and_mul
+static constexpr bool MulRoutedWeight = false;
 
 #if 0
 static constexpr ck::index_t MPerBlock = 32;
@@ -192,20 +190,20 @@ int main(int argc, char* argv[])
     bool time_kernel     = true;
 #if 1
     // GEMM shape
-    ck::index_t N               = 4096;
-    ck::index_t K               = 6144;
-    ck::index_t experts         = 8;
-    ck::index_t topk            = 2;
-    // ck::index_t sorted_tile_num = 133;
-    // ck::index_t valid_tile_num  = 128;
+    ck::index_t N       = 4096;
+    ck::index_t K       = 6144;
+    ck::index_t experts = 8;
+    ck::index_t topk    = 2;
+    // ck::index_t sorted_tile_num = 515;
+    // ck::index_t valid_tile_num  = 512;
     // ck::index_t tokens          = 8192;
     // ck::index_t sorted_tile_num = 15;
     // ck::index_t valid_tile_num  = 13;
-    ck::index_t sorted_tile_num = 55;
-    ck::index_t valid_tile_num  = 52;
-    ck::index_t tokens          = 832;
+    ck::index_t sorted_tile_num = 259;
+    ck::index_t valid_tile_num  = 256;
+    ck::index_t tokens          = 8192;
 #else
-    //deepseek
+    // deepseek
     ck::index_t N               = 2048;
     ck::index_t K               = 7168;
     ck::index_t experts         = 256;
@@ -301,12 +299,14 @@ int main(int argc, char* argv[])
         }
     }
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
-    Tensor<A1DataType> a1_t_k(HostTensorDescriptor({tokens, (K + Scale_Block_K - 1) / Scale_Block_K},
-                                                   {Scale_Stride_AM, 1}));
+    Tensor<A1DataType> a1_t_k(HostTensorDescriptor(
+        {tokens, (K + Scale_Block_K - 1) / Scale_Block_K}, {Scale_Stride_AM, 1}));
     Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
-    Tensor<B1DataType> b1_e_n_k(HostTensorDescriptor(
-        {experts, (K + Scale_Block_K - 1) / Scale_Block_K, (N  + Scale_Block_N - 1) / Scale_Block_N * 2},
-        {(Scale_Stride_B * Scale_Stride_BN), 1, Scale_Stride_BN}));
+    Tensor<B1DataType> b1_e_n_k(
+        HostTensorDescriptor({experts,
+                              (K + Scale_Block_K - 1) / Scale_Block_K,
+                              (N + Scale_Block_N - 1) / Scale_Block_N * 2},
+                             {(Scale_Stride_B * Scale_Stride_BN), 1, Scale_Stride_BN}));
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
     Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
@@ -453,7 +453,8 @@ int main(int argc, char* argv[])
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s.\n"  << device_op.GetTypeString() << std::endl;
+                  << " GB/s.\n"
+                  << device_op.GetTypeString() << std::endl;
     }
 
     if(do_verification)
@@ -466,13 +467,12 @@ int main(int argc, char* argv[])
 
         Tensor<CShuffleDataType> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
 
-        //handle scale before ref.
+        // handle scale before ref.
         for(int t = 0; t < tokens; ++t)
         {
             for(int k = 0; k < K; ++k)
             {
-                a_t_k(t, k) = ck::type_convert<float>(a0_t_k(t, k)) *
-                                    a1_t_k(t, k / Scale_Block_K);
+                a_t_k(t, k) = ck::type_convert<float>(a0_t_k(t, k)) * a1_t_k(t, k / Scale_Block_K);
             }
         }
 
@@ -490,16 +490,16 @@ int main(int argc, char* argv[])
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeGemm1BlockScale<float,
                                                                     float,
-                                                                    D2DataType,
                                                                     CShuffleDataType,
+                                                                    D2DataType,
                                                                     AccDataType,
                                                                     PassThrough,
                                                                     PassThrough,
                                                                     PassThrough,
                                                                     ActOP,
                                                                     MulRoutedWeight>;
-        auto ref_moe_gemm           = ReferenceGemmInstance{};
-        auto ref_invoker            = ref_moe_gemm.MakeInvoker();
+        auto ref_moe_gemm = ReferenceGemmInstance{};
+        auto ref_invoker  = ref_moe_gemm.MakeInvoker();
 
         auto ref_argument = ref_moe_gemm.MakeArgument(sorted_token_ids,
                                                       expert_ids,
@@ -527,17 +527,20 @@ int main(int argc, char* argv[])
             }
             for(int n = 0; n < N; ++n)
             {
-                e_t_n_host_result(t, topk_id, n) = ck::type_convert<EDataType>(c_t_k_n(t, topk_id, n));
+                e_t_n_host_result(t, topk_id, n) =
+                    ck::type_convert<EDataType>(c_t_k_n(t, topk_id, n));
             }
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-        auto status = ck::utils::check_err(
-                   e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)
-                   ? 0
-                   : 1;
-        if (status == 0){
+        auto status =
+            ck::utils::check_err(
+                e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)
+                ? 0
+                : 1;
+        if(status == 0)
+        {
             printf("Validation Pass.\n");
         }
         return status;

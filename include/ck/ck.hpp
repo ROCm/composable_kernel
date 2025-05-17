@@ -170,7 +170,7 @@
 #define CK_USE_PK4_LAYOUT_SHUFFLE 1
 
 // using .co compiled shader for moe_stage2_blockscale
-#define CK_USE_ASM_MOE_STAGE2_BLOCKSCALE 0
+#define CK_USE_ASM_MOE_BLOCKSCALE 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
