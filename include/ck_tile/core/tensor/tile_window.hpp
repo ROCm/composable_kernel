@@ -34,8 +34,11 @@ template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
           index_t NumCoord>
-struct tile_window_with_static_distribution : public tile_window_base<BottomTensorView_>
-{
+struct tile_window_with_static_distribution
+    : public tile_window_base<tile_window_with_static_distribution<BottomTensorView_, WindowLengths_, StaticTileDistribution_, NumCoord>,
+                              BottomTensorView_,
+                              WindowLengths_>
+{   
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
@@ -152,9 +155,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
         const WindowLengths& window_lengths,
         const BottomTensorIndex& window_origin,
         const TileDstr& tile_distribution)
-        : bottom_tensor_view_{bottom_tensor_view},
-          window_lengths_{window_lengths},
-          tile_dstr_{tile_distribution},
+        : tile_dstr_{tile_distribution},
           pre_computed_coords_{}
     {
 #if 0 // debug
@@ -180,6 +181,8 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
         // TODO: this use less register for FA, but more register for GEMM
         // need investigation
         this->window_origin_ = window_origin;
+        this->window_lengths_ = window_lengths;
+        this->bottom_tensor_view_ = bottom_tensor_view;
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_distribution.get_ps_ys_to_xs_adaptor(),
             container_concat(detail::get_partition_index(tile_distribution),
@@ -190,7 +193,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
 
         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
-            bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
+            bottom_tensor_view.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
 
         // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
         // future load/store() calls (might allocate more registers)
@@ -222,18 +225,18 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
         return TileDstr::is_static();
     }
 
-    CK_TILE_DEVICE constexpr auto get_window_lengths() const { return window_lengths_; }
+    // CK_TILE_DEVICE constexpr auto get_window_lengths() const { return window_lengths_; }
 
     CK_TILE_DEVICE constexpr auto get_tile_distribution() const { return tile_dstr_; }
 
-    CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
+    // CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
 
     // CK_TILE_DEVICE constexpr auto get_window_origin() const { return this->window_origin_; }
 
     CK_TILE_DEVICE constexpr void
     set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
     {
-        bottom_tensor_view_.buf_.p_data_ = data;
+        this->bottom_tensor_view_.buf_.p_data_ = data;
     }
 
     // move thread's window adaptor coordinate and bottom tensor coordinate
@@ -251,7 +254,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
                                        idx_diff_adaptor_top,
                                        idx_diff_adaptor_bottom);
 
-        move_tensor_coordinate(bottom_tensor_view_.get_tensor_descriptor(),
+        move_tensor_coordinate(this->bottom_tensor_view_.get_tensor_descriptor(),
                                bottom_tensor_thread_coord,
                                idx_diff_adaptor_bottom);
     }
@@ -335,7 +338,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
 
                 // read from bottom tensor
                 const vector_t vec_value =
-                    get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                    this->get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
                         bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
 #if 1
                 // write into distributed tensor
@@ -428,7 +431,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
                     Traits::PackedSize;
                 static_assert(d % Traits::ScalarPerVector == 0);
 
-                get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
+                this->get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
                     dst_vec_tbuf.template at<d / Traits::ScalarPerVector>(),
                     bottom_tensor_thread_coord,
                     0 /**/,
@@ -517,7 +520,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
                 }();
 
                 // read from bottom tensor
-                get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
+                this->get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
                     smem, bottom_tensor_thread_coord, 0, pre_nop_);
 
                 // move thread coordinate
@@ -589,7 +592,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
                 constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
                 // read from bottom tensor
-                get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
+                this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
                     smem, bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
 
                 // move thread coordinate
@@ -657,7 +660,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
                 // const vector_t vec_value = vec.template get_as<vector_t>().template at<0>();
 
                 // write into bottom tensor
-                get_bottom_tensor_view().template set_vectorized_elements<vector_t>(
+                this->get_bottom_tensor_view().template set_vectorized_elements<vector_t>(
                     bottom_tensor_thread_coord,
                     0,
                     vec_value,
@@ -720,7 +723,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
                 });
 
                 // write into bottom tensor
-                get_bottom_tensor_view()
+                this->get_bottom_tensor_view()
                     .template set_vectorized_elements_raw<vector_t, oob_conditional_check>(
                         bottom_tensor_thread_coord, 0, vec_value);
 
@@ -784,7 +787,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
                 });
 
                 // write into bottom tensor
-                get_bottom_tensor_view().template update_vectorized_elements<vector_t>(
+                this->get_bottom_tensor_view().template update_vectorized_elements<vector_t>(
                     bottom_tensor_thread_coord,
                     0,
                     vec_value,
@@ -851,7 +854,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
                 });
 
                 // write into bottom tensor
-                get_bottom_tensor_view().template update_vectorized_elements_raw<vector_t>(
+                this->get_bottom_tensor_view().template update_vectorized_elements_raw<vector_t>(
                     bottom_tensor_thread_coord,
                     0,
                     vec_value,
@@ -877,12 +880,22 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
     // move thread's botom tensor coordiante
     // [x0', x1', ... ] ==> [offset]
     // also move window-origin
-    CK_TILE_DEVICE void move(const BottomTensorIndex& step)
-    {   
-        this->window_origin_ += step;
+    // CK_TILE_DEVICE void move(const BottomTensorIndex& step)
+    // {   
+    //     this->window_origin_ += step;
 
+    //     static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+    //         move_tensor_coordinate(this->bottom_tensor_view_.get_tensor_descriptor(),
+    //                                pre_computed_coords_(iCoord)(I1),
+    //                                step);
+    //     });
+    // }
+
+    // Custom move behavior
+    CK_TILE_DEVICE void move_extra(const BottomTensorIndex& step)
+    {
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
-            move_tensor_coordinate(bottom_tensor_view_.get_tensor_descriptor(),
+            move_tensor_coordinate(this->bottom_tensor_view_.get_tensor_descriptor(),
                                    pre_computed_coords_(iCoord)(I1),
                                    step);
         });
@@ -923,7 +936,7 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
             this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
 
         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
-            bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
+            this->bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
 
         // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
         // future load/store() calls (might allocate more registers)
@@ -948,14 +961,14 @@ struct tile_window_with_static_distribution : public tile_window_base<BottomTens
         });
     }
 
-    CK_TILE_HOST_DEVICE void init_raw() { bottom_tensor_view_.init_raw(); }
+    CK_TILE_HOST_DEVICE void init_raw() { this->bottom_tensor_view_.init_raw(); }
 
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
-    BottomTensorView bottom_tensor_view_;
+    // BottomTensorView bottom_tensor_view_;
 
     //
-    WindowLengths window_lengths_;
+    // WindowLengths window_lengths_;
 
     // origin ([x0', x1', ...]) of window on bottom tensor
     // BottomTensorIndex window_origin_;
@@ -1037,8 +1050,11 @@ CK_TILE_DEVICE void move_tile_window(
  * @tparam WindowLengths_       Spatial sizes of windowed view on tensor.
  */
 template <typename BottomTensorView_, typename WindowLengths_>
-struct tile_window_with_static_lengths : public tile_window_base<BottomTensorView_>
-{
+struct tile_window_with_static_lengths
+    : public tile_window_base<tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>,
+                              BottomTensorView_,
+                              WindowLengths_>
+{   
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using BottomTensorDesc = typename BottomTensorView::TensorDesc;
@@ -1057,17 +1073,17 @@ struct tile_window_with_static_lengths : public tile_window_base<BottomTensorVie
         const BottomTensorView& bottom_tensor_view,
         const WindowLengths& window_lengths,
         const BottomTensorIndex& window_origin)
-        : bottom_tensor_view_{bottom_tensor_view},
-          window_lengths_{window_lengths}
     {
         this->window_origin_ = window_origin;
+        this->window_lengths_ = window_lengths;
+        this->bottom_tensor_view_ = bottom_tensor_view;
     }
 
     CK_TILE_DEVICE static constexpr index_t get_num_of_dimension() { return NDimBottomTensor; }
 
-    CK_TILE_DEVICE constexpr auto get_window_lengths() const { return window_lengths_; }
+    // CK_TILE_DEVICE constexpr auto get_window_lengths() const { return window_lengths_; }
 
-    CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
+    // CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
 
     // CK_TILE_DEVICE constexpr auto get_window_origin() const { return this->window_origin_; }
 
@@ -1079,18 +1095,18 @@ struct tile_window_with_static_lengths : public tile_window_base<BottomTensorVie
     CK_TILE_DEVICE constexpr void
     set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
     {
-        bottom_tensor_view_.buf_.p_data_ = data;
+        this->bottom_tensor_view_.buf_.p_data_ = data;
     }
 
     // move window-origin
-    CK_TILE_DEVICE void move(const BottomTensorIndex& step) { this->window_origin_ += step; }
+    //CK_TILE_DEVICE void move(const BottomTensorIndex& step) { this->window_origin_ += step; }
 
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
-    BottomTensorView bottom_tensor_view_;
+    // BottomTensorView bottom_tensor_view_;
 
     //
-    WindowLengths window_lengths_;
+    // WindowLengths window_lengths_;
 
     // origin ([x0', x1', ...]) of window on bottom tensor
     // BottomTensorIndex window_origin_;
