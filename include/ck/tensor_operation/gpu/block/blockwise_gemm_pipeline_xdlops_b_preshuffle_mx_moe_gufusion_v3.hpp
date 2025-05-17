@@ -495,7 +495,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
             index_t i = 0;
             do
             {
-                auto LoopFunc = [&](auto mfma_reg_buf, auto local_read_buf, auto a_buf) {
+                auto LoopFunc = [&](auto mfma_reg_buf, auto local_read_buf) {
                     // Prefetch a_scales to buf 1
                     a_scale_thread_copy.Run(a_scale_grid_desc,
                                             a_scale_grid_buf,
@@ -683,8 +683,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                     __builtin_amdgcn_sched_barrier(0);
                 }; // LoopFunc
 
-                LoopFunc(I0, I1, I0);
-                LoopFunc(I1, I0, I1);
+                LoopFunc(I0, I1);
+                LoopFunc(I1, I0);
 
                 i += 2;
             } while(i < (num_loop - 2));
