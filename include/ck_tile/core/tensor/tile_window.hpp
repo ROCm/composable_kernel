@@ -35,10 +35,20 @@ template <typename BottomTensorView_,
           typename StaticTileDistribution_,
           index_t NumCoord>
 struct tile_window_with_static_distribution
-    : public tile_window_base<tile_window_with_static_distribution<BottomTensorView_, WindowLengths_, StaticTileDistribution_, NumCoord>,
+    : public tile_window_base<tile_window_with_static_distribution<BottomTensorView_,
+                                                                   WindowLengths_,
+                                                                   StaticTileDistribution_,
+                                                                   NumCoord>,
                               BottomTensorView_,
                               WindowLengths_>
-{   
+{
+    using Base = tile_window_base<tile_window_with_static_distribution<BottomTensorView_,
+                                                                       WindowLengths_,
+                                                                       StaticTileDistribution_,
+                                                                       NumCoord>,
+                                  BottomTensorView_,
+                                  WindowLengths_>;
+
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
@@ -49,7 +59,6 @@ struct tile_window_with_static_distribution
     using DataType = remove_cvref_t<typename BottomTensorView::DataType>;
 
     static constexpr index_t NDimWindowAdaptorTop = WindowAdaptor::get_num_of_top_dimension();
-    static constexpr index_t NDimBottomTensor     = BottomTensorDesc::get_num_of_dimension();
 
     static constexpr index_t NDimP = TileDstr::get_num_of_dimension_p();
     static constexpr index_t NDimY = TileDstr::get_num_of_dimension_y();
@@ -64,11 +73,11 @@ struct tile_window_with_static_distribution
                   "wrong! lengths should be static");
     static_assert(TileDstr::is_static(), "wrong!");
 
-    static_assert(NDimBottomTensor == WindowAdaptor::get_num_of_bottom_dimension(),
+    static_assert(Base::NDimBottomTensor == WindowAdaptor::get_num_of_bottom_dimension(),
                   "wrong! inconsistent # of diemsnions");
 
     using AdaptorTopIndex   = array<index_t, NDimWindowAdaptorTop>;
-    using BottomTensorIndex = array<index_t, NDimBottomTensor>;
+    using BottomTensorIndex = array<index_t, Base::NDimBottomTensor>;
 
     using WindowAdaptorCoord =
         decltype(make_tensor_adaptor_coordinate(WindowAdaptor{}, AdaptorTopIndex{}));
@@ -155,8 +164,7 @@ struct tile_window_with_static_distribution
         const WindowLengths& window_lengths,
         const BottomTensorIndex& window_origin,
         const TileDstr& tile_distribution)
-        : tile_dstr_{tile_distribution},
-          pre_computed_coords_{}
+        : tile_dstr_{tile_distribution}, pre_computed_coords_{}
     {
 #if 0 // debug
       // TODO: this use more register for FA, but less register for GEMM
@@ -180,9 +188,9 @@ struct tile_window_with_static_distribution
 #else
         // TODO: this use less register for FA, but more register for GEMM
         // need investigation
-        this->window_origin_ = window_origin;
-        this->window_lengths_ = window_lengths;
-        this->bottom_tensor_view_ = bottom_tensor_view;
+        this->window_origin_                       = window_origin;
+        this->window_lengths_                      = window_lengths;
+        this->bottom_tensor_view_                  = bottom_tensor_view;
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_distribution.get_ps_ys_to_xs_adaptor(),
             container_concat(detail::get_partition_index(tile_distribution),
@@ -218,26 +226,12 @@ struct tile_window_with_static_distribution
         });
     }
 
-    CK_TILE_DEVICE static constexpr index_t get_num_of_dimension() { return NDimBottomTensor; }
-
     CK_TILE_DEVICE static constexpr bool has_static_tile_distribution()
     {
         return TileDstr::is_static();
     }
 
-    // CK_TILE_DEVICE constexpr auto get_window_lengths() const { return window_lengths_; }
-
     CK_TILE_DEVICE constexpr auto get_tile_distribution() const { return tile_dstr_; }
-
-    // CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
-
-    // CK_TILE_DEVICE constexpr auto get_window_origin() const { return this->window_origin_; }
-
-    CK_TILE_DEVICE constexpr void
-    set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
-    {
-        this->bottom_tensor_view_.buf_.p_data_ = data;
-    }
 
     // move thread's window adaptor coordinate and bottom tensor coordinate
     // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
@@ -247,7 +241,7 @@ struct tile_window_with_static_distribution
         BottomTensorCoord& bottom_tensor_thread_coord,
         const ATopIndex& idx_diff_adaptor_top) const
     {
-        array<index_t, NDimBottomTensor> idx_diff_adaptor_bottom;
+        array<index_t, Base::NDimBottomTensor> idx_diff_adaptor_bottom;
 
         move_tensor_adaptor_coordinate(tile_dstr_.get_ps_ys_to_xs_adaptor(),
                                        window_adaptor_thread_coord,
@@ -881,7 +875,7 @@ struct tile_window_with_static_distribution
     // [x0', x1', ... ] ==> [offset]
     // also move window-origin
     // CK_TILE_DEVICE void move(const BottomTensorIndex& step)
-    // {   
+    // {
     //     this->window_origin_ += step;
 
     //     static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -901,36 +895,77 @@ struct tile_window_with_static_distribution
         });
     }
 
-    CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
+    //     CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
+    //     {
+    //         this->window_origin_ = new_window_origin;
+
+    // #if 0 // debug
+    //       // TODO: this use more register for FA, but less register for GEMM
+    //       // need investigation
+    //       // only support warp-tile and block-tile
+    //         static_assert(NDimP == 1 or NDimP == 2, "wrong!");
+
+    //         WindowAdaptorCoord window_adaptor_thread_coord_tmp;
+
+    //         if constexpr(NDimP == 1)
+    //         {
+    //             window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
+    //                 tile_dstr_.get_ps_ys_to_xs_adaptor(), AdaptorTopIndex{get_lane_id(), 0});
+    //         }
+    //         else if constexpr(NDimP == 2)
+    //         {
+    //             window_adaptor_thread_coord_tmp =
+    //                 make_tensor_adaptor_coordinate(tile_dstr_.get_ps_ys_to_xs_adaptor(),
+    //                                                AdaptorTopIndex{get_warp_id(), get_lane_id(),
+    //                                                0});
+    //         }
+    // #else
+    //         // TODO: this use less register for FA, but more register for GEMM
+    //         // need investigation
+    //         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
+    //             tile_dstr_.get_ps_ys_to_xs_adaptor(),
+    //             container_concat(detail::get_partition_index(tile_dstr_), array<index_t,
+    //             NDimY>{0}));
+    // #endif
+
+    //         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
+    //             this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
+
+    //         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
+    //             this->bottom_tensor_view_.get_tensor_descriptor(),
+    //             bottom_tensor_thread_origin_idx_tmp);
+
+    //         // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
+    //         // future load/store() calls (might allocate more registers)
+    //         using Traits = load_store_traits;
+    //         using SFC_Ys = typename Traits::SFC_Ys;
+
+    //         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+    //             auto window_adaptor_thread_coord = window_adaptor_thread_coord_tmp;
+    //             auto bottom_tensor_thread_coord  = bottom_tensor_thread_coord_tmp;
+
+    //             constexpr auto idx_diff_ys =
+    //                 SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
+
+    //             constexpr auto idx_diff_ps_ys = container_concat(
+    //                 generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+    //                 idx_diff_ys);
+
+    //             move_window_adaptor_and_bottom_tensor_thread_coordinate(
+    //                 window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+
+    //             pre_computed_coords_(iCoord) =
+    //                 make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
+    //         });
+    //     }
+
+    CK_TILE_DEVICE void set_window_origin_extra(const BottomTensorIndex&)
     {
-        this->window_origin_ = new_window_origin;
-
-#if 0 // debug
-      // TODO: this use more register for FA, but less register for GEMM
-      // need investigation
-      // only support warp-tile and block-tile
-        static_assert(NDimP == 1 or NDimP == 2, "wrong!");
-
-        WindowAdaptorCoord window_adaptor_thread_coord_tmp;
-
-        if constexpr(NDimP == 1)
-        {
-            window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
-                tile_dstr_.get_ps_ys_to_xs_adaptor(), AdaptorTopIndex{get_lane_id(), 0});
-        }
-        else if constexpr(NDimP == 2)
-        {
-            window_adaptor_thread_coord_tmp =
-                make_tensor_adaptor_coordinate(tile_dstr_.get_ps_ys_to_xs_adaptor(),
-                                               AdaptorTopIndex{get_warp_id(), get_lane_id(), 0});
-        }
-#else
         // TODO: this use less register for FA, but more register for GEMM
         // need investigation
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_dstr_.get_ps_ys_to_xs_adaptor(),
             container_concat(detail::get_partition_index(tile_dstr_), array<index_t, NDimY>{0}));
-#endif
 
         BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
@@ -962,16 +997,6 @@ struct tile_window_with_static_distribution
     }
 
     CK_TILE_HOST_DEVICE void init_raw() { this->bottom_tensor_view_.init_raw(); }
-
-    // this is the bottom tensor view
-    // [x0', x1', ...] ==> [offset]
-    // BottomTensorView bottom_tensor_view_;
-
-    //
-    // WindowLengths window_lengths_;
-
-    // origin ([x0', x1', ...]) of window on bottom tensor
-    // BottomTensorIndex window_origin_;
 
     // Tile tensor distribution, which contains:
     //   1. adaptor for window: [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...]
@@ -1054,18 +1079,20 @@ struct tile_window_with_static_lengths
     : public tile_window_base<tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>,
                               BottomTensorView_,
                               WindowLengths_>
-{   
+{
+    using Base =
+        tile_window_base<tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>,
+                         BottomTensorView_,
+                         WindowLengths_>;
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using BottomTensorDesc = typename BottomTensorView::TensorDesc;
     using DataType         = typename BottomTensorView::DataType;
 
-    static constexpr index_t NDimBottomTensor = BottomTensorDesc::get_num_of_dimension();
-
     static_assert(ck_tile::is_known_at_compile_time<WindowLengths>::value,
                   "wrong! lengths should be static");
 
-    using BottomTensorIndex = array<index_t, NDimBottomTensor>;
+    using BottomTensorIndex = array<index_t, Base::NDimBottomTensor>;
 
     CK_TILE_DEVICE constexpr tile_window_with_static_lengths() = default;
 
@@ -1074,42 +1101,10 @@ struct tile_window_with_static_lengths
         const WindowLengths& window_lengths,
         const BottomTensorIndex& window_origin)
     {
-        this->window_origin_ = window_origin;
-        this->window_lengths_ = window_lengths;
+        this->window_origin_      = window_origin;
+        this->window_lengths_     = window_lengths;
         this->bottom_tensor_view_ = bottom_tensor_view;
     }
-
-    CK_TILE_DEVICE static constexpr index_t get_num_of_dimension() { return NDimBottomTensor; }
-
-    // CK_TILE_DEVICE constexpr auto get_window_lengths() const { return window_lengths_; }
-
-    // CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
-
-    // CK_TILE_DEVICE constexpr auto get_window_origin() const { return this->window_origin_; }
-
-    CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
-    {
-        this->window_origin_ = new_window_origin;
-    }
-
-    CK_TILE_DEVICE constexpr void
-    set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
-    {
-        this->bottom_tensor_view_.buf_.p_data_ = data;
-    }
-
-    // move window-origin
-    //CK_TILE_DEVICE void move(const BottomTensorIndex& step) { this->window_origin_ += step; }
-
-    // this is the bottom tensor view
-    // [x0', x1', ...] ==> [offset]
-    // BottomTensorView bottom_tensor_view_;
-
-    //
-    // WindowLengths window_lengths_;
-
-    // origin ([x0', x1', ...]) of window on bottom tensor
-    // BottomTensorIndex window_origin_;
 };
 
 template <typename TensorView_, typename WindowLengths_>
@@ -1260,3 +1255,9 @@ inline constexpr bool is_tile_window_with_static_lengths_v =
     is_tile_window_with_static_lengths<T>::value;
 
 } // namespace ck_tile
+
+// To Do
+// 1. rename "extra" functions
+// 2. remove debug code
+// 3. remove comments
+// 4. migrate comments in parent struct

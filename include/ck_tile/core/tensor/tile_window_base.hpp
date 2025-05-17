@@ -18,28 +18,56 @@
 
 namespace ck_tile {
 
+/**
+ * @brief This class provides description of tile windowed view on the device memory.
+ *
+ * @note This class does not provide any functions to read or modify device memory.
+ *
+ * @tparam BottomTensorView_    Class describing & holding device tensor memory.
+ * @tparam WindowLengths_       Spatial sizes of windowed view on tensor.
+ */
 template <typename TileWindowType_, typename BottomTensorView_, typename WindowLengths_>
 struct tile_window_base
-{   
+{
     // window_origin
     using BottomTensorView                    = remove_reference_t<BottomTensorView_>;
     using BottomTensorDesc                    = typename BottomTensorView::TensorDesc;
     static constexpr index_t NDimBottomTensor = BottomTensorDesc::get_num_of_dimension();
     using BottomTensorIndex                   = array<index_t, NDimBottomTensor>;
+
+    // origin ([x0', x1', ...]) of window on bottom tensor
     BottomTensorIndex window_origin_;
 
     // window_lengths
-    using WindowLengths    = remove_cvref_t<WindowLengths_>;
+    using WindowLengths = remove_cvref_t<WindowLengths_>;
     WindowLengths window_lengths_;
 
-    // bottom tensor view
+    // this is the bottom tensor view
+    // [x0', x1', ...] ==> [offset]
     BottomTensorView bottom_tensor_view_;
 
-    
     CK_TILE_DEVICE constexpr auto get_window_origin() const { return window_origin_; }
     CK_TILE_DEVICE constexpr auto get_window_lengths() const { return window_lengths_; }
     CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
+    CK_TILE_DEVICE static constexpr index_t get_num_of_dimension() { return NDimBottomTensor; }
 
+    CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
+    {
+        window_origin_ = new_window_origin;
+
+        // Delegate to child if it implements extra logic
+        static_cast<TileWindowType_*>(this)->set_window_origin_extra(new_window_origin);
+    }
+    // Default no-op; can be overridden in child
+    CK_TILE_DEVICE void set_window_origin_extra(const BottomTensorIndex&) {}
+
+    CK_TILE_DEVICE constexpr void
+    set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
+    {
+        bottom_tensor_view_.buf_.p_data_ = data;
+    }
+
+    // move window-origin
     CK_TILE_DEVICE void move(const BottomTensorIndex& step)
     {
         window_origin_ += step;
@@ -50,6 +78,5 @@ struct tile_window_base
 
     // Default no-op; can be overridden in child
     CK_TILE_DEVICE void move_extra(const BottomTensorIndex&) {}
-
 };
 } // namespace ck_tile
