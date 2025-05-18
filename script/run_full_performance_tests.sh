@@ -162,18 +162,18 @@ print_log_header $batched_gemm_add_relu_gemm_add_log $env_type $branch $host_nam
 #run batched_gemm_b_scale tests	
 export batched_gemm_b_scale_log="perf_batched_gemm_b_scale.log"	
 print_log_header $batched_gemm_b_scale_log $env_type $branch $host_name	
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 0 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 1 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 2 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 3 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 4 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 5 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 6 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 7 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 8 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 0 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 1 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 2 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 3 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 4 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 5 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 6 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 7 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 8 0 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
 ./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 8 1 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 8 2 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
-./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 8 3 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 8 2 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
+#./profile_batched_gemm_b_scale.sh batched_gemm_b_scale 8 3 $verify 1 0 1 2>&1 | tee -a $batched_gemm_b_scale_log
 
 #run batched_gemm_gemm tests	
 export batched_gemm_gemm_log="perf_batched_gemm_gemm.log"	
@@ -206,24 +206,24 @@ export contraction_bilinear_log="perf_contraction_bilinear.log"
 print_log_header $contraction_bilinear_log $env_type $branch $host_name	
 ./profile_contraction_bilinear.sh contraction_bilinear 0 0 $verify 1 0 1 2>&1 | tee -a $contraction_bilinear_log
 ./profile_contraction_bilinear.sh contraction_bilinear 1 0 $verify 1 0 1 2>&1 | tee -a $contraction_bilinear_log
-./profile_contraction_bilinear.sh contraction_bilinear 2 0 $verify 1 0 1 2>&1 | tee -a $contraction_bilinear_log
-./profile_contraction_bilinear.sh contraction_bilinear 3 0 $verify 1 0 1 2>&1 | tee -a $contraction_bilinear_log
+#./profile_contraction_bilinear.sh contraction_bilinear 2 0 $verify 1 0 1 2>&1 | tee -a $contraction_bilinear_log
+#./profile_contraction_bilinear.sh contraction_bilinear 3 0 $verify 1 0 1 2>&1 | tee -a $contraction_bilinear_log
 
 #run contraction_scale tests	
 export contraction_scale_log="perf_contraction_scale.log"	
 print_log_header $contraction_scale_log $env_type $branch $host_name	
 ./profile_contraction_scale.sh contraction_scale 0 0 $verify 1 0 1 2>&1 | tee -a $contraction_scale_log
 ./profile_contraction_scale.sh contraction_scale 1 0 $verify 1 0 1 2>&1 | tee -a $contraction_scale_log
-./profile_contraction_scale.sh contraction_scale 2 0 $verify 1 0 1 2>&1 | tee -a $contraction_scale_log
-./profile_contraction_scale.sh contraction_scale 3 0 $verify 1 0 1 2>&1 | tee -a $contraction_scale_log
+#./profile_contraction_scale.sh contraction_scale 2 0 $verify 1 0 1 2>&1 | tee -a $contraction_scale_log
+#./profile_contraction_scale.sh contraction_scale 3 0 $verify 1 0 1 2>&1 | tee -a $contraction_scale_log
 
 #run conv_bwd_data tests	
 export conv_bwd_data_log="perf_conv_bwd_data.log"	
 print_log_header $conv_bwd_data_log $env_type $branch $host_name	
-./profile_conv.sh conv_bwd_data 0 0 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
-./profile_conv.sh conv_bwd_data 1 0 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
-./profile_conv.sh conv_bwd_data 2 0 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
-./profile_conv.sh conv_bwd_data 3 0 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
+#./profile_conv.sh conv_bwd_data 0 0 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
+#./profile_conv.sh conv_bwd_data 1 0 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
+#./profile_conv.sh conv_bwd_data 2 0 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
+#./profile_conv.sh conv_bwd_data 3 0 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
 ./profile_conv.sh conv_bwd_data 0 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
 ./profile_conv.sh conv_bwd_data 1 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
 ./profile_conv.sh conv_bwd_data 2 1 $verify 1 0 1 256 2>&1 | tee -a $conv_bwd_data_log
@@ -253,10 +253,8 @@ print_log_header $conv_tensor_rearrange_log $env_type $branch $host_name
 ./profile_conv_tensor_rearrange.sh conv_tensor_rearrange 1 0 $verify 1 0 1 0 256 2>&1 | tee -a $conv_tensor_rearrange_log
 ./profile_conv_tensor_rearrange.sh conv_tensor_rearrange 2 0 $verify 1 0 1 0 256 2>&1 | tee -a $conv_tensor_rearrange_log
 ./profile_conv_tensor_rearrange.sh conv_tensor_rearrange 3 0 $verify 1 0 1 0 256 2>&1 | tee -a $conv_tensor_rearrange_log
-
 ./profile_conv_tensor_rearrange.sh conv_tensor_rearrange 1 1 $verify 1 0 1 0 256 2>&1 | tee -a $conv_tensor_rearrange_log
 ./profile_conv_tensor_rearrange.sh conv_tensor_rearrange 3 1 $verify 1 0 1 0 256 2>&1 | tee -a $conv_tensor_rearrange_log
-
 ./profile_conv_tensor_rearrange.sh conv_tensor_rearrange 1 0 $verify 1 0 1 1 256 2>&1 | tee -a $conv_tensor_rearrange_log
 ./profile_conv_tensor_rearrange.sh conv_tensor_rearrange 1 1 $verify 1 0 1 1 256 2>&1 | tee -a $conv_tensor_rearrange_log
 
@@ -268,30 +266,30 @@ print_log_header $gemm_ab_scale_log $env_type $branch $host_name
 #run gemm_add_add_fastgelu tests	
 export gemm_add_add_fastgelu_log="perf_gemm_add_add_fastgelu.log"	
 print_log_header $gemm_add_add_fastgelu_log $env_type $branch $host_name	
-./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
+#./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
 ./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
-./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
-./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
-./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
+#./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
+#./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
+#./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
 ./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
-./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
-./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
+#./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
+#./profile_gemm_d0_d1_e.sh gemm_add_add_fastgelu 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_add_fastgelu_log
 
 #run gemm_add_fastgelu tests	
 export gemm_add_fastgelu_log="perf_gemm_add_fastgelu.log"	
 print_log_header $gemm_add_fastgelu_log $env_type $branch $host_name	
-./profile_gemm_d0_e.sh gemm_add_fastgelu 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
+#./profile_gemm_d0_e.sh gemm_add_fastgelu 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
 ./profile_gemm_d0_e.sh gemm_add_fastgelu 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
 ./profile_gemm_d0_e.sh gemm_add_fastgelu 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
-./profile_gemm_d0_e.sh gemm_add_fastgelu 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
-./profile_gemm_d0_e.sh gemm_add_fastgelu 4 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
-./profile_gemm_d0_e.sh gemm_add_fastgelu 5 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
-./profile_gemm_d0_e.sh gemm_add_fastgelu 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
+#./profile_gemm_d0_e.sh gemm_add_fastgelu 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
+#./profile_gemm_d0_e.sh gemm_add_fastgelu 4 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
+#./profile_gemm_d0_e.sh gemm_add_fastgelu 5 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
+#./profile_gemm_d0_e.sh gemm_add_fastgelu 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
 ./profile_gemm_d0_e.sh gemm_add_fastgelu 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
 ./profile_gemm_d0_e.sh gemm_add_fastgelu 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
-./profile_gemm_d0_e.sh gemm_add_fastgelu 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
-./profile_gemm_d0_e.sh gemm_add_fastgelu 4 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
-./profile_gemm_d0_e.sh gemm_add_fastgelu 5 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
+#./profile_gemm_d0_e.sh gemm_add_fastgelu 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
+#./profile_gemm_d0_e.sh gemm_add_fastgelu 4 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
+#./profile_gemm_d0_e.sh gemm_add_fastgelu 5 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_fastgelu_log
 
 #run gemm_add_multiply tests	
 export gemm_add_multiply_log="perf_gemm_add_multiply.log"	
@@ -308,20 +306,20 @@ print_log_header $gemm_add_multiply_log $env_type $branch $host_name
 #run gemm_add_relu_add_layernorm tests	
 export gemm_add_relu_add_layernorm_log="perf_gemm_add_relu_add_layernorm.log"	
 print_log_header $gemm_add_relu_add_layernorm_log $env_type $branch $host_name	
-./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
+#./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
 ./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
-./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
-./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
+#./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
+#./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
 ./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
-./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
+#./profile_gemm_d0_d1_e.sh gemm_add_relu_add_layernorm 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_add_layernorm_log
 
 #run gemm_add_relu tests	
 export gemm_add_relu_log="perf_gemm_add_relu.log"	
 print_log_header $gemm_add_relu_log $env_type $branch $host_name	
 ./profile_gemm_d0_e.sh gemm_add_relu 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_log
 ./profile_gemm_d0_e.sh gemm_add_relu 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_log
-./profile_gemm_d0_e.sh gemm_add_relu 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_log
-./profile_gemm_d0_e.sh gemm_add_relu 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_log
+#./profile_gemm_d0_e.sh gemm_add_relu 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_log
+#./profile_gemm_d0_e.sh gemm_add_relu 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_relu_log
 
 #run gemm_add_silu tests	
 export gemm_add_silu_log="perf_gemm_add_silu.log"	
@@ -342,22 +340,22 @@ print_log_header $gemm_add_log $env_type $branch $host_name
 #run gemm_b_scale tests	
 export gemm_b_scale_log="perf_gemm_b_scale.log"	
 print_log_header $gemm_b_scale_log $env_type $branch $host_name	
-./profile_gemm_b_scale.sh gemm_b_scale 0 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
-./profile_gemm_b_scale.sh gemm_b_scale 1 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
-./profile_gemm_b_scale.sh gemm_b_scale 2 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
-./profile_gemm_b_scale.sh gemm_b_scale 3 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
-./profile_gemm_b_scale.sh gemm_b_scale 4 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
-./profile_gemm_b_scale.sh gemm_b_scale 5 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
-./profile_gemm_b_scale.sh gemm_b_scale 6 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
-./profile_gemm_b_scale.sh gemm_b_scale 7 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
+#./profile_gemm_b_scale.sh gemm_b_scale 0 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
+#./profile_gemm_b_scale.sh gemm_b_scale 1 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
+#./profile_gemm_b_scale.sh gemm_b_scale 2 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
+#./profile_gemm_b_scale.sh gemm_b_scale 3 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
+#./profile_gemm_b_scale.sh gemm_b_scale 4 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
+#./profile_gemm_b_scale.sh gemm_b_scale 5 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
+#./profile_gemm_b_scale.sh gemm_b_scale 6 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
+#./profile_gemm_b_scale.sh gemm_b_scale 7 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
 ./profile_gemm_b_scale.sh gemm_b_scale 8 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_b_scale_log
 
 #run gemm_bias_add_reduce tests	
 export gemm_bias_add_reduce_log="perf_gemm_bias_add_reduce.log"	
 print_log_header $gemm_bias_add_reduce_log $env_type $branch $host_name	
-./profile_gemm_d0_e.sh gemm_bias_add_reduce 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_bias_add_reduce_log
+#./profile_gemm_d0_e.sh gemm_bias_add_reduce 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_bias_add_reduce_log
 ./profile_gemm_d0_e.sh gemm_bias_add_reduce 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_bias_add_reduce_log
-./profile_gemm_d0_e.sh gemm_bias_add_reduce 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_bias_add_reduce_log
+#./profile_gemm_d0_e.sh gemm_bias_add_reduce 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_bias_add_reduce_log
 ./profile_gemm_d0_e.sh gemm_bias_add_reduce 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_bias_add_reduce_log
 
 #run gemm_fastgelu tests	
@@ -534,14 +532,14 @@ print_log_header $gemm_universal_log $env_type $branch $host_name
 #run grouped_conv_fwd_outelementop tests	
 export grouped_conv_fwd_outelementop_log="perf_grouped_conv_fwd_outelementop.log"	
 print_log_header $grouped_conv_fwd_outelementop_log $env_type $branch $host_name	
-./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 0 0 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
-./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 1 0 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
-./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 2 0 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
-./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 3 0 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
-./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 0 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
-./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 1 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
-./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 2 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
-./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 3 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
+#./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 0 0 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
+#./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 1 0 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
+#./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 2 0 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
+#./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 3 0 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
+#./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 0 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
+#./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 1 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
+#./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 2 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
+#./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 3 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
 ./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 0 0 1 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
 ./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 1 0 1 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
 ./profile_grouped_conv_fwd_outelementop.sh grouped_conv_fwd_outelementop 2 0 1 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_outelementop_log
@@ -554,14 +552,14 @@ print_log_header $grouped_conv_fwd_outelementop_log $env_type $branch $host_name
 #run grouped_gemm_fastgelu tests	
 export grouped_gemm_fastgelu_log="perf_grouped_gemm_fastgelu.log"	
 print_log_header $grouped_gemm_fastgelu_log $env_type $branch $host_name	
-./profile_grouped_gemm.sh grouped_gemm_fastgelu 0 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
+#./profile_grouped_gemm.sh grouped_gemm_fastgelu 0 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
 ./profile_grouped_gemm.sh grouped_gemm_fastgelu 1 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
-./profile_grouped_gemm.sh grouped_gemm_fastgelu 2 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
-./profile_grouped_gemm.sh grouped_gemm_fastgelu 3 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
-./profile_grouped_gemm.sh grouped_gemm_fastgelu 0 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
+#./profile_grouped_gemm.sh grouped_gemm_fastgelu 2 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
+#./profile_grouped_gemm.sh grouped_gemm_fastgelu 3 0 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
+#./profile_grouped_gemm.sh grouped_gemm_fastgelu 0 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
 ./profile_grouped_gemm.sh grouped_gemm_fastgelu 1 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
-./profile_grouped_gemm.sh grouped_gemm_fastgelu 2 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
-./profile_grouped_gemm.sh grouped_gemm_fastgelu 3 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
+#./profile_grouped_gemm.sh grouped_gemm_fastgelu 2 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
+#./profile_grouped_gemm.sh grouped_gemm_fastgelu 3 1 $verify 1 0 1 2>&1 | tee -a $grouped_gemm_fastgelu_log
 
 #run grouped_gemm_fixed_nk tests	
 export grouped_gemm_fixed_nk_log="perf_grouped_gemm_fixed_nk.log"	
@@ -647,7 +645,7 @@ print_log_header $bnorm_infer_log $env_type $branch $host_name
 #run groupnorm_bwd_data tests	
 export groupnorm_bwd_data_log="perf_groupnorm_bwd_data.log"	
 print_log_header $groupnorm_bwd_data_log $env_type $branch $host_name	
-./profile_groupnorm.sh groupnorm_bwd_data 0 $verify 1 0 1 2>&1 | tee -a $groupnorm_bwd_data_log
+#./profile_groupnorm.sh groupnorm_bwd_data 0 $verify 1 0 1 2>&1 | tee -a $groupnorm_bwd_data_log
 ./profile_groupnorm.sh groupnorm_bwd_data 1 $verify 1 0 1 2>&1 | tee -a $groupnorm_bwd_data_log
 
 #run groupnorm_bwd_gamma_beta tests	
