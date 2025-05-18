@@ -90,13 +90,13 @@ struct FlashAttentionFwd
         const auto f = [](index_t dividend, index_t divisor) {
             index_t quotient = dividend / divisor;
             index_t modulus  = dividend - quotient * divisor;
- 
+
             return make_tuple(quotient, modulus);
         };
- 
+
         const auto [itmp, id_tile_n]          = f(id_block, num_tile_n1);
         const auto [id_tile_batch, id_tile_m] = f(itmp, num_tile_m0);
- 
+
         const index_t iBatch = __builtin_amdgcn_readfirstlane(id_tile_batch);
         const index_t iM0    = __builtin_amdgcn_readfirstlane(id_tile_m * kM0PerBlock);
         const index_t iN1    = __builtin_amdgcn_readfirstlane(id_tile_n * kN1PerBlock);
