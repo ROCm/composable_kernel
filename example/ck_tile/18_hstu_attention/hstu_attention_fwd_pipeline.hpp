@@ -84,9 +84,9 @@ struct HstuAttentionFwdPipelineQRKSVS
             else if constexpr(kQKHeaddim == 96 || kQKHeaddim == 128)
             {
                 if constexpr(kHasBias)
-                    return 1;
-                else
                     return 2;
+                else
+                    return 3;
             }
             else if constexpr(kQKHeaddim == 256)
             {
