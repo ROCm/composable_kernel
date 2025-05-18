@@ -102,15 +102,6 @@ struct BlockGemmARegBSmemCRegV2Hack_0
             statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
             NIterPerWarp>
             b_warp_windows;
-
-        static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                b_warp_windows(nIter)(kIter) = b_warp_window_tmp;
-
-                move_tile_window(b_warp_windows(nIter)(kIter),
-                                 {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
-            });
-        });
 #endif
 
         // check C-block-distribution
@@ -143,8 +134,14 @@ struct BlockGemmARegBSmemCRegV2Hack_0
 
             statically_indexed_array<b_warp_tensor_type, KIterPerWarp> b_warp_tensors;
 
+            b_warp_windows(nIter)(I0) = b_warp_window_tmp;
+            move_tile_window(b_warp_windows(nIter)(I0),
+                             {nIter * NPerBlockPerIter, 0 * KPerBlockPerIter});
             b_warp_tensors[I0] = load_tile(b_warp_windows(nIter)(I0));
 
+            b_warp_windows(nIter)(I1) = b_warp_window_tmp;
+            move_tile_window(b_warp_windows(nIter)(I1),
+                             {nIter * NPerBlockPerIter, 1 * KPerBlockPerIter});
             b_warp_tensors[I1] = load_tile(b_warp_windows(nIter)(I1));
 
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
@@ -169,8 +166,13 @@ struct BlockGemmARegBSmemCRegV2Hack_0
             static_for<1, KIterPerWarp, 1>{}([&](auto kIter) {
                 // read B warp tensor from B Block window
                 if constexpr(kIter < KIterPerWarp - 1)
+                {
+                    b_warp_windows(nIter)(number<kIter + 1>{}) = b_warp_window_tmp;
+                    move_tile_window(b_warp_windows(nIter)(number<kIter + 1>{}),
+                                     {nIter * NPerBlockPerIter, (kIter + 1) * KPerBlockPerIter});
                     b_warp_tensors[number<kIter + 1>{}] =
                         load_tile(b_warp_windows(nIter)(number<kIter + 1>{}));
+                };
 
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor
