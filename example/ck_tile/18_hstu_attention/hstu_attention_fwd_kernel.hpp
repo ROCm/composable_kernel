@@ -35,8 +35,6 @@ struct HstuAttentionFwdKernel
     using QKVDataType  = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::QKVDataType>;
     using BiasDataType = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::BiasDataType>;
     using ODataType    = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::ODataType>;
-    using GemmAccDataType =
-        ck_tile::remove_cvref_t<typename HstuAttentionPipeline::GemmAccDataType>;
 
     using VLayout = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::VLayout>;
 
@@ -742,6 +740,7 @@ struct HstuAttentionFwdKernel
                                            bias_dram_window,
                                            mask,
                                            kargs.scale_s,
+                                           kargs.max_seqlen,
                                            smem_ptr,
                                            dropout);
         }();
@@ -765,13 +764,6 @@ struct HstuAttentionFwdKernel
             o_dram,
             make_tuple(number<HstuAttentionPipeline::kM0>{}, number<HstuAttentionPipeline::kN1>{}),
             {i_m0, i_n1});
-
-        tile_elementwise_inout(
-            [&](auto& x) {
-                x = x * type_convert<GemmAccDataType>(
-                            __builtin_amdgcn_rcpf(static_cast<float>(kargs.max_seqlen)));
-            },
-            o_acc_tile);
 
         EpiloguePipeline{}(o_dram_window, o_acc_tile);
     }
