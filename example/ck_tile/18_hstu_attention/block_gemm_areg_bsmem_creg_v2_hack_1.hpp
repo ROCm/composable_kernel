@@ -102,15 +102,6 @@ struct BlockGemmARegBSmemCRegV2Hack_1
             statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
             NIterPerWarp>
             b_warp_windows;
-
-        static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                b_warp_windows(nIter)(kIter) = b_warp_window_tmp;
-
-                move_tile_window(b_warp_windows(nIter)(kIter),
-                                 {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
-            });
-        });
 #endif
 
         // check C-block-distribution
@@ -134,63 +125,44 @@ struct BlockGemmARegBSmemCRegV2Hack_1
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        // hot loop:
-        if constexpr(KIterPerWarp > 1)
-        {
-            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+        constexpr auto I0 = number<0>{};
+
+        using b_warp_tensor_type = decltype(load_tile(b_warp_windows(I0)(I0)));
+
+        statically_indexed_array<statically_indexed_array<b_warp_tensor_type, KIterPerWarp>,
+                                 NIterPerWarp>
+            b_warp_tensors;
+
+        static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+            b_warp_windows(I0)(kIter) = b_warp_window_tmp;
+            move_tile_window(b_warp_windows(I0)(kIter),
+                             {0 * NPerBlockPerIter, kIter * KPerBlockPerIter});
+            b_warp_tensors(I0)(kIter) = load_tile(b_warp_windows(I0)(kIter));
+        });
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+            if constexpr(nIter < NIterPerWarp - 1)
+            {
                 static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                    // read B warp tensor from B Block window
-                    const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
-
-                    static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                        // read A warp tensor from A block tensor
-                        AWarpTensor a_warp_tensor;
-
-                        a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
-
-                        // read C warp tensor from C block tensor
-                        CWarpTensor c_warp_tensor;
-
-                        c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-
-                        // warp GEMM
-                        WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
-                        // WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_array[nIter]);
-
-                        // write C warp tensor into C block tensor
-                        c_block_tensor.set_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                            c_warp_tensor.get_thread_buffer());
-                    });
+                    b_warp_windows(number<nIter + 1>{})(kIter) = b_warp_window_tmp;
+                    move_tile_window(b_warp_windows(number<nIter + 1>{})(kIter),
+                                     {(nIter + 1) * NPerBlockPerIter, kIter * KPerBlockPerIter});
+                    b_warp_tensors(number<nIter + 1>{})(kIter) =
+                        load_tile(b_warp_windows(number<nIter + 1>{})(kIter));
                 });
-            });
-        }
-        else
-        {
-            constexpr auto I0 = number<0>{};
+            };
 
-            using b_warp_tensor_type = decltype(load_tile(b_warp_windows(I0)(I0)));
+            __builtin_amdgcn_sched_barrier(0);
 
-            statically_indexed_array<b_warp_tensor_type, 2> b_warp_tensors;
-
-            b_warp_tensors[I0] = load_tile(b_warp_windows(I0)(I0));
-
-            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                if constexpr(nIter < NIterPerWarp - 1)
-                    b_warp_tensors[number<(nIter + 1) % 2>{}] =
-                        load_tile(b_warp_windows(number<nIter + 1>{})(I0));
-
+            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor
                     AWarpTensor a_warp_tensor;
 
                     a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, 0>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
                     // read C warp tensor from C block tensor
@@ -201,8 +173,7 @@ struct BlockGemmARegBSmemCRegV2Hack_1
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                     // warp GEMM
-                    WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensors[number<nIter % 2>{}]);
-                    // WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_array[nIter]);
+                    WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensors[nIter][kIter]);
 
                     // write C warp tensor into C block tensor
                     c_block_tensor.set_y_sliced_thread_data(
@@ -211,7 +182,7 @@ struct BlockGemmARegBSmemCRegV2Hack_1
                         c_warp_tensor.get_thread_buffer());
                 });
             });
-        }
+        });
     }
 
     template <index_t MPerBlock = BlockGemmShape::kM, index_t KPerBlock = BlockGemmShape::kK>
