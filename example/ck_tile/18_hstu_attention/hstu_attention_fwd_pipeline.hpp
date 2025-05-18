@@ -133,6 +133,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                const OAccElementFunction& o_acc_element_func,
                HstuMask mask,
                float scale_s,
+               index_t max_seqlen,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -463,6 +464,13 @@ struct HstuAttentionFwdPipelineQRKSVS
                 __builtin_amdgcn_s_barrier();
         } while(++i_loop < num_loops);
 
+        tile_elementwise_inout(
+            [&](auto& x) {
+                x = x * type_convert<GemmAccDataType>(
+                            __builtin_amdgcn_rcpf(static_cast<float>(max_seqlen)));
+            },
+            o_acc);
+
         o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
 
         return o_acc;
@@ -479,6 +487,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                HstuMask mask,
                float scale_s,
+               int max_seqlen,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -495,6 +504,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                           identity{},
                           mask,
                           scale_s,
+                          max_seqlen,
                           smem_ptr,
                           dropout);
     }
