@@ -1,8 +1,8 @@
 
 
-# CK_TILE Toy Example
+# CK_TILE Tutorial Example
 
-This repository demonstrates a toy example implemented using ck_tile
+This folder demonstrates the examples implemented using ck_tile
 
 ## Build Instructions
 
@@ -22,6 +22,11 @@ cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
 
 ### Compile Examples
 
+#### **Basic Add Example**
+```sh
+make -j add_basic
+```
+
 #### **Elementwise Add Example**
 ```sh
 make -j add
@@ -38,6 +43,11 @@ make -j basic_flash_attention_fwd
 ```
 
 ## Running Examples
+
+#### **Basic Add Example**
+```sh
+./bin/add_basic
+```
 
 ### **Elementwise Add**
 ```sh
