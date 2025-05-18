@@ -108,7 +108,7 @@ cmake -D CMAKE_PREFIX_PATH=/opt/rocm -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -
 ```
 
 
-##### Follow these steps to build the codegen instances
+##### Follow these steps to build and run the codegen instances
 
 ```sh
 mkdir build
