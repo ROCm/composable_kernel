@@ -83,7 +83,8 @@ set_slice_tile(static_distributed_tensor<DstDataType_, DstStaticTileDistribution
     constexpr auto sliced_y_origins = sliced_dstr_yidx_ylen.template at<1>();
     constexpr auto sliced_y_lengths = sliced_dstr_yidx_ylen.template at<2>();
 
-    dst_tile.set_y_sliced_thread_data(sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
+    dst_tile.set_y_sliced_thread_data(
+        sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
 }
 
 } // namespace ck_tile
