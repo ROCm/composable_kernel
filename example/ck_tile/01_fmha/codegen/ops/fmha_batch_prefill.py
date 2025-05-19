@@ -134,36 +134,50 @@ FMHA_FWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <
 """
 
 FMHA_FWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) &&
-                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
+                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
                 using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
                 return fmha_batch_prefill_<trait_>(s, a);
             }}
 """
 
 @dataclass
+class CppConstraint:
+    bool_expr_str: str = None
+
+    def __str__(self):
+        if self.bool_expr_str is None:
+            return 'true'
+        else:
+            return f'{self.bool_expr_str}'
+
+    def __and__(self, other):
+        return CppConstraint(f'({str(self)}) && ({str(other)})')
+
+@dataclass
 class FmhaFwdApiTrait:
     pipeline_tag : str
     # sync with fmha_fwd_traits<>, to generate fallback calls
-    hdim      : str
-    dtype     : str  # data type
-    mode      : str  # value from MODE_MAP
-    bm0       : int  # tile size along q seqlen (block size)
-    bn0       : int  # tile size along qk seqlen
-    bk0       : int  # tile size along qk gemm unroll
-    bn1       : int  # tile size along v head_dim
-    bk1       : int  # tile size along kv gemm unroll
-    bk0max    : int
-    vlayout   : str
-    logits    : str
-    mask      : str
-    bias      : str  #
-    lse       : str  #
-    dropout   : str
-    squant    : str  #
-    spad      : str
-    skpad     : str
-    dpad      : str
-    dvpad     : str
+    hdim       : str
+    dtype      : str  # data type
+    mode       : str  # value from MODE_MAP
+    bm0        : int  # tile size along q seqlen (block size)
+    bn0        : int  # tile size along qk seqlen
+    bk0        : int  # tile size along qk gemm unroll
+    bn1        : int  # tile size along v head_dim
+    bk1        : int  # tile size along kv gemm unroll
+    bk0max     : int
+    vlayout    : str
+    logits     : str
+    mask       : str
+    bias       : str  #
+    lse        : str  #
+    dropout    : str
+    squant     : str  #
+    spad       : str
+    skpad      : str
+    dpad       : str
+    dvpad      : str
+    constraint : CppConstraint
 
     @property
     def name(self) -> str:
@@ -220,17 +234,18 @@ class FmhaFwdApiTrait:
 class FmhaFwdPipeline:
     tag : str
 
-    F_vlayout   : str  # row/col
-    F_spad      : str  # true/false
-    F_skpad     : str  #
-    F_dpad      : str  #
-    F_dvpad     : str  #
-    F_logits    : str  # t/f
-    F_bias      : str  # true/false
-    F_lse       : str  #
-    F_dropout   : str  #
-    F_squant    : str  #
-    F_mask      : str  # value from MASK_MAP
+    F_vlayout    : str  # row/col
+    F_spad       : str  # true/false
+    F_skpad      : str  #
+    F_dpad       : str  #
+    F_dvpad      : str  #
+    F_logits     : str  # t/f
+    F_bias       : str  # true/false
+    F_lse        : str  #
+    F_dropout    : str  #
+    F_squant     : str  #
+    F_mask       : str  # value from MASK_MAP
+    F_constraint : CppConstraint = CppConstraint()
 
     @property
     def name(self) -> str:
@@ -297,8 +312,8 @@ class FmhaFwdApiPool:
                     inners = inners + FMHA_FWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_logits=BOOL_MAP[trait.logits], F_mask=get_mask_map(self.mask_impl)[trait.mask],
                                    F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
-                                   F_lse=BOOL_MAP[trait.lse], F_dropout=BOOL_MAP[trait.dropout] ,
-                                   F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
+                                   F_lse=BOOL_MAP[trait.lse], F_dropout=BOOL_MAP[trait.dropout], F_squant=BOOL_MAP[trait.squant],
+                                   F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_constraint=trait.constraint,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
                                    F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
@@ -332,6 +347,8 @@ class FmhaFwdTileSize:
     F_wn1       : int  # gemm1 warp size along n
     F_wk1       : int  # gemm1 warp size along k
     F_occupancy : int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
+    F_constraint : CppConstraint = CppConstraint()
+
     @property
     def name(self) -> str:
         return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bn1}x{self.F_bk1}x{self.F_bk0max}" +\
@@ -423,33 +440,21 @@ class FmhaFwdKernel:
                 spad=self.F_pipeline.F_spad,
                 skpad=self.F_pipeline.F_skpad,
                 dpad=self.F_pipeline.F_dpad,
-                dvpad=self.F_pipeline.F_dvpad)
+                dvpad=self.F_pipeline.F_dvpad,
+                constraint=self.F_tile.F_constraint & self.F_pipeline.F_constraint)
 
-# TODO: design a more practical way to do it
-# this is current supported tile size per hdim
-def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
-    if dtype == 'fp16' or dtype == 'bf16':
-        return {
-        ### '32'  : FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-        ### '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-        ### '96'  : FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-        ### '192' : FmhaFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-        ### '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-        }
-    elif dtype == 'fp8' or dtype == 'bf8':
-        return {
-        ### '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
-        ### '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
-        ### '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
-        }
-    else:
-        return None
+class KernelComponentFactory:
+    @staticmethod
+    def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
+        if dtype == 'fp16' or dtype == 'bf16':
+            return {
+                '128' : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+            }
+        else:
+            return None
 
-def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
-    # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
-    #       support this in future
-    def get_pipelines(dtype, hdim) -> List[FmhaFwdPipeline]:
+    @staticmethod
+    def get_pipelines(dtype, hdim, receipt, mask_impl) -> List[FmhaFwdPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
@@ -458,53 +463,41 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
         pipelines = []
         if dtype in ['fp16', 'bf16']:
             for logits, mask, bias, lse, dropout in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"]):
-                if hdim == 256:
-                # if True:
-                    pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask))
-                    pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask))
-                    # the below two is used for hdim vectorize load
-                    pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, lse, dropout, squant, mask))
-                    pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, lse, dropout, squant, mask))
-
-                    pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
-                    pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
-                else:
-                    if bias == "bias":
-                        pipelines.append(FmhaFwdPipeline('qr_async', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask))
-                        pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
-                        pipelines.append(FmhaFwdPipeline('qr_async', 'col', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask))
-                        pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
-                    else:
-                        pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask))
-                        pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
-                        pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask))
-                        pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
-                    if receipt == 1 and bias != "bias":
-                        pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask)) # TODO: cover arbitraty hdim
-                        pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask)) # TODO: cover arbitraty hdim
-        elif dtype in ['fp8', 'bf8']:
-            # no need lse/dropout kernels
-            for logits, mask, bias in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 'f', 'f', squant, mask))
-        elif dtype in ['fp8fp16', 'fp8bf16']:
-            # TODO
-            None
+                    pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask))
+                    pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
+                    pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask))
+                    pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
         else:
             assert False
         return pipelines
+
+class CustomFactory(KernelComponentFactory):
+    @staticmethod
+    def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
+        if dtype == 'fp16' or dtype == 'bf16':
+            return {
+                '128' : [FmhaFwdTileSize( 64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('a.max_seqlen_q <= 8192')),
+                         FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1, CppConstraint('8192 < a.max_seqlen_q'))],
+            }
+        else:
+            return None
+
+def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
+    # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
+    #       support this in future
 
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
     for dtype in FWD_DTYPE_MAP.keys():
-        d = get_fmha_fwd_tile_dict_from_dtype(dtype)
+        d = CustomFactory.get_hdim_tile_size_dict(dtype)
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
-            tile = d[hdim_str]
+            tiles = d[hdim_str]
             hdim = int(hdim_str)
-            for pipeline in get_pipelines(dtype, hdim):
+            for tile, pipeline in itertools.product(tiles, CustomFactory.get_pipelines(dtype, hdim, receipt, mask_impl)):
                 if mode == "group":
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
