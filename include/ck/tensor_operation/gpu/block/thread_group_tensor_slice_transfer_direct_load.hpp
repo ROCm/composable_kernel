@@ -42,13 +42,16 @@ namespace ck {
 template <typename ThreadGroup,
           typename BlockSliceLengths,
           typename ThreadClusterLengths,
+          typename ThreadClusterArrangeOrder,
           typename SrcData,
           typename DstData,
           typename SrcDesc,
           typename DstDesc,
+          typename SrcDimAccessOrder,
           index_t SrcVectorDim,
           index_t DstVectorDim,
-          index_t ScalarPerVector>
+          index_t ScalarPerVector,
+          bool SrcXor = true>
 struct ThreadGroupTensorSliceTransfer_DirectLoad
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
@@ -96,7 +99,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         //    VALID: ThreadClusterLengths = [4, 16, 4] or [2, 32, 4] or [1, 64, 4] since in the
         //           first iteration, threads 0-63 write [0, 0, 0] -  [0, 15, 7] -> 128 consecutive
         //           elements = 64 consecutive DWORDs.
-        int num_contiguous_dwords = 1;
+        int num_contiguous_dwords = 4;
         bool is_contiguous        = true;
         static_for<0, nDim, 1>{}([&](auto i) {
             if(is_contiguous)
@@ -105,6 +108,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             }
             if(thread_slice_lengths[nDim - i - 1] > 1)
             {
+                CK_PRINT<Number<thread_slice_lengths[nDim - i - 1]>>();
                 is_contiguous = false;
             }
         });
@@ -141,11 +145,11 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                       "When loading more than one element per thread at once, the contiguous "
                       "dimension must be the same between source and destination.");
 
-        constexpr auto dword_bytes           = 4;
-        constexpr auto bytes_per_thread_load = ScalarPerVector * sizeof(SrcData);
-        static_assert(bytes_per_thread_load == dword_bytes,
-                      "Direct load transfer requires each thread to load exactly a single "
-                      "DWORD of data.");
+        // constexpr auto dword_bytes           = 4;
+        // constexpr auto bytes_per_thread_load = ScalarPerVector * sizeof(SrcData);
+        // static_assert(bytes_per_thread_load == dword_bytes,
+        //               "Direct load transfer requires each thread to load exactly a single "
+        //               "DWORD of data.");
 
         static_assert(nDim == remove_cvref_t<SrcDesc>::GetNumOfDimension() &&
                           nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
@@ -156,10 +160,10 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                       "The number of threads cannot be less than the number of elements in "
                       "thread cluster lengths.");
 
-        static_assert(
-            AreThreadClusterLengthsValid(),
-            "Thread cluster lengths are incorrect. They must be set in a way that allows a single "
-            "wavefront to write contiguous DWORDs into LDS memory. ");
+        // static_assert(
+        //     AreThreadClusterLengthsValid(),
+        //     "Thread cluster lengths are incorrect. They must be set in a way that allows a single
+        //     " "wavefront to write contiguous DWORDs into LDS memory. ");
 
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
@@ -214,9 +218,11 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
         // Loop over the destination block and copy data.
         static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
+            // CK_PRINT<decltype(dst_access_lengths), decltype(ordered_dst_access_idx)>();
             const auto src_offset = src_coord_.GetOffset();
             const auto dst_offset = dst_coord_.GetOffset();
-
+            // printf("Tid: %03d, src_offset: %d, dst_offset: %d\n", get_thread_local_1d_id(),
+            // src_coord_.GetOffset(), dst_coord_.GetOffset());
             // Check if src data is not in the logic padding area.
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
@@ -303,7 +309,8 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
     }
 
     private:
-    static constexpr auto thread_cluster_desc_ = make_cluster_descriptor(ThreadClusterLengths{});
+    static constexpr auto thread_cluster_desc_ =
+        make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;

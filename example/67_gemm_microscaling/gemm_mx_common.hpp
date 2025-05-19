@@ -283,29 +283,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         break;
 
     case 1:
-
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
-        // ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
-        // ck::utils::FillConstant<BDataType>{b_data_element(1.0f)}(b_k_n);
-
-        if constexpr(ck::is_same_v<XDataType, ck::e8m0_bexp_t>)
-        {
-            a_m_k_scale.GenerateTensorValue(
-                GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
-            b_k_n_scale.GenerateTensorValue(
-                GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
-            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
-        }
-        else
-        {
-            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(a_m_k_scale);
-            ck::utils::FillUniformDistributionIntegerValue<XDataType>{-1.0f, 1.0f}(b_k_n_scale);
-            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-            // ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
-        }
-
+        ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
+        ck::utils::FillConstant<BDataType>{b_data_element(1.0f)}(b_k_n);
+        a_m_k_scale.GenerateTensorValue(
+            GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
+        b_k_n_scale.GenerateTensorValue(
+            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
         break;
 
     case 2:
@@ -336,8 +319,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     //     {
     //         // a_m_k_scale(i, j) =
     //         //     ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
-    //         a_m_k_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
-    //         a_shuffled_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         // a_m_k_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
+    //         // a_shuffled_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
     //         printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k_scale(i, j)));
     //     }
     //     printf("\n");

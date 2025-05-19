@@ -299,8 +299,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             constexpr index_t minimum_occupancy =
                 BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave
                     ? (BlkGemmPipelineVer == BlockGemmPipelineVersion::v3 &&
-                       MPerBlock * NPerBlock * KPerBlock * sizeof(ADataType) <=
-                           128 * 128 * 64 * 2)
+                       MPerBlock * NPerBlock * KPerBlock * sizeof(ADataType) <= 128 * 128 * 64 * 2)
                           ? 2
                           : 1
                     : 2;
@@ -332,7 +331,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                 // Tail number could be Odd or Even
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-#if 1
+#if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -380,6 +379,13 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                         }
                     }
 #endif
+                    const auto kernel =
+                        kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                         true,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         minimum_occupancy,
+                                                         TailNumber::Even>;
+                    Run(kernel);
                 }
                 else
                 {
