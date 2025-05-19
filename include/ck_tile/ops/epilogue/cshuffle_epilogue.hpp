@@ -41,12 +41,6 @@ struct CShuffleEpilogueProblem
     static constexpr index_t kKPerXdl                      = kKPerXdl_;
     static constexpr index_t isCTransposed                 = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
-    // // NumMXdlPerWavePerShuffle used for in each shuffle iteration how many xdl tiles in M
-    // // dimensions per wave
-    // static constexpr index_t NumMXdlPerWavePerShuffle = 1;
-    // // NumNXdlPerWavePerShuffle used for in each shuffle iteration how many xdl tiles in N
-    // // dimensions per wave
-    // static constexpr index_t NumNXdlPerWavePerShuffle = 2;
 };
 
 template <typename Problem_, typename Policy_ = void>
