@@ -113,7 +113,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                         );
 
     // 4. Run the kernel
-    launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
                       Kernel{},
                       kGridSize,
@@ -124,6 +124,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                       input_tensors,
                       static_cast<YDataType*>(y_buf.GetDeviceBuffer())
                       ));
+
+    double tflops = static_cast<double>(M*N) / ave_time / 1000 / 1e12;
+    std::cout << "Average time: " << ave_time << " ms " << "(" << tflops << " TFLOPS)" << std::endl;
 
     // 5. Verify the output
     bool pass = true;

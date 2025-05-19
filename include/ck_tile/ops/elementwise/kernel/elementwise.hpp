@@ -15,8 +15,8 @@ template<typename... Args> struct is_std_tuple<std::tuple<Args...>> : std::true_
 
 template <typename F, std::size_t... Is>
 constexpr auto generate_tuple_impl(F&& f, std::index_sequence<Is...>) {
-    return std::make_tuple(f(std::integral_constant<std::size_t, Is>{})...);
-    // return ck_tile::make_tuple(f(std::integral_constant<std::size_t, Is>{})...);
+    // return std::make_tuple(f(std::integral_constant<std::size_t, Is>{})...);
+    return ck_tile::make_tuple(f(std::integral_constant<std::size_t, Is>{})...);
 }
 
 template <typename F, std::size_t N>
@@ -29,14 +29,14 @@ template <typename F, typename Tuple, std::size_t... Is>
 constexpr auto transform_tuple_impl(F&& f, Tuple&& t, std::index_sequence<Is...>) {
     // return std::make_tuple(f(std::get<Is>(std::forward<Tuple>(t)))...);
     // return std::make_tuple(f(t.get(number<Is>{}))...);
-    if constexpr (is_std_tuple<std::decay_t<Tuple>>::value) {
-        return std::make_tuple(f(std::get<Is>(std::forward<Tuple>(t)))...);
-        // return ck_tile::make_tuple(f(std::get<Is>(std::forward<Tuple>(t)))...);
-    } else {
+    // if constexpr (is_std_tuple<std::decay_t<Tuple>>::value) {
+    //     return std::make_tuple(f(std::get<Is>(std::forward<Tuple>(t)))...);
+    //     // return ck_tile::make_tuple(f(std::get<Is>(std::forward<Tuple>(t)))...);
+    // } else {
         // Assuming ck_tile::tuple or compatible with .get(number<Is>{})
-        return std::make_tuple(f(std::forward<Tuple>(t).get(number<Is>{}))...);
-        // return ck_tile::make_tuple(f(std::forward<Tuple>(t).get(number<Is>{}))...);
-    }
+        // return std::make_tuple(f(std::forward<Tuple>(t).get(number<Is>{}))...);
+        return ck_tile::make_tuple(f(std::forward<Tuple>(t).get(number<Is>{}))...);
+    // }
 }
 
 template <typename F, typename Tuple>
@@ -50,12 +50,12 @@ constexpr auto transform_tuple(F&& f, Tuple&& t) {
 template <typename F, typename Tuple, std::size_t... Is>
 constexpr void for_each_in_tuple_impl(F&& f, Tuple&& t, std::index_sequence<Is...>) {
     // (f(std::get<Is>(std::forward<Tuple>(t))), ...);
-    if constexpr (is_std_tuple<std::decay_t<Tuple>>::value) {
-        (f(std::get<Is>(std::forward<Tuple>(t))), ...);
-    } else {
-        // Assuming ck_tile::tuple or compatible with .get(number<Is>{})
+    // if constexpr (is_std_tuple<std::decay_t<Tuple>>::value) {
+    //     (f(std::get<Is>(std::forward<Tuple>(t))), ...);
+    // } else {
+    //     // Assuming ck_tile::tuple or compatible with .get(number<Is>{})
         (f(std::forward<Tuple>(t).get(number<Is>{})), ...);
-    }
+    // }
 }
 
 template <typename F, typename Tuple>
@@ -238,7 +238,7 @@ struct ElementWiseKernel
 
             // Process the vector add
             // constexpr auto spans = decltype(x_windows.get(number<0>{}))::get_distributed_spans();
-            const auto& x_tile0 = std::get<0>(x_tiles); //.get(number<0>{});
+            const auto& x_tile0 = x_tiles.get(number<0>{});
             // constexpr auto spans = decltype(x_tile0)::get_distributed_spans();
             const auto spans = x_tile0.get_distributed_spans();
 
