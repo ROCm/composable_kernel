@@ -66,7 +66,7 @@ __host__ __device__ inline f4_t sat_convert_to_type<f4_t>(float value)
                     : NumericUtils<f4_t>::data_max_positive_normal_mask;
     }
 
-    if(std::abs(value) > NumericLimits<f4_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<f4_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<f4_t>::data_max_negative_normal_mask
                     : NumericUtils<f4_t>::data_max_positive_normal_mask;
 
@@ -74,8 +74,8 @@ __host__ __device__ inline f4_t sat_convert_to_type<f4_t>(float value)
 
     if(std::abs(to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), res)) <
        NumericLimits<f4_t>::DataMinSubnorm())
-        return value < 0 ? NumericUtils<f4_t>::negative_zero_mask
-                         : NumericUtils<f4_t>::positive_zero_mask;
+        return sign ? NumericUtils<f4_t>::negative_zero_mask
+                    : NumericUtils<f4_t>::positive_zero_mask;
 
     return res;
 }
@@ -91,7 +91,7 @@ __host__ __device__ inline f4_t sat_convert_to_type_sr<f4_t>(float value, uint32
         return sign ? NumericUtils<f4_t>::data_max_negative_normal_mask
                     : NumericUtils<f4_t>::data_max_positive_normal_mask;
 
-    if(std::abs(value) > NumericLimits<f4_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<f4_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<f4_t>::data_max_negative_normal_mask
                     : NumericUtils<f4_t>::data_max_positive_normal_mask;
 
@@ -99,8 +99,8 @@ __host__ __device__ inline f4_t sat_convert_to_type_sr<f4_t>(float value, uint32
 
     if(std::abs(to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), res)) <
        NumericLimits<f4_t>::DataMinSubnorm())
-        return value < 0 ? NumericUtils<f4_t>::negative_zero_mask
-                         : NumericUtils<f4_t>::positive_zero_mask;
+        return sign ? NumericUtils<f4_t>::negative_zero_mask
+                    : NumericUtils<f4_t>::positive_zero_mask;
 
     return res;
 }
