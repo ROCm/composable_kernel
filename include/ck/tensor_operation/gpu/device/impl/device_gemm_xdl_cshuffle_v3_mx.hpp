@@ -327,7 +327,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                        KBatch_cond_choice.value == (arg.KBatch > 1) &&
                        tail_num_choice.value == tail_num)
                     {
-                        const auto kernel = kernel_gemm_xdl_cshuffle_v3< //
+                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds< //
                             GridwiseGemm,
                             mainloop_choice.value,
                             CGlobalMemoryDataOperation,
