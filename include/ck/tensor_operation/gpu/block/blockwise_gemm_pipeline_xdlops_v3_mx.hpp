@@ -163,7 +163,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         KPerBlock / ScaleBlockSize; // How many mx-vectors per K block
 
     //> How many mx-vectors in each row/col is processed in one call to xdlops_gemm.Run()
-    static constexpr auto ScalesPerXdlopsRun = (APackedSize * KPack * xdlops_gemm.K0PerXdlops) / ScaleBlockSize;
+    static constexpr auto ScalesPerXdlopsRun =
+        (APackedSize * KPack * xdlops_gemm.K0PerXdlops) / ScaleBlockSize;
 
     //> How many scales a thread must read to accommodate one call to xdlops_gemm.Run()
     static constexpr auto ScalesPerXdlopsRunPerThread =
@@ -221,7 +222,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
         constexpr auto ds_read_a_mfma_rate =
             (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
-        constexpr auto ds_read_b_mfma_rate = 
+        constexpr auto ds_read_b_mfma_rate =
             (mfma_cycle - 4 + 2 * ds_read_b_issue_cycle - 1) / (2 * ds_read_b_issue_cycle);
 
         constexpr auto num_dsread_a_mfma =
@@ -231,34 +232,38 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
         // stage 1
         constexpr auto num_mfma_stage1 = num_mfma_inst - (num_dsread_a_mfma + num_dsread_b_mfma);
-        constexpr auto num_buffer_load_total = num_buffer_load_inst_a+num_buffer_load_inst_b+num_buffer_load_a_scale+num_buffer_load_b_scale;
+        constexpr auto num_buffer_load_total = num_buffer_load_inst_a + num_buffer_load_inst_b +
+                                               num_buffer_load_a_scale + num_buffer_load_b_scale;
 
-        constexpr auto mfma_perstage_more = math::integer_divide_ceil(
-            num_mfma_stage1, num_buffer_load_total);
-        constexpr auto mfma_perstage_less = math::integer_divide_floor(
-            num_mfma_stage1, num_buffer_load_total);
+        constexpr auto mfma_perstage_more =
+            math::integer_divide_ceil(num_mfma_stage1, num_buffer_load_total);
+        constexpr auto mfma_perstage_less =
+            math::integer_divide_floor(num_mfma_stage1, num_buffer_load_total);
 
         constexpr auto mfma_stages_more =
-            num_mfma_stage1 -
-            mfma_perstage_less * num_buffer_load_total;
+            num_mfma_stage1 - mfma_perstage_less * num_buffer_load_total;
 
         constexpr auto num_dswrite_per_issue_a = num_ds_write_inst_a / num_buffer_load_inst_a;
         constexpr auto num_dswrite_per_issue_b = num_ds_write_inst_b / num_buffer_load_inst_b;
 
         static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
-            if constexpr(i< mfma_stages_more){
+            if constexpr(i < mfma_stages_more)
+            {
                 static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma < num_dswrite_per_issue_a){
+                    if constexpr(imfma < num_dswrite_per_issue_a)
+                    {
                         __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
                     }
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
-            else{
+            else
+            {
                 static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma < num_dswrite_per_issue_a){
+                    if constexpr(imfma < num_dswrite_per_issue_a)
+                    {
                         __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
                     }
                 });
@@ -267,19 +272,23 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         });
 
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
-            if constexpr((i+num_buffer_load_inst_a)< mfma_stages_more){
+            if constexpr((i + num_buffer_load_inst_a) < mfma_stages_more)
+            {
                 static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma < num_dswrite_per_issue_a){
+                    if constexpr(imfma < num_dswrite_per_issue_a)
+                    {
                         __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
                     }
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
-            else{
+            else
+            {
                 static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma < num_dswrite_per_issue_b){
+                    if constexpr(imfma < num_dswrite_per_issue_b)
+                    {
                         __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
                     }
                 });
@@ -288,14 +297,16 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         });
 
         static_for<0, num_buffer_load_a_scale, 1>{}([&](auto i) {
-            if constexpr((i+num_buffer_load_inst_a+num_buffer_load_inst_b)< mfma_stages_more){
-                static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
+            if constexpr((i + num_buffer_load_inst_a + num_buffer_load_inst_b) < mfma_stages_more)
+            {
+                static_for<0, mfma_perstage_more, 1>{}([&](auto /*imfma*/) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
-            else{
-                static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
+            else
+            {
+                static_for<0, mfma_perstage_less, 1>{}([&](auto /*imfma*/) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
@@ -303,14 +314,17 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         });
 
         static_for<0, num_buffer_load_b_scale, 1>{}([&](auto i) {
-            if constexpr((i+num_buffer_load_inst_a+num_buffer_load_inst_b+num_buffer_load_a_scale)< mfma_stages_more){
-                static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
+            if constexpr((i + num_buffer_load_inst_a + num_buffer_load_inst_b +
+                          num_buffer_load_a_scale) < mfma_stages_more)
+            {
+                static_for<0, mfma_perstage_more, 1>{}([&](auto /*imfma*/) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
-            else{
-                static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
+            else
+            {
+                static_for<0, mfma_perstage_less, 1>{}([&](auto /*imfma*/) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
@@ -476,47 +490,49 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         // Local prefetch 1
         block_sync_lds();
         static_for<0, KRepeat, 1>{}([&](auto k) {
-            constexpr auto k_step = k * xdlops_gemm.KPerXdlops/APackedSize * (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+            constexpr auto k_step = k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}([&](auto chunk) {
-                    constexpr auto a_k_step_chunk =
-                        k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
-                                       make_tuple(Number<m0 / MXdlPack>{},
-                                                  I0,
-                                                  Number<m0 % MXdlPack>{},
-                                                  I0,
-                                                  Number<a_k_step_chunk>{}),
-                                       a_block_buf,
-                                       a_thread_desc_,
-                                       make_tuple(Number<m0 / MXdlPack>{},
-                                                  I0,
-                                                  Number<m0 % MXdlPack>{},
-                                                  k,
-                                                  Number<chunk * KThreadChunk>{}),
-                                       a_thread_buf);
-                });
+                static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
+                    [&](auto chunk) {
+                        constexpr auto a_k_step_chunk =
+                            k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
+                                           make_tuple(Number<m0 / MXdlPack>{},
+                                                      I0,
+                                                      Number<m0 % MXdlPack>{},
+                                                      I0,
+                                                      Number<a_k_step_chunk>{}),
+                                           a_block_buf,
+                                           a_thread_desc_,
+                                           make_tuple(Number<m0 / MXdlPack>{},
+                                                      I0,
+                                                      Number<m0 % MXdlPack>{},
+                                                      k,
+                                                      Number<chunk * KThreadChunk>{}),
+                                           a_thread_buf);
+                    });
             });
             static_for<0, NRepeat, 1>{}([&](auto n0) {
                 // read block data in chunks to assemble correct thread vectors
-                static_for<0, xdlops_gemm.K1PerXdlops / (BPackedSize * KThreadChunk), 1>{}([&](auto chunk) {
-                    constexpr auto b_k_step_chunk =
-                        k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                    b_thread_copy_.Run(b_block_desc_n0_n1_n2_n3_k,
-                                       make_tuple(Number<n0 / NXdlPack>{},
-                                                  I0,
-                                                  Number<n0 % NXdlPack>{},
-                                                  I0,
-                                                  Number<b_k_step_chunk>{}),
-                                       b_block_buf,
-                                       b_thread_desc_,
-                                       make_tuple(Number<n0 / NXdlPack>{},
-                                                  I0,
-                                                  Number<n0 % NXdlPack>{},
-                                                  k,
-                                                  Number<chunk * KThreadChunk>{}),
-                                       b_thread_buf);
-                });
+                static_for<0, xdlops_gemm.K1PerXdlops / (BPackedSize * KThreadChunk), 1>{}(
+                    [&](auto chunk) {
+                        constexpr auto b_k_step_chunk =
+                            k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_n3_k,
+                                           make_tuple(Number<n0 / NXdlPack>{},
+                                                      I0,
+                                                      Number<n0 % NXdlPack>{},
+                                                      I0,
+                                                      Number<b_k_step_chunk>{}),
+                                           b_block_buf,
+                                           b_thread_desc_,
+                                           make_tuple(Number<n0 / NXdlPack>{},
+                                                      I0,
+                                                      Number<n0 % NXdlPack>{},
+                                                      k,
+                                                      Number<chunk * KThreadChunk>{}),
+                                           b_thread_buf);
+                    });
             });
         });
 
@@ -621,10 +637,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                         static_for<0, NXdlPack, 1>{}([&](auto inxdl) {
                                             constexpr auto kxdl = ikxdl + k0 * KXdlPack;
 
-                                            vector_type<ComputeTypeA, KPack>
-                                                a_thread_vec;
-                                            vector_type<ComputeTypeB, KPack>
-                                                b_thread_vec;
+                                            vector_type<ComputeTypeA, KPack> a_thread_vec;
+                                            vector_type<ComputeTypeB, KPack> b_thread_vec;
 
                                             static_for<0, KPack, 1>{}([&](auto ik) {
                                                 a_thread_vec.template AsType<ComputeTypeA>()(
@@ -637,22 +651,20 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                                         make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
                                             });
 
-                                            using mfma_input_type_a =
-                                                typename vector_type<ComputeTypeA,
-                                                                     xdlops_gemm.K1PerXdlops /
-                                                                         APackedSize>::type;
+                                            using mfma_input_type_a = typename vector_type< //
+                                                ComputeTypeA,
+                                                xdlops_gemm.K1PerXdlops / APackedSize>::type;
 
-                                            using mfma_input_type_b =
-                                                typename vector_type<ComputeTypeB,
-                                                                     xdlops_gemm.K1PerXdlops /
-                                                                         BPackedSize>::type;
+                                            using mfma_input_type_b = typename vector_type< //
+                                                ComputeTypeB,
+                                                xdlops_gemm.K1PerXdlops / BPackedSize>::type;
 
-                                            using mfma_scale_input_type_a =
-                                                typename vector_type<AScaleDataType,
-                                                                     a_scale_thread_vec_size>::type;
-                                            using mfma_scale_input_type_b =
-                                                typename vector_type<BScaleDataType,
-                                                                     b_scale_thread_vec_size>::type;
+                                            using mfma_scale_input_type_a = typename vector_type< //
+                                                AScaleDataType,
+                                                a_scale_thread_vec_size>::type;
+                                            using mfma_scale_input_type_b = typename vector_type< //
+                                                BScaleDataType,
+                                                b_scale_thread_vec_size>::type;
 
                                             constexpr index_t c_offset =
                                                 c_thread_desc_.CalculateOffset(
@@ -690,51 +702,53 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     block_sync_lds();
                     static_for<0, KRepeat, 1>{}([&](auto k) {
                         constexpr auto k_step =
-                            k * xdlops_gemm.KPerXdlops/APackedSize * (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+                            k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
                         static_for<0, MRepeat, 1>{}([&](auto m0) {
-                            static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
-                                [&](auto chunk) {
-                                    constexpr auto a_k_step_chunk =
-                                        k_step + chunk * KThreadChunk *
-                                                     xdlops_gemm.mfma_instr.num_input_blks;
-                                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
-                                                       make_tuple(Number<m0 / MXdlPack>{},
-                                                                  I0,
-                                                                  Number<m0 % MXdlPack>{},
-                                                                  I0,
-                                                                  Number<a_k_step_chunk>{}),
-                                                       a_block_buf,
-                                                       a_thread_desc_,
-                                                       make_tuple(Number<m0 / MXdlPack>{},
-                                                                  I0,
-                                                                  Number<m0 % MXdlPack>{},
-                                                                  k,
-                                                                  Number<chunk * KThreadChunk>{}),
-                                                       a_thread_buf);
-                                });
+                            static_for<0,
+                                       xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk),
+                                       1>{}([&](auto chunk) {
+                                constexpr auto a_k_step_chunk =
+                                    k_step +
+                                    chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                                a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
+                                                   make_tuple(Number<m0 / MXdlPack>{},
+                                                              I0,
+                                                              Number<m0 % MXdlPack>{},
+                                                              I0,
+                                                              Number<a_k_step_chunk>{}),
+                                                   a_block_buf,
+                                                   a_thread_desc_,
+                                                   make_tuple(Number<m0 / MXdlPack>{},
+                                                              I0,
+                                                              Number<m0 % MXdlPack>{},
+                                                              k,
+                                                              Number<chunk * KThreadChunk>{}),
+                                                   a_thread_buf);
+                            });
                         });
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             // read block data in chunks to assemble correct thread vectors
-                            static_for<0, xdlops_gemm.K1PerXdlops / (BPackedSize * KThreadChunk), 1>{}(
-                                [&](auto chunk) {
-                                    constexpr auto b_k_step_chunk =
-                                        k_step + chunk * KThreadChunk *
-                                                     xdlops_gemm.mfma_instr.num_input_blks;
-                                    b_thread_copy_.Run(b_block_desc_n0_n1_n2_n3_k,
-                                                       make_tuple(Number<n0 / NXdlPack>{},
-                                                                  I0,
-                                                                  Number<n0 % NXdlPack>{},
-                                                                  I0,
-                                                                  Number<b_k_step_chunk>{}),
-                                                       b_block_buf,
-                                                       b_thread_desc_,
-                                                       make_tuple(Number<n0 / NXdlPack>{},
-                                                                  I0,
-                                                                  Number<n0 % NXdlPack>{},
-                                                                  k,
-                                                                  Number<chunk * KThreadChunk>{}),
-                                                       b_thread_buf);
-                                });
+                            static_for<0,
+                                       xdlops_gemm.K1PerXdlops / (BPackedSize * KThreadChunk),
+                                       1>{}([&](auto chunk) {
+                                constexpr auto b_k_step_chunk =
+                                    k_step +
+                                    chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                                b_thread_copy_.Run(b_block_desc_n0_n1_n2_n3_k,
+                                                   make_tuple(Number<n0 / NXdlPack>{},
+                                                              I0,
+                                                              Number<n0 % NXdlPack>{},
+                                                              I0,
+                                                              Number<b_k_step_chunk>{}),
+                                                   b_block_buf,
+                                                   b_thread_desc_,
+                                                   make_tuple(Number<n0 / NXdlPack>{},
+                                                              I0,
+                                                              Number<n0 % NXdlPack>{},
+                                                              k,
+                                                              Number<chunk * KThreadChunk>{}),
+                                                   b_thread_buf);
+                            });
                         });
                     });
 
@@ -831,22 +845,20 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                                 make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
                                     });
 
-                                    using mfma_input_type_a =
-                                        typename vector_type<ComputeTypeA,
-                                                             xdlops_gemm.K1PerXdlops /
-                                                                 APackedSize>::type;
+                                    using mfma_input_type_a = typename vector_type< //
+                                        ComputeTypeA,
+                                        xdlops_gemm.K1PerXdlops / APackedSize>::type;
 
-                                    using mfma_input_type_b =
-                                        typename vector_type<ComputeTypeB,
-                                                             xdlops_gemm.K1PerXdlops /
-                                                                 BPackedSize>::type;
+                                    using mfma_input_type_b = typename vector_type< //
+                                        ComputeTypeB,
+                                        xdlops_gemm.K1PerXdlops / BPackedSize>::type;
 
-                                    using mfma_scale_input_type_a =
-                                        typename vector_type<AScaleDataType,
-                                                             a_scale_thread_vec_size>::type;
-                                    using mfma_scale_input_type_b =
-                                        typename vector_type<BScaleDataType,
-                                                             b_scale_thread_vec_size>::type;
+                                    using mfma_scale_input_type_a = typename vector_type< //
+                                        AScaleDataType,
+                                        a_scale_thread_vec_size>::type;
+                                    using mfma_scale_input_type_b = typename vector_type< //
+                                        BScaleDataType,
+                                        b_scale_thread_vec_size>::type;
 
                                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(
                                         make_tuple(m0, n0, imxdl, inxdl, 0));
@@ -872,47 +884,51 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step =
-                    k * xdlops_gemm.KPerXdlops/APackedSize * (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+                    k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}([&](auto chunk) {
-                        constexpr auto a_k_step_chunk =
-                            k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
-                                           make_tuple(Number<m0 / MXdlPack>{},
-                                                      I0,
-                                                      Number<m0 % MXdlPack>{},
-                                                      I0,
-                                                      Number<a_k_step_chunk>{}),
-                                           a_block_buf,
-                                           a_thread_desc_,
-                                           make_tuple(Number<m0 / MXdlPack>{},
-                                                      I0,
-                                                      Number<m0 % MXdlPack>{},
-                                                      k,
-                                                      Number<chunk * KThreadChunk>{}),
-                                           a_thread_buf);
-                    });
+                    static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
+                        [&](auto chunk) {
+                            constexpr auto a_k_step_chunk =
+                                k_step +
+                                chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
+                                               make_tuple(Number<m0 / MXdlPack>{},
+                                                          I0,
+                                                          Number<m0 % MXdlPack>{},
+                                                          I0,
+                                                          Number<a_k_step_chunk>{}),
+                                               a_block_buf,
+                                               a_thread_desc_,
+                                               make_tuple(Number<m0 / MXdlPack>{},
+                                                          I0,
+                                                          Number<m0 % MXdlPack>{},
+                                                          k,
+                                                          Number<chunk * KThreadChunk>{}),
+                                               a_thread_buf);
+                        });
                 });
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     // read block data in chunks to assemble correct thread vectors
-                    static_for<0, xdlops_gemm.K1PerXdlops / (BPackedSize * KThreadChunk), 1>{}([&](auto chunk) {
-                        constexpr auto b_k_step_chunk =
-                            k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_n3_k,
-                                           make_tuple(Number<n0 / NXdlPack>{},
-                                                      I0,
-                                                      Number<n0 % NXdlPack>{},
-                                                      I0,
-                                                      Number<b_k_step_chunk>{}),
-                                           b_block_buf,
-                                           b_thread_desc_,
-                                           make_tuple(Number<n0 / NXdlPack>{},
-                                                      I0,
-                                                      Number<n0 % NXdlPack>{},
-                                                      k,
-                                                      Number<chunk * KThreadChunk>{}),
-                                           b_thread_buf);
-                    });
+                    static_for<0, xdlops_gemm.K1PerXdlops / (BPackedSize * KThreadChunk), 1>{}(
+                        [&](auto chunk) {
+                            constexpr auto b_k_step_chunk =
+                                k_step +
+                                chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                            b_thread_copy_.Run(b_block_desc_n0_n1_n2_n3_k,
+                                               make_tuple(Number<n0 / NXdlPack>{},
+                                                          I0,
+                                                          Number<n0 % NXdlPack>{},
+                                                          I0,
+                                                          Number<b_k_step_chunk>{}),
+                                               b_block_buf,
+                                               b_thread_desc_,
+                                               make_tuple(Number<n0 / NXdlPack>{},
+                                                          I0,
+                                                          Number<n0 % NXdlPack>{},
+                                                          k,
+                                                          Number<chunk * KThreadChunk>{}),
+                                               b_thread_buf);
+                        });
                 });
             });
 
@@ -959,22 +975,20 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                                 make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
                                     });
 
-                                    using mfma_input_type_a =
-                                        typename vector_type<ComputeTypeA,
-                                                             xdlops_gemm.K1PerXdlops /
-                                                                 APackedSize>::type;
+                                    using mfma_input_type_a = typename vector_type< //
+                                        ComputeTypeA,
+                                        xdlops_gemm.K1PerXdlops / APackedSize>::type;
 
-                                    using mfma_input_type_b =
-                                        typename vector_type<ComputeTypeB,
-                                                             xdlops_gemm.K1PerXdlops /
-                                                                 BPackedSize>::type;
+                                    using mfma_input_type_b = typename vector_type< //
+                                        ComputeTypeB,
+                                        xdlops_gemm.K1PerXdlops / BPackedSize>::type;
 
-                                    using mfma_scale_input_type_a =
-                                        typename vector_type<AScaleDataType,
-                                                             a_scale_thread_vec_size>::type;
-                                    using mfma_scale_input_type_b =
-                                        typename vector_type<BScaleDataType,
-                                                             b_scale_thread_vec_size>::type;
+                                    using mfma_scale_input_type_a = typename vector_type< //
+                                        AScaleDataType,
+                                        a_scale_thread_vec_size>::type;
+                                    using mfma_scale_input_type_b = typename vector_type< //
+                                        BScaleDataType,
+                                        b_scale_thread_vec_size>::type;
 
                                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(
                                         make_tuple(m0, n0, imxdl, inxdl, 0));
@@ -1041,22 +1055,20 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                                 make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
                                     });
 
-                                    using mfma_input_type_a =
-                                        typename vector_type<ComputeTypeA,
-                                                             xdlops_gemm.K1PerXdlops /
-                                                                 APackedSize>::type;
+                                    using mfma_input_type_a = typename vector_type< //
+                                        ComputeTypeA,
+                                        xdlops_gemm.K1PerXdlops / APackedSize>::type;
 
-                                    using mfma_input_type_b =
-                                        typename vector_type<ComputeTypeB,
-                                                             xdlops_gemm.K1PerXdlops /
-                                                                 BPackedSize>::type;
+                                    using mfma_input_type_b = typename vector_type< //
+                                        ComputeTypeB,
+                                        xdlops_gemm.K1PerXdlops / BPackedSize>::type;
 
-                                    using mfma_scale_input_type_a =
-                                        typename vector_type<AScaleDataType,
-                                                             a_scale_thread_vec_size>::type;
-                                    using mfma_scale_input_type_b =
-                                        typename vector_type<BScaleDataType,
-                                                             b_scale_thread_vec_size>::type;
+                                    using mfma_scale_input_type_a = typename vector_type< //
+                                        AScaleDataType,
+                                        a_scale_thread_vec_size>::type;
+                                    using mfma_scale_input_type_b = typename vector_type< //
+                                        BScaleDataType,
+                                        b_scale_thread_vec_size>::type;
 
                                     constexpr index_t c_offset = c_thread_desc_.CalculateOffset(
                                         make_tuple(m0, n0, imxdl, inxdl, 0));

@@ -55,15 +55,20 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t A_K1 = ATileDesc{}.GetLength(I2);
     static constexpr index_t B_K1 = BTileDesc{}.GetLength(I2);
 
-    static constexpr auto xdlops_gemm =
-        XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack*APackedSize, ComputeTypeB, TransposeC, true>{};
+    static constexpr auto xdlops_gemm = XdlopsGemm<ComputeTypeA,
+                                                   MPerXDL,
+                                                   NPerXDL,
+                                                   KPack * APackedSize,
+                                                   ComputeTypeB,
+                                                   TransposeC,
+                                                   true>{};
 
     static constexpr index_t AMmaKStride = KPack;
     static constexpr index_t BMmaKStride = KPack;
 
     //> store rows/cols into thread registers in chunks of 16
     //> e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
-    static constexpr index_t KThreadChunk = 16  / sizeof(ComputeTypeA);
+    static constexpr index_t KThreadChunk = 16 / sizeof(ComputeTypeA);
 
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
@@ -201,7 +206,6 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     {
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
-
         static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
                       "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
 
