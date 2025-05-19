@@ -520,8 +520,8 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                0, // cbsz
-                0, // blgp
+                1, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1, // blgp
                 0,
                 0,
                 0,
@@ -542,7 +542,7 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                0, // cbsz
+                1, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0, // blgp
                 0,
                 0,
@@ -564,8 +564,8 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                0, // cbsz
-                0, // blgp
+                0, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1, // blgp
                 0,
                 0,
                 0,
@@ -1149,8 +1149,8 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                0, // cbsz
-                0, // blgp
+                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1, // blgp
                 0,
                 0,
                 0,
@@ -1172,7 +1172,7 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                0, // cbsz
+                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 0, // blgp
                 0,
                 0,
@@ -1195,8 +1195,8 @@ struct intrin_mfma_f32_16x16x128f8f6f4<16, 16>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                0, // cbsz
-                0, // blgp
+                0, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1, // blgp
                 0,
                 0,
                 0,
