@@ -906,7 +906,7 @@ struct buffer_view<address_space_enum::lds,
                 // ISA, so I try to let compiler emit IR "store<i32, 4>" which would be lower to
                 // ds_write_b128
                 // TODO: remove this after compiler fix
-                // TODO: David Li remove for int8 pipeline build (May-17)
+		// TODO: need command out for int8 basic gemm pipeline
                 // static_assert(
                 //     (std::is_same_v<remove_cvref_t<T>, int8_t> &&
                 //      std::is_same_v<remove_cvref_t<X>, int8_t>) ||
