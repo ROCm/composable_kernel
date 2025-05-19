@@ -59,4 +59,8 @@ using KernelTypesCompV4 = ::testing::Types<
     std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>
 >;
 
+using KernelTypesAsync = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        Async>
+>;
+
 // clang-format on
