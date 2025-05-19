@@ -94,6 +94,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using Kernel = ck_tile::ElementWiseKernel<Problem, ck_tile::ElementWiseDefaultPolicy2D>;
 
+    auto input_tensors = ck_tile::make_tuple(static_cast<XDataType*>(x_buf_a.GetDeviceBuffer()), 
+                                            static_cast<XDataType*>(x_buf_b.GetDeviceBuffer())
+                                        );
+
     // 4. Run the kernel
     float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
@@ -101,8 +105,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                       kGridSize,
                       kBlockSize,
                       0,
-                      static_cast<XDataType*>(x_buf_a.GetDeviceBuffer()),
-                      static_cast<XDataType*>(x_buf_b.GetDeviceBuffer()),
+                      input_tensors,
                       static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
                       M,
                       N));

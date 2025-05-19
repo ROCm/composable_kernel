@@ -16,6 +16,12 @@ add_executable(${TARGET_NAME_2D_3D_INPUT} elementwise_example_2D_basecase_3D_inp
 rocm_install(TARGETS ${TARGET_NAME_2D_3D_INPUT} COMPONENT examples)
 target_include_directories(${TARGET_NAME_2D_3D_INPUT} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/)
 
+# N-ary elementwise target
+set(TARGET_NAME tile_example_elementwise_nary)
+add_executable(${TARGET_NAME} elementwise_example_nary.cpp)
+rocm_install(TARGETS ${TARGET_NAME} COMPONENT examples)
+target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/)
+
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 list(APPEND EXAMPLE_ELEMENTWISE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal -Wno-unused-variable -Rpass-analysis=kernel-resource-usage)
 # list(APPEND EXAMPLE_ELEMENTWISE_COMPILE_OPTIONS -v --save-temps -Wno-gnu-line-marker)
