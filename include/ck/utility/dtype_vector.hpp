@@ -366,6 +366,88 @@ struct vector_type<T, 5, typename ck::enable_if_t<is_native_type<T>()>>
 };
 
 template <typename T>
+struct vector_type<T, 6, typename ck::enable_if_t<is_native_type<T>()>>
+{
+    using d1_t = T;
+    typedef T d2_t __attribute__((ext_vector_type(2)));
+    typedef T d3_t __attribute__((ext_vector_type(3)));
+    typedef T d6_t __attribute__((ext_vector_type(6)));
+
+    using type = d6_t;
+
+    union
+    {
+        d6_t d6_;
+        StaticallyIndexedArray<d1_t, 6> d1x6_;
+        StaticallyIndexedArray<d2_t, 3> d2x3_;
+        StaticallyIndexedArray<d3_t, 2> d3x2_;
+        StaticallyIndexedArray<d6_t, 1> d6x1_;
+    } data_;
+
+    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d3_t>::value || is_same<X, d6_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x6_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x3_;
+        }
+        else if constexpr(is_same<X, d3_t>::value)
+        {
+            return data_.d3x2_;
+        }
+        else if constexpr(is_same<X, d6_t>::value)
+        {
+            return data_.d6x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr auto& AsType()
+    {
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d3_t>::value || is_same<X, d6_t>::value,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same<X, d1_t>::value)
+        {
+            return data_.d1x6_;
+        }
+        else if constexpr(is_same<X, d2_t>::value)
+        {
+            return data_.d2x3_;
+        }
+        else if constexpr(is_same<X, d3_t>::value)
+        {
+            return data_.d3x2_;
+        }
+        else if constexpr(is_same<X, d6_t>::value)
+        {
+            return data_.d6x1_;
+        }
+        else
+        {
+            return err;
+        }
+    }
+};
+
+template <typename T>
 struct vector_type<T, 7, typename ck::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
@@ -1221,25 +1303,25 @@ struct nnvb_data_t_selector<e8m0_bexp_t>
 template <>
 struct nnvb_data_t_selector<f6x16_pk_t>
 {
-    using type = f6x16_pk_t::type;
+    using type = f6x16_pk_t::storage_type;
 };
 
 template <>
 struct nnvb_data_t_selector<f6x32_pk_t>
 {
-    using type = f6x32_pk_t::type;
+    using type = f6x32_pk_t::storage_type;
 };
 
 template <>
 struct nnvb_data_t_selector<bf6x16_pk_t>
 {
-    using type = bf6x16_pk_t::type;
+    using type = bf6x16_pk_t::storage_type;
 };
 
 template <>
 struct nnvb_data_t_selector<bf6x32_pk_t>
 {
-    using type = bf6x32_pk_t::type;
+    using type = bf6x32_pk_t::storage_type;
 };
 
 template <>
@@ -1406,10 +1488,21 @@ struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T)
 };
 
 template <typename T, index_t N>
-struct scalar_type<non_native_vector_base<T, N>>
+struct scalar_type<non_native_vector_base<
+    T,
+    N,
+    ck::enable_if_t<sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8>>>
 {
     using type                           = typename non_native_vector_base<T, N>::data_t;
     static constexpr index_t vector_size = N;
+};
+
+template <typename T, index_t N>
+struct scalar_type<
+    non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 24>>>
+{
+    using type                           = typename non_native_vector_base<T, N>::element_t;
+    static constexpr index_t vector_size = N * non_native_vector_base<T, N>::size_factor;
 };
 
 // non-native vector_type implementation
@@ -2025,6 +2118,7 @@ using bhalf32_t = typename vector_type<bhalf_t, 32>::type;
 // i32
 using int32x2_t  = typename vector_type<int32_t, 2>::type;
 using int32x4_t  = typename vector_type<int32_t, 4>::type;
+using int32x6_t  = typename vector_type<int32_t, 6>::type;
 using int32x8_t  = typename vector_type<int32_t, 8>::type;
 using int32x16_t = typename vector_type<int32_t, 16>::type;
 using int32x32_t = typename vector_type<int32_t, 32>::type;

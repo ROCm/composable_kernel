@@ -201,7 +201,7 @@ __host__ __device__ inline f6_t sat_convert_to_type<f6_t>(float value)
                     : NumericUtils<f6_t>::data_max_positive_normal_mask;
     }
 
-    if(std::abs(value) > NumericLimits<f6_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<f6_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<f6_t>::data_max_negative_normal_mask
                     : NumericUtils<f6_t>::data_max_positive_normal_mask;
 
@@ -239,7 +239,7 @@ __host__ __device__ inline bf6_t sat_convert_to_type<bf6_t>(float value)
                     : NumericUtils<bf6_t>::data_max_positive_normal_mask;
     }
 
-    if(std::abs(value) > NumericLimits<bf6_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<bf6_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<bf6_t>::data_max_negative_normal_mask
                     : NumericUtils<bf6_t>::data_max_positive_normal_mask;
 
@@ -274,7 +274,7 @@ __host__ __device__ inline f6_t sat_convert_to_type_sr<f6_t>(float value, uint32
         return sign ? NumericUtils<f6_t>::data_max_negative_normal_mask
                     : NumericUtils<f6_t>::data_max_positive_normal_mask;
 
-    if(std::abs(value) > NumericLimits<f6_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<f6_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<f6_t>::data_max_negative_normal_mask
                     : NumericUtils<f6_t>::data_max_positive_normal_mask;
 
@@ -308,7 +308,7 @@ __host__ __device__ inline bf6_t sat_convert_to_type_sr<bf6_t>(float value, uint
     if(std::isnan(value))
         return sign ? NumericUtils<bf6_t>::data_max_negative_normal_mask
                     : NumericUtils<bf6_t>::data_max_positive_normal_mask;
-    if(std::abs(value) > NumericLimits<bf6_t>::Max()) // covers inf case as well
+    if(std::abs(value) > NumericLimits<bf6_t>::DataMaxNorm()) // covers inf case as well
         return sign ? NumericUtils<bf6_t>::data_max_negative_normal_mask
                     : NumericUtils<bf6_t>::data_max_positive_normal_mask;
 
