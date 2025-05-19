@@ -50,14 +50,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     GemmSpec,         // GemmSpec
     ScaleBlockSize,   // ScaleBlockSize: Scaling block size
     256,              // BlockSize: Thread block size
-    192,              // MPerBlock
+    256,              // MPerBlock
     256,              // NPerBlock
     KPerBlock,        // KPerBlock
     16,               // AK1
     16,               // BK1
     16,               // MPerXDL
     16,               // NPerXDL
-    6,                // MXdlPerWave
+    8,                // MXdlPerWave
     8,                // NXdlPerWave
     S<8, 32, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
@@ -65,14 +65,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     2,                // ABlockTransferSrcVectorDim
     16,               // ABlockTransferSrcScalarPerVector
     16,               // ABlockTransferDstScalarPerVector_AK1
-    false,            // ABlockLdsExtraM
+    true,             // ABlockLdsExtraM
     S<8, 32, 1>,      // BBlockTransferThreadClusterLengths_BK0_N_BK1
     S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
     2,                // BBlockTransferSrcVectorDim
     16,               // BBlockTransferSrcScalarPerVector
     16,               // BBlockTransferDstScalarPerVector_BK1
-    false,            // BBlockLdsExtraN
+    true,             // BBlockLdsExtraN
     2,                // CShuffleMXdlPerWavePerShuffle
     2,                // CShuffleNXdlPerWavePerShuffle
     S<1, 32, 1, 8>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
