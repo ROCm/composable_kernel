@@ -1782,7 +1782,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
                                           index_t flag                         = 0,
                                           bool_constant<oob_conditional_check> = {})
 {
-#if defined(__gfx950__)
+    // #if defined(__gfx950__)
     constexpr index_t bytes = sizeof(T) * N;
     static_assert(bytes == 4 || bytes == 12 || bytes == 16,
                   "wrong! only support in dword, dwordx3, dwordx4");
@@ -1807,31 +1807,31 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
                                           0,
                                           bool_constant<false>{});
     }
-#else
-    static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
+    // #else
+    // static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
 
-    if constexpr(oob_conditional_check)
-    {
-        index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
-        llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
-                                        smem,
-                                        sizeof(uint32_t),
-                                        v_offset,
-                                        src_wave_addr_offset,
-                                        src_immediate_addr_offset,
-                                        static_cast<index_t>(coherence));
-    }
-    else
-    {
-        llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
-                                        smem,
-                                        sizeof(uint32_t),
-                                        src_thread_addr_offset,
-                                        src_wave_addr_offset,
-                                        src_immediate_addr_offset,
-                                        static_cast<index_t>(coherence));
-    }
-#endif
+    // if constexpr(oob_conditional_check)
+    // {
+    //     index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
+    //     llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
+    //                                     smem,
+    //                                     sizeof(uint32_t),
+    //                                     v_offset,
+    //                                     src_wave_addr_offset,
+    //                                     src_immediate_addr_offset,
+    //                                     static_cast<index_t>(coherence));
+    // }
+    // else
+    // {
+    //     llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
+    //                                     smem,
+    //                                     sizeof(uint32_t),
+    //                                     src_thread_addr_offset,
+    //                                     src_wave_addr_offset,
+    //                                     src_immediate_addr_offset,
+    //                                     static_cast<index_t>(coherence));
+    // }
+    // #endif
 }
 
 template <index_t N,
