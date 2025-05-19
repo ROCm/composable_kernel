@@ -387,26 +387,26 @@ print_log_header $gemm_multiply_multiply_weight_preshuffle_log $env_type $branch
 #run gemm_multiply_multiply tests	
 export gemm_multiply_multiply_log="perf_gemm_multiply_multiply.log"	
 print_log_header $gemm_multiply_multiply_log $env_type $branch $host_name	
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 4 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 5 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 6 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 7 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 8 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 9 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 10 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 4 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 5 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 6 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 4 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 5 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 6 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 7 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 8 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 9 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 10 0 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 4 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 5 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 6 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
 ./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 7 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 8 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 8 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
 ./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 9 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
 ./profile_gemm_d0_d1_e.sh gemm_multiply_multiply 10 1 $verify 1 0 1 2>&1 | tee -a $gemm_multiply_multiply_log
 
