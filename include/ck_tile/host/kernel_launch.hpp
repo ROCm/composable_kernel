@@ -90,13 +90,13 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
             auto preprocess      = std::get<0>(std::make_tuple(callables...));
             auto kernel_launcher = std::get<1>(std::make_tuple(callables...));
 
-            preprocess();                         // Call the preprocessing function
-            launch_and_check(s, kernel_launcher); // Launch the kernel with error checking
+            preprocess();
+            launch_and_check(s, kernel_launcher);
         }
         else
         {
             auto kernel_launcher = std::get<0>(std::make_tuple(callables...));
-            launch_and_check(s, kernel_launcher); // Launch the kernel with error checking
+            launch_and_check(s, kernel_launcher);
         }
         return 0;
     }
