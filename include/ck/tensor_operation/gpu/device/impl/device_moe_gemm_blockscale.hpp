@@ -409,9 +409,13 @@ struct DeviceMoeGemmBlockScale
                     {
                         hsa_name = std::string("moe_bs_stage2_v3_128x128x128");
                     }
+                    else if constexpr(MPerBlock == 64)
+                    {
+                        hsa_name = std::string("moe_bs_stage2_v3_64x128x128");
+                    }
                     else
                     {
-                        printf("Faild: v3 only support 128x128x1288.\n");
+                        printf("Faild: v3 only support 128x128x1288 or 64x128x1288.\n");
                     }
                 }
             }
