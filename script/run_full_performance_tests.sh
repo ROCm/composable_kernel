@@ -294,14 +294,14 @@ print_log_header $gemm_add_fastgelu_log $env_type $branch $host_name
 #run gemm_add_multiply tests	
 export gemm_add_multiply_log="perf_gemm_add_multiply.log"	
 print_log_header $gemm_add_multiply_log $env_type $branch $host_name	
-./profile_gemm_d0_d1_e.sh gemm_add_multiply 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_add_multiply 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
 ./profile_gemm_d0_d1_e.sh gemm_add_multiply 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_add_multiply 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_add_multiply 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_add_multiply 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_add_multiply 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_add_multiply 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_add_multiply 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
 ./profile_gemm_d0_d1_e.sh gemm_add_multiply 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_add_multiply 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
-./profile_gemm_d0_d1_e.sh gemm_add_multiply 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_add_multiply 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
+#./profile_gemm_d0_d1_e.sh gemm_add_multiply 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_multiply_log
 
 #run gemm_add_relu_add_layernorm tests	
 export gemm_add_relu_add_layernorm_log="perf_gemm_add_relu_add_layernorm.log"	
@@ -332,9 +332,9 @@ print_log_header $gemm_add_silu_log $env_type $branch $host_name
 #run gemm_add tests	
 export gemm_add_log="perf_gemm_add.log"	
 print_log_header $gemm_add_log $env_type $branch $host_name	
-./profile_gemm_d0_e.sh gemm_add 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_log
+#./profile_gemm_d0_e.sh gemm_add 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_log
 ./profile_gemm_d0_e.sh gemm_add 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_add_log
-./profile_gemm_d0_e.sh gemm_add 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_log
+#./profile_gemm_d0_e.sh gemm_add 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_log
 ./profile_gemm_d0_e.sh gemm_add 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_add_log
 
 #run gemm_b_scale tests	
@@ -361,14 +361,14 @@ print_log_header $gemm_bias_add_reduce_log $env_type $branch $host_name
 #run gemm_fastgelu tests	
 export gemm_fastgelu_log="perf_gemm_fastgelu.log"	
 print_log_header $gemm_fastgelu_log $env_type $branch $host_name	
-./profile_gemm.sh gemm_fastgelu 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
+#./profile_gemm.sh gemm_fastgelu 0 0 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
 ./profile_gemm.sh gemm_fastgelu 1 0 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
-./profile_gemm.sh gemm_fastgelu 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
-./profile_gemm.sh gemm_fastgelu 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
-./profile_gemm.sh gemm_fastgelu 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
+#./profile_gemm.sh gemm_fastgelu 2 0 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
+#./profile_gemm.sh gemm_fastgelu 3 0 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
+#./profile_gemm.sh gemm_fastgelu 0 1 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
 ./profile_gemm.sh gemm_fastgelu 1 1 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
-./profile_gemm.sh gemm_fastgelu 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
-./profile_gemm.sh gemm_fastgelu 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
+#./profile_gemm.sh gemm_fastgelu 2 1 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
+#./profile_gemm.sh gemm_fastgelu 3 1 $verify 1 0 1 2>&1 | tee -a $gemm_fastgelu_log
 
 #run gemm_multiply_add tests	
 export gemm_multiply_add_log="perf_gemm_multiply_add.log"	
@@ -413,9 +413,9 @@ print_log_header $gemm_multiply_multiply_log $env_type $branch $host_name
 #run gemm_reduce tests	
 export gemm_reduce_log="perf_gemm_reduce.log"	
 print_log_header $gemm_reduce_log $env_type $branch $host_name	
-./profile_splitK_gemm.sh gemm_reduce 0 0 $verify 1 0 1 1 2>&1 | tee -a $gemm_reduce_log
+#./profile_splitK_gemm.sh gemm_reduce 0 0 $verify 1 0 1 1 2>&1 | tee -a $gemm_reduce_log
 ./profile_splitK_gemm.sh gemm_reduce 1 0 $verify 1 0 1 1 2>&1 | tee -a $gemm_reduce_log
-./profile_splitK_gemm.sh gemm_reduce 0 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_reduce_log
+#./profile_splitK_gemm.sh gemm_reduce 0 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_reduce_log
 ./profile_splitK_gemm.sh gemm_reduce 1 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_reduce_log
 
 #run gemm_streamk tests	
