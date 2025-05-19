@@ -191,6 +191,8 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                                        void* __restrict__ p_smem_0,
                                        void* __restrict__ p_smem_1) const
         {
+            ignore = a_element_func;
+            ignore = b_element_func;
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,

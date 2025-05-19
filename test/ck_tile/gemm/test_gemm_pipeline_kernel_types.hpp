@@ -20,6 +20,7 @@ using Interwave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 using Mem       = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
 using CompV3    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
 using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
+using Async     = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Async>;
 
 // clang-format off
 using KernelTypesMem = ::testing::Types<
