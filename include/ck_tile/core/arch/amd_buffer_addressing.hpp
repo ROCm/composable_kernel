@@ -1666,7 +1666,7 @@ struct async_buffer_load<16, pre_nop>
         asm volatile("s_nop 4\n"
                      "buffer_load_dwordx4 %1, %2, 0 offen offset:%3 lds"
                      : "=r"(smem) /*dummy dependency for smem*/
-                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "v"(v_offset), "s"(rsrc), "n"(i_offset)
                      : "memory");
         // __builtin_amdgcn_struct_buffer_load_lds(rsrc, smem, 16, i_offset, v_offset, 0, 0, 0);
 #else
@@ -1694,7 +1694,7 @@ struct async_buffer_load<12, pre_nop>
         asm volatile("s_nop 4\n"
                      "buffer_load_dwordx3 %1, %2, 0 offen offset:%3 lds"
                      : "=r"(smem) /*dummy dependency for smem*/
-                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "v"(v_offset), "s"(rsrc), "n"(i_offset)
                      : "memory");
         // __builtin_amdgcn_struct_buffer_load_lds(rsrc, smem, 12, i_offset, v_offset, 0, 0, 0);
 #else
@@ -1722,7 +1722,7 @@ struct async_buffer_load<4, pre_nop>
         asm volatile("s_nop 4\n"
                      "buffer_load_dword %1, %2, 0 offen offset:%3 lds"
                      : "=r"(smem) /*dummy dependency for smem*/
-                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "v"(v_offset), "s"(rsrc), "n"(i_offset)
                      : "memory");
         // __builtin_amdgcn_struct_buffer_load_lds(rsrc, smem, 4, i_offset, v_offset, 0, 0, 0);
 #else
