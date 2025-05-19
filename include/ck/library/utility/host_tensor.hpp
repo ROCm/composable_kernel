@@ -360,10 +360,9 @@ struct Tensor
 
     std::size_t GetElementSpaceSize() const
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t> ||
-                     ck::is_same_v<ck::remove_cvref_t<T>, ck::f4x2_pk_t>)
+        if constexpr(ck::is_packed_type_v<ck::remove_cvref_t<T>>)
         {
-            return (mDesc.GetElementSpaceSize() + 1) / 2;
+            return (mDesc.GetElementSpaceSize() + 1) / ck::packed_size_v<ck::remove_cvref_t<T>>;
         }
         else
         {
@@ -516,69 +515,31 @@ struct Tensor
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t> ||
-                     ck::is_same_v<ck::remove_cvref_t<T>, ck::f4x2_pk_t>)
-        {
-            return mDesc.GetOffsetFromMultiIndex(is...) / 2;
-        }
-        else
-        {
-            return mDesc.GetOffsetFromMultiIndex(is...);
-        }
+        return mDesc.GetOffsetFromMultiIndex(is...) / ck::packed_size_v<ck::remove_cvref_t<T>>;
     }
 
     template <typename... Is>
     T& operator()(Is... is)
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t> ||
-                     ck::is_same_v<ck::remove_cvref_t<T>, ck::f4x2_pk_t>)
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(is...) / 2];
-        }
-        else
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(is...)];
-        }
+        return mData[mDesc.GetOffsetFromMultiIndex(is...) /
+                     ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
     template <typename... Is>
     const T& operator()(Is... is) const
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t> ||
-                     ck::is_same_v<ck::remove_cvref_t<T>, ck::f4x2_pk_t>)
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(is...) / 2];
-        }
-        else
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(is...)];
-        }
+        return mData[mDesc.GetOffsetFromMultiIndex(is...) /
+                     ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
     T& operator()(std::vector<std::size_t> idx)
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t> ||
-                     ck::is_same_v<ck::remove_cvref_t<T>, ck::f4x2_pk_t>)
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(idx) / 2];
-        }
-        else
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(idx)];
-        }
+        return mData[mDesc.GetOffsetFromMultiIndex(idx) / ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
     const T& operator()(std::vector<std::size_t> idx) const
     {
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<T>, ck::pk_i4_t> ||
-                     ck::is_same_v<ck::remove_cvref_t<T>, ck::f4x2_pk_t>)
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(idx) / 2];
-        }
-        else
-        {
-            return mData[mDesc.GetOffsetFromMultiIndex(idx)];
-        }
+        return mData[mDesc.GetOffsetFromMultiIndex(idx) / ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
     typename Data::iterator begin() { return mData.begin(); }
