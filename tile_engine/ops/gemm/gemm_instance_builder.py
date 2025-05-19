@@ -438,28 +438,33 @@ struct GemmDispatcher {
             get_tile_value(self.config.tile_config.warp_tile_n),
             get_tile_value(self.config.tile_config.warp_tile_k),
         ))
+        
 
         for trait in self.all_trait_names:
+            tile_valid_params = list(filter(lambda t: self.is_tile_valid(t, trait), tile_params))
             content += f"""         kernel_map["{trait}"] = {{"""
-            for tile in tile_params:
-                if self.is_tile_valid(tile, trait):
-                    content += f"""[&](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{ """
-                    content += f""" if(structured_sparsity){{  // SMFMA"""
-                    sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
-                        self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
-                        self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
-                        ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
-                         (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
-                    content += f"""
-                        return run_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(args, stream);"""
-                    content += f"""
+            for i, tile in enumerate(tile_valid_params):
+                content += f"""[&](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{ """
+                content += f""" if(structured_sparsity){{  // SMFMA"""
+                sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
+                    self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
+                    self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
+                    ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
+                        (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
+                content += f"""
+                    return run_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(args, stream);"""
+                content += f"""
                             }} else {{"""
-                    content += f"""
-                        return run_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(args, stream);"""
-                    content += f"""
+                content += f"""
+                    return run_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(args, stream);"""
+                content += f"""
                             }} """
+                if i == len(tile_valid_params)-1:
                     content += f"""
                         }} """
+                else:
+                    content += f"""
+                        }}, """            
             content += f"""
             }};\n """
     

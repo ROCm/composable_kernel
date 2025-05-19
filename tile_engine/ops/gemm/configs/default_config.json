@@ -33,21 +33,21 @@
     },
     "tile_config": {
         "tile_m": {
-            "max": 512,
-            "min": 64,
-            "step": 8,
+            "max": 256,
+            "min": 128,
+            "step": 64,
             "exclude": []
         },
         "tile_n": {
-            "max": 512,
-            "min": 64,
-            "step": 8,
+            "max": 256,
+            "min": 128,
+            "step": 64,
             "exclude": []
         },
         "tile_k": {
-            "max": 512,
-            "min": 64,
-            "step": 8,
+            "max": 256,
+            "min": 128,
+            "step": 64,
             "exclude": []
         },
         "warp_m": {
