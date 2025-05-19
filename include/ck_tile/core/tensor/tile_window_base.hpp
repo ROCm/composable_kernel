@@ -32,15 +32,25 @@ struct tile_window_base
     // window_origin
     using BottomTensorView                    = remove_reference_t<BottomTensorView_>;
     using BottomTensorDesc                    = typename BottomTensorView::TensorDesc;
+    using WindowLengths                       = remove_cvref_t<WindowLengths_>;
     static constexpr index_t NDimBottomTensor = BottomTensorDesc::get_num_of_dimension();
     using BottomTensorIndex                   = array<index_t, NDimBottomTensor>;
+
+    using DataType = remove_cvref_t<typename BottomTensorView::DataType>;
+
+        
 
     // origin ([x0', x1', ...]) of window on bottom tensor
     BottomTensorIndex window_origin_;
 
     // window_lengths
-    using WindowLengths = remove_cvref_t<WindowLengths_>;
+    
+
+    static_assert(ck_tile::is_known_at_compile_time<WindowLengths>::value,
+                  "wrong! lengths should be static");
     WindowLengths window_lengths_;
+
+
 
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
@@ -79,4 +89,14 @@ struct tile_window_base
     // Default no-op; can be overridden in child
     CK_TILE_DEVICE void move_extended(const BottomTensorIndex&) {}
 };
+
+template <typename TileWindowType_, typename BottomTensorView_, typename WindowLengths_, typename StaticTileDistribution_>
+struct tile_window_with_tile_dstr_base
+    : public tile_window_base<TileWindowType_, BottomTensorView_, WindowLengths_>
+{  
+    using TileDstr         = remove_cvref_t<StaticTileDistribution_>; 
+    CK_TILE_HOST_DEVICE void init_raw() { this->bottom_tensor_view_.init_raw(); }
+};
+
+
 } // namespace ck_tile

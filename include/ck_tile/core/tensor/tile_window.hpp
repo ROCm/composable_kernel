@@ -35,33 +35,33 @@ template <typename BottomTensorView_,
           typename StaticTileDistribution_,
           index_t NumCoord>
 struct tile_window_with_static_distribution
-    : public tile_window_base<tile_window_with_static_distribution<BottomTensorView_,
-                                                                   WindowLengths_,
-                                                                   StaticTileDistribution_,
-                                                                   NumCoord>,
-                              BottomTensorView_,
-                              WindowLengths_>
+    : public tile_window_with_tile_dstr_base<
+      tile_window_with_static_distribution<BottomTensorView_, WindowLengths_, StaticTileDistribution_, NumCoord>,
+      BottomTensorView_,
+      WindowLengths_,
+      StaticTileDistribution_>
 {
-    using Base = tile_window_base<tile_window_with_static_distribution<BottomTensorView_,
+    using Base = tile_window_with_tile_dstr_base<tile_window_with_static_distribution<BottomTensorView_,
                                                                        WindowLengths_,
                                                                        StaticTileDistribution_,
                                                                        NumCoord>,
                                   BottomTensorView_,
-                                  WindowLengths_>;
+                                  WindowLengths_,
+                                  StaticTileDistribution_>;
 
-    using BottomTensorView = remove_reference_t<BottomTensorView_>;
-    using WindowLengths    = remove_cvref_t<WindowLengths_>;
-    using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
+    // using BottomTensorView = remove_reference_t<BottomTensorView_>;
+    // using WindowLengths    = remove_cvref_t<WindowLengths_>;
+    // using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
 
-    using WindowAdaptor    = typename TileDstr::PsYs2XsAdaptor;
-    using BottomTensorDesc = typename BottomTensorView::TensorDesc;
+    using WindowAdaptor    = typename Base::TileDstr::PsYs2XsAdaptor;
+    using BottomTensorDesc = typename Base::BottomTensorView::TensorDesc;
 
-    using DataType = remove_cvref_t<typename BottomTensorView::DataType>;
+    using DataType = remove_cvref_t<typename Base::BottomTensorView::DataType>;
 
     static constexpr index_t NDimWindowAdaptorTop = WindowAdaptor::get_num_of_top_dimension();
 
-    static constexpr index_t NDimP = TileDstr::get_num_of_dimension_p();
-    static constexpr index_t NDimY = TileDstr::get_num_of_dimension_y();
+    static constexpr index_t NDimP = Base::TileDstr::get_num_of_dimension_p();
+    static constexpr index_t NDimY = Base::TileDstr::get_num_of_dimension_y();
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -69,9 +69,8 @@ struct tile_window_with_static_distribution
 
     // TODO: check WindowLengths and StaticTileDistribution are consistent
 
-    static_assert(ck_tile::is_known_at_compile_time<WindowLengths>::value,
-                  "wrong! lengths should be static");
-    static_assert(TileDstr::is_static(), "wrong!");
+
+    static_assert(Base::TileDstr::is_static(), "wrong!");
 
     static_assert(Base::NDimBottomTensor == WindowAdaptor::get_num_of_bottom_dimension(),
                   "wrong! inconsistent # of diemsnions");
@@ -133,7 +132,7 @@ struct tile_window_with_static_distribution
 
         static constexpr auto get_space_filling_curve()
         {
-            constexpr auto tile_dstr = TileDstr{};
+            constexpr auto tile_dstr = typename Base::TileDstr{};
 
             constexpr auto thread_tensor_lengths_ys =
                 to_sequence(tile_dstr.get_ys_to_d_descriptor().get_lengths());
@@ -160,10 +159,10 @@ struct tile_window_with_static_distribution
     CK_TILE_DEVICE constexpr tile_window_with_static_distribution() = default;
 
     CK_TILE_DEVICE constexpr tile_window_with_static_distribution(
-        const BottomTensorView& bottom_tensor_view,
-        const WindowLengths& window_lengths,
+        const typename Base::BottomTensorView& bottom_tensor_view,
+        const typename Base::WindowLengths& window_lengths,
         const BottomTensorIndex& window_origin,
-        const TileDstr& tile_distribution)
+        const typename Base::TileDstr& tile_distribution)
         : tile_dstr_{tile_distribution}, pre_computed_coords_{}
     {
 #if 0 // debug
@@ -228,7 +227,7 @@ struct tile_window_with_static_distribution
 
     CK_TILE_DEVICE static constexpr bool has_static_tile_distribution()
     {
-        return TileDstr::is_static();
+        return Base::TileDstr::is_static();
     }
 
     CK_TILE_DEVICE constexpr auto get_tile_distribution() const { return tile_dstr_; }
@@ -285,7 +284,7 @@ struct tile_window_with_static_distribution
                 window_adaptor_vector_lengths, window_adaptor_vector_strides);
 
         // [y0, y1, ...]
-        constexpr auto y_dims = typename arithmetic_sequence_gen<TileDstr::get_num_of_dimension_p(),
+        constexpr auto y_dims = typename arithmetic_sequence_gen<Base::TileDstr::get_num_of_dimension_p(),
                                                                  NDimWindowAdaptorTop,
                                                                  1>::type{};
 
@@ -299,7 +298,7 @@ struct tile_window_with_static_distribution
     CK_TILE_DEVICE auto load(number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
-        constexpr auto tile_dstr = TileDstr{};
+        constexpr auto tile_dstr = typename Base::TileDstr{};
         auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
         load(dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
         return dst_tensor;
@@ -316,7 +315,7 @@ struct tile_window_with_static_distribution
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr = TileDstr{};
+        constexpr auto tile_dstr = typename Base::TileDstr{};
 
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -390,7 +389,7 @@ struct tile_window_with_static_distribution
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
         static constexpr index_t YElementSize =
-            TileDstr{}.get_ys_to_d_descriptor().get_element_space_size();
+            typename Base::TileDstr{}.get_ys_to_d_descriptor().get_element_space_size();
         static_assert(YElementSize % (Traits::PackedSize * Traits::ScalarPerVector) == 0);
         using vectorized_tbuf =
             array<vector_t, YElementSize / (Traits::PackedSize * Traits::ScalarPerVector)>;
@@ -399,7 +398,7 @@ struct tile_window_with_static_distribution
         //                                      YElementSize / Traits::ScalarPerVector,
         //                                      true>;
 
-        constexpr auto tile_dstr = TileDstr{};
+        constexpr auto tile_dstr = typename Base::TileDstr{};
 
         auto& dst_vec_tbuf = reinterpret_cast<vectorized_tbuf&>(dst_tensor.get_thread_buffer());
 
@@ -608,7 +607,7 @@ struct tile_window_with_static_distribution
     }
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
-    CK_TILE_DEVICE void store(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+    CK_TILE_DEVICE void store(const static_distributed_tensor<DataType, typename Base::TileDstr>& dstr_tensor,
                               number<i_access_unsupport_>          = {},
                               bool_constant<oob_conditional_check> = {}) const
     {
@@ -618,7 +617,7 @@ struct tile_window_with_static_distribution
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr = TileDstr{};
+        constexpr auto tile_dstr = typename Base::TileDstr{};
 
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -677,7 +676,7 @@ struct tile_window_with_static_distribution
     }
 
     template <index_t i_access_unsupport_ = -1>
-    CK_TILE_DEVICE void store_raw(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+    CK_TILE_DEVICE void store_raw(const static_distributed_tensor<DataType, typename Base::TileDstr>& dstr_tensor,
                                   number<i_access_unsupport_> = {}) const
     {
         using Traits = load_store_traits;
@@ -685,7 +684,7 @@ struct tile_window_with_static_distribution
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr                    = TileDstr{};
+        constexpr auto tile_dstr                    = typename Base::TileDstr{};
         static constexpr bool oob_conditional_check = true;
 
         // loop over thread tensor space [y0, y1, ...]
@@ -738,7 +737,7 @@ struct tile_window_with_static_distribution
     }
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
-    CK_TILE_DEVICE void update(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+    CK_TILE_DEVICE void update(const static_distributed_tensor<DataType, typename Base::TileDstr>& dstr_tensor,
                                number<i_access_unsupport_>          = {},
                                bool_constant<oob_conditional_check> = {}) const
     {
@@ -747,7 +746,7 @@ struct tile_window_with_static_distribution
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr = TileDstr{};
+        constexpr auto tile_dstr = typename Base::TileDstr{};
 
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -804,7 +803,7 @@ struct tile_window_with_static_distribution
     }
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true, bool pre_nop>
-    CK_TILE_DEVICE void update_raw(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+    CK_TILE_DEVICE void update_raw(const static_distributed_tensor<DataType, typename Base::TileDstr>& dstr_tensor,
                                    number<i_access_unsupport_>          = {},
                                    bool_constant<oob_conditional_check> = {},
                                    bool_constant<pre_nop>               = {}) const
@@ -814,7 +813,7 @@ struct tile_window_with_static_distribution
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr = TileDstr{};
+        constexpr auto tile_dstr = typename Base::TileDstr{};
 
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -996,12 +995,12 @@ struct tile_window_with_static_distribution
         });
     }
 
-    CK_TILE_HOST_DEVICE void init_raw() { this->bottom_tensor_view_.init_raw(); }
+    // CK_TILE_HOST_DEVICE void init_raw() { this->bottom_tensor_view_.init_raw(); }
 
     // Tile tensor distribution, which contains:
     //   1. adaptor for window: [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...]
     //   2. thread descriptor for thread tensor in register: [y0, y1, ...] ==> [d]
-    TileDstr tile_dstr_;
+    typename Base::TileDstr tile_dstr_;
 
     // this contains:
     //   per-thread coordinate for window adaptor
@@ -1084,22 +1083,13 @@ struct tile_window_with_static_lengths
         tile_window_base<tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>,
                          BottomTensorView_,
                          WindowLengths_>;
-    using BottomTensorView = remove_reference_t<BottomTensorView_>;
-    using WindowLengths    = remove_cvref_t<WindowLengths_>;
-    using BottomTensorDesc = typename BottomTensorView::TensorDesc;
-    using DataType         = typename BottomTensorView::DataType;
-
-    static_assert(ck_tile::is_known_at_compile_time<WindowLengths>::value,
-                  "wrong! lengths should be static");
-
-    using BottomTensorIndex = array<index_t, Base::NDimBottomTensor>;
 
     CK_TILE_DEVICE constexpr tile_window_with_static_lengths() = default;
 
     CK_TILE_DEVICE constexpr tile_window_with_static_lengths(
-        const BottomTensorView& bottom_tensor_view,
-        const WindowLengths& window_lengths,
-        const BottomTensorIndex& window_origin)
+        const typename Base::BottomTensorView& bottom_tensor_view,
+        const typename Base::WindowLengths& window_lengths,
+        const typename Base::BottomTensorIndex& window_origin)
     {
         this->window_origin_      = window_origin;
         this->window_lengths_     = window_lengths;

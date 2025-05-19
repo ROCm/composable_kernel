@@ -13,6 +13,7 @@
 #include "ck_tile/core/tensor/static_distributed_tensor.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
+#include "ck_tile/core/tensor/tile_window_base.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
@@ -42,20 +43,31 @@ template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
           typename LinearBottomDims_>
-struct tile_window_linear
-{
+struct tile_window_linear : public tile_window_with_tile_dstr_base<
+      tile_window_linear<BottomTensorView_, WindowLengths_, StaticTileDistribution_, LinearBottomDims_>,
+      BottomTensorView_,
+      WindowLengths_,
+      StaticTileDistribution_>
+{   
+    using Base = tile_window_with_tile_dstr_base<tile_window_linear<BottomTensorView_,
+                                                                       WindowLengths_,
+                                                                       StaticTileDistribution_,
+                                                                       LinearBottomDims_>,
+                                  BottomTensorView_,
+                                  WindowLengths_,
+                                  StaticTileDistribution_>;
 
-    using BottomTensorView = remove_reference_t<BottomTensorView_>;
+    // using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
 
     using WindowAdaptor    = typename TileDstr::PsYs2XsAdaptor;
-    using BottomTensorDesc = typename BottomTensorView::TensorDesc;
+    using BottomTensorDesc = typename Base::BottomTensorView::TensorDesc;
 
-    using DataType         = remove_cvref_t<typename BottomTensorView::DataType>;
+    using DataType         = remove_cvref_t<typename Base::BottomTensorView::DataType>;
     using LinearBottomDims = remove_cvref_t<LinearBottomDims_>;
 
-    static_assert(LinearBottomDims::size() == BottomTensorView::get_num_of_dimension());
+    static_assert(LinearBottomDims::size() == Base::BottomTensorView::get_num_of_dimension());
 
     static constexpr index_t NDimWindowAdaptorTop = WindowAdaptor::get_num_of_top_dimension();
     static constexpr index_t NDimBottomTensor     = BottomTensorDesc::get_num_of_dimension();
@@ -304,7 +316,7 @@ struct tile_window_linear
 
     CK_TILE_DEVICE constexpr tile_window_linear() = default;
 
-    CK_TILE_DEVICE constexpr tile_window_linear(const BottomTensorView& bottom_tensor_view,
+    CK_TILE_DEVICE constexpr tile_window_linear(const typename Base::BottomTensorView& bottom_tensor_view,
                                                 const WindowLengths& window_lengths,
                                                 const BottomTensorIndex& window_origin,
                                                 const TileDstr& tile_distribution)
@@ -376,7 +388,7 @@ struct tile_window_linear
     CK_TILE_DEVICE constexpr auto get_window_origin() const { return window_origin_; }
 
     CK_TILE_DEVICE constexpr void
-    set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
+    set_bottom_tensor_view_data_ptr(typename Base::BottomTensorView::DataType* data)
     {
         bottom_tensor_view_.buf_.p_data_ = data;
     }
@@ -442,7 +454,7 @@ struct tile_window_linear
             // this case usually is a LDS window, everything is known at compile tile.
             // we directly use BottomTensorView transform to compute the offset, in case padding
             auto bottom_tensor_coord =
-                make_tensor_coordinate(BottomTensorView{}.get_tensor_descriptor(), linear_coord);
+                make_tensor_coordinate(typename Base::BottomTensorView{}.get_tensor_descriptor(), linear_coord);
             return bottom_tensor_coord.get_offset();
         }
         else
@@ -612,7 +624,7 @@ struct tile_window_linear
             constexpr auto IAccess  = number<i_access_>{};
             constexpr auto pre_nop_ = [&]() {
                 if constexpr(pre_nop && i_access_ == 0 &&
-                             BottomTensorView::buffer_view::get_address_space() ==
+                             Base::BottomTensorView::buffer_view::get_address_space() ==
                                  address_space_enum::global)
                     return bool_constant<true>{};
                 else
@@ -663,7 +675,7 @@ struct tile_window_linear
         // currently we only support everything is non linear dim
         // actually it's not performant if we have linear dim(e.g. fast changing)
         static_assert(NumAccess_NonLinear == NumAccess);
-        static_assert(BottomTensorView::buffer_view::get_address_space() ==
+        static_assert(Base::BottomTensorView::buffer_view::get_address_space() ==
                       address_space_enum::global);
 
         // issues * warps * lanes
@@ -732,7 +744,7 @@ struct tile_window_linear
         // currently we only support everything is non linear dim
         // actually it's not performant if we have linear dim(e.g. fast changing)
         static_assert(NumAccess_NonLinear == NumAccess);
-        static_assert(BottomTensorView::buffer_view::get_address_space() ==
+        static_assert(Base::BottomTensorView::buffer_view::get_address_space() ==
                       address_space_enum::global);
 
         // issues * warps * lanes
@@ -1064,7 +1076,7 @@ struct tile_window_linear
 
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
-    BottomTensorView bottom_tensor_view_;
+    typename Base::BottomTensorView bottom_tensor_view_;
 
     //
     WindowLengths window_lengths_;
