@@ -1663,7 +1663,7 @@ struct async_buffer_load<16, pre_nop>
                                    bool_constant<pre_nop> = {})
     {
 #if defined(__gfx950__)
-        __builtin_amdgcn_struct_buffer_load_lds(res, value, 4, i_offset, v_offset, 0, 0, 0);
+        __builtin_amdgcn_struct_buffer_load_lds(res, value, 16, i_offset, v_offset, 0, 0, 0);
 #else
         ignore = value;
         ignore = res;
@@ -1686,7 +1686,7 @@ struct async_buffer_load<12, pre_nop>
                                    bool_constant<pre_nop> = {})
     {
 #if defined(__gfx950__)
-        __builtin_amdgcn_struct_buffer_load_lds(res, value, 3, i_offset, v_offset, 0, 0, 0);
+        __builtin_amdgcn_struct_buffer_load_lds(res, value, 12, i_offset, v_offset, 0, 0, 0);
 #else
         ignore = value;
         ignore = res;
@@ -1709,7 +1709,7 @@ struct async_buffer_load<4, pre_nop>
                                    bool_constant<pre_nop> = {})
     {
 #if defined(__gfx950__)
-        __builtin_amdgcn_struct_buffer_load_lds(res, value, 1, i_offset, v_offset, 0, 0, 0);
+        __builtin_amdgcn_struct_buffer_load_lds(res, value, 4, i_offset, v_offset, 0, 0, 0);
 #else
         ignore = value;
         ignore = res;
@@ -1734,13 +1734,13 @@ CK_TILE_DEVICE void amd_async_buffer_load_impl(CK_TILE_LDS_ADDR T* smem,
     constexpr index_t bytes = sizeof(T) * N;
     static_assert(bytes == 4 || bytes == 12 || bytes == 16,
                   "wrong! only support in dword, dwordx3, dwordx4");
-    async_buffer_load<bytes, pre_nop>(smem,
-                                      src_wave_buffer_resource,
-                                      src_thread_addr_offset,
-                                      src_wave_addr_offset,
-                                      src_immediate_addr_offset,
-                                      0,
-                                      bool_constant<pre_nop>{});
+    async_buffer_load<bytes, pre_nop>{}(smem,
+                                        src_wave_buffer_resource,
+                                        src_thread_addr_offset,
+                                        src_wave_addr_offset,
+                                        src_immediate_addr_offset,
+                                        0,
+                                        bool_constant<pre_nop>{});
 #else
     static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
 
@@ -1773,23 +1773,23 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     if constexpr(oob_conditional_check)
     {
         index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
-        async_buffer_load<bytes, false>(smem,
-                                        src_wave_buffer_resource,
-                                        v_offset,
-                                        src_wave_addr_offset,
-                                        src_immediate_addr_offset,
-                                        0,
-                                        bool_constant<false>{});
+        async_buffer_load<bytes, false>{}(smem,
+                                          src_wave_buffer_resource,
+                                          v_offset,
+                                          src_wave_addr_offset,
+                                          src_immediate_addr_offset,
+                                          0,
+                                          bool_constant<false>{});
     }
     else
     {
-        async_buffer_load<bytes, false>(smem,
-                                        src_wave_buffer_resource,
-                                        src_thread_addr_offset,
-                                        src_wave_addr_offset,
-                                        src_immediate_addr_offset,
-                                        0,
-                                        bool_constant<false>{});
+        async_buffer_load<bytes, false>{}(smem,
+                                          src_wave_buffer_resource,
+                                          src_thread_addr_offset,
+                                          src_wave_addr_offset,
+                                          src_immediate_addr_offset,
+                                          0,
+                                          bool_constant<false>{});
     }
 #else
     static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
