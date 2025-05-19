@@ -237,8 +237,8 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                                  Policy::template MakeBDramTileDistribution<Problem>());
 
             // A register tile for global load
-            constexpr auto ABlockTileDistr = a_copy_dram_window.get_tile_distribution();
-            constexpr auto BBlockTileDistr = b_copy_dram_window.get_tile_distribution();
+            // constexpr auto ABlockTileDistr = a_copy_dram_window.get_tile_distribution();
+            // constexpr auto BBlockTileDistr = b_copy_dram_window.get_tile_distribution();
             // using ABlockTile =
             // decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr)); using
             // BBlockTile = decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr));

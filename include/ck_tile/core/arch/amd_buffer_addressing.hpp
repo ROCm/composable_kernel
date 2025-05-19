@@ -1654,8 +1654,8 @@ template <bool pre_nop>
 struct async_buffer_load<16, pre_nop>
 {
     template <typename T>
-    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* value,
-                                   int32x4_t res /*buffer resource*/,
+    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* smem,
+                                   int32x4_t rsrc /*buffer resource*/,
                                    index_t v_offset,
                                    index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
@@ -1663,10 +1663,15 @@ struct async_buffer_load<16, pre_nop>
                                    bool_constant<pre_nop> = {})
     {
 #if defined(__gfx950__)
-        __builtin_amdgcn_struct_buffer_load_lds(res, value, 16, i_offset, v_offset, 0, 0, 0);
+        asm volatile("s_nop 4\n"
+                     "buffer_load_dwordx4 %1, %2, 0 offen offset:%3 lds"
+                     : "=r"(smem) /*dummy dependency for smem*/
+                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "memory");
+        // __builtin_amdgcn_struct_buffer_load_lds(rsrc, smem, 16, i_offset, v_offset, 0, 0, 0);
 #else
-        ignore = value;
-        ignore = res;
+        ignore = smem;
+        ignore = rsrc;
         ignore = v_offset;
         ignore = i_offset;
 #endif
@@ -1677,8 +1682,8 @@ template <bool pre_nop>
 struct async_buffer_load<12, pre_nop>
 {
     template <typename T>
-    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* value,
-                                   int32x4_t res /*buffer resource*/,
+    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* smem,
+                                   int32x4_t rsrc /*buffer resource*/,
                                    index_t v_offset,
                                    index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
@@ -1686,10 +1691,15 @@ struct async_buffer_load<12, pre_nop>
                                    bool_constant<pre_nop> = {})
     {
 #if defined(__gfx950__)
-        __builtin_amdgcn_struct_buffer_load_lds(res, value, 12, i_offset, v_offset, 0, 0, 0);
+        asm volatile("s_nop 4\n"
+                     "buffer_load_dwordx3 %1, %2, 0 offen offset:%3 lds"
+                     : "=r"(smem) /*dummy dependency for smem*/
+                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "memory");
+        // __builtin_amdgcn_struct_buffer_load_lds(rsrc, smem, 12, i_offset, v_offset, 0, 0, 0);
 #else
-        ignore = value;
-        ignore = res;
+        ignore = smem;
+        ignore = rsrc;
         ignore = v_offset;
         ignore = i_offset;
 #endif
@@ -1700,8 +1710,8 @@ template <bool pre_nop>
 struct async_buffer_load<4, pre_nop>
 {
     template <typename T>
-    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* value,
-                                   int32x4_t res /*buffer resource*/,
+    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* smem,
+                                   int32x4_t rsrc /*buffer resource*/,
                                    index_t v_offset,
                                    index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
@@ -1709,10 +1719,15 @@ struct async_buffer_load<4, pre_nop>
                                    bool_constant<pre_nop> = {})
     {
 #if defined(__gfx950__)
-        __builtin_amdgcn_struct_buffer_load_lds(res, value, 4, i_offset, v_offset, 0, 0, 0);
+        asm volatile("s_nop 4\n"
+                     "buffer_load_dword %1, %2, 0 offen offset:%3 lds"
+                     : "=r"(smem) /*dummy dependency for smem*/
+                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "memory");
+        // __builtin_amdgcn_struct_buffer_load_lds(rsrc, smem, 4, i_offset, v_offset, 0, 0, 0);
 #else
-        ignore = value;
-        ignore = res;
+        ignore = smem;
+        ignore = rsrc;
         ignore = v_offset;
         ignore = i_offset;
 #endif
