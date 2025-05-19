@@ -88,6 +88,18 @@ CK_TILE_DEVICE auto apply_tuple(F&& f, Tuple&& t)
     return apply_tuple_impl(std::forward<F>(f), std::forward<Tuple>(t), std::make_index_sequence<N>{});
 }
 
+template <std::size_t... Is>
+constexpr auto make_dim_seq_impl(std::index_sequence<Is...>)
+{
+    return ck_tile::sequence<Is...>{};
+}
+
+template <std::size_t N>
+constexpr auto make_dim_seq()
+{
+    return make_dim_seq_impl(std::make_index_sequence<N>{});
+}
+
 
 // Create a tuple of tile windows for all input tensors
 // auto make_tile_windows = [&](const auto& input_tensors, const auto& iM) {
@@ -115,10 +127,11 @@ struct ElementWiseKernel
     using YDataType            = ck_tile::remove_cvref_t<typename Problem::YDataType>;
     using ElementWiseOperation = ck_tile::remove_cvref_t<typename Problem::ElementWiseOperation>;
 
-    template <typename... InputTensorType>
+    template <typename... InputTensorType, typename Dims>
     CK_TILE_DEVICE void operator()(
         // const XDataType* p_x_a, const XDataType* p_x_b, YDataType* p_y, const index_t M0) const
-        const index_t M0, const tuple<InputTensorType...>& input_tensors, YDataType* p_y) const
+        // const index_t M0, const tuple<InputTensorType...>& input_tensors, YDataType* p_y) const
+        Dims lens, Dims strides, const tuple<InputTensorType...>& input_tensors, YDataType* p_y) const
     {
         using S = typename Problem::BlockShape;
         // auto inputs_as_tuple = std::make_tuple(input_tensors...);
@@ -134,7 +147,11 @@ struct ElementWiseKernel
         //     input_tensors.get(number<1>()), make_tuple(M0), make_tuple(1), number<S::Vector_M>{});
 
         const auto iM = get_block_id() * S::Block_M;
-
+        auto merge_tuple = ck_tile::generate_tuple(
+                                [&](auto idx) { return lens[idx]; },
+                                number<lens.size()>{}
+                            );
+        auto dim_seq = make_dim_seq<Dims::size()>();
 
         // auto x_window_a = make_tile_window(x_m_n_a,
         //                                    make_tuple(number<S::Block_M>{}),
@@ -148,14 +165,21 @@ struct ElementWiseKernel
         auto make_tile_windows = [&](const auto& tensors, const auto& iM_) {
             return generate_tuple(
                 [&](auto idx) {
-                    return make_tile_window(
-                        make_naive_tensor_view<address_space_enum::global,
-                                            memory_operation_enum::set,
-                                            amd_buffer_coherence_enum::slc>(
-                            tensors.get(idx), make_tuple(M0), make_tuple(1), number<S::Vector_M>{}),
-                        make_tuple(number<S::Block_M>{}),
-                        {iM_},
-                        Policy::template MakeXBlockTileDistribution<Problem>());
+                    return [&] {
+                        auto tensor_view = make_naive_tensor_view<address_space_enum::global,
+                            memory_operation_enum::set,
+                            amd_buffer_coherence_enum::slc>(
+                            tensors.get(idx), lens, strides, number<S::Vector_M>{});
+                        auto transformed_tensor = transform_tensor_view(tensor_view,
+                            ck_tile::make_tuple(make_merge_transform(merge_tuple)),
+                            ck_tile::make_tuple(dim_seq),
+                            ck_tile::make_tuple(sequence<0>{}));
+                        return make_tile_window(
+                            transformed_tensor,
+                            ck_tile::make_tuple(number<S::Block_M>{}),
+                            {iM_},
+                            Policy::template MakeXBlockTileDistribution<Problem>());
+                    }();
                 },
                 number<sizeof...(InputTensorType)>{}); // Generate for all input tensors
         };
@@ -174,8 +198,14 @@ struct ElementWiseKernel
         const auto y_m_n = make_naive_tensor_view<address_space_enum::global,
                                                   memory_operation_enum::set,
                                                   amd_buffer_coherence_enum::slc>(
-            p_y, make_tuple(M0), make_tuple(1), number<S::Vector_M>{});
-        auto y_window = make_tile_window(y_m_n,
+            p_y, lens, strides, number<S::Vector_M>{});
+        // Transform the tensor view if needed
+        auto transformed_y_m_n = transform_tensor_view(y_m_n,
+            ck_tile::make_tuple(make_merge_transform(merge_tuple)),
+                            ck_tile::make_tuple(dim_seq),
+                            ck_tile::make_tuple(sequence<0>{}));
+
+        auto y_window = make_tile_window(transformed_y_m_n,
                                          make_tuple(number<S::Block_M>{}),
                                          {iM},
                                          Policy::template MakeXBlockTileDistribution<Problem>());
@@ -195,7 +225,7 @@ struct ElementWiseKernel
         };
 
         index_t num_m_tile_iteration = 
-            __builtin_amdgcn_readfirstlane(integer_divide_ceil(M0, S::Block_M));
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(lens.template at<lens.size() - 1>(), S::Block_M));
 
         for(int i = __builtin_amdgcn_readfirstlane(0); i < num_m_tile_iteration; ++i)
         {
