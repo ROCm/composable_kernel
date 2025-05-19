@@ -7,9 +7,10 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_gemm_universal_util.hpp"
 
-using I4   = pk_i4_t;
+using I4   = ck::pk_i4_t;
 using BF16 = ck::bhalf_t;
 using F32  = float;
+using F16  = ck::half_t;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
