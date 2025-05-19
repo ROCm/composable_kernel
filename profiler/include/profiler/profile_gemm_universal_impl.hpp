@@ -21,6 +21,8 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
+#include "ck/utility/env.hpp"
+
 namespace ck {
 namespace profiler {
 
@@ -154,10 +156,66 @@ bool profile_gemm_universal_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     float best_kbatch     = 0;
+    int best_instance     = 0;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    const std::string runs = ck::EnvGetString(CK_ENV(CK_RUN));
+    auto parse_runs        = [](const std::string& runs_) -> std::vector<int> {
+        // helper functions
+        auto parse_number = [](std::stringstream& ss, int& num) -> bool {
+            if(ss.eof())
+                return false;
+            ss >> num;
+            if(ss.fail())
+                return false;
+            return true;
+        };
+        auto parse_comma = [](std::stringstream& ss, bool is_optional) -> bool {
+            if(ss.eof())
+            {
+                if(is_optional)
+                    return true;
+                return false;
+            }
+            char nextchar;
+            ss >> nextchar;
+            if(ss.fail())
+                return false;
+            if(ss.eof() && is_optional)
+                return true;
+            return nextchar == ',';
+        };
+
+        std::stringstream ss(runs_);
+        std::vector<int> result;
+        while(!ss.eof())
+        {
+            int num1;
+            if(!parse_number(ss, num1))
+                break;
+            result.push_back(num1);
+            if(!parse_comma(ss, false))
+                break;
+        }
+        return result;
+    };
+    std::vector<int> runslist = parse_runs(runs);
+
+    // if runslist.size() > 0, we want to restrict the device GEMM tests to just those
+    // values. Otherwise, we run through all of the possibilities.
+    // for now we will assume that runslist is small, so we just execute the normal
+    // loop and skip values not in the list.
+    auto include_run = [&runslist](int run_index) -> bool {
+        for(const auto& r : runslist)
+            if(r == run_index)
+                return true;
+        return runslist.size() == 0; // true if no restrictions specified
+    };
+
+    int run = 0;
+    for(size_t instance = 0; instance < op_ptrs.size(); ++instance)
     {
+        auto& op_ptr        = op_ptrs[instance];
         const int KPerBlock = op_ptr->GetKPerBlock();
 
         if(op_ptr->GetPermuteB())
@@ -246,10 +304,9 @@ bool profile_gemm_universal_impl(int do_verification,
             kbatch_list = {KBatch};
         }
 
-        for(std::size_t i = 0; i < kbatch_list.size(); i++)
+        // use the kbatch value, not its list index
+        for(auto kbatch_curr : kbatch_list)
         {
-            auto kbatch_curr = kbatch_list[i];
-
             auto argument_ptr =
                 op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                             static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
@@ -269,6 +326,11 @@ bool profile_gemm_universal_impl(int do_verification,
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+                if(!include_run(run))
+                {
+                    run++;
+                    continue; // next kbatch
+                }
 
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
@@ -324,6 +386,8 @@ bool profile_gemm_universal_impl(int do_verification,
                                                                rotating_count > 1,
                                                                rotating_count});
 
+                float recip_ave_time = ave_time ? 1.0 / ave_time : 0;
+
                 std::size_t flop = std::size_t(2) * M * N * K;
 
                 static constexpr index_t BPackedSize = []() {
@@ -337,13 +401,13 @@ bool profile_gemm_universal_impl(int do_verification,
                                         sizeof(BDataType) * K * N / BPackedSize +
                                         sizeof(CDataType) * M * N;
 
-                float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+                float tflops = (static_cast<float>(flop) / 1.E9) * recip_ave_time;
 
-                float gb_per_sec = num_btype / 1.E6 / ave_time;
+                float gb_per_sec = (num_btype / 1.E6) * recip_ave_time;
 
                 std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
-                          << kbatch_curr << std::endl;
+                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name
+                          << ", KBatch: " << kbatch_curr << ", Inst: " << instance << std::endl;
 
                 if(tflops > best_tflops && ave_time > 1e-10)
                 {
@@ -353,12 +417,14 @@ bool profile_gemm_universal_impl(int do_verification,
                     best_ave_time       = ave_time;
                     best_gb_per_sec     = gb_per_sec;
                     best_kbatch         = kbatch_curr;
+                    best_instance       = instance;
                 }
+                run++;
             }
             else
             {
-                std::cout << op_ptr->GetTypeString() << " does not support this problem"
-                          << std::endl;
+                std::cout << "Unsupported: " << op_ptr->GetTypeString()
+                          << ", KBatch: " << kbatch_curr << ", Inst: " << instance << std::endl;
             }
         }
     }
@@ -401,7 +467,8 @@ bool profile_gemm_universal_impl(int do_verification,
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
               << " StrideB = " << StrideB << " StrideC = " << StrideC << " KBatch = " << best_kbatch
               << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
-              << " GB/s, " << best_op_name << std::endl;
+              << " GB/s, " << best_op_name << ", KBatch: " << best_kbatch
+              << ", Inst: " << best_instance << std::endl;
 
     if(best_op_object_name)
         std::cout << best_op_object_name.value() << std::endl;

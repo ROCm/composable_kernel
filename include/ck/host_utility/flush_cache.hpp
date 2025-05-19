@@ -4,8 +4,9 @@
 #pragma once
 
 #include <hip/hip_runtime.h>
-#include <set>
+#include <hip/hip_ext.h>
 #include <vector>
+#include <cassert>
 
 #include "ck/ck.hpp"
 #include "ck/utility/env.hpp"
@@ -223,6 +224,7 @@ inline void flush_icache()
     hip_check_error(hipGetLastError());
 }
 // if TimePrePress == false, return time does not include preprocess's time
+// XXX This is not used?
 template <bool TimePreprocess,
           typename GemmArgs,
           typename... Args,
@@ -238,13 +240,13 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                                              Args... args)
 {
 #if CK_TIME_KERNEL
-#define MEDIAN 0
     if(stream_config.time_kernel_)
     {
         if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
-            printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
+            printf("%s: kernel %p, grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
                    __func__,
+                   reinterpret_cast<void*>(kernel),
                    grid_dim.x,
                    grid_dim.y,
                    grid_dim.z,
@@ -254,109 +256,99 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 
             printf("Warm up %d times\n", stream_config.cold_niters_);
         }
-        // warm up
-        for(int i = 0; i < stream_config.cold_niters_; ++i)
+        if(!ck::EnvIsEnabled(CK_ENV(CK_NEWTIMING)))
         {
-            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
-            hip_check_error(hipGetLastError());
+            // old algorithm: warm up then time nrepeat iterations and take the mean
+            // warm up
+            for(int i = 0; i < stream_config.cold_niters_; ++i)
+            {
+                kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args,
+                                                                                    args...);
+                hip_check_error(hipGetLastError());
+            }
         }
 
         const int nrepeat = stream_config.nrepeat_;
-        if(nrepeat == 0)
-        {
-            return 0.0;
-        }
+        assert(nrepeat > 0);
+
         if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
             printf("Start running %d times...\n", nrepeat);
         }
 
-#if MEDIAN
-        std::set<float> times;
-#else
-        float total_time = 0;
-#endif
         hipEvent_t start, stop;
 
         hip_check_error(hipEventCreate(&start));
         hip_check_error(hipEventCreate(&stop));
 
         hip_check_error(hipDeviceSynchronize());
-        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
-
-        for(int i = 0; i < nrepeat; ++i)
+        if(!ck::EnvIsEnabled(CK_ENV(CK_NEWTIMING)))
         {
-            if constexpr(!TimePreprocess)
+            // Time the entire loop
+            hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+            for(int i = 0; i < nrepeat; ++i)
             {
                 preprocess();
+
+                kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args,
+                                                                                    args...);
+                hip_check_error(hipGetLastError());
             }
+            hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
+            hip_check_error(hipEventSynchronize(stop));
 
-            // hipEvent_t start, stop;
+            float total_time = 0;
+            hip_check_error(hipEventElapsedTime(&total_time, start, stop));
 
-            // hip_check_error(hipEventCreate(&start));
-            // hip_check_error(hipEventCreate(&stop));
-
-            // hip_check_error(hipDeviceSynchronize());
-            // hip_check_error(hipEventRecord(start, stream_config.stream_id_));
-            // calculate preprocess time
-            if constexpr(TimePreprocess)
-            {
-                preprocess();
-            }
-            // run real kernel
-            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
+            // return total_time / nrepeat adjusted by supposed cost of icache clear
+            hipDeviceProp_t deviceProps;
+            hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
+            // This seems pretty random
+            float preprocess_offset = deviceProps.multiProcessorCount == 80 ? 0.005 : 0.01;
+            return (total_time - preprocess_offset * nrepeat) / nrepeat;
+        }
+        // New algorithm: adaptive, no warmup, return minimum
+        // Need to print all the values for stats.
+        constexpr float maxtime = 10;   // ms
+        constexpr int minrep = 3;
+        std::vector<float> times;
+        float total_time = 0;
+        hip_check_error(hipDeviceSynchronize());
+        for (int i = 0; i < nrepeat; ++i)
+        {
+            hipExtLaunchKernelGGL(kernel,
+                                  grid_dim,
+                                  block_dim,
+                                  lds_byte,
+                                  stream_config.stream_id_,
+                                  start,
+                                  stop,
+                                  0,
+                                  gemm_args,
+                                  args...);
             hip_check_error(hipGetLastError());
-            // end real kernel
+            hip_check_error(hipEventSynchronize(stop));
 
-            //             hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-            //             hip_check_error(hipEventSynchronize(stop));
-            //             float cur_time = 0;
-            //             hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
-            // #if MEDIAN
-            //             times.insert(cur_time);
-            // #else
-            //             total_time += cur_time;
-            // #endif
-
-            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-            {
-                // std::cout << "i: " << i << " cur_time: " << cur_time << std::endl;
-
-                printf("gemm_args.p_a_grid: %p, gemm_args.p_b_grid:%p\n",
-                       static_cast<const void*>(gemm_args.p_a_grid),
-                       static_cast<const void*>(gemm_args.p_b_grid));
-            }
+            float cur_time = 0;
+            hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
+            times.push_back(cur_time);
+            total_time += cur_time;
+            if(total_time >= maxtime && i + 1 >= minrep)
+                break;
         }
-        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-        hip_check_error(hipEventSynchronize(stop));
-        float cur_time = 0;
-        hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
-#if MEDIAN
-        times.insert(cur_time);
-#else
-        total_time += cur_time;
-#endif
-
-#if MEDIAN
-        auto mid = times.begin();
-        std::advance(mid, (nrepeat - 1) / 2);
-        if(nrepeat % 2 == 1)
-        {
-            return *mid;
-        }
-        else
-        {
-            auto mid_next = mid;
-            std::advance(mid_next, 1);
-            return (*mid + *mid_next) / 2;
-        }
-#else
-        // return total_time / nrepeat;
-        hipDeviceProp_t deviceProps;
-        hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
-        float preprocess_offset = deviceProps.multiProcessorCount == 80 ? 0.005 : 0.01;
-        return (total_time - preprocess_offset * nrepeat) / nrepeat;
-#endif
+        printf("%s: kernel %p, grid_dim {%u, %u, %u}, block_dim {%u, %u, %u}, ",
+               __func__,
+               reinterpret_cast<void *>(kernel),
+               grid_dim.x,
+               grid_dim.y,
+               grid_dim.z,
+               block_dim.x,
+               block_dim.y,
+               block_dim.z);
+        printf("times {");
+        for (float t: times) printf(" %.7f", t);
+        printf("}\n");
+        return total_time / times.size(); //*std::min_element(times.begin(), times.end());
     }
     else
     {

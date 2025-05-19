@@ -100,6 +100,7 @@ add_compile_options(-Wno-unique-object-duplication)
 
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)
+add_compile_options(-gline-tables-only)
 
 if(NOT DISABLE_DL_KERNELS)
     add_definitions(-DDL_KERNELS)
