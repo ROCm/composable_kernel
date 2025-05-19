@@ -44,17 +44,5 @@ struct ElementWiseDefaultPolicy2D
                 sequence<1, 1, 2, 2>,
                 sequence<0, 3, 0, 3>>{});
     }
-
-
-    template <typename Problem, typename TensorView>
-    CK_TILE_DEVICE static constexpr auto MakeXTransformation(TensorView view)
-    {
-        // using S = typename Problem::BlockShape;
-        return transform_tensor_view(view,
-            make_tuple(make_merge_transform(make_tuple(number<8>{}, number<4096>{})),
-                       make_pass_through_transform(number<4096>{})),
-            make_tuple(sequence<0, 1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-    }
 };
 }
