@@ -337,6 +337,14 @@ struct HstuAttentionFwdPipelineQRKSVS
                     tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, sacc_tile);
                 }
 
+                __builtin_amdgcn_sched_barrier(0);
+
+                // for i_k1 = k1_loop-1, the loading is for next iteration
+                k_tile = load_tile(k_dram_window);
+                move_tile_window(k_dram_window, {kK1, 0});
+
+                __builtin_amdgcn_sched_barrier(0);
+
                 if constexpr(HstuMask::IsMasking)
                 {
                     if constexpr(HstuMask::kUseLocal)
@@ -427,10 +435,6 @@ struct HstuAttentionFwdPipelineQRKSVS
                     store_tile(v_lds_windows[number<(i_k1 + 1) % NumKVLdsBuffers>{}],
                                tile_elementwise_in(v_element_func, v_tile)); // store the prefetch
                 };
-
-                // for i_k1 = k1_loop-1, the loading is for next iteration
-                k_tile = load_tile(k_dram_window);
-                move_tile_window(k_dram_window, {kK1, 0});
 
                 __builtin_amdgcn_sched_barrier(0);
 
