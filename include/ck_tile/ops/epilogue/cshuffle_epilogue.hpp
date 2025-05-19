@@ -41,12 +41,12 @@ struct CShuffleEpilogueProblem
     static constexpr index_t kKPerXdl                      = kKPerXdl_;
     static constexpr index_t isCTransposed                 = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
-    // NumMXdlPerWavePerShuffle used for in each shuffle iteration how many xdl tiles in M
-    // dimensions per wave
-    static constexpr index_t NumMXdlPerWavePerShuffle = 1;
-    // NumNXdlPerWavePerShuffle used for in each shuffle iteration how many xdl tiles in N
-    // dimensions per wave
-    static constexpr index_t NumNXdlPerWavePerShuffle = 2;
+    // // NumMXdlPerWavePerShuffle used for in each shuffle iteration how many xdl tiles in M
+    // // dimensions per wave
+    // static constexpr index_t NumMXdlPerWavePerShuffle = 1;
+    // // NumNXdlPerWavePerShuffle used for in each shuffle iteration how many xdl tiles in N
+    // // dimensions per wave
+    // static constexpr index_t NumNXdlPerWavePerShuffle = 2;
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -71,21 +71,6 @@ struct CShuffleEpilogue
     static constexpr index_t kNPerXdl                      = Problem::kNPerXdl;
     static constexpr index_t kKPerXdl                      = Problem::kKPerXdl;
     static constexpr index_t isCTransposed                 = Problem::isCTransposed;
-    static constexpr index_t NumMXdlPerWavePerShuffle      = Problem::NumMXdlPerWavePerShuffle;
-    static constexpr index_t NumNXdlPerWavePerShuffle      = Problem::NumNXdlPerWavePerShuffle;
-    static constexpr index_t kMPerIteration = kMPerXdl * kMWave * NumMXdlPerWavePerShuffle;
-    static constexpr index_t kNPerIteration = kNPerXdl * kNWave * NumNXdlPerWavePerShuffle;
-
-    using WG = WarpGemmMfmaDispatcher<ADataType,
-                                      BTypeToUse,
-                                      AccDataType,
-                                      kMPerXdl,
-                                      kNPerXdl,
-                                      kKPerXdl,
-                                      isCTransposed>;
-
-    using CWarpDstr   = typename WG::CWarpDstr;
-    using CWarpTensor = typename WG::CWarpTensor;
 
     /**
      * @brief Get the vector store size for C tensor.
@@ -102,6 +87,53 @@ struct CShuffleEpilogue
         constexpr index_t MaxVectorStoreSize = 16;
         return MaxVectorStoreSize / sizeof(ODataType);
     }
+
+    /**
+     * @brief Shuffle tile configuration parameters
+     *
+     * @details These parameters control the number of XDL tiles processed per wave in each shuffle
+     * iteration:
+     * - NumMXdlPerWavePerShuffle: Number of XDL tiles in M dimension processed per wave
+     * - NumNXdlPerWavePerShuffle: Number of XDL tiles in N dimension processed per wave
+     */
+    static constexpr auto ShuffleTileTuple = [] {
+        constexpr index_t vecPerThread = kMPerXdl * kNPerXdl / get_warp_size();
+        if constexpr(vecPerThread >= GetVectorSizeC())
+        {
+            return std::make_tuple(1, 1);
+        }
+        else
+        {
+            constexpr index_t maxElementsPerThread = GetVectorSizeC() / vecPerThread;
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            {
+
+                return std::make_tuple(min(maxElementsPerThread, kMPerBlock / (kMPerXdl * kMWave)),
+                                       1);
+            }
+            else
+            {
+                return std::make_tuple(1,
+                                       min(maxElementsPerThread, kNPerBlock / (kNPerXdl * kNWave)));
+            }
+        }
+    }();
+    static constexpr index_t NumMXdlPerWavePerShuffle = std::get<0>(ShuffleTileTuple);
+    static constexpr index_t NumNXdlPerWavePerShuffle = std::get<1>(ShuffleTileTuple);
+
+    static constexpr index_t kMPerIteration = kMPerXdl * kMWave * NumMXdlPerWavePerShuffle;
+    static constexpr index_t kNPerIteration = kNPerXdl * kNWave * NumNXdlPerWavePerShuffle;
+
+    using WG = WarpGemmMfmaDispatcher<ADataType,
+                                      BTypeToUse,
+                                      AccDataType,
+                                      kMPerXdl,
+                                      kNPerXdl,
+                                      kKPerXdl,
+                                      isCTransposed>;
+
+    using CWarpDstr   = typename WG::CWarpDstr;
+    using CWarpTensor = typename WG::CWarpTensor;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
