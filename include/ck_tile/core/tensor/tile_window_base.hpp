@@ -40,6 +40,7 @@ struct tile_window_base
 
         
 
+
     // origin ([x0', x1', ...]) of window on bottom tensor
     BottomTensorIndex window_origin_;
 
@@ -94,8 +95,33 @@ template <typename TileWindowType_, typename BottomTensorView_, typename WindowL
 struct tile_window_with_tile_dstr_base
     : public tile_window_base<TileWindowType_, BottomTensorView_, WindowLengths_>
 {  
-    using TileDstr         = remove_cvref_t<StaticTileDistribution_>; 
+    using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
+    using TileWindowBase   = tile_window_base<TileWindowType_, BottomTensorView_, WindowLengths_>;
+
+
+    using WindowAdaptor    = typename TileDstr::PsYs2XsAdaptor;
+    using BottomTensorDesc = typename TileWindowBase::BottomTensorView::TensorDesc;
+    static constexpr index_t NDimWindowAdaptorTop = WindowAdaptor::get_num_of_top_dimension();
+
+    static constexpr index_t NDimP = TileDstr::get_num_of_dimension_p();
+    static constexpr index_t NDimY = TileDstr::get_num_of_dimension_y();
+
+    static_assert(TileDstr::is_static(), "wrong!");
+    static_assert(TileWindowBase::NDimBottomTensor == WindowAdaptor::get_num_of_bottom_dimension(),
+                  "wrong! inconsistent # of diemsnions");
+
+    CK_TILE_DEVICE constexpr auto get_tile_distribution() const { return tile_dstr_; }
     CK_TILE_HOST_DEVICE void init_raw() { this->bottom_tensor_view_.init_raw(); }
+
+    CK_TILE_DEVICE static constexpr bool has_static_tile_distribution()
+    {
+        return TileDstr::is_static();
+    }
+
+    // Tile tensor distribution, which contains:
+    //   1. adaptor for window: [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...]
+    //   2. thread descriptor for thread tensor in register: [y0, y1, ...] ==> [d]
+    TileDstr tile_dstr_;
 };
 
 
