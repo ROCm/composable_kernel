@@ -142,13 +142,13 @@ FMHA_FWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) 
 
 @dataclass
 class CppConstraint:
-    bool_expr_str: str = None
+    bool_expr: str = None
 
     def __str__(self):
-        if self.bool_expr_str is None:
+        if self.bool_expr is None:
             return 'true'
         else:
-            return f'{self.bool_expr_str}'
+            return f'{self.bool_expr}'
 
     def __and__(self, other):
         return CppConstraint(f'({str(self)}) && ({str(other)})')
