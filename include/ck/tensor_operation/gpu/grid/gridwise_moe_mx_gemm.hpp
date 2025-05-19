@@ -871,21 +871,20 @@ struct GridwiseMoeGemmMX
             constexpr auto KThreadRead      = 64 / MPerXdl;
             constexpr auto K0PerThreadRead  = AK0Number / KThreadRead;
 
-            constexpr auto kfold = (AK1Number * M0 * sizeof(LDSTypeA) / APackedSize > 128)
+            constexpr auto kfold = (AK1Number * M0 * sizeof(LDSTypeA) > 128)
                                        ? 1
-                                       : 128 / (AK1Number * M0 * sizeof(LDSTypeA) / APackedSize);
+                                       : 128 / (AK1Number * M0 * sizeof(LDSTypeA));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
             // 1<=mpair<=n0
-            constexpr auto mpair =
-                (AK1Number * MPerXdl * sizeof(LDSTypeA) / APackedSize > 128)
-                    ? 1
-                    : ((128 / (AK1Number * MPerXdl * sizeof(LDSTypeA) / APackedSize)) > M0
-                           ? M0
-                           : 128 / (AK1Number * MPerXdl * sizeof(LDSTypeA) / APackedSize));
+            constexpr auto mpair = (AK1Number * MPerXdl * sizeof(LDSTypeA) > 128)
+                                       ? 1
+                                       : ((128 / (AK1Number * MPerXdl * sizeof(LDSTypeA))) > M0
+                                              ? M0
+                                              : 128 / (AK1Number * MPerXdl * sizeof(LDSTypeA)));
 
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(Number<KThreadWrite / kfold / KThreadReadPerm>{},
@@ -1017,7 +1016,7 @@ struct GridwiseMoeGemmMX
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max(a_block_space_size_aligned * sizeof(LDSTypeA) / APackedSize,
+        return math::max(a_block_space_size_aligned * sizeof(LDSTypeA),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
@@ -1981,7 +1980,7 @@ struct GridwiseMoeGemmMX
             problem.StrideC);
 
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
-            make_tuple((IsInputGemm ? problem.NumTokens : problem.M) / (MXdlPack * MPerBlock),
+            make_tuple((IsInputGemm ? problem.NumTokens : problem.M) / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
                            (KXdlPack * 64 / MPerXdl),
                        64 * KXdlPack * MXdlPack / scale_pack_size_a));
@@ -2046,12 +2045,12 @@ struct GridwiseMoeGemmMX
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K / APackedSize;
+            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K * APackedSize;
         });
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
         const index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
-            problem.N * math::integer_divide_ceil(problem.K, ScaleBlockSize));
+            problem.N * math::integer_divide_ceil(problem.K, ScaleBlockSize / BPackedSize));
 
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
@@ -2060,13 +2059,12 @@ struct GridwiseMoeGemmMX
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid + expert_id * expert_stride / BPackedSize,
-            b_grid_desc_bpreshuffled.GetElementSpaceSize());
+            p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
 
         const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
         const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_scale_grid + expert_id * expert_scale_stride,
+            p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
             b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
         // A matrix in LDS memory, dst of blockwise copy
@@ -2141,11 +2139,9 @@ struct GridwiseMoeGemmMX
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
         auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared),
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
+            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared1),
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
+            static_cast<ADataType*>(p_shared1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
@@ -2209,7 +2205,7 @@ struct GridwiseMoeGemmMX
             Sequence<1, 1, KXdlPack * NXdlPack / scale_pack_size_b>, // SliceLengths
             Sequence<0, 1, 2>,                                       // DimAccessOrder
             2,                                                       // SrcVectorDim
-            KXdlPack * MXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
+            KXdlPack * NXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
             1,                                                       // SrcScalarStrideInVector
             true>(b_scale_grid_desc_bn_ak,
                   make_multi_index(block_n_id * NPerBlock / NPerXdl / NXdlPack + b_thread_offset_n,
