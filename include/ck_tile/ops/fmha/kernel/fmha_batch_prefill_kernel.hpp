@@ -139,7 +139,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         ck_tile::index_t page_block_size;
 #else
         ck_tile::index_t page_block_size;
-        ck_tile::index_t block_table_batch_stride,
+        ck_tile::index_t block_table_batch_stride;
 // #else
 //         static constexpr ck_tile::index_t page_block_size = 1;
 #endif
@@ -491,7 +491,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               const void* kv_last_page_lens,
               ck_tile::index_t page_block_size = 1,
 #else
-                  ck_tile::index_t page_block_size;
+                  ck_tile::index_t page_block_size,
                   ck_tile::index_t block_table_batch_stride,
 #endif
                   float scale_s,
@@ -761,7 +761,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
-            if(kargs.seqlen_q <= i_m0)
+            if(kargs.seqlen_q <= i_m0 || kargs.seqlen_q == 1)
             {
                 return;
             }

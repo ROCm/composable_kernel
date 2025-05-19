@@ -343,6 +343,11 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 k_offsets[n0] = (page_idx[i_page] * page_block_size + i_seq) * stride_k;
             });
         }
+        auto k_dram_window = make_tile_scatter_gather(k_dram_block_window.get_bottom_tensor_view(),
+                                                      k_dram_block_window.get_window_lengths(),
+                                                      k_dram_block_window.get_window_origin(),
+                                                      k_dist,
+                                                      k_offsets); // K DRAM tile window for
 
         k_dram_window.init_raw();
         constexpr auto k_oob_ck = bool_constant<true>{};
@@ -941,7 +946,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t* page_idx,
                const index_t stride_k,
                const index_t stride_v,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const index_t page_block_size) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -967,7 +973,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           page_idx,
                           stride_k,
                           stride_v,
-                          dropout);
+                          dropout,
+                          page_block_size);
     }
 };
 

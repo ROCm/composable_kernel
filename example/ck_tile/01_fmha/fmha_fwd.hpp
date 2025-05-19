@@ -350,8 +350,9 @@ struct fmha_batch_prefill_args
     void* kv_page_indices;
 #if 0 // we assume page_block_size=1 for now
     void* kv_last_page_lens;
+#else
     ck_tile::index_t page_block_size;
-    ck_tile::index_t ;
+    ck_tile::index_t block_table_batch_stride;
 #endif
 
     float scale_s;
@@ -732,6 +733,9 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
 #if 0 // we assume page_block_size=1 for now
                                          args.kv_last_page_lens,
                                          args.page_block_size,
+#else
+                                             args.page_block_size,
+                                             args.block_table_batch_stride,
 #endif
                                              args.scale_s,
                                              args.scale_p,
@@ -779,9 +783,6 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
 #if 0 // we assume page_block_size=1 for now
                                          args.kv_last_page_lens,
                                          args.page_block_size,
-#else
-                                             args.page_block_size,
-                                             args.block_table_batch_stride,
 #endif
                                              args.scale_s,
                                              args.scale_p,
