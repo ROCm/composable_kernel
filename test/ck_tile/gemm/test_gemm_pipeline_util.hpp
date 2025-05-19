@@ -36,7 +36,8 @@ enum struct GemmPipelineType
 {
     Mem,
     CompV3,
-    CompV4
+    CompV4,
+    Async
 };
 
 template <GemmPipelineType PT, typename Problem>
