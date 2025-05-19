@@ -49,6 +49,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     static constexpr bool kPadHeadDimQ      = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV      = FmhaPipeline::kPadHeadDimV;
     static constexpr bool kHasLogitsSoftCap = FmhaPipeline::kHasLogitsSoftCap;
+    static constexpr bool kIsSglangLayout   = FmhaPipeline::kIsSglangLayout;
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
@@ -137,7 +138,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         const int32_t* kv_last_page_lens;
         ck_tile::index_t page_block_size;
 #else
-        static constexpr ck_tile::index_t page_block_size = 1;
+        ck_tile::index_t page_block_size;
+        ck_tile::index_t block_table_batch_stride,
+// #else
+//         static constexpr ck_tile::index_t page_block_size = 1;
 #endif
 
         float scale_s;
@@ -485,7 +489,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                   const void* kv_page_indices,
 #if 0 // we assume page_block_size=1 for now
               const void* kv_last_page_lens,
-              ck_tile::index_t page_block_size,
+              ck_tile::index_t page_block_size = 1,
+#else
+                  ck_tile::index_t page_block_size;
+                  ck_tile::index_t block_table_batch_stride,
 #endif
                   float scale_s,
                   float scale_p,
@@ -530,6 +537,9 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 #if 0 // we assume page_block_size=1 for now
                      reinterpret_cast<const int32_t*>(kv_last_page_lens),
                      page_block_size,
+#else
+                     page_block_size,
+                     block_table_batch_stride,
 #endif
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
@@ -553,7 +563,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     batch_stride_k,
                     batch_stride_v};
-
         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
         {
             kargs.bias_ptr          = bias_ptr;
@@ -604,6 +613,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         if constexpr(kHasLogitsSoftCap)
         {
             kargs.init_logits_soft_cap(logits_soft_cap);
+        }
+        if constexpr(!kIsSglangLayout)
+        {
+            kargs.page_block_size = page_block_size;
+            kargs.block_table_batch_stride = block_table_batch_stride;
         }
 
         return kargs;
@@ -826,7 +840,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_q),
+                // make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_q),
+                make_tuple(kargs.num_total_pages, kargs.hdim_q),
                 make_tuple(kargs.stride_k, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
@@ -842,7 +857,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_v),
+                    // make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_v),
+                    make_tuple(kargs.num_total_pages, kargs.hdim_v),
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
@@ -851,7 +867,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     v_dram_naive,
                     make_tuple(
                         make_pass_through_transform(kargs.hdim_v),
-                        make_pass_through_transform(kargs.num_total_pages * kargs.page_block_size)),
+                        // make_pass_through_transform(kargs.num_total_pages * kargs.page_block_size)),
+                        make_pass_through_transform(kargs.num_total_pages)),
                     make_tuple(sequence<1>{}, sequence<0>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -865,7 +882,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.hdim_v, kargs.num_total_pages * kargs.page_block_size),
+                    // make_tuple(kargs.hdim_v, kargs.num_total_pages * kargs.page_block_size),
+                    make_tuple(kargs.hdim_v, kargs.num_total_pages),
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
@@ -1115,10 +1133,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       variant_params,
                                       block_indices,
                                       smem_ptr,
-                                      kargs.kv_page_indices,
+                                      kargs.kv_page_indices + i_batch * kargs.block_table_batch_stride,
                                       kargs.stride_k,
                                       kargs.stride_v,
-                                      dropout);
+                                      dropout,
+                                      kargs.page_block_size);
             }
         }();
 

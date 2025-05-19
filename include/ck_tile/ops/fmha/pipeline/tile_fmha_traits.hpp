@@ -33,6 +33,8 @@ struct TileFmhaTraits
     static constexpr bool kHasDropout       = kHasDropout_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
+    static constexpr bool kIsSglangLayout   = false;
+    static constexpr bool kIsChunkedPrefill = false;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,

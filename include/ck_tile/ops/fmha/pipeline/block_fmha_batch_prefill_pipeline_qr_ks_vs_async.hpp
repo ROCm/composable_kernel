@@ -65,6 +65,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr bool kPadHeadDimQ      = true; // support multiple of vector(like 8x)
     static constexpr bool kPadHeadDimV      = true; // support multiple of vector(like 8x)
     static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
+    // static constexpr bool kIsSglangLayout   = Problem::kIsSglangLayout;
+    static constexpr bool kIsSglangLayout   = false;
+    static constexpr bool kIsChunkedPrefill = Problem::kIsChunkedPrefill;
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
@@ -194,7 +197,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t* page_idx,
                const index_t stride_k,
                const index_t stride_v,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const index_t page_block_size) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -323,14 +327,23 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         using KDstrEncode         = typename decltype(k_dist)::DstrEncode;
         constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
         statically_indexed_array<index_t, NRepeat> k_offsets;
-        static_for<0, NRepeat, 1>{}([&](auto n0) {
-            k_offsets[n0] = page_idx[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
-        });
-        auto k_dram_window = make_tile_scatter_gather(k_dram_block_window.get_bottom_tensor_view(),
-                                                      k_dram_block_window.get_window_lengths(),
-                                                      k_dram_block_window.get_window_origin(),
-                                                      k_dist,
-                                                      k_offsets); // K DRAM tile window for
+        if constexpr(kIsSglangLayout)
+        {
+            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                k_offsets[n0] = page_idx[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
+            });
+        }
+        else
+        {
+            statically_indexed_array<index_t, NRepeat> k_offsets;
+            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                int32_t seqlen_k_idx_per_repeat = k_coord[0] + kN0 / NRepeat * n0.value;
+                int32_t i_page = seqlen_k_idx_per_repeat / page_block_size;
+                int32_t i_seq  = seqlen_k_idx_per_repeat % page_block_size;
+                k_offsets[n0] = (page_idx[i_page] * page_block_size + i_seq) * stride_k;
+            });
+        }
+
         k_dram_window.init_raw();
         constexpr auto k_oob_ck = bool_constant<true>{};
         constexpr auto k_pre_np = [&]() {
@@ -359,9 +372,21 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         constexpr index_t V_KRepeat = VDstrEncode::hs_lengthss_[I1][I3];
         statically_indexed_array<index_t, V_KRepeat> v_offsets;
         (void)stride_k;
-        static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-            v_offsets[k0] = page_idx[v_coord[VPageIndexDim] + k0.value] * stride_v;
-        });
+        if constexpr(kIsSglangLayout)
+        {
+            static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                v_offsets[k0] = page_idx[v_coord[VPageIndexDim] + k0.value] * stride_v;
+            });
+        }
+        else
+        {
+            static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                int32_t seqlen_v_idx_per_repeat = v_coord[VPageIndexDim] + k0.value;
+                int32_t i_page = seqlen_v_idx_per_repeat / page_block_size;
+                int32_t i_seq  = seqlen_v_idx_per_repeat % page_block_size;
+                v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_k;
+            });
+        }
 
         auto v_dram_window =
             make_tile_scatter_gather(v_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -425,9 +450,21 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
             auto v_buf           = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
-            static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                v_offsets[k0] = page_idx[kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
-            });
+            if constexpr(kIsSglangLayout)
+            {
+                static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                    v_offsets[k0] = page_idx[kK1 + v_coord[VPageIndexDim] + k0.value] * stride_v;
+                });
+            }
+            else
+            {
+                static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                    int32_t seqlen_v_idx_per_repeat = kK1 + v_coord[VPageIndexDim] + k0.value;
+                    int32_t i_page = seqlen_v_idx_per_repeat / page_block_size;
+                    int32_t i_seq  = seqlen_v_idx_per_repeat % page_block_size;
+                    v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_k;
+                });
+            }
             v_dram_window.update_page_idx(v_offsets);
 
             __builtin_amdgcn_sched_barrier(0);
@@ -718,11 +755,24 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     {
                         v_buf = load_tile(
                             v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                        static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                            v_offsets[k0] = page_idx[kK1 * 2 + i_k1.value * kK1 +
-                                                     v_coord[VPageIndexDim] + k0.value] *
-                                            stride_v;
-                        });
+                        if constexpr(kIsSglangLayout)
+                        {
+                            static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                                v_offsets[k0] = page_idx[kK1 * 2 + i_k1.value * kK1 +
+                                                         v_coord[VPageIndexDim] + k0.value] *
+                                                stride_v;
+                            });
+                        }
+                        else
+                        {
+                            static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                                int32_t seqlen_v_idx_per_repeat = kK1 * 2  + i_k1.value * kK1 +
+                                                                  v_coord[VPageIndexDim] + k0.value;
+                                int32_t i_page = seqlen_v_idx_per_repeat / page_block_size;
+                                int32_t i_seq  = seqlen_v_idx_per_repeat % page_block_size;
+                                v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_k;
+                            });
+                        }
                         v_dram_window.update_page_idx(v_offsets);
                     }
                     block_sync_lds();
@@ -768,9 +818,22 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 move_tile_window(k_dram_block_window, {kN0, 0});
                 k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    k_offsets[n0] = page_idx[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
-                });
+                if constexpr(kIsSglangLayout)
+                {
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        k_offsets[n0] = page_idx[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
+                    });
+                }
+                else
+                {
+                    statically_indexed_array<index_t, NRepeat> k_offsets;
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        int32_t seqlen_k_idx_per_repeat = k_coord[0] + kN0 / NRepeat * n0.value;
+                        int32_t i_page = seqlen_k_idx_per_repeat / page_block_size;
+                        int32_t i_seq  = seqlen_k_idx_per_repeat % page_block_size;
+                        k_offsets[n0] = (page_idx[i_page] * page_block_size + i_seq) * stride_k;
+                    });
+                }
                 k_dram_window.update_page_idx(k_offsets);
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
