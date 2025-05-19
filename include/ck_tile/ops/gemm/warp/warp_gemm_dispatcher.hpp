@@ -83,6 +83,8 @@ template<> struct WarpGemmMfmaDispatcher<ck_tile::bf8_t, ck_tile::bf8_t, float, 
 
 // int8
 template<> struct WarpGemmMfmaDispatcher<ck_tile::int8_t, ck_tile::int8_t, int32_t, 32, 32,  16, false> { using Type = WarpGemmMfma_i32_32x32x16_i8_i8; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::int8_t, ck_tile::int8_t, int32_t, 32, 32,  16, true> { using Type = WarpGemmMfma_i32_32x32x16_i8_i8_CTransposed; };
+
 
 // clang-format on
 } // namespace impl
