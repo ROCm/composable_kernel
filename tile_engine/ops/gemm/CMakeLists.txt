@@ -1,22 +1,11 @@
-option(USE_CUSTOM_CONFIG "Enable user-provided configuration file" ON)
 
 # generate a list of kernels, but not actually emit files at config stage
-if(USE_CUSTOM_CONFIG)
-    execute_process(
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
-                --working_path ${CMAKE_CURRENT_BINARY_DIR}
-                --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json
-                --list_blobs
-        RESULT_VARIABLE ret
-    )
-else()
-    execute_process(
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
-                --working_path ${CMAKE_CURRENT_BINARY_DIR}
-                --list_blobs
-        RESULT_VARIABLE ret
-    )
-endif()
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
+            --working_path ${CMAKE_CURRENT_BINARY_DIR}
+            --list_blobs
+    RESULT_VARIABLE ret
+)
 
 if(ret AND NOT ret EQUAL 0)
   message( FATAL_ERROR "Fail to list kernels via Python. ${ret}")
@@ -24,22 +13,12 @@ endif()
 
 file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BLOBS)
 
-if(USE_CUSTOM_CONFIG)
-  add_custom_command(
-      OUTPUT  ${GEMM_CODEGEN_BLOBS}
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
-              --working_path ${CMAKE_CURRENT_BINARY_DIR}
-              --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json
-              --gen_blobs
-  )
-else()
-  add_custom_command(
-      OUTPUT  ${GEMM_CODEGEN_BLOBS}
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
-              --working_path ${CMAKE_CURRENT_BINARY_DIR}
-              --gen_blobs
-  )
-endif()
+add_custom_command(
+  OUTPUT  ${GEMM_CODEGEN_BLOBS}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
+          --working_path ${CMAKE_CURRENT_BINARY_DIR}
+          --gen_blobs
+)
 
 set(EXECUTABLE_GEMM_INSTANCE "tile_engine_gemm")
 message("adding example ${EXECUTABLE_GEMM_INSTANCE}")

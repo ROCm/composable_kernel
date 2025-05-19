@@ -4,7 +4,11 @@ CK Tile Engine GEMM is used to generate and run GEMM kernels with different comb
 
 # Kernel Configurations
 
-User can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file. For reference please see `./configs/user_provided_config.json`. The Tile engine also has default kernel configuration to expand the range of kernel configuration which is saved in `./configs/default_config.json`.
+User can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file with limited values. For reference please see `./configs/user_provided_config.json`. 
+
+The Tile engine also has a default kernel configuration for providing range of configuration parameter values, which helps users who lack kernel development experience to benchmark  For reference please see in `./configs/default_config.json`
+
+If user does not provide kernel configuration, the tile engine uses default kernel configuration to generate kernel instances and benchmark. 
 
 ## Build Instructions
 ``` bash
@@ -12,8 +16,7 @@ User can provide kernel configuration such as tile size, warp size, padding, pip
 mkdir build && cd build
 # build composable kernel
 ## replace <arch> with the appropriate architecture (example gfx942) or leave blank
-## "USE_CUSTOM_CONFIG=OFF" for default configuration, "USE_CUSTOM_CONFIG=ON" for user provided configuration
-sh ../script/cmake-ck-dev.sh  ../ <arch> -D USE_CUSTOM_CONFIG=ON 
+sh ../script/cmake-ck-dev.sh  ../ <arch>
 # generate the executable
 make tile_engine_gemm -j
 ```
@@ -37,9 +40,10 @@ rm -rf tile_engine/ && make tile_engine_gemm -j  # rebuild
                     -log    Wether output kernel instance information or not. Possible values are true or false. Default is false.
                  -warmup    The number of iterations before benchmark the kernel. Default is 50.
                  -repeat    The number of iterations to benchmark the kernel. Default is 100.
-                  -timer    The type of timer. Possible values are gpu timer or cpu timer. Default is gpu timer.
+                  -timer    Whether if the timer is gpu timer or not. Possible values are true or false. Default is true.  
                    -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
                  -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
+           -csv_filename    The filename of benchmark result. Default is gemm_kernel.
     -structured_sparsity    whether use sparsity kernel or not. Possible values are true or false. Default is false.
                -pipeline    The type of pipeline. Possible values are compv3, compv4 or mem. Default is compv3.     
                -epilogue    The type of epilogue. Possible values are cshuffle or default. Default is cshuffle.

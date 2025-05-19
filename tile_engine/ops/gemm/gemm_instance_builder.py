@@ -408,19 +408,13 @@ struct GemmKernel {{
 #include "gemm_common.hpp"
 #include "gemm_instances.hpp"
 #include "gemm_host_api.hpp"
-#include "benchmark_gemm.hpp"
 
 struct GemmDispatcher {
     static auto& get_kernel_map() {
         // Use a static local variable
-        static std::unordered_map<std::string,
-                                  std::function<void(GemmProfiler&,
-                                                     ck_tile::DeviceMem&,
-                                                     ck_tile::HostTensor<CDataType>&,
-                                                     ck_tile::HostTensor<CDataType>&,
-                                                     int,
-                                                     ck_tile::GemmHostArgs&,
-                                                     const ck_tile::stream_config& stream)>>
+        static std::unordered_map<
+            std::string,
+            std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>>
             kernel_map;
         return kernel_map;
     }
@@ -446,53 +440,48 @@ struct GemmDispatcher {
         ))
 
         for trait in self.all_trait_names:
-            content += f"""        kernel_map["{trait}"] = [=]( GemmProfiler& profiler,
-                                                                ck_tile::DeviceMem& c_m_n_dev_buf,
-                                                                ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                                                                ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                                                                int verify,
-                                                                ck_tile::GemmHostArgs& args,
-                                                                const ck_tile::stream_config& stream) {{
-            if(structured_sparsity){{  // SMFMA"""
+            content += f"""         kernel_map["{trait}"] = {{"""
             for tile in tile_params:
                 if self.is_tile_valid(tile, trait):
+                    content += f"""[&](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{ """
+                    content += f""" if(structured_sparsity){{  // SMFMA"""
                     sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
                         self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
                         self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
                         ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
                          (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
                     content += f"""
-                    profiler.benchmark_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
-            content += f"""
-            }} else {{"""
-            for tile in tile_params:
-                if self.is_tile_valid(tile, trait):
+                        return run_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(args, stream);"""
                     content += f"""
-                    profiler.benchmark_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, args, stream);"""
+                            }} else {{"""
+                    content += f"""
+                        return run_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(args, stream);"""
+                    content += f"""
+                            }} """
+                    content += f"""
+                        }} """
             content += f"""
-            }}
-        }};\n"""
-
+            }};\n """
+    
         content += """    }
 
-    static auto dispatch(ck_tile::DeviceMem& c_m_n_dev_buf,
-                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                         int verify,
-                         int metric,
-                         bool structured_sparsity,
-                         const KernelTraits& trait,
-                         ck_tile::GemmHostArgs& gemm_args,
-                         const ck_tile::stream_config& stream) {
+    template <typename Kernel>
+    static std::tuple<std::string, float> run_kernel(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream)
+    {
+        std::string name = Kernel::get_name();
+        float avg_time = Kernel::launch(args, stream);
+        
+        return std::make_tuple(name, avg_time);
+    }
+    
+    
+    static auto dispatch(bool structured_sparsity, const KernelTraits& trait) {
         init(structured_sparsity);
         const std::string key = assemble_key(trait);
         auto& kernel_map = get_kernel_map();
-        auto& profiler        = GemmProfiler::instance();
-        if(auto it = kernel_map.find(key); it != kernel_map.end()) {
-            it->second(
-                profiler, c_m_n_dev_buf, c_m_n_host_result, c_m_n_dev_result, verify, gemm_args, stream);
-            profiler.select_best_instance(static_cast<Metric>(metric));
-            return;
+        if(auto it = kernel_map.find(key); it != kernel_map.end())
+        {
+            return it->second;
         }
         throw std::runtime_error("No suitable kernel found: " + key);
     }

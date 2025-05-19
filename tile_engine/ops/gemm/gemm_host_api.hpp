@@ -114,7 +114,7 @@ inline auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "The stride value for tensor B. Default is 0.")
         .insert("stride_c", "0", "The stride value for tensor C  Default is 0.")
         .insert("split_k", "1", "The split value for k dimension. Default is 1.")
-        .insert("v",
+        .insert("verify",
                 "2",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
                 "for validation on GPU. Default is 2, validation on GPU.")
@@ -126,10 +126,10 @@ inline auto create_args(int argc, char* argv[])
             "warmup", "50", "The number of iterations before benchmark the kernel. Default is 50.")
         .insert(
             "repeat", "100", "The number of iterations to benchmark the kernel. Default is 100.")
-        .insert(
-            "timer",
-            "gpu",
-            "The type of timer. Possible values are gpu timer or cpu timer. Default is gpu timer.")
+        .insert("timer",
+                "true",
+                "Whether if the timer is gpu timer or not. Possible values are false or true. "
+                "Default is true.")
         .insert("init",
                 "0",
                 "The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 "
@@ -138,6 +138,9 @@ inline auto create_args(int argc, char* argv[])
                 "0",
                 "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "
                 "tflops, or 2 for bandwidth. Default is 0, latency.")
+        .insert("csv_filename",
+                "gemm_kernel",
+                "The filename of benchmark result. Default is gemm_kernel.")
         .insert("structured_sparsity",
                 "false",
                 "Whether use sparsity kernel or not. Possible values are true or false. Default is "
@@ -223,84 +226,5 @@ void permute_vectors_i4x4_b(Tensor& tensor)
                 tensor(j + 6, i) = i4x2;
             }
         }
-    }
-}
-
-/// @brief Function to compare the results of the device and host computations
-bool compare(ck_tile::index_t K,
-             ck_tile::index_t kbatch,
-             ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-             ck_tile::HostTensor<CDataType>& c_m_n_host_result)
-{
-    const float max_accumulated_value =
-        *std::max_element(c_m_n_host_result.mData.begin(), c_m_n_host_result.mData.end());
-    const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-        K, kbatch, max_accumulated_value);
-    bool pass = ck_tile::check_err(c_m_n_dev_result,
-                                   c_m_n_host_result,
-                                   "Error: Incorrect results!",
-                                   rtol_atol.at(ck_tile::number<0>{}),
-                                   rtol_atol.at(ck_tile::number<1>{}));
-
-    std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
-    std::cout << "The verification result is:" << (pass ? "correct" : "fail") << std::endl;
-
-    return pass;
-}
-
-/// @brief Function to get the kernel output with reference implementation on CPU/GPU
-template <typename ADataType,
-          typename BDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout>
-void gemm_host_reference(int verify,
-                         ck_tile::HostTensor<ADataType>& a_m_k,
-                         ck_tile::HostTensor<BDataType>& b_k_n,
-                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                         ck_tile::DeviceMem& a_m_k_dev_buf,
-                         ck_tile::DeviceMem& b_k_n_dev_buf,
-                         ck_tile::index_t M,
-                         ck_tile::index_t N,
-                         ck_tile::index_t K,
-                         ck_tile::index_t stride_A,
-                         ck_tile::index_t stride_B,
-                         ck_tile::index_t stride_C)
-{
-    if(verify == 1)
-    {
-        c_m_n_host_result.SetZero();
-
-        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_k_n, c_m_n_host_result);
-    }
-    else if(verify == 2)
-    {
-        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
-        {
-            // Restore input for B for gpu reference
-            b_k_n_dev_buf.ToDevice(b_k_n.data());
-        }
-
-        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_host_result.get_element_space_size_in_bytes());
-        c_m_n_host_result.SetZero();
-        c_m_n_gpu_buf_ref.SetZero();
-
-        ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
-        BDataType* d_B = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
-        CDataType* d_C = static_cast<CDataType*>(c_m_n_gpu_buf_ref.GetDeviceBuffer());
-
-        ck_tile::reference_gemm_gpu<ADataType,
-                                    BDataType,
-                                    AccDataType,
-                                    CDataType,
-                                    ALayout,
-                                    BLayout,
-                                    CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
-
-        c_m_n_gpu_buf_ref.FromDevice(c_m_n_host_result.data());
     }
 }

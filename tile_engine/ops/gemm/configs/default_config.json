@@ -36,19 +36,19 @@
             "max": 512,
             "min": 64,
             "step": 8,
-            "execlude": []
+            "exclude": []
         },
         "tile_n": {
             "max": 512,
             "min": 64,
             "step": 8,
-            "execlude": []
+            "exclude": []
         },
         "tile_k": {
             "max": 512,
             "min": 64,
             "step": 8,
-            "execlude": []
+            "exclude": []
         },
         "warp_m": {
             "max": 4,

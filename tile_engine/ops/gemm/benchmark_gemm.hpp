@@ -3,257 +3,161 @@
 
 #pragma once
 
-#include <iostream>
-#include <vector>
-#include <filesystem>
-#include <memory>
-#include <fstream>
-#include <iomanip>
+#include "gemm_profiler.hpp"
 
-#include "ck/host_utility/device_prop.hpp"
-#include "ck_tile/host/timer.hpp"
-
-enum class Metric
+template <typename Callables>
+void benchmark_gemm(const ck_tile::ArgParser& arg_parser, const std::vector<Callables>& callables)
 {
-    LATENCY   = 0,
-    TFLOPS    = 1,
-    BANDWIDTH = 2
-};
+    GemmProblem gemm_problem{arg_parser.get_int("split_k"),
+                             arg_parser.get_int("m"),
+                             arg_parser.get_int("n"),
+                             arg_parser.get_int("k"),
+                             arg_parser.get_int("stride_a"),
+                             arg_parser.get_int("stride_b"),
+                             arg_parser.get_int("stride_c"),
+                             DataTypeTraits<ADataType>::name,
+                             DataTypeTraits<BDataType>::name,
+                             DataTypeTraits<AccDataType>::name,
+                             DataTypeTraits<CDataType>::name,
+                             ALayout::name,
+                             BLayout::name,
+                             CLayout::name,
+                             arg_parser.get_bool("structured_sparsity")};
 
-inline constexpr auto get_metric_name(Metric m)
-{
-    switch(m)
+    Setting setting{
+        arg_parser.get_int("warmup"),
+        arg_parser.get_int("repeat"),
+        arg_parser.get_bool("timer"),
+        arg_parser.get_int("verify"),
+        arg_parser.get_int("init"),
+        arg_parser.get_bool("log"),
+        arg_parser.get_str("csv_filename"),
+    };
+
+    auto& profiler = GemmProfiler::instance(setting);
+
+    const ALayout layout_a = ALayout{};
+    const BLayout layout_b = BLayout{};
+    const CLayout layout_c = CLayout{};
+
+    gemm_problem.stride_a_ = ck_tile::get_default_stride(
+        gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a));
+    gemm_problem.stride_b_ = ck_tile::get_default_stride(
+        gemm_problem.k_, gemm_problem.n_, gemm_problem.stride_b_, is_row_major(layout_b));
+    gemm_problem.stride_c_ = ck_tile::get_default_stride(
+        gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c));
+
+    ck_tile::HostTensor<ADataType> a_m_k(ck_tile::host_tensor_descriptor(
+        gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a)));
+    ck_tile::HostTensor<BDataType> b_k_n(ck_tile::host_tensor_descriptor(
+        gemm_problem.k_, gemm_problem.n_, gemm_problem.stride_b_, is_row_major(layout_b)));
+    ck_tile::HostTensor<CDataType> c_m_n_dev_result(ck_tile::host_tensor_descriptor(
+        gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
+
+    if(setting.init_method_ == 0)
     {
-    case Metric::LATENCY: return "latency";
-    case Metric::TFLOPS: return "tflops";
-    case Metric::BANDWIDTH: return "bandwidth";
-    default: throw std::invalid_argument("Unsupported metric type");
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+    }
+    else if(setting.init_method_ == 1)
+    {
+        ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
+        ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
+    }
+    else if(setting.init_method_ == 2)
+    {
+        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
+        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
+    }
+    else
+    {
+        a_m_k.SetZero();
+        b_k_n.SetZero();
+    }
+
+    if(gemm_problem.structured_sparsity_)
+    {
+        ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
+    }
+
+    ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
+
+    if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+    {
+        // Permute vector pk_i4x4 data for device implementation
+        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+        // permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
+        permute_vectors_i4x4_b(b_k_n_dev);
+        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+    }
+    else
+    {
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+    }
+
+    a_m_k_dev_buf.ToDevice(a_m_k.data());
+    c_m_n_dev_buf.SetZero();
+    c_m_n_dev_result.SetZero();
+
+    ck_tile::GemmHostArgs gemm_args;
+    gemm_args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
+    gemm_args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
+    gemm_args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
+    gemm_args.k_batch  = gemm_problem.split_k_;
+    gemm_args.M        = gemm_problem.m_;
+    gemm_args.N        = gemm_problem.n_;
+    gemm_args.K        = gemm_problem.k_;
+    gemm_args.stride_A = gemm_problem.stride_a_;
+    gemm_args.stride_B = gemm_problem.stride_b_;
+    gemm_args.stride_C = gemm_problem.stride_c_;
+
+    ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
+        gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
+
+    if(setting.verify_)
+    {
+        gemm_host_reference<ADataType,
+                            BDataType,
+                            AccDataType,
+                            CDataType,
+                            ALayout,
+                            BLayout,
+                            CLayout>(setting.verify_,
+                                     a_m_k,
+                                     b_k_n,
+                                     c_m_n_host_result,
+                                     a_m_k_dev_buf,
+                                     b_k_n_dev_buf,
+                                     gemm_problem.m_,
+                                     gemm_problem.n_,
+                                     gemm_problem.k_,
+                                     gemm_problem.stride_a_,
+                                     gemm_problem.stride_b_,
+                                     gemm_problem.stride_c_);
+    }
+
+    try
+    {
+        for(auto& callable : callables)
+        {
+            profiler.benchmark(gemm_problem,
+                               c_m_n_dev_buf,
+                               c_m_n_host_result,
+                               c_m_n_dev_result,
+                               callable(gemm_args,
+                                        ck_tile::stream_config{nullptr,
+                                                               true,
+                                                               setting.log_,
+                                                               setting.n_warmup_,
+                                                               setting.n_repeat_,
+                                                               setting.is_gpu_timer_}));
+        }
+        profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << "Benchmark failed: " << e.what() << std::endl;
     }
 }
-
-struct GemmProblem
-{
-    int split_k;
-    int m, n, k;
-    int stride_a, stride_b, stride_c;
-
-    std::string dtype_a, dtype_b, dtype_acc, dtype_c;
-    std::string layout_a, layout_b, layout_c;
-
-    friend std::ostream& operator<<(std::ostream& os, const GemmProblem& problem)
-    {
-        os << "{\n"
-           << "   \"split_k\":" << problem.split_k << ",\n"
-           << "   \"m\":" << problem.m << ",\n"
-           << "   \"n\":" << problem.n << ",\n"
-           << "   \"k\":" << problem.k << ",\n"
-           << "   \"stride_a\":" << problem.stride_a << ",\n"
-           << "   \"stride_b\":" << problem.stride_b << ",\n"
-           << "   \"stride_c\":" << problem.stride_c << ",\n"
-           << "   \"dtype_a\":\"" << problem.dtype_a << "\",\n"
-           << "   \"dtype_b\":\"" << problem.dtype_b << "\",\n"
-           << "   \"dtype_acc\":\"" << problem.dtype_acc << "\",\n"
-           << "   \"dtype_c\":\"" << problem.dtype_c << "\",\n"
-           << "   \"layout_a\":\"" << problem.layout_a << "\",\n"
-           << "   \"layout_b\":\"" << problem.layout_b << "\",\n"
-           << "   \"layout_c\":\"" << problem.layout_c << "\"\n"
-           << "}";
-        return os;
-    }
-};
-
-struct PerformanceResult
-{
-    double latency;
-    double tflops;
-    double bandwidth;
-
-    static bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
-    {
-        switch(m)
-        {
-        case Metric::LATENCY: return a.latency < b.latency;
-        case Metric::TFLOPS: return a.tflops > b.tflops;
-        case Metric::BANDWIDTH: return a.bandwidth > b.bandwidth;
-        default: throw std::invalid_argument("Unsupported metric type");
-        }
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
-    {
-        os << "{\n"
-           << "   \"latency(ms)\": " << std::fixed << std::setprecision(2) << result.latency
-           << ",\n"
-           << "   \"tflops(TFlops)\": " << result.tflops << ",\n"
-           << "   \"bandwidth(GB/s)\": " << result.bandwidth << "\n"
-           << "}";
-        return os;
-    }
-};
-
-struct KernelInstance
-{
-    std::string name;
-    GemmProblem problem;
-    PerformanceResult perf_result;
-
-    static bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
-    {
-        return PerformanceResult::compare(a.perf_result, b.perf_result, m);
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
-    {
-        os << "{\n"
-           << " \"name\": \""
-           << "{\n"
-           << obj.name << "\n}"
-           << "\",\n"
-           << " \"problem\": \"" << obj.problem << "\",\n"
-           << " \"perf_result\": " << obj.perf_result << "\n"
-           << "}";
-        return os;
-    }
-};
-
-class GemmProfiler
-{
-    public:
-    static GemmProfiler& instance()
-    {
-        static GemmProfiler instance;
-        return instance;
-    }
-
-    static std::string get_rocm_version()
-    {
-        std::ifstream version_file("/opt/rocm/.info/version");
-        if(version_file.is_open())
-        {
-            std::string version;
-            std::getline(version_file, version);
-            return version;
-        }
-        return "Unknown";
-    }
-
-    template <typename Kernel>
-    void benchmark_kernel(ck_tile::DeviceMem& c_m_n_dev_buf,
-                          ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                          ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-                          int verify,
-                          ck_tile::GemmHostArgs& args,
-                          const ck_tile::stream_config& stream)
-    {
-        std::string description = Kernel::get_name();
-
-        GemmProblem problem{args.k_batch,
-                            args.M,
-                            args.N,
-                            args.K,
-                            args.stride_A,
-                            args.stride_B,
-                            args.stride_C,
-                            DataTypeTraits<ADataType>::name,
-                            DataTypeTraits<BDataType>::name,
-                            DataTypeTraits<AccDataType>::name,
-                            DataTypeTraits<CDataType>::name,
-                            ALayout::name,
-                            BLayout::name,
-                            CLayout::name};
-
-        KernelInstance kernel_instance{description, problem, {-1.0f, -1.0f, -1.0f}};
-
-        float avg_time       = Kernel::launch(args, stream);
-        std::size_t flop     = std::size_t(2) * args.M * args.N * args.K;
-        std::size_t num_byte = sizeof(ADataType) * args.M * args.K +
-                               sizeof(BDataType) * args.N * args.K +
-                               sizeof(CDataType) * args.M * args.N;
-
-        kernel_instance.perf_result.latency   = avg_time;
-        kernel_instance.perf_result.tflops    = static_cast<float>(flop) / 1.E9 / avg_time;
-        kernel_instance.perf_result.bandwidth = num_byte / 1.E6 / avg_time;
-
-        if(stream.log_level_ > 0)
-        {
-            std::cout << kernel_instance << std::endl;
-        }
-
-        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
-        bool verified_correct =
-            !verify || compare(args.K, args.k_batch, c_m_n_dev_result, c_m_n_host_result);
-
-        if(verified_correct)
-        {
-            kernel_instances_.emplace_back(kernel_instance);
-        }
-        else
-        {
-            std::cout << "Verification failed, skip kernel: " << description << std::endl;
-        }
-
-        c_m_n_dev_buf.SetZero();
-        c_m_n_dev_result.SetZero();
-    }
-
-    KernelInstance select_best_instance(Metric metric,
-                                        const std::string& csv_filename = "gemm_kernels.csv")
-    {
-        if(kernel_instances_.empty())
-            throw std::runtime_error("Empty instances");
-
-        auto kernel_instance = *std::max_element(kernel_instances_.begin(),
-                                                 kernel_instances_.end(),
-                                                 [metric](const auto& a, const auto& b) {
-                                                     return PerformanceResult::compare(
-                                                         b.perf_result, a.perf_result, metric);
-                                                 });
-
-        std::cout << "**********************************" << std::endl;
-        std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
-                  << "The best kernel instance is: " << kernel_instance << std::endl;
-        std::cout << "**********************************" << std::endl;
-
-        if(!csv_filename.empty())
-        {
-            std::ofstream file(csv_filename, std::ios::app);
-
-            if(!file.is_open())
-            {
-                std::cerr << "Warning: Failed to open CSV file for writing." << std::endl;
-            }
-            else
-            {
-                if(file.tellp() == 0)
-                {
-                    file << "rocm_version, device_name,"
-                         << "split_k,m,n,k,stride_a,stride_b,stride_c,"
-                         << "dtype_a,dtype_b,dtype_acc,dtype_c,"
-                         << "layout_a,layout_b,layout_c,"
-                         << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
-                }
-
-                const auto& p   = kernel_instance.problem;
-                const auto& res = kernel_instance.perf_result;
-
-                file << get_rocm_version() << "," << ck::get_device_name() << "," << p.split_k
-                     << "," << p.m << "," << p.n << "," << p.k << "," << p.stride_a << ","
-                     << p.stride_b << "," << p.stride_c << "," << p.dtype_a << "," << p.dtype_b
-                     << "," << p.dtype_acc << "," << p.dtype_c << "," << p.layout_a << ","
-                     << p.layout_b << "," << p.layout_c << "," << std::fixed << std::setprecision(2)
-                     << res.latency << "," << std::fixed << std::setprecision(2) << res.tflops
-                     << "," << std::fixed << std::setprecision(2) << res.bandwidth << ","
-                     << get_metric_name(metric) << "\n";
-
-                if(!file)
-                {
-                    std::cerr << "Warning: Error occurred while writing to CSV file." << std::endl;
-                }
-            }
-        }
-
-        return kernel_instance;
-    }
-
-    std::vector<KernelInstance> kernel_instances_;
-};

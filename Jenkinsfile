@@ -1182,7 +1182,7 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 -D USE_CUSTOM_CONFIG=OFF && \
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
                                            make -j64 tile_engine_gemm && \
                                            ./bin/tile_engine_gemm """
                     }
