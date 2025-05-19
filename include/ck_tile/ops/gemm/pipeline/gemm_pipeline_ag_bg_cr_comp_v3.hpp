@@ -50,6 +50,39 @@ struct BaseGemmPipelineAgBgCrCompV3
             }
         }
     }
+
+    template <typename RunFunction>
+    CK_TILE_HOST static auto TailHandler(RunFunction run_func, bool has_hot_loop, TailNumber tail_number)
+    {
+        // Handle all the valid cases.
+        if(has_hot_loop)
+        {
+            if(tail_number == TailNumber::Full)
+            {
+                return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Full>{});
+            }
+        }
+        else
+        {
+            if(tail_number == TailNumber::Odd)
+            {
+                return run_func(bool_constant<false>{}, integral_constant<TailNumber, TailNumber::Odd>{});
+            }
+            else if(tail_number == TailNumber::Even)
+            {
+                return run_func(bool_constant<false>{}, integral_constant<TailNumber, TailNumber::Even>{});
+            }
+        }
+        // If execution reaches here, it's an invalid combination of arguments.
+        if(has_hot_loop)
+        {
+            throw std::logic_error("Invalid TailNumber: If has_hot_loop is true, tail_number must be TailNumber::Full.");
+        }
+        else
+        {
+            throw std::logic_error("Invalid TailNumber: If has_hot_loop is false, tail_number must be TailNumber::Odd or TailNumber::Even.");
+        }
+    }
 };
 
 // Compute optimized pipeline

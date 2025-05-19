@@ -93,6 +93,35 @@ struct BaseGemmPipelineAgBgCrMem
             return TailNumber::Full;
         }
     }
+
+    template <typename RunFunction>
+    CK_TILE_HOST static auto TailHandler(RunFunction run_func, bool has_hot_loop, TailNumber tail_number)
+    {
+        // Wrap the hot_loop dispatch first.
+        auto do_dispatch = [&](auto tail_num_constant) {
+            if (has_hot_loop) {
+                return run_func(bool_constant<true>{}, tail_num_constant);
+            } else {
+                return run_func(bool_constant<false>{}, tail_num_constant);
+            }
+        };
+        // Handle all the valid cases.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wswitch-enum"
+        switch(tail_number)
+        {
+            case TailNumber::One:   return do_dispatch(integral_constant<TailNumber, TailNumber::One>{});
+            case TailNumber::Two:   return do_dispatch(integral_constant<TailNumber, TailNumber::Two>{});
+            case TailNumber::Three: return do_dispatch(integral_constant<TailNumber, TailNumber::Three>{});
+            case TailNumber::Four:  return do_dispatch(integral_constant<TailNumber, TailNumber::Four>{});
+            case TailNumber::Five:  return do_dispatch(integral_constant<TailNumber, TailNumber::Five>{});
+            case TailNumber::Six:   return do_dispatch(integral_constant<TailNumber, TailNumber::Six>{});
+            case TailNumber::Seven: return do_dispatch(integral_constant<TailNumber, TailNumber::Seven>{});
+            case TailNumber::Full:  return do_dispatch(integral_constant<TailNumber, TailNumber::Full>{});
+            default: throw std::logic_error("Invalid TailNumber: Only TailNumber::One-Seven and TailNumber::Full are supported.");
+        }
+#pragma clang diagnostic pop
+    }
 };
 
 // Maximum Global Memory throughput pipeline with >=32KB data in fly

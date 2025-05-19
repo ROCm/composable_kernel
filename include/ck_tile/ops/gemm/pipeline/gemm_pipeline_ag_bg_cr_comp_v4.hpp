@@ -34,6 +34,36 @@ struct BaseGemmPipelineAgBgCrCompV4
             return TailNumber::Two;
         }
     }
+
+    template <typename RunFunction>
+    CK_TILE_HOST static auto TailHandler(RunFunction run_func, bool has_hot_loop, TailNumber tail_number)
+    {
+        // Handle all the valid cases.
+        if (has_hot_loop)
+        {
+            if (tail_number == TailNumber::Three)
+            {
+                return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Three>{});
+            }
+            else if (tail_number == TailNumber::Two)
+            {
+                return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Two>{});
+            }
+        }
+        else
+        {
+            if (tail_number == TailNumber::Three)
+            {
+                return run_func(bool_constant<false>{}, integral_constant<TailNumber, TailNumber::Three>{});
+            }
+            else if (tail_number == TailNumber::Two)
+            {
+                return run_func(bool_constant<false>{}, integral_constant<TailNumber, TailNumber::Two>{});
+            }
+        }
+        // If execution reaches here, it's an invalid tail_number because it wasn't handled above.
+        throw std::logic_error("Invalid TailNumber: Only TailNumber::Two and TailNumber::Three are supported.");
+    }
 };
 
 /**
