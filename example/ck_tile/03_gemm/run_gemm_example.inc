@@ -259,6 +259,21 @@ int run_gemm_example_with_layouts(int argc,
         b_k_n.SetZero();
     }
 
+  
+    for (ck_tile::index_t i = 0; i < M; i ++)
+    {
+            a_m_k(i, 0) = static_cast<ck_tile::half_t>(i+1);
+            //a_m_k(i, 8) = static_cast<ck_tile::half_t>(i+1);
+    }
+
+    for (ck_tile::index_t j = 0; j < N; j ++)
+    {
+            b_k_n(0, j) = static_cast<ck_tile::half_t>(j+1);
+            //b_k_n(8, j) = static_cast<ck_tile::half_t>(j+1);
+    }
+
+
+
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
@@ -335,6 +350,17 @@ int run_gemm_example_with_layouts(int argc,
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+
+        ck_tile::index_t i, j;
+
+        for (i = 0; i < M; i ++)
+        {
+            for (j = 0; j < N; j ++)
+            {
+                std::cout << std::setw(6) << static_cast<float>(c_m_n_dev_result(i, j)); 
+            }
+            std::cout << std::endl;
+        }
     }
     else if(arg_parser.get_int("v") == 2)
     {

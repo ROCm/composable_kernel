@@ -327,12 +327,22 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
+    CK_TILE_DEVICE static constexpr index_t GetSmemSizeC()
+    {
+        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+
+        return integer_least_multiple(sizeof(typename Problem::CDataType) * MPerBlock * NPerBlock * 2, 16);
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
+        constexpr index_t smem_size_c = GetSmemSizeC<Problem>();
 
-        return smem_size_a + smem_size_b;
+        return smem_size_a + smem_size_b + smem_size_c;
     }
 };
 

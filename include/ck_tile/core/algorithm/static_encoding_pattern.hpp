@@ -87,7 +87,9 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     static constexpr index_t Y1 = warp_size / X0;
     static_assert(X0 * Y1 == warp_size, "X0 * Y1 must cover whole wavefront!");
 
+    // Y0 - should be total available number of wavegroups.
     static constexpr index_t Y0 = num_warps / NumWaveGroups;
+    //static constexpr index_t Y0 = num_warps;
     //  YPerWarp = YPerTile / Y0;
     //  Y2 = YPerWarp / Y1;
     static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront

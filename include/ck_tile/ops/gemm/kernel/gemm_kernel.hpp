@@ -637,12 +637,15 @@ struct GemmKernel
         const auto& c_block_tile = GemmPipeline{}.template operator()(
             a_block_window, b_block_window, num_loop, smem_ptr_0);
 
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(I2);
+        if (get_warp_id() == 0)
+        {
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(I2);   
 
-        EpiloguePipeline{}
-            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                c_block_window, c_block_tile, smem_ptr_0);
+            EpiloguePipeline{}
+                .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                    c_block_window, c_block_tile, smem_ptr_0);
+        }
     }
 
     /**
@@ -689,12 +692,15 @@ struct GemmKernel
         const auto& c_block_tile = GemmPipeline{}.template operator()(
             a_block_window, b_block_window, num_loop, smem_ptr_0, smem_ptr_1);
 
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(I2);
+        if (get_warp_id() == 0)
+        {
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(I2);
 
-        EpiloguePipeline{}
-            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                c_block_window, c_block_tile, smem_ptr_0);
+            EpiloguePipeline{}
+                .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
+                    c_block_window, c_block_tile, smem_ptr_0);
+        }
     }
 
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const

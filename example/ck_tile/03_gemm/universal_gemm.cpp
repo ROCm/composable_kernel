@@ -77,6 +77,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
         using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
 
+        
         using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
             ck_tile::DefaultGemm2DEpilogueProblem<AccDataType,
                                                   CDataType,
@@ -86,8 +87,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                   GemmConfig::M_Warp_Tile,
                                                   GemmConfig::N_Warp_Tile,
                                                   GemmConfig::K_Warp_Tile,
-                                                  UniversalGemmProblem::TransposeC>>;
-
+                                                  UniversalGemmProblem::TransposeC, 
+                                                  false>>;
+        
         /*
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -286,6 +288,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
                 argc, argv, Row{}, Col{}, Row{});
         }
+        /*
         else if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
@@ -301,6 +304,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
                 argc, argv, Col{}, Col{}, Row{});
         }
+        */
         else
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices!");
@@ -322,6 +326,7 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
+    /*
     else if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
@@ -345,6 +350,7 @@ int run_gemm_example(int argc, char* argv[])
             a_layout, b_layout, argc, argv);
     }
 #endif
+    */
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");

@@ -58,6 +58,7 @@ struct CShuffleEpilogue
     static constexpr index_t kMPerBlock     = Problem::kMPerBlock;
     static constexpr index_t kNPerBlock     = Problem::kNPerBlock;
     static constexpr index_t kMWave         = Problem::kMWave / Problem::kNumWaveGroups;
+    //static constexpr index_t kMWave         = Problem::kMWave;
     static constexpr index_t kNWave         = Problem::kNWave;
     static constexpr index_t kMPerXdl       = Problem::kMPerXdl;
     static constexpr index_t kNPerXdl       = Problem::kNPerXdl;

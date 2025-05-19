@@ -42,6 +42,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using ComputeDataType    = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     using ALayout = remove_cvref_t<typename Problem::ALayout>;
@@ -76,6 +77,9 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     static constexpr auto Scheduler  = Problem::Scheduler;
 
     static constexpr index_t NumWarps = BlockGemmShape::NumWarps;
+    //static constexpr index_t MWarps = BlockGemmShape::BlockWarps::at(I0);
+    //static constexpr index_t NWarps = BlockGemmShape::BlockWarps::at(I1);
+    //static constexpr index_t KWarps = BlockGemmShape::BlockWarps::at(I2);
 
     static constexpr index_t KTileSize = BlockGemmShape::WarpTile::at(I2{});
 
@@ -112,7 +116,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                                        index_t num_loop,
                                        void* __restrict__ p_smem_0) const
         {
-
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -140,11 +143,14 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                                  KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "B block window has incorrect lengths for defined BLayout!");
 
-            index_t group_id     = __builtin_amdgcn_readfirstlane(get_warp_id() % kNumWaveGroups);
-            index_t operation_id = __builtin_amdgcn_readfirstlane(get_warp_id() % kNumWaveGroups);
+            index_t warp_id     = get_warp_id();
+            index_t operation_id = __builtin_amdgcn_readfirstlane(get_warp_id()); // 0 - Memory read, 1 - block-gemm
 
-            auto a_offset = (group_id == 0) ? multi_index<2>{0, 0}: multi_index<2>{0, KPerBlock};
-            auto b_offset = (group_id == 0) ? multi_index<2>{0, 0} : multi_index<2>{KPerBlock, 0};
+            auto a_offset = (warp_id == 0) ? make_array(0, 0) : make_array(0, KPerBlock);
+            auto b_offset = (warp_id == 0) ? make_array(0, 0) : make_array(0, KPerBlock);     // N x K, by definition     
+            
+            //a_offset = make_array(0, 0);
+            //b_offset = make_array(0, 0);
 
             // global memory structures here.
             auto a_copy_dram_window =
@@ -163,10 +169,10 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             // DRAM window steps.
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
-            constexpr ADramTileWindowStep a_dram_tile_window_step =
-                is_a_col_major ? make_array(KPerBlock * NumWarps, 0) : make_array(0, KPerBlock * NumWarps);
-            constexpr BDramTileWindowStep b_dram_tile_window_step =
-                is_b_row_major ? make_array(KPerBlock * NumWarps, 0) : make_array(0, KPerBlock * NumWarps);
+            constexpr ADramTileWindowStep a_dram_tile_window_step = 
+                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+            constexpr BDramTileWindowStep b_dram_tile_window_step = 
+                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
             constexpr auto AGemmTileDistr = decltype(make_static_tile_distribution(
                 BlockGemm::MakeABlockDistributionEncode())){};
@@ -189,10 +195,28 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             // Block GEMM
             auto block_gemm     = BlockGemm();
             auto c_block_tile_0 = block_gemm.MakeCBlockTile(); // Gemm distribution.
-            auto c_block_tile_1 = block_gemm.MakeCBlockTile();
+            auto c_block_tile_1 = block_gemm.MakeCBlockTile(); // Gemm distribution.
 
+            /*
+            C tensor in lds storage for final addition.           
+            */
+            
+            CDataType* __restrict__ p_c_lds = static_cast<CDataType*>(p_smem_0);
+            auto c_lds_block_0 = make_naive_tensor_view<address_space_enum::lds>(p_c_lds, make_tuple(MPerBlock, NPerBlock), make_tuple(NPerBlock, 1), number<1>{}, number<1>{});
+            auto c_window_0 = make_tile_window(c_lds_block_0, make_tuple(number<MPerBlock>{}, number<NPerBlock>{}), {0, 0}, c_block_tile_1.get_tile_distribution());
+
+            /*
+            p_c_lds += integer_least_multiple(MPerBlock * NPerBlock, 16);
+            auto c_lds_block_1 = make_naive_tensor_view<address_space_enum::lds>(p_c_lds, make_tuple(MPerBlock, NPerBlock), make_tuple(NPerBlock, 1), number<GetVectorSizeC()>{}, number<1>{});
+            auto c_window_1 = make_tile_window(c_lds_block_1, make_tuple(number<MPerBlock>{}, number<NPerBlock>{}), {0, 0}, c_block_tile_1.get_tile_distribution());
+            */
+
+            constexpr index_t c_lds_block_space_size_aligned = integer_least_multiple(
+                sizeof(CDataType) * (MPerBlock * NPerBlock) * 2, 16);            
+            
             // Not needed
-            auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem_0);
+            auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(
+                static_cast<void*>(static_cast<char*>(p_smem_0) + c_lds_block_space_size_aligned));
 
             auto a_copy_lds_window = make_tile_window(
                 a_lds_block, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
@@ -211,8 +235,14 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                                  BGemmTileDistr);
 
             // initialize C
-            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile_0);
-            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile_1);
+            if (warp_id == 0)
+            {
+                tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile_0);
+            }
+            else
+            {
+                tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile_1);
+            }
 
             // define ping, pong steps here as lambda functions.
             auto MemoryOpsStep = [&](auto idx) {
@@ -246,7 +276,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                     Base::LocalPrefill(b_copy_lds_window, b_global_load_tile, b_element_func);
                 }
 
-                if(idx == 0)
+                if (idx == 0)
                 {
                     Base::LocalPrefetch(a_tile_0, a_lds_window);
                     Base::LocalPrefetch(b_tile_0, b_lds_window);
@@ -259,7 +289,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             };
 
             auto ComputeStep = [&](auto idx) {
-                if(idx == 0)
+                if (idx == 0)
                 {
                     block_gemm(c_block_tile_0, a_tile_0, b_tile_0);
                 }
@@ -269,12 +299,27 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 }
             };
 
+            /*
+            auto DramTxStep = [&](auto idx)
+            {
+                // store the tile in LDS for later processing. 
+                if (idx == 0)
+                {
+                    store_tile(c_window_0, c_block_tile_0);
+                }
+                else
+                {
+                    store_tile(c_window_0, c_block_tile_1);
+                }
+            };
+            */
+
             if(operation_id == 0)
             {
-                MemoryOpsStep(group_id);
+                MemoryOpsStep(warp_id);
             }
 
-            // start the main loop.
+            // To by pass compilation errors.
             index_t num_compute_steps = __builtin_amdgcn_readfirstlane(num_loop);
             while(num_compute_steps > 1)
             {
@@ -283,25 +328,68 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
                 if(operation_id == 0)
                 {
-                    MemoryOpsStep(group_id);
+                    MemoryOpsStep(warp_id); // (DRAM - reg, reg - lds, lds - reg)
                 }
                 else
                 {
-                    ComputeStep(group_id);
+                    ComputeStep(warp_id); // block-gemm
                 }
                 num_compute_steps -= 1;
-            }
+            }             
 
-            // Handle Tail Number here.
+            block_sync_lds();
             if(operation_id == 0)
             {
-                ComputeStep(group_id);
+                ComputeStep(warp_id);
+            }
+
+            /*
+            if (warp_id == 0)
+            {
+                MemoryOpsStep(0);
+                ComputeStep(0);
+                //DramTxStep(0);                
+
+                // move window
+                //move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+                //move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+
+                //MemoryOpsStep(0);
+                //ComputeStep(0);
+            }            
+            block_sync_lds();
+            
+            if (warp_id == 1)
+            {
+                MemoryOpsStep(1);
+                ComputeStep(1);
+                DramTxStep(1);
+
+                //Use this code to test for K = 16
+                //move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+                //move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+
+                //MemoryOpsStep(1);
+                //ComputeStep(1);
+            }
+            block_sync_lds();
+            */
+            if (warp_id == 1)
+            {
+                store_tile(c_window_0, c_block_tile_1);
             }
             block_sync_lds();
 
-            // Add both the tiles and return the result.
-            if(group_id == 0)
+            if (warp_id == 0)
             {
+                // add results from warp-1 to local results from warp-0
+                load_tile(c_block_tile_1, c_window_0);
+            }
+            block_sync_lds();
+
+            if (warp_id == 0)
+            {
+                // add to c_block_tile_0 here. 
                 constexpr auto s_spans = decltype(c_block_tile_0)::get_distributed_spans();
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
@@ -311,7 +399,69 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 });
             }
 
+            block_sync_lds();            
             return c_block_tile_0;
+
+            /*
+            // This is the code for the hot loop and the rest of the auxiliary code for the
+            // 2 warp ping pong scheduler. 
+            // This code is not working as of now... DO NOT UNCOMMENT IT.
+            if(operation_id == 0)
+            {
+                MemoryOpsStep(warp_id);
+            }
+            
+            // start the main loop.
+            index_t num_compute_steps = __builtin_amdgcn_readfirstlane(num_loop);
+            while(num_compute_steps > 0)
+            {
+                block_sync_lds();
+                operation_id = (operation_id + 1) % kNumWaveGroups;
+
+                if(operation_id == 0)
+                {
+                    MemoryOpsStep(warp_id); // (DRAM - reg, reg - lds, lds - reg)
+                }
+                else
+                {
+                    ComputeStep(warp_id); // block-gemm
+                }
+                num_compute_steps -= 1;
+            }            
+            block_sync_lds();
+
+            // Handle Tail Number here.
+            if(operation_id == 0)
+            {
+                ComputeStep(warp_id);
+            }
+            block_sync_lds();
+
+            if (warp_id == 1)
+            {
+                // move c_block_tile_1 into lds. 
+                store_tile(c_window_0, c_block_tile_1);
+            }
+
+            block_sync_lds();
+            if (warp_id == 0)
+            {
+                // add results from warp-1 to local results from warp-0
+                load_tile(c_block_tile_1, c_window_0);
+
+                // add to c_block_tile_0 here. 
+                constexpr auto s_spans = decltype(c_block_tile_0)::get_distributed_spans();
+                sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
+                        auto idx2 = make_tuple(idx0, idx1);
+                        c_block_tile_0(idx2) += c_block_tile_1(idx2);
+                    });
+                });                
+            }
+
+            block_sync_lds ();
+            return c_block_tile_0;
+            */
         }
     };
 
@@ -348,7 +498,8 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             b_dram_block_window_tmp,
             [](const BDataType& b) { return b; },
             num_loop,
-            p_smem_0);
+            p_smem_0
+            );
     }
 };
 
