@@ -84,7 +84,7 @@ class GemmProfiler
 
         if(!setting_.csv_filename_.empty())
         {
-            std::ofstream file(setting_.csv_filename_, std::ios::app);
+            std::ofstream file(setting_.csv_filename_ + ".csv", std::ios::app);
 
             if(!file.is_open())
             {
@@ -94,7 +94,7 @@ class GemmProfiler
             {
                 if(file.tellp() == 0)
                 {
-                    file << "rocm_version, device_name,"
+                    file << "rocm_version,device_name,"
                          << "split_k,m,n,k,stride_a,stride_b,stride_c,"
                          << "dtype_a,dtype_b,dtype_acc,dtype_c,"
                          << "layout_a,layout_b,layout_c,"
@@ -129,7 +129,7 @@ class GemmProfiler
         return kernel_instance;
     }
 
-    GemmProfiler(const GemmProfiler&)            = delete;
+    GemmProfiler(const GemmProfiler&) = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     private:

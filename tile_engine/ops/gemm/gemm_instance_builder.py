@@ -283,16 +283,16 @@ struct GemmKernel {{
     }}
 
     static std::string get_name() {{
-        return std::string("GemmKernel<Bllktile: ") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) + ", " +
-                "WaveMap: " + std::to_string(WarpM) + "x" + std::to_string(WarpN) + "x" + std::to_string(WarpK) + ", " +
-                "WarpTile: " + std::to_string(WarpTileM) + "x" + std::to_string(WarpTileN) + "x" + std::to_string(WarpTileK) + ", " +
-                "PadidngM: " + "{pad_m}" + ", " +
-                "PaddingN: " + "{pad_n}" + ", " +
-                "PaddingK: " + "{pad_k}" + ", " +
-                "Pipeline: " + "{pipeline}" + ", " +
-                "Epilogue: " + "{epilogue}" + ", " +
-                "Scheduler: " + "{scheduler}";
-                }}
+        return std::string("gemm_") + std::to_string(TileM) + "x" + std::to_string(TileN) + "x" + std::to_string(TileK) +
+                "_" + std::to_string(WarpM) + "x" + std::to_string(WarpN) + "x" + std::to_string(WarpK) + "_" +
+                std::to_string(WarpTileM) + "x" + std::to_string(WarpTileN) + "x" + std::to_string(WarpTileK) + "_" +
+                "{pad_m}" + "_" +
+                "{pad_n}" + "_" +
+                "{pad_k}" + "_" +
+                "{pipeline}" + "_" +
+                "{epilogue}" + "_" +
+                "{scheduler}";
+    }}
 }};
 """
 

@@ -7,7 +7,7 @@
 #include "gemm_host_api.hpp"
 #include "benchmark_gemm.hpp"
 
-auto run_single_trait(const ck_tile::ArgParser& arg_parser)
+auto get_kernel_func(const ck_tile::ArgParser& arg_parser)
 {
     KernelTraits trait;
     trait.pipeline  = arg_parser.get_str("pipeline");
@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
         auto [result, parser] = create_args(argc, argv);
         if(!result)
             return EXIT_FAILURE;
-        benchmark_gemm(parser, run_single_trait(parser));
+        benchmark_gemm(parser, get_kernel_func(parser));
         return 0;
     }
     catch(const std::exception& e)
