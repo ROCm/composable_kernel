@@ -434,7 +434,7 @@ int main(int argc, char* argv[])
         {
             if(token_id == tokens)
             {
-                a_scale_sorted(i, k) = 0;
+                a_scale_sorted(i, k) = ck::type_convert<XDataType>(0);
             }
             else
             {

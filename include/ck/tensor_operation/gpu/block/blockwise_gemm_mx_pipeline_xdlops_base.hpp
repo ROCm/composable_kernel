@@ -376,6 +376,8 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
             c_grid_desc_g_m0_n0_m1_n1_m2_n2);
     }
 
+    __host__ __device__ static constexpr auto GetCThreadDesc() { return c_thread_desc_; }
+
     static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_m3_k;
     static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_n3_k;
 

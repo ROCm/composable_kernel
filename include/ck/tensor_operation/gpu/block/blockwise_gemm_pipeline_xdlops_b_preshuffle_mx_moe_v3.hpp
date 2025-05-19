@@ -463,13 +463,13 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                     [&](auto chunk) {
                         constexpr auto a_k_step_chunk =
                             k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k0_k1_k2,
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
                                            make_tuple(Number<m0 / MXdlPack>{},
                                                       I0,
                                                       Number<m0 % MXdlPack>{},
                                                       I0,
                                                       Number<a_k_step_chunk>{}),
-                                           a_block_buf,
+                                           a_block_buf.At(I0),
                                            a_thread_desc_,
                                            make_tuple(Number<m0 / MXdlPack>{},
                                                       I0,
@@ -652,13 +652,13 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                                 constexpr auto a_k_step_chunk =
                                     k_step +
                                     chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                                a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k0_k1_k2,
+                                a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
                                                    make_tuple(Number<m0 / MXdlPack>{},
                                                               I0,
                                                               Number<m0 % MXdlPack>{},
                                                               I0,
                                                               Number<a_k_step_chunk>{}),
-                                                   a_block_buf,
+                                                   a_block_buf.At(scale_mem_buf),
                                                    a_thread_desc_,
                                                    make_tuple(Number<m0 / MXdlPack>{},
                                                               I0,
@@ -820,13 +820,13 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                             constexpr auto a_k_step_chunk =
                                 k_step +
                                 chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k0_k1_k2,
+                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
                                                make_tuple(Number<m0 / MXdlPack>{},
                                                           I0,
                                                           Number<m0 % MXdlPack>{},
                                                           I0,
                                                           Number<a_k_step_chunk>{}),
-                                               a_block_buf,
+                                               a_block_buf.At(I0),
                                                a_thread_desc_,
                                                make_tuple(Number<m0 / MXdlPack>{},
                                                           I0,
@@ -1018,12 +1018,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                    Number<ScalesPerXdlopsRunPerThread * b_scale_thread_vec_size>{}));
 
     protected:
-    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
     using Base::a_thread_copy_;
     using Base::a_thread_desc_;
     using Base::b_thread_copy_;
-    // using Base::b_thread_desc_;
+    using Base::b_thread_desc_;
     using Base::c_thread_desc_;
 
     static constexpr BTileDesc b_block_desc_n0_n1_n2_k0_k1;

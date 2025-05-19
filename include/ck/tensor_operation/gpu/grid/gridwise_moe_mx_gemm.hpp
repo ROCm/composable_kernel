@@ -424,8 +424,12 @@ struct GridwiseMoeGemmMX
     {
         constexpr index_t NkSwizzleNumber = Number<warpSize * KPack / KGroup>{};
         return make_naive_tensor_descriptor(
-            make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
-            make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
+            make_tuple(N0 / NWave / NXdlPack, NWave, NXdlPack, K0, NkSwizzleNumber),
+            make_tuple(NWave * NXdlPack * K0 * NkSwizzleNumber,
+                       NXdlPack * K0 * NkSwizzleNumber,
+                       K0 * NkSwizzleNumber,
+                       NkSwizzleNumber,
+                       I1));
     }
 
     __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
@@ -2112,21 +2116,27 @@ struct GridwiseMoeGemmMX
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
         auto b_block_bufs = make_tuple(b_block_buf_ping, b_block_buf_pong);
 
-        auto b_blockwise_copy = ThreadwiseTensorSliceTransfer_v2<
-            BDataType,
-            BDataType,
-            decltype(b_grid_desc_bpreshuffled),
-            decltype(b_block_desc_bk0_n_bk1),
-            Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
-            Sequence<1, 2, 0, 3>,
-            3,
-            BBlockTransferSrcScalarPerVector,
-            BThreadTransferSrcResetCoordinateAfterRun,
-            true>(b_grid_desc_bpreshuffled,
-                  make_multi_index(n_block_data_idx_on_grid,
-                                   get_warp_local_1d_id() % NWave,
-                                   0,
-                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+        auto b_blockwise_copy =
+            ThreadwiseTensorSliceTransfer_v2<BDataType,
+                                             BDataType,
+                                             decltype(b_grid_desc_bpreshuffled),
+                                             decltype(b_block_desc_bk0_n_bk1),
+                                             Sequence<Number<NXdlPerWave / NXdlPack>{},
+                                                      I1,
+                                                      Number<NXdlPack>{},
+                                                      Number<KRepeat>{},
+                                                      Number<BK1Value>{}>,
+                                             Sequence<1, 2, 0, 3, 4>,
+                                             4,
+                                             BBlockTransferSrcScalarPerVector,
+                                             BThreadTransferSrcResetCoordinateAfterRun,
+                                             true>(
+                b_grid_desc_bpreshuffled,
+                make_multi_index(n_block_data_idx_on_grid,
+                                 get_warp_local_1d_id() % NWave,
+                                 0,
+                                 0,
+                                 KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -2139,7 +2149,7 @@ struct GridwiseMoeGemmMX
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, 0, KRepeat, 0);
 
         // Blockwise GEMM pipeline
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
@@ -2344,7 +2354,11 @@ struct GridwiseMoeGemmMX
                         static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
                             constexpr index_t c_offset =
                                 blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
-                                    make_tuple(m0, n0, m2 * M4 + m4));
+                                    make_tuple(m0 / MXdlPack,
+                                               n0 / NXdlPack,
+                                               m0 % MXdlPack,
+                                               n0 % NXdlPack,
+                                               m2 * M4 + m4));
                             constexpr auto cidx = Number<c_offset>{};
 
                             if constexpr(IsInputGemm) // gu fusion
