@@ -303,11 +303,12 @@ struct HstuAttentionFwdPipelineQRKSVS
         do
         {
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
+                // load v_tile for current unroll
+                auto v_tile = load_tile(v_dram_window);
+
                 store_tile(k_lds_windows[number<i_k1 % NumKVLdsBuffers>{}],
                            tile_elementwise_in(k_element_func, k_tile));
 
-                // load v_tile for current unroll
-                auto v_tile = load_tile(v_dram_window);
                 move_tile_window(v_dram_window, {0, kK1});
 
                 __builtin_amdgcn_sched_barrier(0);
