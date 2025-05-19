@@ -328,25 +328,25 @@ class FmhaFwdApiPool:
 
 @dataclass
 class FmhaFwdTileSize:
-    F_bm0       : int  # tile size along q seqlen (block size)
-    F_bn0       : int  # tile size along k seqlen
-    F_bk0       : int  # tile size along qk gemm unroll
-    F_bn1       : int  # tile size along v head_dim
-    F_bk1       : int  # tile size along kv gemm unroll
-    F_bk0max    : int  # total length of K0, used for pipeline that need load Q at once (or repeately load Q as a whole tile)
-    F_rm0       : int  # number of warps for gemm0 along q seqlen
-    F_rn0       : int  # number of warps for gemm0 along k seqlen
-    F_rk0       : int  # number of warps for gemm0 along head dim q (not used)
-    F_rm1       : int  # number of warps for gemm1 along q seqlen
-    F_rn1       : int  # number of warps for gemm1 along head dim v
-    F_rk1       : int  # number of warps for gemm1 along k seqlen (not used)
-    F_wm0       : int  # gemm0 warp size along m
-    F_wn0       : int  # gemm0 warp size along n
-    F_wk0       : int  # gemm0 warp size along k
-    F_wm1       : int  # gemm1 warp size along m
-    F_wn1       : int  # gemm1 warp size along n
-    F_wk1       : int  # gemm1 warp size along k
-    F_occupancy : int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
+    F_bm0        : int  # tile size along q seqlen (block size)
+    F_bn0        : int  # tile size along k seqlen
+    F_bk0        : int  # tile size along qk gemm unroll
+    F_bn1        : int  # tile size along v head_dim
+    F_bk1        : int  # tile size along kv gemm unroll
+    F_bk0max     : int  # total length of K0, used for pipeline that need load Q at once (or repeately load Q as a whole tile)
+    F_rm0        : int  # number of warps for gemm0 along q seqlen
+    F_rn0        : int  # number of warps for gemm0 along k seqlen
+    F_rk0        : int  # number of warps for gemm0 along head dim q (not used)
+    F_rm1        : int  # number of warps for gemm1 along q seqlen
+    F_rn1        : int  # number of warps for gemm1 along head dim v
+    F_rk1        : int  # number of warps for gemm1 along k seqlen (not used)
+    F_wm0        : int  # gemm0 warp size along m
+    F_wn0        : int  # gemm0 warp size along n
+    F_wk0        : int  # gemm0 warp size along k
+    F_wm1        : int  # gemm1 warp size along m
+    F_wn1        : int  # gemm1 warp size along n
+    F_wk1        : int  # gemm1 warp size along k
+    F_occupancy  : int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
     F_constraint : CppConstraint = CppConstraint()
 
     @property
