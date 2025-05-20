@@ -25,12 +25,12 @@
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "10240", "m dimension")
-        .insert("n", "4096", "n dimension")
+    arg_parser.insert("m", "1024", "m dimension")
+        .insert("n", "1024", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
-        .insert("warmup", "0", "cold iter")
+        .insert("warmup", "1", "cold iter")
         .insert("repeat", "1", "hot iter");
 
     bool result = arg_parser.parse(argc, argv);
@@ -79,11 +79,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
     y_buf.ToDevice(y_host.data());
 
     // 3. Create the kernel
-    using BlockWarps = ck_tile::sequence<16>;
-    using BlockTile  = ck_tile::sequence<16384>;
-    using WarpTile   = ck_tile::sequence<1024>;
-    using Vector     = ck_tile::sequence<16>;
+    // using BlockWarps = ck_tile::sequence<16>;
+    // using BlockTile  = ck_tile::sequence<16384>;
+    // using WarpTile   = ck_tile::sequence<1024>;
+    // using Vector     = ck_tile::sequence<16>;
     
+    // Dividing the problem into blocktile, warptile, and vector
+    // The blocktile is the size of the tile that will be processed by a single thread block (also
+    // called work group) The warptile is the size of the tile that will be processed by a single
+    // warp (also called wavefront) The vector is the size of the tile that will be processed by a
+    // single thread (also called work item) The problem is divided into blocks of size BlockTile,
+    // each block is further divided into warps of size WarpTile and each warp is composed of 64 or
+    // 32 threads of size Vector each of the thread in a warp will process one vector worth elements
+    // of the data
+    using BlockTile = ck_tile::sequence<2048>; // Size of the block tile (Entire problem is divided
+    // into blocks of this size)
+    using BlockWarps = ck_tile::sequence<8>; // How many concurrent warps are in a block (Each warp
+    // will cover some part of blockTile)
+    using WarpTile = ck_tile::sequence<64>;  // How many elements are covered by a warp
+    using Vector   = ck_tile::sequence<1>; // How many elements are covered by a thread (Each thread
+
+
     using Shape   = ck_tile::ElementWiseTraits1D<BlockWarps, BlockTile, WarpTile, Vector>;
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
                                                         ComputeDataType,
@@ -94,19 +110,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Kernel = ck_tile::ElementWiseKernel<Problem, ck_tile::ElementWiseDefaultPolicy1D>;
 
     // Compute flattened size
-    ck_tile::index_t MM = 1;
-    for(int i = 0; i < ndims; ++i)
-    {
-        MM *= shape[i];
-    }
-
-    constexpr ck_tile::index_t kBlockSize  = 64 * BlockWarps::at(ck_tile::number<0>{});
+    ck_tile::index_t total_elements = 1;
+    for(auto d : shape) total_elements *= d;
+    
+    
+    constexpr ck_tile::index_t kBlockSize  = 512;
+    // constexpr ck_tile::index_t kBlockSize  = 64 * BlockWarps::at(ck_tile::number<0>{});
     constexpr ck_tile::index_t kBlockPerCu = 1;
-    constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
-    ck_tile::index_t kGridSize = (MM + elements_per_block - 1) / elements_per_block;
-    std::cout << "block x-size = " << elements_per_block << std::endl;
+    // constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
+    
+    ck_tile::index_t kGridSize = (total_elements / BlockTile::at(ck_tile::number<0>{}));
+    // ck_tile::index_t kGridSize = (total_elements + elements_per_block - 1) / elements_per_block;
+    
+    // std::cout << "block x-size = " << elements_per_block << std::endl;
     std::cout << "grid size = " << kGridSize << std::endl;
-    std::cout << "Total elements = " << MM << std::endl;
+    std::cout << "Total elements = " << total_elements << std::endl;
     
     auto input_tensors = ck_tile::make_tuple(static_cast<XDataType*>(x_buf_a.GetDeviceBuffer()), 
                                             static_cast<XDataType*>(x_buf_b.GetDeviceBuffer())
@@ -119,7 +137,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                       kGridSize,
                       kBlockSize,
                       0,
-                      MM,
+                      ck_tile::make_tuple(M, N),
+                      ck_tile::make_tuple(N, 1),
                       input_tensors,
                       static_cast<YDataType*>(y_buf.GetDeviceBuffer())
                     ));

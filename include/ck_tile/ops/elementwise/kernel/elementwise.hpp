@@ -224,52 +224,52 @@ struct ElementWiseKernel
                 tile_windows);
         };
 
-        index_t num_m_tile_iteration = 
-            __builtin_amdgcn_readfirstlane(integer_divide_ceil(lens.template at<lens.size() - 1>(), S::Block_M));
+        // index_t num_m_tile_iteration = 
+        //     __builtin_amdgcn_readfirstlane(integer_divide_ceil(lens.template at<lens.size() - 1>(), S::Block_M));
 
-        for(int i = __builtin_amdgcn_readfirstlane(0); i < num_m_tile_iteration; ++i)
-        {
+        // for(int i = __builtin_amdgcn_readfirstlane(0); i < num_m_tile_iteration; ++i)
+        // {
             // Load tile data
             // const auto xa = load_tile(x_window_a);
             // const auto xb = load_tile(x_window_b);
-            const auto x_tiles = load_tiles(x_windows);
+        const auto x_tiles = load_tiles(x_windows);
 
-            auto y_compute = load_tile(y_window);
+        auto y_compute = load_tile(y_window);
 
-            // Process the vector add
-            // constexpr auto spans = decltype(x_windows.get(number<0>{}))::get_distributed_spans();
-            const auto& x_tile0 = x_tiles.get(number<0>{});
-            // constexpr auto spans = decltype(x_tile0)::get_distributed_spans();
-            const auto spans = x_tile0.get_distributed_spans();
+        // Process the vector add
+        // constexpr auto spans = decltype(x_windows.get(number<0>{}))::get_distributed_spans();
+        const auto& x_tile0 = x_tiles.get(number<0>{});
+        // constexpr auto spans = decltype(x_tile0)::get_distributed_spans();
+        const auto spans = x_tile0.get_distributed_spans();
 
-            sweep_tile_span(spans[number<0>{}], [&](auto idx) {
-            
-                const auto tile_idx = make_tuple(idx);
-                // const auto a_val = type_convert<ComputeDataType>(xa[tile_idx]);
-                // const auto b_val = type_convert<ComputeDataType>(xb[tile_idx]);
-                const auto x_values = compute_values(x_tiles, tile_idx);
+        sweep_tile_span(spans[number<0>{}], [&](auto idx) {
+        
+            const auto tile_idx = make_tuple(idx);
+            // const auto a_val = type_convert<ComputeDataType>(xa[tile_idx]);
+            // const auto b_val = type_convert<ComputeDataType>(xb[tile_idx]);
+            const auto x_values = compute_values(x_tiles, tile_idx);
 
-                auto temp = y_compute(tile_idx);
-                // ElementWiseOperation{}(y_compute(tile_idx), a_val, b_val);
-                // n_ary_operation2(ElementWiseOperation{}, temp,  std::get<0>(x_values), std::get<1>(x_values));
-                // 
-                apply_tuple([&](auto&&... xs) {
-                 n_ary_operation2(ElementWiseOperation{}, temp, xs...);
-                }, x_values);
+            auto temp = y_compute(tile_idx);
+            // ElementWiseOperation{}(y_compute(tile_idx), a_val, b_val);
+            // n_ary_operation2(ElementWiseOperation{}, temp,  std::get<0>(x_values), std::get<1>(x_values));
+            // 
+            apply_tuple([&](auto&&... xs) {
+                n_ary_operation2(ElementWiseOperation{}, temp, xs...);
+            }, x_values);
 
-                y_compute(tile_idx) = temp; // to avoid temporary object to be use when calling n_ary_operation
-            });
+            y_compute(tile_idx) = temp; // to avoid temporary object to be use when calling n_ary_operation
+        });
 
-            // Store results
-            store_tile(y_window, cast_tile<YDataType>(y_compute));
-            
-            // Move windows to next block (corrected)
-            // For 1D operation, we only need to move along the M dimension by Block_M elements
-            // move_tile_window(x_window_a, {S::Block_M});
-            // move_tile_window(x_window_b, {S::Block_M});
-            move_tile_windows(x_windows);
-            move_tile_window(y_window, {S::Block_M});
-        }
+        // Store results
+        store_tile(y_window, cast_tile<YDataType>(y_compute));
+        
+        // Move windows to next block (corrected)
+        // For 1D operation, we only need to move along the M dimension by Block_M elements
+        // move_tile_window(x_window_a, {S::Block_M});
+        // move_tile_window(x_window_b, {S::Block_M});
+        move_tile_windows(x_windows);
+        move_tile_window(y_window, {S::Block_M});
+        // }
     }
 
 
