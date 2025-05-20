@@ -4,14 +4,10 @@
 #pragma once
 
 #include <cstring>
-#include <iostream>
-#include <sstream>
 #include <string>
 #include <tuple>
 
-#include <hip/hip_runtime.h>
-
-#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/host.hpp"
 #include "gemm_dispatcher.hpp"
 
 template <typename T>

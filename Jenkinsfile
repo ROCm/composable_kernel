@@ -1163,8 +1163,8 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a -G Ninja && \
-                                           ninja tile_engine_gemm && \
-                                           ./bin/tile_engine_gemm """
+                                           ninja benchmark_gemm && \
+                                           ./bin/benchmark_gemm """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1181,8 +1181,8 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 -G Ninja && \
-                                           ninja tile_engine_gemm && \
-                                           ./bin/tile_engine_gemm """
+                                           ninja benchmark_gemm && \
+                                           ./bin/benchmark_gemm """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
