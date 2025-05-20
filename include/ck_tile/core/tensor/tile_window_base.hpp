@@ -38,20 +38,14 @@ struct tile_window_base
 
     using DataType = remove_cvref_t<typename BottomTensorView::DataType>;
 
-        
-
-
     // origin ([x0', x1', ...]) of window on bottom tensor
     BottomTensorIndex window_origin_;
 
     // window_lengths
-    
 
     static_assert(ck_tile::is_known_at_compile_time<WindowLengths>::value,
                   "wrong! lengths should be static");
     WindowLengths window_lengths_;
-
-
 
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
@@ -91,31 +85,32 @@ struct tile_window_base
     CK_TILE_DEVICE void move_extended(const BottomTensorIndex&) {}
 };
 
-template <typename TileWindowType_, typename BottomTensorView_, typename WindowLengths_, typename StaticTileDistribution_>
+template <typename TileWindowType_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_>
 struct tile_window_with_tile_dstr_base
     : public tile_window_base<TileWindowType_, BottomTensorView_, WindowLengths_>
-{  
-    using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
-    using TileWindowBase   = tile_window_base<TileWindowType_, BottomTensorView_, WindowLengths_>;
+{
+    using TileDstr       = remove_cvref_t<StaticTileDistribution_>;
+    using TileWindowBase = tile_window_base<TileWindowType_, BottomTensorView_, WindowLengths_>;
 
-
-    using WindowAdaptor    = typename TileDstr::PsYs2XsAdaptor;
-    using BottomTensorDesc = typename TileWindowBase::BottomTensorView::TensorDesc;
+    using WindowAdaptor = typename TileDstr::PsYs2XsAdaptor;
+    // using BottomTensorDesc = typename TileWindowBase::BottomTensorView::TensorDesc;
     static constexpr index_t NDimWindowAdaptorTop = WindowAdaptor::get_num_of_top_dimension();
 
     static constexpr index_t NDimP = TileDstr::get_num_of_dimension_p();
     static constexpr index_t NDimY = TileDstr::get_num_of_dimension_y();
 
-    using AdaptorTopIndex   = array<index_t, NDimWindowAdaptorTop>;
-    using BottomTensorIndex = array<index_t, TileWindowBase::NDimBottomTensor>;
+    using AdaptorTopIndex = array<index_t, NDimWindowAdaptorTop>;
+    // using BottomTensorIndex = array<index_t, TileWindowBase::NDimBottomTensor>;
 
     using WindowAdaptorCoord =
         decltype(make_tensor_adaptor_coordinate(WindowAdaptor{}, AdaptorTopIndex{}));
 
-    using BottomTensorCoord =
-        decltype(make_tensor_coordinate(BottomTensorDesc{}, BottomTensorIndex{}));
+    using BottomTensorCoord = decltype(make_tensor_coordinate(
+        typename TileWindowBase::BottomTensorDesc{}, typename TileWindowBase::BottomTensorIndex{}));
 
-    
     static_assert(TileDstr::is_static(), "wrong!");
     static_assert(TileWindowBase::NDimBottomTensor == WindowAdaptor::get_num_of_bottom_dimension(),
                   "wrong! inconsistent # of diemsnions");
@@ -128,11 +123,30 @@ struct tile_window_with_tile_dstr_base
         return TileDstr::is_static();
     }
 
+    // move thread's window adaptor coordinate and bottom tensor coordinate
+    // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
+    template <typename ATopIndex>
+    CK_TILE_DEVICE void move_window_adaptor_and_bottom_tensor_thread_coordinate(
+        WindowAdaptorCoord& window_adaptor_thread_coord,
+        BottomTensorCoord& bottom_tensor_thread_coord,
+        const ATopIndex& idx_diff_adaptor_top) const
+    {
+        array<index_t, TileWindowBase::NDimBottomTensor> idx_diff_adaptor_bottom;
+
+        move_tensor_adaptor_coordinate(tile_dstr_.get_ps_ys_to_xs_adaptor(),
+                                       window_adaptor_thread_coord,
+                                       idx_diff_adaptor_top,
+                                       idx_diff_adaptor_bottom);
+
+        move_tensor_coordinate(this->bottom_tensor_view_.get_tensor_descriptor(),
+                               bottom_tensor_thread_coord,
+                               idx_diff_adaptor_bottom);
+    }
+
     // Tile tensor distribution, which contains:
     //   1. adaptor for window: [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...]
     //   2. thread descriptor for thread tensor in register: [y0, y1, ...] ==> [d]
     TileDstr tile_dstr_;
 };
-
 
 } // namespace ck_tile

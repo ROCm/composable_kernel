@@ -94,8 +94,9 @@ struct tile_window_with_static_distribution
 
         private:
         static constexpr auto scalars_per_access_ = [] {
-            constexpr auto scalars_per_access_arr = generate_array(
-                [&](auto i) { return (i == VectorDimY) ? ScalarPerVector : 1; }, number<Base::NDimY>{});
+            constexpr auto scalars_per_access_arr =
+                generate_array([&](auto i) { return (i == VectorDimY) ? ScalarPerVector : 1; },
+                               number<Base::NDimY>{});
 
             /// TODO: add non-automatic storage argument support to macro TO_SEQUENCE()
             constexpr auto NDimY_ = Base::NDimY;
@@ -189,35 +190,15 @@ struct tile_window_with_static_distribution
                 SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
 
             constexpr auto idx_diff_ps_ys = container_concat(
-                generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}), idx_diff_ys);
+                generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
+                idx_diff_ys);
 
-            move_window_adaptor_and_bottom_tensor_thread_coordinate(
+            Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                 window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
             pre_computed_coords_(iCoord) =
                 make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
         });
-    }
-
-
-    // move thread's window adaptor coordinate and bottom tensor coordinate
-    // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
-    template <typename ATopIndex>
-    CK_TILE_DEVICE void move_window_adaptor_and_bottom_tensor_thread_coordinate(
-        typename Base::WindowAdaptorCoord& window_adaptor_thread_coord,
-        typename Base::BottomTensorCoord& bottom_tensor_thread_coord,
-        const ATopIndex& idx_diff_adaptor_top) const
-    {
-        array<index_t, Base::NDimBottomTensor> idx_diff_adaptor_bottom;
-
-        move_tensor_adaptor_coordinate(this->tile_dstr_.get_ps_ys_to_xs_adaptor(),
-                                       window_adaptor_thread_coord,
-                                       idx_diff_adaptor_top,
-                                       idx_diff_adaptor_bottom);
-
-        move_tensor_coordinate(this->bottom_tensor_view_.get_tensor_descriptor(),
-                               bottom_tensor_thread_coord,
-                               idx_diff_adaptor_bottom);
     }
 
     // return vector dimension among [y0, y1, ...]
@@ -232,13 +213,13 @@ struct tile_window_with_static_distribution
         const auto window_adaptor_bottom_dim_vector_strides = bottom_tensor_top_dim_vector_strides;
 
         // window adaptor [p0, p1, ..., y0, y1, ...]
-        array<index_t, Base::WindowAdaptor::get_num_of_hidden_dimension()> window_adaptor_vector_lengths{
-            -1};
-        array<index_t, Base::WindowAdaptor::get_num_of_hidden_dimension()> window_adaptor_vector_strides{
-            -1};
+        array<index_t, Base::WindowAdaptor::get_num_of_hidden_dimension()>
+            window_adaptor_vector_lengths{-1};
+        array<index_t, Base::WindowAdaptor::get_num_of_hidden_dimension()>
+            window_adaptor_vector_strides{-1};
 
         constexpr auto window_adaptor_bottom_dims =
-             Base::WindowAdaptor::get_bottom_dimension_hidden_ids();
+            Base::WindowAdaptor::get_bottom_dimension_hidden_ids();
 
         set_container_subset(window_adaptor_vector_lengths,
                              window_adaptor_bottom_dims,
@@ -268,7 +249,7 @@ struct tile_window_with_static_distribution
                              bool_constant<oob_conditional_check> = {}) const
     {
         constexpr auto tile_dstr = typename Base::TileDstr{};
-        auto dst_tensor          = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
+        auto dst_tensor = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
         load(dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
         return dst_tensor;
     }
@@ -317,7 +298,8 @@ struct tile_window_with_static_distribution
                         Traits::PackedSize;
 
                     dst_tensor.get_thread_buffer().template at<d>() =
-                        vec_value.template get_as<typename Base::DataType>()[j / Traits::PackedSize];
+                        vec_value
+                            .template get_as<typename Base::DataType>()[j / Traits::PackedSize];
                 });
 #else
                 constexpr index_t d =
@@ -336,7 +318,7 @@ struct tile_window_with_static_distribution
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
                 }
             });
@@ -413,7 +395,7 @@ struct tile_window_with_static_distribution
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
                 }
             });
@@ -494,7 +476,7 @@ struct tile_window_with_static_distribution
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
                     m0_inc_with_memory(size_per_issue);
@@ -566,7 +548,7 @@ struct tile_window_with_static_distribution
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
                     smem += size_per_issue; // Note we manually increase the per-issue offset
@@ -576,10 +558,10 @@ struct tile_window_with_static_distribution
     }
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
-    CK_TILE_DEVICE void
-    store(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>& dstr_tensor,
-          number<i_access_unsupport_>          = {},
-          bool_constant<oob_conditional_check> = {}) const
+    CK_TILE_DEVICE void store(const static_distributed_tensor<typename Base::DataType,
+                                                              typename Base::TileDstr>& dstr_tensor,
+                              number<i_access_unsupport_>          = {},
+                              bool_constant<oob_conditional_check> = {}) const
     {
         using Traits = load_store_traits;
 
@@ -638,7 +620,7 @@ struct tile_window_with_static_distribution
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
                 }
             });
@@ -647,7 +629,8 @@ struct tile_window_with_static_distribution
 
     template <index_t i_access_unsupport_ = -1>
     CK_TILE_DEVICE void
-    store_raw(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>& dstr_tensor,
+    store_raw(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>&
+                  dstr_tensor,
               number<i_access_unsupport_> = {}) const
     {
         using Traits = load_store_traits;
@@ -700,7 +683,7 @@ struct tile_window_with_static_distribution
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
                 }
             });
@@ -709,7 +692,8 @@ struct tile_window_with_static_distribution
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void
-    update(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>& dstr_tensor,
+    update(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>&
+               dstr_tensor,
            number<i_access_unsupport_>          = {},
            bool_constant<oob_conditional_check> = {}) const
     {
@@ -767,7 +751,7 @@ struct tile_window_with_static_distribution
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
                 }
             });
@@ -776,7 +760,8 @@ struct tile_window_with_static_distribution
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true, bool pre_nop>
     CK_TILE_DEVICE void
-    update_raw(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>& dstr_tensor,
+    update_raw(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>&
+                   dstr_tensor,
                number<i_access_unsupport_>          = {},
                bool_constant<oob_conditional_check> = {},
                bool_constant<pre_nop>               = {}) const
@@ -836,7 +821,7 @@ struct tile_window_with_static_distribution
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
                 }
             });
@@ -859,7 +844,8 @@ struct tile_window_with_static_distribution
         // need investigation
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             this->tile_dstr_.get_ps_ys_to_xs_adaptor(),
-            container_concat(detail::get_partition_index(this->tile_dstr_), array<index_t, Base::NDimY>{0}));
+            container_concat(detail::get_partition_index(this->tile_dstr_),
+                             array<index_t, Base::NDimY>{0}));
 
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
@@ -880,9 +866,10 @@ struct tile_window_with_static_distribution
                 SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
 
             constexpr auto idx_diff_ps_ys = container_concat(
-                generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}), idx_diff_ys);
+                generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
+                idx_diff_ys);
 
-            move_window_adaptor_and_bottom_tensor_thread_coordinate(
+            Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                 window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
             pre_computed_coords_(iCoord) =
@@ -893,7 +880,8 @@ struct tile_window_with_static_distribution
     // this contains:
     //   per-thread coordinate for window adaptor
     //   per-thread coordinate for bottom tensor
-    array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord> pre_computed_coords_;
+    array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord>
+        pre_computed_coords_;
 };
 
 // TODO: use strategy

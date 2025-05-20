@@ -146,8 +146,9 @@ struct tile_window_linear
 
         private:
         static constexpr auto scalars_per_access_ = [] {
-            constexpr auto scalars_per_access_arr = generate_array(
-                [&](auto i) { return (i == VectorDimY) ? ScalarPerVector : 1; }, number<Base::NDimY>{});
+            constexpr auto scalars_per_access_arr =
+                generate_array([&](auto i) { return (i == VectorDimY) ? ScalarPerVector : 1; },
+                               number<Base::NDimY>{});
 
             /// TODO: add non-automatic storage argument support to macro TO_SEQUENCE()
             constexpr auto NDimY_ = Base::NDimY;
@@ -180,9 +181,8 @@ struct tile_window_linear
         static constexpr auto get_num_non_linear_access()
         {
             constexpr auto sfc_access_lens = SFC_Ys::access_lengths;
-            using ys_to_rhs_major =
-                typename decltype(typename Base::TileDstr{}
-                                      .get_static_tile_distribution_encoding())::Ys2RHsMajor;
+            using ys_to_rhs_major          = typename decltype(
+                typename Base::TileDstr{}.get_static_tile_distribution_encoding())::Ys2RHsMajor;
 
             constexpr auto non_linear = [&]() {
                 index_t cnt = 1;
@@ -216,15 +216,14 @@ struct tile_window_linear
         static constexpr auto get_non_linear_access_map()
         {
             constexpr auto sfc_access_lens = SFC_Ys::access_lengths;
-            using ys_to_rhs_major =
-                typename decltype(typename Base::TileDstr{}
-                                      .get_static_tile_distribution_encoding())::Ys2RHsMajor;
+            using ys_to_rhs_major          = typename decltype(
+                typename Base::TileDstr{}.get_static_tile_distribution_encoding())::Ys2RHsMajor;
             constexpr auto non_linear_map = [&]() {
                 array<index_t, NumAccess> m_{0};
                 index_t cumulative_len_            = 1;
                 index_t cumulative_non_linear_len_ = 1;
                 static_for<0, Base::NDimY, 1>{}([&](auto i_y) {
-                    constexpr auto i_dim_y       = number<Base::NDimY - i_y - 1>{}; // from right to left
+                    constexpr auto i_dim_y = number<Base::NDimY - i_y - 1>{}; // from right to left
                     constexpr auto rhs_major     = ys_to_rhs_major{}[i_dim_y];
                     constexpr auto target_h_dim  = number<rhs_major - 1>{}; // no r dim here!
                     constexpr auto is_linear_dim = LinearBottomDims{}[target_h_dim];
@@ -295,17 +294,17 @@ struct tile_window_linear
         const typename Base::WindowLengths& window_lengths,
         const typename Base::BottomTensorIndex& window_origin,
         const typename Base::TileDstr& tile_distribution)
-        : cached_coords_{},
-          cached_flags_{}
-    {   
-        this->bottom_tensor_view_ = bottom_tensor_view;
-        this->window_lengths_    = window_lengths;
-        this->window_origin_     = window_origin;
-        this->tile_dstr_        = tile_distribution;
+        : cached_coords_{}, cached_flags_{}
+    {
+        this->bottom_tensor_view_            = bottom_tensor_view;
+        this->window_lengths_                = window_lengths;
+        this->window_origin_                 = window_origin;
+        this->tile_dstr_                     = tile_distribution;
         auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_distribution.get_ps_ys_to_xs_adaptor(),
-            container_concat(make_tuple(get_warp_id(), get_lane_id()),
-                             generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimY>{})));
+            container_concat(
+                make_tuple(get_warp_id(), get_lane_id()),
+                generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimY>{})));
 
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
@@ -339,7 +338,7 @@ struct tile_window_linear
                     generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                     idx_diff_ys);
 
-                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                     window_adaptor_thread_coord_tmp,
                     bottom_tensor_thread_coord_tmp,
                     idx_diff_ps_ys);
@@ -347,34 +346,13 @@ struct tile_window_linear
         });
     }
 
-    // move thread's window adaptor coordinate and bottom tensor coordinate
-    // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
-    template <typename ATopIndex>
-    CK_TILE_DEVICE void move_window_adaptor_and_bottom_tensor_thread_coordinate(
-        typename Base::WindowAdaptorCoord& window_adaptor_thread_coord,
-        typename Base::BottomTensorCoord& bottom_tensor_thread_coord,
-        const ATopIndex& idx_diff_adaptor_top) const
-    {
-        array<index_t, Base::NDimBottomTensor> idx_diff_adaptor_bottom;
-
-        move_tensor_adaptor_coordinate(this->tile_dstr_.get_ps_ys_to_xs_adaptor(),
-                                       window_adaptor_thread_coord,
-                                       idx_diff_adaptor_top,
-                                       idx_diff_adaptor_bottom);
-
-        move_tensor_coordinate(this->bottom_tensor_view_.get_tensor_descriptor(),
-                               bottom_tensor_thread_coord,
-                               idx_diff_adaptor_bottom);
-    }
-
     template <index_t i_access>
     CK_TILE_DEVICE static constexpr auto get_bottom_linear_coordinate(number<i_access>)
     {
         using SFC_Ys          = typename traits::SFC_Ys;
         constexpr auto idx_ys = SFC_Ys::get_index(number<i_access>{});
-        using ys_to_rhs_major =
-            typename decltype(typename Base::TileDstr{}
-                                  .get_static_tile_distribution_encoding())::Ys2RHsMajor;
+        using ys_to_rhs_major = typename decltype(
+            typename Base::TileDstr{}.get_static_tile_distribution_encoding())::Ys2RHsMajor;
 
         constexpr auto modified_idx_ys = generate_tuple(
             [&](auto i_dim_y) {
@@ -987,8 +965,9 @@ struct tile_window_linear
     {
         auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             typename Base::TileDstr{}.get_ps_ys_to_xs_adaptor(),
-            container_concat(make_tuple(get_warp_id(), get_lane_id()),
-                             generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimY>{})));
+            container_concat(
+                make_tuple(get_warp_id(), get_lane_id()),
+                generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimY>{})));
 
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
@@ -1016,14 +995,13 @@ struct tile_window_linear
                     generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                     idx_diff_ys);
 
-                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                     window_adaptor_thread_coord_tmp,
                     bottom_tensor_thread_coord_tmp,
                     idx_diff_ps_ys);
             }
         });
     }
-
 
     // this contains:
     array<typename Base::BottomTensorCoord, traits::NumAccess_NonLinear> cached_coords_;
