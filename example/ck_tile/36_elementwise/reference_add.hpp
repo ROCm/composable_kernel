@@ -11,24 +11,9 @@ namespace ck_tile {
 
 template <typename XDataType, typename YDataType, typename... Args>
 CK_TILE_HOST void reference_add(HostTensor<YDataType>& y,
-                                // const HostTensor<XDataType>& xa,
-                                // const HostTensor<XDataType>& xb,
                                 Args&&... rest_args
                                 )
 {
-    // auto f = [&](auto m) {
-    //     const int N = xa_m_n.mDesc.get_lengths()[1];
-
-    //     for(int n = 0; n < N; ++n)
-    //     {
-    //         y_m_n(m, n) = ck_tile::type_convert<YDataType>(xa_m_n(m, n)) +
-    //                       ck_tile::type_convert<YDataType>(xb_m_n(m, n));
-    //     }
-    // };
-
-    // make_ParallelTensorFunctor(f,
-    //                            y_m_n.mDesc.get_lengths()[0])(std::thread::hardware_concurrency());
-
     // Lambda function implementing a binary operation: addition
     constexpr auto operation = [](auto& accumulator, auto& arg, auto idx) {
         accumulator += ck_tile::type_convert<YDataType>(arg(idx));
@@ -39,13 +24,10 @@ CK_TILE_HOST void reference_add(HostTensor<YDataType>& y,
         YDataType dummy[] = {static_cast<YDataType>(0), ( (void)(operation(accumulator, rest_args, i)), static_cast<YDataType>(0))... };
         (void)dummy; // Suppress unused variable warning for dummy array
         self(i) = accumulator;
-        // self(i) = ck_tile::type_convert<YDataType>(xa(i)) +
-        //           ck_tile::type_convert<YDataType>(xb(i));
-        
     });
 }
 
-
+// TODO: shall we remove this function too?
 template <typename XDataType, typename YDataType>
     CK_TILE_HOST void reference_add_3D(const HostTensor<XDataType>& xa_b_m_n,
                                     const HostTensor<XDataType>& xb_b_m_n,
