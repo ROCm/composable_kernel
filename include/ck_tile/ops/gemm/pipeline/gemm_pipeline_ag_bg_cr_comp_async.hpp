@@ -4,7 +4,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v4_default_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_async_default_policy.hpp"
 
 namespace ck_tile {
 
@@ -49,7 +49,7 @@ struct BaseGemmPipelineAgBgCrCompAsync
  * It is particularly more efficient for large matrices where M, N, and K are greater than 8K,
  * even when Compute Version 3's block size is twice that of Compute Version 4.
  */
-template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV4DefaultPolicy>
+template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncDefaultPolicy>
 struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompAsync<Problem>;
