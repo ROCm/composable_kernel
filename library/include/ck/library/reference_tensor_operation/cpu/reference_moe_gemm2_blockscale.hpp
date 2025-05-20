@@ -23,6 +23,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
+          bool MulRoutedWeight  = true,
           typename ComputeTypeA = CDataType,
           typename ComputeTypeB = ComputeTypeA>
 struct ReferenceMoeGemm2BlockScale : public device::BaseOperator
@@ -133,7 +134,14 @@ struct ReferenceMoeGemm2BlockScale : public device::BaseOperator
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                     }
                     CDataType v_c{0};
-                    arg.c_element_op_(v_c, v_acc, v_topk_w);
+                    if constexpr(MulRoutedWeight)
+                    {
+                        arg.c_element_op_(v_c, v_acc, v_topk_w);
+                    }
+                    else
+                    {
+                        arg.c_element_op_(v_c, v_acc, 1.f);
+                    }
                     arg.c_t_n_(t, n) += v_c;
                 }
             };

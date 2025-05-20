@@ -123,6 +123,7 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
+static constexpr bool MulRoutedWeight = true;
 
 #if 0
 static constexpr ck::index_t MPerBlock = 32;
@@ -156,22 +157,22 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
                2,        2,         S<1, CShuffleMLane, 1, CShuffleNLane>, S<EVec, D0Vec, D1Vec, D2Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, 0, false, false, true, int32_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, 0, false, false, MulRoutedWeight, int32_t, A0DataType>;
 
 #else
-static constexpr ck::index_t MPerBlock = 128; using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
+static constexpr ck::index_t MPerBlock = 64; using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
                Row, Col, DsLayout, ELayout,
                A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,   GemmSpec,   
-               256,  Scale_Block_M, Scale_Block_N, Scale_Block_K,
-               MPerBlock,   128,    128,
+               64,  Scale_Block_M, Scale_Block_N, Scale_Block_K,
+               MPerBlock,   16,    128,
                16,   16,
                16,   16,
-               4,    4,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               2,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, 0, false, false, true, int32_t, A0DataType>;
+               4,    1,
+               S<8, 8, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               S<8, 8, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               2,    1,   S<1, 8, 1, 8>, S<2, 1, 1, 1>,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, 0, false, false, MulRoutedWeight, int32_t, A0DataType>;
 #endif
 // clang-format on
 
@@ -187,7 +188,7 @@ int main(int argc, char* argv[])
     // per expert:
 
     constexpr ck::index_t valid_tile_num =
-        52; // 13 for 128; 52 for 32; 4096 for ds  // > token * topk / MPerBlock
+        2; // 13 for 128; 52 for 32; 4096 for ds  // > token * topk / MPerBlock
     constexpr ck::index_t sorted_tile_num = valid_tile_num + 3;
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
@@ -195,7 +196,7 @@ int main(int argc, char* argv[])
     // GEMM shape
     ck::index_t N       = 6144;
     ck::index_t K       = 4096;
-    ck::index_t experts = 8;
+    ck::index_t experts = 2;
     ck::index_t tokens  = 832;
     ck::index_t topk    = 2;
 #else
@@ -349,6 +350,22 @@ int main(int argc, char* argv[])
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0, 1.0});
         break;
+    case 6:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.5, 0.5});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{1.0, 1.0});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.5, 0.5});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{1.0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+        for (auto i = 0; i < 128; i++){
+            a0_t_k_k.mData[i] = ck::type_convert<A0DataType>(0.01 * i);
+            a0_t_k_k.mData[i + 128] = ck::type_convert<A0DataType>(0.01 * i + 1.28);
+            for (auto j = 0; j < 32; j++){
+                b0_e_n_k.mData[i * j] = ck::type_convert<B0DataType>(0.01 * i * j);
+            }
+            d2_e_n.mData[i] = ck::type_convert<D2DataType>(0.01 * i);
+            d2_e_n.mData[i*2] = ck::type_convert<D2DataType>(0.01 * i + 1.28);
+        }
+        break;
     default:
         a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
@@ -487,7 +504,8 @@ int main(int argc, char* argv[])
                                                                     AccDataType,
                                                                     PassThrough,
                                                                     PassThrough,
-                                                                    CDEElementOp>;
+                                                                    CDEElementOp,
+                                                                    MulRoutedWeight>;
         auto ref_moe_gemm = ReferenceGemmInstance{};
         auto ref_invoker  = ref_moe_gemm.MakeInvoker();
         auto ref_argument = ref_moe_gemm.MakeArgument(sorted_token_ids,
@@ -518,7 +536,7 @@ int main(int argc, char* argv[])
         printf("e_t_n_device_result: \n");
         for(int t = 0; t < tokens; ++t)
         {
-            for(int n = 0; n < N; ++n)
+            for(int n = 0; n < 5; ++n)
             {
                 printf("%.2f ", ck::type_convert<float>(e_t_n_device_result(t, n)));
             }
@@ -528,7 +546,7 @@ int main(int argc, char* argv[])
         printf("e_t_n_host_result: \n");
         for(int t = 0; t < tokens; ++t)
         {
-            for(int n = 0; n < N; ++n)
+            for(int n = 0; n < 5; ++n)
             {
                 printf("%.2f ", ck::type_convert<float>(e_t_n_host_result(t, n)));
             }
