@@ -86,16 +86,16 @@ __global__ void
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
+    // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_sorted_token_ids,
         karg.p_sorted_expert_ids,
         karg.p_max_token_id,
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_a_scale_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_b_scale_grid + splitk_batch_offset.b_k_split_offset,
+        karg.p_a_grid,
+        karg.p_a_scale_grid,
+        karg.p_b_grid,
+        karg.p_b_scale_grid,
         karg.p_ds_grid,
         karg.p_c_grid,
         p_shared,
@@ -776,7 +776,7 @@ struct GridwiseMoeGemmMX
         {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = k_id * karg.KRead / APackedSize;
+                a_k_split_offset = k_id * karg.KRead;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
@@ -790,7 +790,7 @@ struct GridwiseMoeGemmMX
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
                 // KPack * NLane * KLane * K0 * N0
-                b_k_split_offset = k_id * karg.KRead * NLane / BPackedSize;
+                b_k_split_offset = k_id * karg.KRead;
             }
 
             // Calculate A scale offset
@@ -2045,8 +2045,21 @@ struct GridwiseMoeGemmMX
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K * APackedSize;
+            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
+
+#if 0
+        printf("blkx: %u, blky: %u, tidx: %u, token_pos: %d, gather_offsets:<%d, %d, %d, %d>\n",
+               blockIdx.x,
+               blockIdx.y,
+               threadIdx.x,
+               token_pos,
+               gather_offsets[Number<0>{}],
+               gather_offsets[Number<1>{}],
+               gather_offsets[Number<2>{}],
+               gather_offsets[Number<3>{}]);
+#endif
+
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
         const index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
@@ -2058,6 +2071,16 @@ struct GridwiseMoeGemmMX
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+
+#if 1
+        printf("blkx: %u, blky: %u, tidx: %u, a_grid_size: %ld\n",
+               blockIdx.x,
+               blockIdx.y,
+               threadIdx.x,
+               a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+
+#endif
+
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
 
@@ -2098,13 +2121,13 @@ struct GridwiseMoeGemmMX
             true,
             IndexType,
             1,
-            2>(a_grid_desc_ak0_m_ak1,
-               make_multi_index(0, 0, 0),
-               a_element_op,
-               a_block_desc_ak0_m_ak1,
-               make_multi_index(0, 0, 0),
-               ck::tensor_operation::element_wise::PassThrough{},
-               gather_offsets);
+            BlockwiseGemmPipe::GlobalBufferNum>(a_grid_desc_ak0_m_ak1,
+                                                make_multi_index(0, 0, 0),
+                                                a_element_op,
+                                                a_block_desc_ak0_m_ak1,
+                                                make_multi_index(0, 0, 0),
+                                                ck::tensor_operation::element_wise::PassThrough{},
+                                                gather_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack

@@ -207,7 +207,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
 // clang-format on
 
 #else
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MPerBlock = 32;
 static constexpr bool MulRoutedWeight  = true;
 
 // clang-format off
@@ -215,14 +215,14 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     A0Layout,    B0Layout,    DsLayout,    ELayout, 
     A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
     AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
-    ScaleBlockSize,      256,   
-    MPerBlock,   256,    KPerBlock,
+    ScaleBlockSize,      64,   
+    MPerBlock,   32,    KPerBlock,
     16,   16,
     16,   16,
-    8,    4,
-    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-    2,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
+    2,    2,
+    S<8, 8, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+    S<8, 8, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+    1,    1,   S<1, 8, 1, 8>, S<2, 1, 1, 1>,
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, 0, false, false, MulRoutedWeight, ck::index_t, A0DataType>;
 // clang-format on
 #endif
@@ -235,14 +235,14 @@ int main(int argc, char* argv[])
 
     // per expert:
     // GEMM shape
-    constexpr ck::index_t sorted_tile_num = 13;
-    constexpr ck::index_t valid_tile_num  = 13;
+    constexpr ck::index_t sorted_tile_num = 2;
+    constexpr ck::index_t valid_tile_num  = 2;
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
 
     ck::index_t N       = 6144;
     ck::index_t K       = 4096;
-    ck::index_t experts = 8;
+    ck::index_t experts = 2;
     ck::index_t tokens  = 832;
     ck::index_t topk    = 2;
 
@@ -274,6 +274,11 @@ int main(int argc, char* argv[])
         printf("arg4 to 6: N, K, tokens\n");
         exit(0);
     }
+
+    if(K % ScaleBlockSize != 0)
+    {
+        throw std::runtime_error("wrong! K must be multiple of ScaleBlockSize.");
+    };
 
     ck::index_t StrideA              = K;
     ck::index_t StrideB              = K;
@@ -367,8 +372,8 @@ int main(int argc, char* argv[])
     case 1:
         a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-1, 1});
-        a1_t_k_k.GenerateTensorValue(GeneratorTensor_2<XDataType>{0, 1});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_2<XDataType>{0, 1});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-1, 1});
         break;
     case 2:
@@ -447,7 +452,7 @@ int main(int argc, char* argv[])
                                                         a_scale_preshuffled.mData.data(),
                                                         sorted_size,
                                                         K / ScaleBlockSize);
-    preShuffleScaleBuffer<ck::is_same_v<B0Layout, Row>>(
+    preShuffleScaleBuffer<ck::is_same_v<B0Layout, Col>>(
         b1_e_n_k.mData.data(), b_scale_preshuffled.mData.data(), N * experts, K / ScaleBlockSize);
 
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
@@ -463,7 +468,7 @@ int main(int argc, char* argv[])
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
 
-#if 0
+#if 1
     printf("a0_t_k_k:\n");
     for(int t = 0; t < tokens; ++t)
     {
@@ -498,6 +503,26 @@ int main(int argc, char* argv[])
                 printf("%.2f ", ck::type_convert<float>(a1_t_k_k(t, tk, k)));
             }
             printf("\n");
+        }
+        printf("\n");
+    }
+
+    printf("a_scale_sorted: K/scale: %d\n", (K + ScaleBlockSize - 1) / ScaleBlockSize);
+    for(int i = 0; i < sorted_size; ++i)
+    {
+        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
+        {
+            printf("%.2f ", ck::type_convert<float>(a_scale_sorted(i, k)));
+        }
+        printf("\n");
+    }
+
+    printf("a_scale_preshuffled:\n");
+    for(int i = 0; i < sorted_size; ++i)
+    {
+        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
+        {
+            printf("%.2f ", ck::type_convert<float>(a_scale_preshuffled(i, k)));
         }
         printf("\n");
     }
@@ -659,7 +684,7 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-#if 0
+#if 1
         printf("e_t_n_device_result:\n");
         for(int t = 0; t < tokens; ++t)
         {
