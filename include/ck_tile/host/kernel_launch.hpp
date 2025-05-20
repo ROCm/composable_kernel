@@ -107,7 +107,6 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
         {
             if constexpr(sizeof...(callables) == 2)
             {
-                auto preprocess      = std::get<0>(std::make_tuple(callables...));
                 auto kernel_launcher = std::get<1>(std::make_tuple(callables...));
                 launch_and_check(s, kernel_launcher);
             }

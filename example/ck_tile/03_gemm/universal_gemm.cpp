@@ -108,9 +108,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                  GemmConfig::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
-            using Kernel   = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            using Argument = ck_tile::GemmKernelArgs;
-            auto kargs     = Kernel::MakeKernelArgs(args);
+            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            auto kargs   = Kernel::MakeKernelArgs(args);
 
             const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
             constexpr dim3 blocks = Kernel::BlockSize();
@@ -143,8 +142,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                 auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
                 auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
 
-                ck_tile::RotatingMemWrapper<Argument, ADataType, BDataType> rotating_mem(
-                    kargs, s.rotating_count, size_a_buffer, size_b_buffer);
+                ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+                    kargs.a_ptr, kargs.b_ptr, s.rotating_count, size_a_buffer, size_b_buffer);
                 rotating_mem.Print();
 
                 auto run_flush_cache = [&]() {

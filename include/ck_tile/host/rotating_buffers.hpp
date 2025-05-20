@@ -9,18 +9,23 @@
 
 namespace ck_tile {
 
-template <typename Argument, typename ADataType, typename BDataType>
+template <typename ADataType, typename BDataType>
 struct RotatingMemWrapper
 {
     RotatingMemWrapper() = delete;
-    RotatingMemWrapper(Argument& arg_,
+    RotatingMemWrapper(const void* a_ptr_,
+                       const void* b_ptr_,
                        std::size_t rotating_count_,
                        std::size_t size_a_,
                        std::size_t size_b_)
-        : arg(arg_), rotating_count(rotating_count_), size_a(size_a_), size_b(size_b_)
+        : a_ptr(a_ptr_),
+          b_ptr(b_ptr_),
+          rotating_count(rotating_count_),
+          size_a(size_a_),
+          size_b(size_b_)
     {
-        p_a_grids.push_back(arg.a_ptr);
-        p_b_grids.push_back(arg.b_ptr);
+        p_a_grids.push_back(a_ptr);
+        p_b_grids.push_back(b_ptr);
         for(size_t i = 1; i < rotating_count; i++)
         {
             {
@@ -49,8 +54,8 @@ struct RotatingMemWrapper
         if(rotating_count > 1)
         {
             std::size_t idx = iter++ % rotating_count;
-            arg.a_ptr       = p_a_grids[idx];
-            arg.b_ptr       = p_b_grids[idx];
+            a_ptr           = p_a_grids[idx];
+            b_ptr           = p_b_grids[idx];
         }
     }
     void Print()
@@ -63,8 +68,8 @@ struct RotatingMemWrapper
         if(rotating_count > 1)
         {
             // restore ptr
-            arg.a_ptr = p_a_grids[0];
-            arg.b_ptr = p_b_grids[0];
+            a_ptr = p_a_grids[0];
+            b_ptr = p_b_grids[0];
 
             // free device mem
             for(size_t i = 1; i < rotating_count; i++)
@@ -76,7 +81,8 @@ struct RotatingMemWrapper
     }
 
     private:
-    Argument& arg;
+    const void* a_ptr;
+    const void* b_ptr;
     std::size_t iter           = 0;
     std::size_t rotating_count = 1;
     std::size_t size_a         = 0;
