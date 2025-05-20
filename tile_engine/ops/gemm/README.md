@@ -15,19 +15,19 @@ If user does not provide kernel configuration, the tile engine uses default kern
 # in the root of composable kernel create build directory
 mkdir build && cd build
 # build composable kernel
-## replace <arch> with the appropriate architecture (example gfx942) or leave blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
+sh ../script/cmake-ck-dev.sh  ../ <arch> -G Ninja # replace <arch> with the appropriate architecture (example gfx942) or leave blank
 # generate the executable
-make tile_engine_gemm -j
+ninja benchmark_gemm
 ```
-`tile_engine_gemm` will be located in the `./bin/` directory.
+`benchmark_gemm` will be located in the `./bin/` directory.
 
-_`tile_engine_gemm` must be rebuilt everytime `instance_combination.json` is modified._
+`benchmark_gemm` must be rebuilt everytime if configuration file is modified.
+
 ``` bash
-rm -rf tile_engine/ && make tile_engine_gemm -j  # rebuild
+rm -rf tile_engine/ && ninja benchmark_gemm  # rebuild
 ```
 
-## tile_engine_gemm inputs
+## benchmark_gemm inputs
 ```
                       -m    The value for m dimension. Default is 3840.
                       -n    The value for n dimension. Default is 4096.
@@ -89,7 +89,7 @@ The following JSON file specifies parameters used to generate and build GEMM ker
 
 At runtime, a specific subset of the generated kernels can be selected using command-line arguments.
 ``` bash
-./bin/tile_engine_gemm -pipeline=compv3 -scheduler=intrawave -epilogue=default 
+./bin/benchmark_gemm -pipeline=compv3 -scheduler=intrawave -epilogue=default 
 ```
 The above command runs kernels configured with the compv3 pipeline, intrawave scheduler, and default epilogue, while sweeping over different BlockTile sizes, WarpTile sizes, and WarpTile mappings.
 

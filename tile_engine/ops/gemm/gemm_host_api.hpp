@@ -12,6 +12,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/ops/gemm.hpp"
+#include "gemm_dispatcher.hpp"
 
 template <typename T>
 struct DataTypeTraits;
@@ -58,50 +59,11 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
     static constexpr const char* name = "pk_int4_t";
 };
 
-/// @brief Defines the configuration parameters for a GEMM operation, enabling the selection of a
-/// specific kernel instance based on the provided settings.
-struct KernelTraits
-{
-    /// @brief The name of the pipeline.
-    std::string pipeline;
-    /// @brief The name of the scheduler (e.g., "intrawave", "interwave").
-    std::string scheduler;
-    /// @brief The name of the epilogue (e.g., "cshuffle", "default").
-    std::string epilogue;
-    /// @brief Indicates whether padding is applied to the M dimension.
-    bool pad_m;
-    /// @brief Indicates whether padding is applied to the N dimension.
-    bool pad_n;
-    /// @brief Indicates whether padding is applied to the K dimension.
-    bool pad_k;
-};
-
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
     return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
-}
-
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-auto calculate_rtol_atol(const ck_tile::index_t K,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
-{
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-    // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-    // Calculate error due to split_k accumulation
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
-        max_accumulated_value, kbatch);
-    // Use higher threshold
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
 inline auto create_args(int argc, char* argv[])
@@ -227,4 +189,19 @@ void permute_vectors_i4x4_b(Tensor& tensor)
             }
         }
     }
+}
+
+auto get_kernel_func_by_trait(const ck_tile::ArgParser& arg_parser)
+{
+    KernelTraits trait;
+    trait.pipeline  = arg_parser.get_str("pipeline");
+    trait.scheduler = arg_parser.get_str("scheduler");
+    trait.epilogue  = arg_parser.get_str("epilogue");
+    trait.pad_m     = arg_parser.get_bool("pad_m");
+    trait.pad_n     = arg_parser.get_bool("pad_n");
+    trait.pad_k     = arg_parser.get_bool("pad_k");
+
+    bool structured_sparsity = arg_parser.get_bool("structured_sparsity");
+
+    return GemmDispatcher::dispatch(structured_sparsity, trait);
 }

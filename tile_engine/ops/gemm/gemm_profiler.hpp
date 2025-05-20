@@ -8,7 +8,7 @@
 #include <iomanip>
 
 #include "ck_tile/host/device_prop.hpp"
-#include "benchmark_utils.hpp"
+#include "benchmark_gemm.hpp"
 
 class GemmProfiler
 {

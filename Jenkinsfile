@@ -1163,7 +1163,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a -G Ninja && \
-                                           ninja -C . tile_engine_gemm && \
+                                           ninja tile_engine_gemm && \
                                            ./bin/tile_engine_gemm """
                     }
                     steps{
@@ -1181,7 +1181,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 -G Ninja && \
-                                           ninja -C . tile_engine_gemm && \
+                                           ninja tile_engine_gemm && \
                                            ./bin/tile_engine_gemm """
                     }
                     steps{

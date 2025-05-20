@@ -3,6 +3,7 @@
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
+            --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json
             --list_blobs
     RESULT_VARIABLE ret
 )
@@ -30,21 +31,28 @@ add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
+            --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json
             --gen_blobs
 )
 
-add_library(gemm_template_instances OBJECT ${GEMM_CODEGEN_CPP_FILES})
+add_library(gemm_template_instances OBJECT EXCLUDE_FROM_ALL ${GEMM_CODEGEN_CPP_FILES})
 target_include_directories(gemm_template_instances PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(gemm_template_instances PRIVATE ${GEMM_CODEGEN_HPP_FILES})
 
-set(EXECUTABLE_GEMM_INSTANCE "tile_engine_gemm")
-message("adding example ${EXECUTABLE_GEMM_INSTANCE}")
+set(BENCHMARK_GEMM_EXECUTABLE "benchmark_gemm")
+message("adding example ${BENCHMARK_GEMM_EXECUTABLE}")
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-add_executable(${EXECUTABLE_GEMM_INSTANCE} EXCLUDE_FROM_ALL gemm_host_api.cpp)
-target_include_directories(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${GEMM_CODEGEN_HPP_FILES})
-target_link_libraries(${EXECUTABLE_GEMM_INSTANCE} PRIVATE gemm_template_instances)
+
+add_library(gemm_host_api INTERFACE EXCLUDE_FROM_ALL)
+target_include_directories(gemm_host_api INTERFACE ${CMAKE_CURRENT_LIST_DIR})
+target_sources(gemm_host_api INTERFACE ${GEMM_CODEGEN_HPP_FILES} gemm_host_api.hpp)
+target_link_libraries(gemm_host_api INTERFACE gemm_template_instances)
+
+add_executable(${BENCHMARK_GEMM_EXECUTABLE} EXCLUDE_FROM_ALL benchmark_gemm.cpp)
+target_include_directories(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_sources(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE benchmark_gemm.hpp gemm_profiler.hpp)
+target_link_libraries(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE gemm_host_api)
 
 set(EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS)
 
@@ -53,6 +61,6 @@ list(APPEND EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS
      -Wno-float-equal
      --offload-compress)
 
-target_compile_options(${EXECUTABLE_GEMM_INSTANCE} PRIVATE ${EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS})
+target_compile_options(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE ${EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS})
 
 set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)

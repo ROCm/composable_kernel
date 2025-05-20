@@ -3,167 +3,239 @@
 
 #pragma once
 
-#include <functional>
-#include <tuple>
-#include <exception>
+#include <iostream>
+#include <string>
+#include <fstream>
+#include <stdexcept>
 
 #include "ck_tile/host.hpp"
-#include "gemm_profiler.hpp"
+#include "gemm_common.hpp"
 
-void benchmark_gemm(const ck_tile::ArgParser& arg_parser,
-                    const std::vector<std::function<std::tuple<std::string, float>(
-                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
+enum class Metric
 {
-    GemmProblem gemm_problem{arg_parser.get_int("split_k"),
-                             arg_parser.get_int("m"),
-                             arg_parser.get_int("n"),
-                             arg_parser.get_int("k"),
-                             arg_parser.get_int("stride_a"),
-                             arg_parser.get_int("stride_b"),
-                             arg_parser.get_int("stride_c"),
-                             DataTypeTraits<ADataType>::name,
-                             DataTypeTraits<BDataType>::name,
-                             DataTypeTraits<AccDataType>::name,
-                             DataTypeTraits<CDataType>::name,
-                             ALayout::name,
-                             BLayout::name,
-                             CLayout::name,
-                             arg_parser.get_bool("structured_sparsity")};
+    LATENCY   = 0,
+    TFLOPS    = 1,
+    BANDWIDTH = 2
+};
 
-    Setting setting{
-        arg_parser.get_int("warmup"),
-        arg_parser.get_int("repeat"),
-        arg_parser.get_bool("timer"),
-        arg_parser.get_int("verify"),
-        arg_parser.get_int("init"),
-        arg_parser.get_bool("log"),
-        arg_parser.get_str("csv_filename"),
-    };
-
-    auto& profiler = GemmProfiler::instance(setting);
-
-    const ALayout layout_a = ALayout{};
-    const BLayout layout_b = BLayout{};
-    const CLayout layout_c = CLayout{};
-
-    gemm_problem.stride_a_ = ck_tile::get_default_stride(
-        gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a));
-    gemm_problem.stride_b_ = ck_tile::get_default_stride(
-        gemm_problem.k_, gemm_problem.n_, gemm_problem.stride_b_, is_row_major(layout_b));
-    gemm_problem.stride_c_ = ck_tile::get_default_stride(
-        gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c));
-
-    ck_tile::HostTensor<ADataType> a_m_k(ck_tile::host_tensor_descriptor(
-        gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a)));
-    ck_tile::HostTensor<BDataType> b_k_n(ck_tile::host_tensor_descriptor(
-        gemm_problem.k_, gemm_problem.n_, gemm_problem.stride_b_, is_row_major(layout_b)));
-    ck_tile::HostTensor<CDataType> c_m_n_dev_result(ck_tile::host_tensor_descriptor(
-        gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
-
-    if(setting.init_method_ == 0)
+inline constexpr auto get_metric_name(Metric m)
+{
+    switch(m)
     {
-        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
-        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+    case Metric::LATENCY: return "latency";
+    case Metric::TFLOPS: return "tflops";
+    case Metric::BANDWIDTH: return "bandwidth";
+    default: throw std::invalid_argument("Unsupported metric type");
     }
-    else if(setting.init_method_ == 1)
+}
+
+struct GemmProblem
+{
+    int split_k_;
+    int m_, n_, k_;
+    int stride_a_, stride_b_, stride_c_;
+
+    std::string dtype_a_, dtype_b_, dtype_acc_, dtype_c_;
+    std::string layout_a_, layout_b_, layout_c_;
+
+    bool structured_sparsity_;
+
+    friend std::ostream& operator<<(std::ostream& os, const GemmProblem& problem)
     {
-        ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
-        ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
+        os << "{\n"
+           << "   \"split_k\":" << problem.split_k_ << ",\n"
+           << "   \"m\":" << problem.m_ << ",\n"
+           << "   \"n\":" << problem.n_ << ",\n"
+           << "   \"k\":" << problem.k_ << ",\n"
+           << "   \"stride_a\":" << problem.stride_a_ << ",\n"
+           << "   \"stride_b\":" << problem.stride_b_ << ",\n"
+           << "   \"stride_c\":" << problem.stride_c_ << ",\n"
+           << "   \"dtype_a\":\"" << problem.dtype_a_ << "\",\n"
+           << "   \"dtype_b\":\"" << problem.dtype_b_ << "\",\n"
+           << "   \"dtype_acc\":\"" << problem.dtype_acc_ << "\",\n"
+           << "   \"dtype_c\":\"" << problem.dtype_c_ << "\",\n"
+           << "   \"layout_a\":\"" << problem.layout_a_ << "\",\n"
+           << "   \"layout_b\":\"" << problem.layout_b_ << "\",\n"
+           << "   \"layout_c\":\"" << problem.layout_c_ << "\"\n"
+           << "   \"structured_sparsity\":\"" << problem.structured_sparsity_ << "\"\n"
+           << "}";
+        return os;
     }
-    else if(setting.init_method_ == 2)
+};
+
+struct PerformanceResult
+{
+    double latency_;
+    double tflops_;
+    double bandwidth_;
+
+    static bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
     {
-        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
-    }
-    else
-    {
-        a_m_k.SetZero();
-        b_k_n.SetZero();
-    }
-
-    if(gemm_problem.structured_sparsity_)
-    {
-        ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
-    }
-
-    ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
-
-    if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
-    {
-        // Permute vector pk_i4x4 data for device implementation
-        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-        // permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
-        permute_vectors_i4x4_b(b_k_n_dev);
-        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-    }
-    else
-    {
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
-    }
-
-    a_m_k_dev_buf.ToDevice(a_m_k.data());
-    c_m_n_dev_buf.SetZero();
-    c_m_n_dev_result.SetZero();
-
-    ck_tile::GemmHostArgs gemm_args;
-    gemm_args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-    gemm_args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-    gemm_args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-    gemm_args.k_batch  = gemm_problem.split_k_;
-    gemm_args.M        = gemm_problem.m_;
-    gemm_args.N        = gemm_problem.n_;
-    gemm_args.K        = gemm_problem.k_;
-    gemm_args.stride_A = gemm_problem.stride_a_;
-    gemm_args.stride_B = gemm_problem.stride_b_;
-    gemm_args.stride_C = gemm_problem.stride_c_;
-
-    ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
-        gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
-
-    if(setting.verify_)
-    {
-        gemm_host_reference<ADataType,
-                            BDataType,
-                            AccDataType,
-                            CDataType,
-                            ALayout,
-                            BLayout,
-                            CLayout>(setting.verify_,
-                                     a_m_k,
-                                     b_k_n,
-                                     c_m_n_host_result,
-                                     a_m_k_dev_buf,
-                                     b_k_n_dev_buf,
-                                     gemm_problem.m_,
-                                     gemm_problem.n_,
-                                     gemm_problem.k_,
-                                     gemm_problem.stride_a_,
-                                     gemm_problem.stride_b_,
-                                     gemm_problem.stride_c_);
-    }
-
-    try
-    {
-        for(auto& callable : callables)
+        switch(m)
         {
-            profiler.benchmark(gemm_problem,
-                               c_m_n_dev_buf,
-                               c_m_n_host_result,
-                               c_m_n_dev_result,
-                               callable(gemm_args,
-                                        ck_tile::stream_config{nullptr,
-                                                               true,
-                                                               setting.log_,
-                                                               setting.n_warmup_,
-                                                               setting.n_repeat_,
-                                                               setting.is_gpu_timer_}));
+        case Metric::LATENCY: return a.latency_ < b.latency_;
+        case Metric::TFLOPS: return a.tflops_ > b.tflops_;
+        case Metric::BANDWIDTH: return a.bandwidth_ > b.bandwidth_;
+        default: throw std::invalid_argument("Unsupported metric type");
         }
-        profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
     }
-    catch(const std::exception& e)
+
+    friend std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
     {
-        std::cerr << "Benchmark failed: " << e.what() << std::endl;
+        os << "{\n"
+           << "   \"latency(ms)\": " << std::fixed << std::setprecision(2) << result.latency_
+           << ",\n"
+           << "   \"tflops(TFlops)\": " << result.tflops_ << ",\n"
+           << "   \"bandwidth(GB/s)\": " << result.bandwidth_ << "\n"
+           << "}";
+        return os;
+    }
+};
+
+struct KernelInstance
+{
+    std::string name_;
+    GemmProblem problem_;
+    PerformanceResult perf_result_;
+
+    static bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
+    {
+        return PerformanceResult::compare(a.perf_result_, b.perf_result_, m);
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
+    {
+        os << "{\n"
+           << " \"name\": \""
+           << "{\n"
+           << obj.name_ << "\n}"
+           << "\",\n"
+           << " \"problem\": \"" << obj.problem_ << "\",\n"
+           << " \"perf_result\": " << obj.perf_result_ << "\n"
+           << "}";
+        return os;
+    }
+};
+
+struct Setting
+{
+    int n_warmup_;
+    int n_repeat_;
+    bool is_gpu_timer_;
+    int verify_;
+    int init_method_;
+    bool log_;
+    std::string csv_filename_;
+};
+
+std::string get_rocm_version()
+{
+    std::ifstream version_file("/opt/rocm/.info/version");
+    if(version_file.is_open())
+    {
+        std::string version;
+        std::getline(version_file, version);
+        return version;
+    }
+    return "Unknown";
+}
+
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
+auto calculate_rtol_atol(const ck_tile::index_t K,
+                         const ck_tile::index_t kbatch,
+                         const float max_accumulated_value)
+{
+    using ComputeType =
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+    // Calculate thresholds
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+        ck_tile::integer_divide_ceil(K, kbatch));
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+    // Calculate error due to split_k accumulation
+    const auto rtol_split_k =
+        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
+    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
+        max_accumulated_value, kbatch);
+    // Use higher threshold
+    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
+
+/// @brief Function to compare the results of the device and host computations
+bool compare(ck_tile::index_t K,
+             ck_tile::index_t kbatch,
+             ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+             ck_tile::HostTensor<CDataType>& c_m_n_host_result)
+{
+    const float max_accumulated_value =
+        *std::max_element(c_m_n_host_result.mData.begin(), c_m_n_host_result.mData.end());
+    const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+        K, kbatch, max_accumulated_value);
+    bool pass = ck_tile::check_err(c_m_n_dev_result,
+                                   c_m_n_host_result,
+                                   "Error: Incorrect results!",
+                                   rtol_atol.at(ck_tile::number<0>{}),
+                                   rtol_atol.at(ck_tile::number<1>{}));
+
+    std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "The verification result is:" << (pass ? "correct" : "fail") << std::endl;
+
+    return pass;
+}
+
+/// @brief Function to get the kernel output with reference implementation on CPU/GPU
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+void gemm_host_reference(int verify,
+                         ck_tile::HostTensor<ADataType>& a_m_k,
+                         ck_tile::HostTensor<BDataType>& b_k_n,
+                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
+                         ck_tile::DeviceMem& a_m_k_dev_buf,
+                         ck_tile::DeviceMem& b_k_n_dev_buf,
+                         ck_tile::index_t M,
+                         ck_tile::index_t N,
+                         ck_tile::index_t K,
+                         ck_tile::index_t stride_A,
+                         ck_tile::index_t stride_B,
+                         ck_tile::index_t stride_C)
+{
+    if(verify == 1)
+    {
+        c_m_n_host_result.SetZero();
+
+        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            a_m_k, b_k_n, c_m_n_host_result);
+    }
+    else if(verify == 2)
+    {
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            // Restore input for B for gpu reference
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
+
+        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_host_result.get_element_space_size_in_bytes());
+        c_m_n_host_result.SetZero();
+        c_m_n_gpu_buf_ref.SetZero();
+
+        ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
+        BDataType* d_B = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
+        CDataType* d_C = static_cast<CDataType*>(c_m_n_gpu_buf_ref.GetDeviceBuffer());
+
+        ck_tile::reference_gemm_gpu<ADataType,
+                                    BDataType,
+                                    AccDataType,
+                                    CDataType,
+                                    ALayout,
+                                    BLayout,
+                                    CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
+
+        c_m_n_gpu_buf_ref.FromDevice(c_m_n_host_result.data());
     }
 }

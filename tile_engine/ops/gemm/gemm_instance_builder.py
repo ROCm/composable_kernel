@@ -465,7 +465,24 @@ template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {war
 
 #include "gemm_common.hpp"
 #include "gemm_instances.hpp"
-#include "gemm_host_api.hpp"
+
+/// @brief Defines the configuration parameters for a GEMM operation, enabling the selection of a
+/// specific kernel instance based on the provided settings.
+struct KernelTraits
+{
+    /// @brief The name of the pipeline.
+    std::string pipeline;
+    /// @brief The name of the scheduler (e.g., "intrawave", "interwave").
+    std::string scheduler;
+    /// @brief The name of the epilogue (e.g., "cshuffle", "default").
+    std::string epilogue;
+    /// @brief Indicates whether padding is applied to the M dimension.
+    bool pad_m;
+    /// @brief Indicates whether padding is applied to the N dimension.
+    bool pad_n;
+    /// @brief Indicates whether padding is applied to the K dimension.
+    bool pad_k;
+};
 
 struct GemmDispatcher {
     static auto& get_kernel_map() {
