@@ -362,7 +362,7 @@ int main(int argc, char* argv[])
     DeviceMem b1_device_buf(sizeof(XDataType) * b1_e_n_k.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.GetElementSpaceSize());
-    d2_e_n.savetxt("weight.txt", "int");
+    // d2_e_n.savetxt("weight.txt", "int");
 
     // A scale sorted
     for(int i = 0; i < sorted_size; i++)
@@ -504,11 +504,10 @@ int main(int argc, char* argv[])
     printf("d2_e_n:\n");
     for(int i = 0; i < sorted_size; ++i)
     {
-        for(int n = 0; n < N; ++n)
+        for(int n = 0; n < 1; ++n)
         {
             printf("%.2f ", ck::type_convert<float>(d2_e_n(i, n)));
         }
-        printf("\n");
     }
 #endif
 
@@ -559,7 +558,9 @@ int main(int argc, char* argv[])
         // not result correct here because output buf not setzero
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop      = std::size_t(2) * tokens * topk * N * K;
+        std::size_t flop = std::size_t(2) * tokens * topk * N * K +
+                           std::size_t(2) * tokens * topk * N * K / ScaleBlockSize;
+
         std::size_t num_btype = sizeof(A0DataType) / 2 * tokens * K * topk +
                                 sizeof(B0DataType) / 2 * K * N * experts +
                                 sizeof(EDataType) * tokens * N;
