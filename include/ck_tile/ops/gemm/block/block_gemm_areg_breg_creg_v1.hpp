@@ -74,31 +74,34 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
-        constexpr auto a_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<OrigNWarp>,
-                                       tuple<sequence<MIterPerWarp, OrigMWarp>, sequence<KIterPerWarp>>,
-                                       tuple<sequence<1, 0>>,
-                                       tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
         /*
         constexpr auto a_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<OrigNWarp>,
                                        tuple<sequence<MIterPerWarp, OrigMWarp>, sequence<KIterPerWarp>>,
-                                       tuple<sequence<0, 1>>,
-                                       tuple<sequence<0, 1>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
         */
-        /*
+        
         constexpr auto a_block_outer_dstr_encoding = 
-            tile_distribution_encoding<sequence<MWarp>, 
+            tile_distribution_encoding<sequence<NWarp>, 
                                         tuple<sequence<MIterPerWarp>, sequence<KIterPerWarp>>, 
                                         tuple<>, 
                                         tuple<>, 
                                         sequence<1, 2>, 
                                         sequence<0, 0>>{};
-        */
+        
+        /*
+        // Gold standard - Working for all cases
+        constexpr auto a_block_outer_dstr_encoding = 
+            tile_distribution_encoding<sequence<OrigNWarp>, 
+                                        tuple<sequence<MIterPerWarp>, sequence<KIterPerWarp>>, 
+                                        tuple<>, 
+                                        tuple<>, 
+                                        sequence<1, 2>, 
+                                        sequence<0, 0>>{};
+        */        
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
 
@@ -107,6 +110,7 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
+        /*
         constexpr auto b_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<OrigMWarp>,
                                        tuple<sequence<NIterPerWarp, OrigNWarp>, sequence<KIterPerWarp>>,
@@ -114,8 +118,8 @@ struct BlockGemmARegBRegCRegV1
                                        tuple<sequence<0, 1>>,
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
+        */
         
-        /*
         constexpr auto b_block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<MWarp>,                                                 
                                        tuple<sequence<NIterPerWarp>, sequence<KIterPerWarp>>,    
@@ -123,6 +127,16 @@ struct BlockGemmARegBRegCRegV1
                                        tuple<>,
                                        sequence<1, 2>,                                                  
                                        sequence<0, 0>>{};
+        
+        /*
+        // Gold standard - Working for all cases
+        constexpr auto b_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<OrigMWarp>,                                                 
+                                       tuple<sequence<NIterPerWarp>, sequence<KIterPerWarp>>,    
+                                       tuple<>,                                           
+                                       tuple<>,
+                                       sequence<1, 2>,                                                  
+                                       sequence<0, 0>>{};        
         */
         constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
@@ -132,6 +146,7 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockDistributionEncode()
     {
+        /*
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<OrigMWarp>,
             tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp, OrigNWarp>>,
@@ -139,8 +154,8 @@ struct BlockGemmARegBRegCRegV1
             tuple<sequence<0, 1>>,
             sequence<1, 2>,
             sequence<0, 0>>{};  
+        */
         
-        /*
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<MWarp>,
             tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp, NWarp>>,
@@ -148,7 +163,17 @@ struct BlockGemmARegBRegCRegV1
             tuple<>,
             sequence<1, 2>,
             sequence<0, 0>>{};        
-        */
+        
+        /*
+        // Gold standard - Working for all cases.
+        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
+            sequence<OrigMWarp>,
+            tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp, OrigNWarp>>,
+            tuple<>,
+            tuple<>,
+            sequence<1, 2>,
+            sequence<0, 0>>{};     
+        */      
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
 
@@ -268,7 +293,7 @@ struct BlockGemmARegBRegCRegV1
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
-        /* Gold standard */
+        /*
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<OrigMWarp>,
             tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp, OrigNWarp>>,
@@ -276,8 +301,8 @@ struct BlockGemmARegBRegCRegV1
             tuple<sequence<0, 1>>,
             sequence<1, 2>,
             sequence<0, 0>>{};  
+        */
         
-        /*
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<MWarp>,
             tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp, NWarp>>,
@@ -285,7 +310,17 @@ struct BlockGemmARegBRegCRegV1
             tuple<>,
             sequence<1, 2>,
             sequence<0, 0>>{};        
-        */
+        
+        /*
+        // Gold standard - working for all cases
+        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
+            sequence<OrigMWarp>,
+            tuple<sequence<MIterPerWarp>, sequence<NIterPerWarp, OrigNWarp>>,
+            tuple<>,
+            tuple<>,
+            sequence<1, 2>,
+            sequence<0, 0>>{};   
+        */       
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);

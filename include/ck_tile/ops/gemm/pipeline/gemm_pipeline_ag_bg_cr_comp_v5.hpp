@@ -170,9 +170,9 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
             constexpr ADramTileWindowStep a_dram_tile_window_step = 
-                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+                is_a_col_major ? make_array(KPerBlock * NumWarps, 0) : make_array(0, KPerBlock * NumWarps);
             constexpr BDramTileWindowStep b_dram_tile_window_step = 
-                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+                is_b_row_major ? make_array(KPerBlock * NumWarps, 0) : make_array(0, KPerBlock * NumWarps);
 
             constexpr auto AGemmTileDistr = decltype(make_static_tile_distribution(
                 BlockGemm::MakeABlockDistributionEncode())){};

@@ -259,19 +259,25 @@ int run_gemm_example_with_layouts(int argc,
         b_k_n.SetZero();
     }
 
-  
+/*
     for (ck_tile::index_t i = 0; i < M; i ++)
     {
             a_m_k(i, 0) = static_cast<ck_tile::half_t>(i+1);
-            //a_m_k(i, 8) = static_cast<ck_tile::half_t>(i+1);
+            a_m_k(i, 8) = static_cast<ck_tile::half_t>(i+1);
+            a_m_k(i, 16) = static_cast<ck_tile::half_t>(i+1);
+            a_m_k(i, 24) = static_cast<ck_tile::half_t>(i+1);
+
     }
 
     for (ck_tile::index_t j = 0; j < N; j ++)
     {
             b_k_n(0, j) = static_cast<ck_tile::half_t>(j+1);
-            //b_k_n(8, j) = static_cast<ck_tile::half_t>(j+1);
-    }
+            b_k_n(8, j) = static_cast<ck_tile::half_t>(j+1);
+            b_k_n(16, j) = static_cast<ck_tile::half_t>(j+1);
+            b_k_n(24, j) = static_cast<ck_tile::half_t>(j+1);
 
+    }
+*/
 
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
