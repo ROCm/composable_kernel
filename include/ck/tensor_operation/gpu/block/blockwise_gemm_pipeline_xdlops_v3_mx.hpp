@@ -1092,7 +1092,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                         b_scale_thread_vec
                                             .template AsType<mfma_scale_input_type_b>(),
                                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-#if 1
+#if 0
                                     printf(
                                         "blkIdx: %u, blkIdy: %u, tidx: %u, imxdl: %d, inxdl: "
                                         "%d, ikxdl: %d, a_thread_vec=<%.2f, %.2f, %.2f, %.2f>, "

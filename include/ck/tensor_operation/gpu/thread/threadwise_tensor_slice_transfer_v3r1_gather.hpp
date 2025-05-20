@@ -287,7 +287,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
 
-#if 1
+#if 0
             auto data_print = src_thread_scratch_tuple_(thread_scratch_id).data_;
             printf("blkx: %u, blky: %u, tidx: %u, src_thread_scratch_tuple_=<%02x, %02x, %02x, "
                    "%02x>\n",

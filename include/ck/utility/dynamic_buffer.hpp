@@ -35,7 +35,7 @@ struct DynamicBuffer
     T invalid_element_value_ = T{0};
 
     static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<T>, pk_i4_t> || is_same_v<remove_cvref_t<T>, f4x2_pk_t>)
+        if constexpr(is_same_v<remove_cvref_t<T>, pk_i4_t>)
             return 2;
         else
             return 1;

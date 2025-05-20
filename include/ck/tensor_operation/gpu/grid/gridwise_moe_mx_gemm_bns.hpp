@@ -1362,8 +1362,24 @@ struct GridwiseMoeGemmMXBNS
             problem.NPadded,
             problem.StrideC);
 
+#if 0
+        printf("blkx: %u, blky: %u, tidx: %u, tokes: %d, TopK: %d, M: %d, StrideA: %d, StrideB: "
+               "%d, MPadded: %d, NPadded: %d, KPadded: %d\n",
+               blockIdx.x,
+               blockIdx.y,
+               threadIdx.x,
+               problem.NumTokens,
+               problem.TopK,
+               problem.M,
+               problem.StrideA,
+               problem.StrideB,
+               problem.MPadded,
+               problem.NPadded,
+               problem.KPadded);
+#endif
+
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
-            make_tuple((IsInputGemm ? problem.NumTokens : problem.M) / (MXdlPack * MPerBlock),
+            make_tuple((IsInputGemm ? problem.NumTokens : problem.M) / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
                            (KXdlPack * 64 / MPerXdl),
                        64 * KXdlPack * MXdlPack / scale_pack_size_a));
@@ -1431,6 +1447,18 @@ struct GridwiseMoeGemmMXBNS
             }
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
+
+#if 0
+        printf("blkx: %u, blky: %u, tidx: %u, token_pos: %d, gather_offsets:<%d, %d, %d, %d>\n",
+               blockIdx.x,
+               blockIdx.y,
+               threadIdx.x,
+               token_pos,
+               gather_offsets[Number<0>{}],
+               gather_offsets[Number<1>{}],
+               gather_offsets[Number<2>{}],
+               gather_offsets[Number<3>{}]);
+#endif
 
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
@@ -1597,7 +1625,7 @@ struct GridwiseMoeGemmMXBNS
             Sequence<1, 1, KXdlPack * NXdlPack / scale_pack_size_b>, // SliceLengths
             Sequence<0, 1, 2>,                                       // DimAccessOrder
             2,                                                       // SrcVectorDim
-            KXdlPack * MXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
+            KXdlPack * NXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
             1,                                                       // SrcScalarStrideInVector
             true>(b_scale_grid_desc_bn_ak,
                   make_multi_index(block_n_id * NPerBlock / NPerXdl / NXdlPack + b_thread_offset_n,
@@ -1759,12 +1787,14 @@ struct GridwiseMoeGemmMXBNS
                         static_for<0, MXdlPack, 1>{}([&](auto imxdl) {        // MXdlPack
                             static_for<0, M3, 1>{}([&](auto m3) { // m_inst_num_groups_per_blk
                                 const index_t m_pos = block_m_id * MPerBlock +
-                                                      m0 * imxdl * M1 * M3 * M4 * M5 +
-                                                      m1 * M3 * M4 * M5 + m3 * M4 * M5 + m4 * M5;
+                                                      m0 * M2 * M1 * M3 * M4 * M5 +
+                                                      m1 * M2 * M3 * M4 * M5 +
+                                                      imxdl * M3 * M4 * M5 + m3 * M4 * M5 + m4 * M5;
+
                                 if constexpr(MulRoutedWeight)
                                 {
                                     topk_weights =
-                                        *c_style_pointer_cast<const vector_type<float, M4>*>(
+                                        *c_style_pointer_cast<const vector_type<float, M5>*>(
                                             p_ds_grid[I2] + m_pos);
                                 }
                                 static_for<0, M5, 1>{}([&](auto m5) { // m_inst_group_size
