@@ -257,8 +257,7 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<CLayout, Row>)
             {
                 add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_kpaddingt_instances(
-                    op_ptrs);
+                add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
                 add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_mnpadding_instances(
                     op_ptrs);
                 add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_mnkpadding_instances(
