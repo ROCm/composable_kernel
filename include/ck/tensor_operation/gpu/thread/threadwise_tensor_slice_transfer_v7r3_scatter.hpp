@@ -288,14 +288,12 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                 oob_val = oob_val & is_src_valid;
                 if(i.value == ScatterWeightIdx)
                 {
-                    auto data_types = SrcDatas{};
-                    using DataType  = remove_cvref_t<decltype(data_types[i])>;
                     static_assert(SrcScalarPerVectors{}[Number<ScatterWeightIdx>{}] == 1,
                                   "scatter weight dim, should only one vec");
                     constexpr auto iScatter =
                         SrcSpaceFillingCurve::GetIndex(iAccess)(Number<ScatterDim>{});
                     static_for<0, SrcScalarPerVector, 1>{}([&](auto j) {
-                        src_vectors(i).template AsType<DataType>()(j) =
+                        src_vectors(i).template AsType<float>()(j) =
                             scatter_weights(Number<iScatter>{});
                     });
                 }
