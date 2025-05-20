@@ -1790,23 +1790,27 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     if constexpr(oob_conditional_check)
     {
         index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
-        llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
-                                        smem,
-                                        bytes,
-                                        v_offset,
-                                        src_wave_addr_offset,
-                                        src_immediate_addr_offset,
-                                        static_cast<index_t>(coherence));
+        llvm_amdgcn_raw_buffer_load_lds(
+            src_wave_buffer_resource,
+            reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
+                reinterpret_cast<uintptr_t>(smem)),
+            bytes,
+            v_offset,
+            src_wave_addr_offset,
+            src_immediate_addr_offset,
+            static_cast<index_t>(coherence));
     }
     else
     {
-        llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
-                                        smem,
-                                        sizeof(uint32_t),
-                                        src_thread_addr_offset,
-                                        src_wave_addr_offset,
-                                        src_immediate_addr_offset,
-                                        static_cast<index_t>(coherence));
+        llvm_amdgcn_raw_buffer_load_lds(
+            src_wave_buffer_resource,
+            reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
+                reinterpret_cast<uintptr_t>(smem)),
+            sizeof(uint32_t),
+            src_thread_addr_offset,
+            src_wave_addr_offset,
+            src_immediate_addr_offset,
+            static_cast<index_t>(coherence));
     }
 }
 
