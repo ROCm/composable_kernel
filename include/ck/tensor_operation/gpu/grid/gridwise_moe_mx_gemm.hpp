@@ -15,6 +15,7 @@
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3_scatter.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_moe_gemm.hpp"
 
 #define DEBUG_LOG 0
 
@@ -27,11 +28,7 @@ namespace ck {
 // 2. Occupied __shared__ won't release until whole shader end, a.k.a AB and C may not use same lds
 // buffer when we declare __shared__ inside blkgemmpipe
 
-enum Activation
-{
-    gelu_and_mul = 0,
-    silu_and_mul = 1
-};
+
 
 template <typename GridwiseGemm,
           bool HasMainKBlockLoop,

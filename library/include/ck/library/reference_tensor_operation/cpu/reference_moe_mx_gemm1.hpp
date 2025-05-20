@@ -166,6 +166,7 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                         v_acc_up += ck::type_convert<AccDataType>(v_a) *
                                     ck::type_convert<AccDataType>(v_b_up);
                     }
+                    // std::cout << v_acc << std::endl;
                     CDataType v_c{0};
                     CDataType v_c_up{0};
                     if constexpr(MulRoutedWeight)
