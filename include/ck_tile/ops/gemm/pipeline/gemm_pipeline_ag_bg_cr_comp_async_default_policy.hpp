@@ -26,8 +26,8 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t KPack     = GetSmemPackA<Problem>();
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
-            make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
+            make_tuple(number<MPerBlock>{}, number<KPerBlock / KPack>{}, number<KPack>{}),
+            make_tuple(number<KPerBlock>{}, number<KPack>{}, number<1>{}),
             number<KPack>{},
             number<1>{});
 
@@ -36,7 +36,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
             make_tuple(
                 make_pass_through_transform(number<MPerBlock>{}),
                 make_merge_transform(make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
     }
 
@@ -48,8 +48,8 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t KPack     = GetSmemPackB<Problem>();
 
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<KPerBlock / KPack>{}, number<NPerBlock>{}, number<KPack>{}),
-            make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
+            make_tuple(number<NPerBlock>{}, number<KPerBlock / KPack>{}, number<KPack>{}),
+            make_tuple(number<KPerBlock>{}, number<KPack>{}, number<1>{}),
             number<KPack>{},
             number<1>{});
 
@@ -58,7 +58,7 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
             make_tuple(
                 make_pass_through_transform(number<NPerBlock>{}),
                 make_merge_transform(make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
     }
 
