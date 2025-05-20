@@ -107,7 +107,7 @@ bool profile_gemm_mx_impl(int do_verification,
     using AScaleLayout    = Row;
     using BScaleLayout    = Col;
     using XPackedDataType = // TODO: use int32 for all
-        conditional_t<is_same<ADataType, ck::f4x2_pk_t>::value, int32_t, e8m0_bexp_t>;
+        conditional_t<is_same_v<ADataType, ck::f4x2_pk_t>, int32_t, e8m0_bexp_t>;
 
     auto f_host_tensor_descriptor =
         [](ck::index_t row, ck::index_t col, ck::index_t stride, auto layout) {
@@ -155,7 +155,9 @@ bool profile_gemm_mx_impl(int do_verification,
 
     std::size_t total_gemm_needed =
         a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes() +
-        a_m_k_scale.GetElementSpaceSizeInBytes() + b_k_n_scale.GetElementSpaceSizeInBytes();
+        a_m_k_scale.GetElementSpaceSizeInBytes() + b_k_n_scale.GetElementSpaceSizeInBytes() +
+        a_shuffled_scale.GetElementSpaceSizeInBytes() +
+        b_shuffled_scale.GetElementSpaceSizeInBytes();
     int rotating_count = std::max(
         1,
         std::min(n_iter,
@@ -245,9 +247,9 @@ bool profile_gemm_mx_impl(int do_verification,
     if(do_log > 0)
         std::cout << "Upload data to device..." << std::endl;
     a_device_buf.ToDevice(a_m_k.mData.data());
-    a_scale_device_buf.ToDevice(a_m_k_scale.mData.data());
+    a_scale_device_buf.ToDevice(a_shuffled_scale.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    b_scale_device_buf.ToDevice(b_k_n_scale.mData.data());
+    b_scale_device_buf.ToDevice(b_shuffled_scale.mData.data());
 
     if(do_log > 0)
         std::cout << "Done." << std::endl;

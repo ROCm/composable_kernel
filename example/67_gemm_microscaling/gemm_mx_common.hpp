@@ -181,28 +181,19 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     auto f_host_tensor_descriptor =
         [](ck::index_t row, ck::index_t col, ck::index_t stride, auto layout) {
             if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
-            {
                 return HostTensorDescriptor({row, col}, {stride, 1});
-            }
             else
-            {
                 return HostTensorDescriptor({row, col}, {1, stride});
-            }
         };
-
     auto f_get_default_stride =
         [](ck::index_t row, ck::index_t col, ck::index_t stride, auto layout) {
             if(stride == -1)
             {
                 // give a chance if stride is -1, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
-                {
                     return static_cast<ck::index_t>(col);
-                }
                 else
-                {
                     return static_cast<ck::index_t>(row);
-                }
             }
             else
                 return static_cast<ck::index_t>(stride);
@@ -228,15 +219,17 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
 
-    Tensor<XDataType> a_m_k_scale(f_host_tensor_descriptor(
-        M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{})); // scales for A
-    Tensor<XDataType> b_k_n_scale(f_host_tensor_descriptor(
-        K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{})); // scales for B
+    // scales for A and B
+    Tensor<XDataType> a_m_k_scale(
+        f_host_tensor_descriptor(M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
+    Tensor<XDataType> b_k_n_scale(
+        f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
 
-    Tensor<XDataType> a_shuffled_scale(f_host_tensor_descriptor(
-        M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{})); // scales for A
-    Tensor<XDataType> b_shuffled_scale(f_host_tensor_descriptor(
-        K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{})); // scales for B
+    // shuffled scales for A and B
+    Tensor<XDataType> a_shuffled_scale(
+        f_host_tensor_descriptor(M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
+    Tensor<XDataType> b_shuffled_scale(
+        f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
 
     Tensor<CDataType> c_m_n_host_result(
         f_host_tensor_descriptor(M, N, StrideC, CLayout{})); // host verification
