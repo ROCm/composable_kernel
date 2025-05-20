@@ -195,23 +195,11 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_default_instances(
                     op_ptrs);
-                add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_default_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_mnkpadding_instances(
                     op_ptrs);
             }
         }
@@ -315,21 +303,11 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<CLayout, Row>)
             {
                 add_device_gemm_wmma_universal_f16_i4_f16_mk_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_i4_f16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_i4_f16_mk_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_i4_f16_mk_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_wmma_universal_f16_i4_f16_km_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_i4_f16_km_nk_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_i4_f16_km_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_i4_f16_km_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
             }
         }
 #endif
