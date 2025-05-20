@@ -1621,6 +1621,13 @@ struct WarpGemmAttributeMfmaImpl_i32_16x16x32_i8
     using BVecType = ext_vector_t<BDataType, 8>;
     using CVecType = ext_vector_t<CDataType, 4>;
 
+    static constexpr index_t kM = 16;
+    static constexpr index_t kN = 16;
+    static constexpr index_t kK = 32;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
     static constexpr index_t kAMLane     = 16;
     static constexpr index_t kBNLane     = 16;
     static constexpr index_t kABKLane    = 4;
@@ -1660,8 +1667,7 @@ struct WarpGemmAttributeMfmaImpl_i32_16x16x32_i8
         return c_vec;
     }    
 
-}
-
+}; 
 
 
 #undef DISPATCH_MFMA_
