@@ -820,7 +820,6 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 }
                 else
                 {
-                    statically_indexed_array<index_t, NRepeat> k_offsets;
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         int32_t seqlen_k_idx_per_repeat = k_coord[0] + kN0 / NRepeat * n0.value;
                         int32_t i_page = seqlen_k_idx_per_repeat / page_block_size;

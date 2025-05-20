@@ -19,9 +19,9 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kStoreLSE_,
           bool kHasDropout_,
           bool kDoFp8StaticQuant_,
+          index_t kBlockPerCu_    = -1, /* overwrite occupancy if not -1 */
           bool kIsSglangLayout_   = false,
-          bool kIsChunkedPrefill_ = false,
-          index_t kBlockPerCu_    = -1 /* overwrite occupancy if not -1 */>
+          bool kIsChunkedPrefill_ = false>
 struct TileFmhaTraits
 {
     static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
