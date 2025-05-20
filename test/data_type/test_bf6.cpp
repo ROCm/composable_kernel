@@ -4,6 +4,7 @@
 #include "gtest/gtest.h"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
 
 using ck::bf6_convert_rne;
@@ -41,6 +42,11 @@ TEST(BF6, ConvertFP32Nearest)
     ASSERT_NEAR(max_bf6,
                 type_convert<float>(bf6_convert_rne(std::numeric_limits<float>::infinity())),
                 0.0f);
+
+    // convert float +/-30 to bf6 and back, check if clipped to +/-max_bf6
+    ASSERT_NEAR(-max_bf6, type_convert<float>(bf6_convert_rne(-30.0f)), 0.0f);
+    ASSERT_NEAR(max_bf6, type_convert<float>(bf6_convert_rne(30.0f)), 0.0f);
+
     // convert float value less than bf6 subnorm to bf6 and back, check if equal to 0.0
     float less_than_subnorm = 0.03125f;
     ASSERT_NEAR(0.0f, type_convert<float>(bf6_convert_rne(less_than_subnorm)), 0.0f);
@@ -266,21 +272,18 @@ TEST(BF6, TestAsType16x1)
     vector_type<bf6x16_pk_t, vector_size> right_vec;
     // check default CTOR
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
-        ASSERT_EQ(
-            right_vec.template AsType<bf6x16_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
-            0);
+        ASSERT_EQ(right_vec.template AsType<bf6x16_pk_t>()(Number<0>{}).unpack(i), 0);
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
-        right_vec.template AsType<bf6x16_pk_t>()(Number<i>{}) = bf6x16_pk_t{}.pack(test_vec);
+        right_vec.template AsType<bf6x16_pk_t>()(Number<i>{}) = bf6x16_pk_t{test_vec};
     });
     // copy the vector
     vector_type<bf6x16_pk_t, vector_size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
-        ASSERT_EQ(
-            left_vec.template AsType<bf6x16_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
-            static_cast<bf6_t>(test_vec[static_cast<int>(i)]));
+        ASSERT_EQ(left_vec.template AsType<bf6x16_pk_t>()(Number<0>{}).unpack(i),
+                  static_cast<bf6_t>(test_vec[static_cast<int>(i)]));
     });
 }
 
@@ -329,23 +332,23 @@ TEST(BF6, TestAsType16x2)
     // check default CTOR
     ck::static_for<0, vector_size, 1>{}([&](auto idx_vector) {
         ck::static_for<0, packed_size, 1>{}([&](auto idx_element) {
-            ASSERT_EQ(right_vec.template AsType<bf6x16_pk_t>()(Number<idx_vector>{})
-                          .template unpack<>(Number<idx_element>{}),
-                      0);
+            ASSERT_EQ(
+                right_vec.template AsType<bf6x16_pk_t>()(Number<idx_vector>{}).unpack(idx_element),
+                0);
         });
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
-        right_vec.template AsType<bf6x16_pk_t>()(Number<i>{}) = bf6x16_pk_t{}.pack(test_vec[i]);
+        right_vec.template AsType<bf6x16_pk_t>()(Number<i>{}) = bf6x16_pk_t{test_vec[i]};
     });
     // copy the vector
     vector_type<bf6x16_pk_t, vector_size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, vector_size, 1>{}([&](auto idx_vector) {
         ck::static_for<0, packed_size, 1>{}([&](auto idx_element) {
-            ASSERT_EQ(left_vec.template AsType<bf6x16_pk_t>()(Number<idx_vector>{})
-                          .template unpack<>(Number<idx_element>{}),
-                      static_cast<bf6_t>(test_vec[idx_vector][static_cast<int>(idx_element)]));
+            ASSERT_EQ(
+                left_vec.template AsType<bf6x16_pk_t>()(Number<idx_vector>{}).unpack(idx_element),
+                static_cast<bf6_t>(test_vec[idx_vector][static_cast<int>(idx_element)]));
         });
     });
 }
@@ -369,20 +372,86 @@ TEST(BF6, TestAsType32x1)
     vector_type<bf6x32_pk_t, vector_size> right_vec;
     // check default CTOR
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
-        ASSERT_EQ(
-            right_vec.template AsType<bf6x32_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
-            0);
+        ASSERT_EQ(right_vec.template AsType<bf6x32_pk_t>()(Number<0>{}).unpack(i), 0);
     });
     // assign test values to the vector
     ck::static_for<0, vector_size, 1>{}([&](auto i) {
-        right_vec.template AsType<bf6x32_pk_t>()(Number<i>{}) = bf6x32_pk_t{}.pack(test_vec);
+        right_vec.template AsType<bf6x32_pk_t>()(Number<i>{}) = bf6x32_pk_t{test_vec};
     });
     // copy the vector
     vector_type<bf6x32_pk_t, vector_size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, packed_size, 1>{}([&](auto i) {
-        ASSERT_EQ(
-            left_vec.template AsType<bf6x32_pk_t>()(Number<0>{}).template unpack<>(Number<i>{}),
-            static_cast<bf6_t>(test_vec[static_cast<int>(i)]));
+        ASSERT_EQ(left_vec.template AsType<bf6x32_pk_t>()(Number<0>{}).unpack(i),
+                  static_cast<bf6_t>(test_vec[static_cast<int>(i)]));
+    });
+}
+
+TEST(BF6, TestAllValues)
+{
+
+    constexpr std::array<float, 64> e3m2ValuesOCP = {
+        // clang-format off
+        0.0000000000, 0.0625000000, 0.1250000000, 0.1875000000,
+        0.2500000000, 0.3125000000, 0.3750000000, 0.4375000000,
+        0.5000000000, 0.6250000000, 0.7500000000, 0.8750000000,
+        1.0000000000, 1.2500000000, 1.5000000000, 1.7500000000,
+        2.0000000000, 2.5000000000, 3.0000000000, 3.5000000000,
+        4.0000000000, 5.0000000000, 6.0000000000, 7.0000000000,
+        8.0000000000, 10.0000000000, 12.0000000000, 14.0000000000,
+        16.0000000000, 20.0000000000, 24.0000000000, 28.0000000000,
+        -0.0000000000, -0.0625000000, -0.1250000000, -0.1875000000,
+        -0.2500000000, -0.3125000000, -0.3750000000, -0.4375000000,
+        -0.5000000000, -0.6250000000, -0.7500000000, -0.8750000000,
+        -1.0000000000, -1.2500000000, -1.5000000000, -1.7500000000,
+        -2.0000000000, -2.5000000000, -3.0000000000, -3.5000000000,
+        -4.0000000000, -5.0000000000, -6.0000000000, -7.0000000000,
+        -8.0000000000, -10.0000000000, -12.0000000000, -14.0000000000,
+        -16.0000000000, -20.0000000000, -24.0000000000, -28.0000000000
+        // clang-format on
+    };
+
+    constexpr uint8_t e3m2BitsOCP[] = {
+        // clang-format off
+        0b000000, 0b000001, 0b000010, 0b000011,
+        0b000100, 0b000101, 0b000110, 0b000111,
+        0b001000, 0b001001, 0b001010, 0b001011,
+        0b001100, 0b001101, 0b001110, 0b001111,
+        0b010000, 0b010001, 0b010010, 0b010011,
+        0b010100, 0b010101, 0b010110, 0b010111,
+        0b011000, 0b011001, 0b011010, 0b011011,
+        0b011100, 0b011101, 0b011110, 0b011111,
+        0b100000, 0b100001, 0b100010, 0b100011,
+        0b100100, 0b100101, 0b100110, 0b100111,
+        0b101000, 0b101001, 0b101010, 0b101011,
+        0b101100, 0b101101, 0b101110, 0b101111,
+        0b110000, 0b110001, 0b110010, 0b110011,
+        0b110100, 0b110101, 0b110110, 0b110111,
+        0b111000, 0b111001, 0b111010, 0b111011,
+        0b111100, 0b111101, 0b111110, 0b111111
+        // clang-format on
+    };
+
+    const bool ck_logging = ck::EnvIsEnabled(CK_ENV(CK_LOGGING));
+
+    if(ck_logging)
+        printf("BF6 Table\n");
+    ck::static_for<0, 64, 1>{}([&](auto i) {
+        float fp = type_convert<float>(bf6_t(e3m2BitsOCP[i]));
+        ASSERT_EQ(fp, e3m2ValuesOCP[i]);
+
+        bf6_t bf6 = type_convert<bf6_t>(e3m2ValuesOCP[i]);
+        ASSERT_EQ(bf6 & 0x3F, e3m2BitsOCP[i] & 0x3F);
+
+        if(ck_logging)
+        {
+            // Print the binary representation
+            printf("Bits: 0b");
+            for(int j = 5; j >= 0; --j)
+            {
+                printf("%c", (e3m2BitsOCP[i] & (1 << j)) ? '1' : '0');
+            }
+            printf(", 0x%02X, Value: %f\n", e3m2BitsOCP[i], e3m2ValuesOCP[i]);
+        }
     });
 }
