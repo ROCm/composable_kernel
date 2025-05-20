@@ -351,6 +351,9 @@ struct fmha_batch_prefill_args
 #if 0 // we assume page_block_size=1 for now
     void* kv_last_page_lens;
     ck_tile::index_t page_block_size;
+#else
+    ck_tile::index_t page_block_size;
+    ck_tile::index_t block_table_batch_stride;
 #endif
 
     float scale_s;
@@ -731,6 +734,9 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
 #if 0 // we assume page_block_size=1 for now
                                          args.kv_last_page_lens,
                                          args.page_block_size,
+#else
+                                             args.page_block_size,
+                                             args.block_table_batch_stride,
 #endif
                                              args.scale_s,
                                              args.scale_p,
@@ -837,7 +843,9 @@ template <ck_tile::index_t HDim_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
-          bool kPadDv_>
+          bool kPadDv_,
+          bool kIsSglangLayout_=false,
+          bool kIsChunkedPrefill_=false>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -861,6 +869,8 @@ struct fmha_fwd_traits_
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
+    static constexpr bool kIsSglangLayout            = kIsSglangLayout_;
+    static constexpr bool kIsChunkedPrefill          = kIsChunkedPrefill_;
 };
 
 template <typename Traits_>
@@ -995,6 +1005,8 @@ struct fmha_fwd_traits
     bool has_lse;
     bool has_dropout;
     bool do_fp8_static_quant;
+    bool is_sglang_layout = false;
+    bool is_chunked_prefill = false;
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
