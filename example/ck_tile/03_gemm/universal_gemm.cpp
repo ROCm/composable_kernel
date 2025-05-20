@@ -326,6 +326,11 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }
+    else if(data_type == "i8")
+    {
+        return run_gemm_example_prec_type<ck_tile::int8_t, ck_tile::int8_t, int32_t>(
+            a_layout, b_layout, argc, argv);
+    }
 
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
     else if(data_type == "pk_int4_t")
