@@ -226,6 +226,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         constexpr auto total_buffer_loads = num_buffer_load_inst_a + num_buffer_load_inst_b;
         constexpr auto stages_available   = MRepeat - DS_READ_A_PREFETCH_STAGES;
 
+        if(stages_available == 0) {
+            return;
+        }
+
         constexpr auto stage_loads = compute_stage_loads(total_buffer_loads, stages_available);
 
         constexpr auto buffer_load_perstage_more = stage_loads.first;
