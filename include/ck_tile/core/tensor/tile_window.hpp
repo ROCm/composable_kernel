@@ -57,15 +57,6 @@ struct tile_window_with_static_distribution
     static constexpr auto I1 = number<1>{};
     static_assert(NumCoord == 1);
 
-    using AdaptorTopIndex   = array<index_t, Base::NDimWindowAdaptorTop>;
-    using BottomTensorIndex = array<index_t, Base::NDimBottomTensor>;
-
-    using WindowAdaptorCoord =
-        decltype(make_tensor_adaptor_coordinate(typename Base::WindowAdaptor{}, AdaptorTopIndex{}));
-
-    using BottomTensorCoord =
-        decltype(make_tensor_coordinate(typename Base::BottomTensorDesc{}, BottomTensorIndex{}));
-
     struct load_store_traits
     {
         private:
@@ -143,7 +134,7 @@ struct tile_window_with_static_distribution
     CK_TILE_DEVICE constexpr tile_window_with_static_distribution(
         const typename Base::BottomTensorView& bottom_tensor_view,
         const typename Base::WindowLengths& window_lengths,
-        const BottomTensorIndex& window_origin,
+        const typename Base::BottomTensorIndex& window_origin,
         const typename Base::TileDstr& tile_distribution)
         : pre_computed_coords_{}
     {
@@ -179,7 +170,7 @@ struct tile_window_with_static_distribution
                              array<index_t, Base::NDimY>{0}));
 #endif
 
-        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
+        typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
 
         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
@@ -213,8 +204,8 @@ struct tile_window_with_static_distribution
     // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
     template <typename ATopIndex>
     CK_TILE_DEVICE void move_window_adaptor_and_bottom_tensor_thread_coordinate(
-        WindowAdaptorCoord& window_adaptor_thread_coord,
-        BottomTensorCoord& bottom_tensor_thread_coord,
+        typename Base::WindowAdaptorCoord& window_adaptor_thread_coord,
+        typename Base::BottomTensorCoord& bottom_tensor_thread_coord,
         const ATopIndex& idx_diff_adaptor_top) const
     {
         array<index_t, Base::NDimBottomTensor> idx_diff_adaptor_bottom;
@@ -853,7 +844,7 @@ struct tile_window_with_static_distribution
     }
 
     // Custom move behavior
-    CK_TILE_DEVICE void move_extended(const BottomTensorIndex& step)
+    CK_TILE_DEVICE void move_extended(const typename Base::BottomTensorIndex& step)
     {
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             move_tensor_coordinate(this->bottom_tensor_view_.get_tensor_descriptor(),
@@ -862,7 +853,7 @@ struct tile_window_with_static_distribution
         });
     }
 
-    CK_TILE_DEVICE void set_window_origin_extended(const BottomTensorIndex&)
+    CK_TILE_DEVICE void set_window_origin_extended(const typename Base::BottomTensorIndex&)
     {
         // TODO: this use less register for FA, but more register for GEMM
         // need investigation
@@ -870,7 +861,7 @@ struct tile_window_with_static_distribution
             this->tile_dstr_.get_ps_ys_to_xs_adaptor(),
             container_concat(detail::get_partition_index(this->tile_dstr_), array<index_t, Base::NDimY>{0}));
 
-        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
+        typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
 
         const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
@@ -902,7 +893,7 @@ struct tile_window_with_static_distribution
     // this contains:
     //   per-thread coordinate for window adaptor
     //   per-thread coordinate for bottom tensor
-    array<tuple<WindowAdaptorCoord, BottomTensorCoord>, NumCoord> pre_computed_coords_;
+    array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord> pre_computed_coords_;
 };
 
 // TODO: use strategy

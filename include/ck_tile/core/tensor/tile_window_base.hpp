@@ -106,6 +106,16 @@ struct tile_window_with_tile_dstr_base
     static constexpr index_t NDimP = TileDstr::get_num_of_dimension_p();
     static constexpr index_t NDimY = TileDstr::get_num_of_dimension_y();
 
+    using AdaptorTopIndex   = array<index_t, NDimWindowAdaptorTop>;
+    using BottomTensorIndex = array<index_t, TileWindowBase::NDimBottomTensor>;
+
+    using WindowAdaptorCoord =
+        decltype(make_tensor_adaptor_coordinate(WindowAdaptor{}, AdaptorTopIndex{}));
+
+    using BottomTensorCoord =
+        decltype(make_tensor_coordinate(BottomTensorDesc{}, BottomTensorIndex{}));
+
+    
     static_assert(TileDstr::is_static(), "wrong!");
     static_assert(TileWindowBase::NDimBottomTensor == WindowAdaptor::get_num_of_bottom_dimension(),
                   "wrong! inconsistent # of diemsnions");

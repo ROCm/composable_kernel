@@ -68,15 +68,6 @@ struct tile_window_linear
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
 
-    using AdaptorTopIndex   = array<index_t, Base::NDimWindowAdaptorTop>;
-    using BottomTensorIndex = array<index_t, Base::NDimBottomTensor>;
-
-    using WindowAdaptorCoord =
-        decltype(make_tensor_adaptor_coordinate(typename Base::WindowAdaptor{}, AdaptorTopIndex{}));
-
-    using BottomTensorCoord =
-        decltype(make_tensor_coordinate(typename Base::BottomTensorDesc{}, BottomTensorIndex{}));
-
     struct traits
     {
         private:
@@ -302,7 +293,7 @@ struct tile_window_linear
     CK_TILE_DEVICE constexpr tile_window_linear(
         const typename Base::BottomTensorView& bottom_tensor_view,
         const typename Base::WindowLengths& window_lengths,
-        const BottomTensorIndex& window_origin,
+        const typename Base::BottomTensorIndex& window_origin,
         const typename Base::TileDstr& tile_distribution)
         : cached_coords_{},
           cached_flags_{}
@@ -316,7 +307,7 @@ struct tile_window_linear
             container_concat(make_tuple(get_warp_id(), get_lane_id()),
                              generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimY>{})));
 
-        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
+        typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
 
         auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
@@ -360,8 +351,8 @@ struct tile_window_linear
     // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
     template <typename ATopIndex>
     CK_TILE_DEVICE void move_window_adaptor_and_bottom_tensor_thread_coordinate(
-        WindowAdaptorCoord& window_adaptor_thread_coord,
-        BottomTensorCoord& bottom_tensor_thread_coord,
+        typename Base::WindowAdaptorCoord& window_adaptor_thread_coord,
+        typename Base::BottomTensorCoord& bottom_tensor_thread_coord,
         const ATopIndex& idx_diff_adaptor_top) const
     {
         array<index_t, Base::NDimBottomTensor> idx_diff_adaptor_bottom;
@@ -966,7 +957,7 @@ struct tile_window_linear
         WINDOW_DISPATCH_ISSUE();
     }
 
-    CK_TILE_DEVICE void move_extended(const BottomTensorIndex& step)
+    CK_TILE_DEVICE void move_extended(const typename Base::BottomTensorIndex& step)
     {
         static_for<0, NumAccess, 1>{}([&](auto i_access) {
             constexpr auto IAccess       = number<i_access>{};
@@ -992,14 +983,14 @@ struct tile_window_linear
         });
     }
 
-    CK_TILE_DEVICE void set_window_origin_extended(const BottomTensorIndex&)
+    CK_TILE_DEVICE void set_window_origin_extended(const typename Base::BottomTensorIndex&)
     {
         auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             typename Base::TileDstr{}.get_ps_ys_to_xs_adaptor(),
             container_concat(make_tuple(get_warp_id(), get_lane_id()),
                              generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimY>{})));
 
-        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
+        typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
 
         auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
@@ -1035,7 +1026,7 @@ struct tile_window_linear
 
 
     // this contains:
-    array<BottomTensorCoord, traits::NumAccess_NonLinear> cached_coords_;
+    array<typename Base::BottomTensorCoord, traits::NumAccess_NonLinear> cached_coords_;
     array<bool, traits::NumAccess> cached_flags_;
 };
 
