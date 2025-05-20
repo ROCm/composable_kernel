@@ -159,7 +159,9 @@ struct GemmConfig<DataType, 7>
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(DataType) == 2 ? 32 : 128;
 };
 
-constexpr ck_tile::index_t GemmConfigNumVer = 8;
+// fail to compile on gfx942 with full config
+//constexpr ck_tile::index_t GemmConfigNumVer = 8;
+constexpr ck_tile::index_t GemmConfigNumVer = 3;
 
 template <typename ADataType>
 struct GemmBasicTypeConfig;

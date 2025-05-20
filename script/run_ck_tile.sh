@@ -37,12 +37,14 @@ print_log_header  $layernorm2d_log $env_type $branch $host_name
 ./example/ck_tile/02_layernorm2d/script/perf_test.sh 2>&1 | tee -a $layernorm2d_log
 
 #run gemm
-./example/ck_tile/03_gemm/script/run_full_test.sh
+export gemm_basic_log="perf_gemm_basic_$GPU_arch.log"
+print_log_header  $gemm_basic_log $env_type $branch $host_name
+./example/ck_tile/03_gemm/script/run_full_test.sh 2>&1 | tee -a $gemm_basic_log
 
 #run image2col
 export img2col_log="perf_img2col_$GPU_arch.log"
-print_log_header  $layernorm2d_log $env_type $branch $host_name
-./build/bin/tile_example_img2col 2>&1 | tee -a $img2col_log
+print_log_header  $img2col_log $env_type $branch $host_name
+./example/ck_tile/04_img2col/script/smoke_test.sh 2>&1 | tee -a $img2col_log
 
 #run reduce
 export reduce_log="perf_reduce_$GPU_arch.log"
@@ -69,38 +71,42 @@ export add_rmsnorm2d_rdquant_log="perf_add_rmsnorm2d_rdquant_$GPU_arch.log"
 print_log_header  $add_rmsnorm2d_rdquant_log $env_type $branch $host_name
 ./example/ck_tile/11_add_rmsnorm2d_rdquant/script/perf_test.sh 2>&1 | tee -a $add_rmsnorm2d_rdquant_log
 
-#run smoothquant
+#run 12 smoothquant
 export smoothquant_log="perf_smoothquant_$GPU_arch.log"
 print_log_header  $smoothquant_log $env_type $branch $host_name
 ./example/ck_tile/12_smoothquant/script/perf_test.sh 2>&1 | tee -a $smoothquant_log
 
-#run moe_sorting
+#run 13 moe_sorting
 export moe_sorting_log="perf_moe_sorting_$GPU_arch.log"
 print_log_header  $moe_sorting_log $env_type $branch $host_name
 ./example/ck_tile/13_moe_sorting/script/smoke_test.sh 2>&1 | tee -a $moe_sorting_log
 
-#run moe_smoothquant
+#run 14 moe_smoothquant
 export moe_smoothquant_log="perf_moe_smoothquant_$GPU_arch.log"
 print_log_header  $moe_smoothquant_log $env_type $branch $host_name
-./example/ck_tile/14_moe_sorting/script/perf_test.sh 2>&1 | tee -a $moe_smoothquant_log
+./example/ck_tile/14_moe_smoothquant/script/perf_test.sh 2>&1 | tee -a $moe_smoothquant_log
 
-#run fused_moe
+#run 15 fused_moe
 export fused_moe_log="perf_fused_moe_$GPU_arch.log"
 print_log_header  $fused_moe_log $env_type $branch $host_name
 #example/ck_tile/14_moe_sorting/script/perf_test.sh 2>&1 | tee -a $fused_moe_log
 
 #run batched_gemm
-
+export batched_gemm_log="perf_batched_gemm_$GPU_arch.log"
+print_log_header  $batched_gemm_log $env_type $branch $host_name
+./example/ck_tile/16_batched_gemm/script/perf_test.sh 2>&1 | tee -a $batched_gemm_log
 
 #run grouped_gemm
-
+export grouped_gemm_log="perf_grouped_gemm_$GPU_arch.log"
+print_log_header  $grouped_gemm_log $env_type $branch $host_name
+./example/ck_tile/17_grouped_gemm/script/perf_test.sh 2>&1 | tee -a $grouped_gemm_log
 
 #run flatmm
 export flatmm_log="perf_flatmm_$GPU_arch.log"
 print_log_header  $flatmm_log $env_type $branch $host_name
-./example/ck_tile/18_flatmm/script/smoke_test_basic.sh 2>&1 | tee -a $flatmm_log
+./example/ck_tile/18_flatmm/script/perf_test.sh 2>&1 | tee -a $flatmm_log
 
 #run batched_transpose
 export batched_transpose_log="perf_batched_transpose_$GPU_arch.log"
 print_log_header  $batched_transpose_log $env_type $branch $host_name
-./example/ck_tile/35_batched_transpose/script/smoke_test_basic.sh 2>&1 | tee -a $batched_transpose_log
+./example/ck_tile/35_batched_transpose/script/smoke_test.sh 2>&1 | tee -a $batched_transpose_log

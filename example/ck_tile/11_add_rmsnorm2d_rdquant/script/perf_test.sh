@@ -1,6 +1,6 @@
 #!/bin/sh
 EXE="$(find . -name tile_add_rmsnorm2d_rdquant_fwd -type f | head -n 1)"
-
+echo $EXE
 $EXE -m=1 -n=1 -e=1e-12 -v=1 -prec=bf16 -repeat=1000
 $EXE -m=700 -n=80 -e=1e-12 -v=1 -prec=bf16 -repeat=1000
 $EXE -m=700 -n=128 -e=1e-12 -v=1 -prec=bf16 -repeat=1000
