@@ -1164,8 +1164,8 @@ pipeline {
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a -D USE_CUSTOM_CONFIG=OFF && \
-                                           make -j64 tile_engine_gemm && \
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a -G Ninja && \
+                                           ninja -C . tile_engine_gemm && \
                                            ./bin/tile_engine_gemm """
                     }
                     steps{
@@ -1182,8 +1182,8 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_engine_gemm && \
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 -G Ninja && \
+                                           ninja -C . tile_engine_gemm && \
                                            ./bin/tile_engine_gemm """
                     }
                     steps{

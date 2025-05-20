@@ -49,21 +49,28 @@ class GemmCodeGenerator:
                 "configs" / "default_config.json"
             self.config = GemmConfig.from_json(config_path)
 
-        self.all_trait_names: List[str] = []
+        self.valid_trait_names: List[str] = []
+        self.valid_trait_tile_combinations: map[str, list[tuple[int]]] = {}
 
     def list_all_trait_names(self):
         """List all possible kernel trait names into file."""
         w_p = Path(self.output_dir)
-        list_p = w_p / 'gemm_instance_blobs.txt'
+        file_path = w_p / 'gemm_instance_blobs.txt'
         self._generate_all_traits()
+        self._get_valid_trait_tile_combinations()
 
-        # Write all file paths to the list file
-        with list_p.open('w') as list_f:
-            list_f.write(str(w_p / "gemm_common.hpp") + "\n")
-            list_f.write(str(w_p / "gemm_instances.hpp") + "\n")
-            list_f.write(str(w_p / "gemm_dispatcher.hpp") + "\n")
-            for trait in self.all_trait_names:
-                list_f.write(str(w_p / f"gemm_{trait}.hpp") + "\n")
+        # Write all file paths to the header file
+        with file_path.open('w') as f:
+            f.write(str(w_p / "gemm_common.hpp") + "\n")
+            f.write(str(w_p / "gemm_instances.hpp") + "\n")
+            f.write(str(w_p / "gemm_dispatcher.hpp") + "\n")
+            for trait in self.valid_trait_names:
+                f.write(str(w_p / f"gemm_{trait}.hpp") + "\n")
+            for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
+                for tile in tile_valid_params:
+                    for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
+                        f.write(str(
+                            w_p / f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}_{warp_tile_m}x{warp_tile_n}x{warp_tile_k}.cpp") + "\n")
 
     def _generate_all_traits(self):
         """Generate all possible kernel traits names."""
@@ -90,7 +97,7 @@ class GemmCodeGenerator:
                     f"{pipeline}_{epilogue}_{scheduler}_"
                     f"{BOOL_MAP(pad_m)}_{BOOL_MAP(pad_n)}_{BOOL_MAP(pad_k)}"
                 )
-                self.all_trait_names.append(trait_name)
+                self.valid_trait_names.append(trait_name)
             else:
                 logging.warning(
                     f"Invalid combination: {pipeline}-{epilogue}-{scheduler}"
@@ -111,6 +118,7 @@ class GemmCodeGenerator:
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common.hpp"
 
 // Data types
 using ADataType = {DATA_TYPE_MAP[self.config.problem.datatype_map['matrix_a']]};
@@ -128,10 +136,12 @@ using CLayout = {LAYOUT_MAP[self.config.problem.layout_map['matrix_c']]};
 
     def _generate_all_trait_files(self):
         """Generate all kernel traits into files."""
-        if not self.all_trait_names:
+        if not self.valid_trait_names:
             self._generate_all_traits()
-        for trait in self.all_trait_names:
+            self._get_valid_trait_tile_combinations()
+        for trait in self.valid_trait_names:
             self._generate_trait_file(trait)
+        self._generate_instantiation_source_files()
         self._generate_common_instance_header_file()
 
     def _generate_trait_file(self, trait: str):
@@ -302,7 +312,7 @@ struct GemmKernel {{
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 """
-        for trait in self.all_trait_names:
+        for trait in self.valid_trait_names:
             content += f"#include \"gemm_{trait}.hpp\"\n"
         (self.output_dir / "gemm_instances.hpp").write_text(content)
 
@@ -377,13 +387,13 @@ struct GemmKernel {{
         if not gpu_warp_tile_key:
             logging.warning(
                 f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
-            return True
+            return False
 
         allowed_combinations = gpu_warp_tile_key.get(warp_tile_key, [])
         if not allowed_combinations:
             logging.warning(
                 f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
-            return True
+            return False
 
         if current_combination not in allowed_combinations:
             logging.warning(
@@ -394,9 +404,57 @@ struct GemmKernel {{
 
         return True
 
+    def _get_valid_trait_tile_combinations(self):
+        def get_tile_value(tile_param): return tile_param.generate_candidates(
+        ) if isinstance(tile_param, RangeConfigParam) else tile_param.values
+
+        tile_params = set(itertools.product(
+            get_tile_value(self.config.tile_config.tile_m),
+            get_tile_value(self.config.tile_config.tile_n),
+            get_tile_value(self.config.tile_config.tile_k),
+            get_tile_value(self.config.tile_config.warp_m),
+            get_tile_value(self.config.tile_config.warp_n),
+            get_tile_value(self.config.tile_config.warp_k),
+            get_tile_value(self.config.tile_config.warp_tile_m),
+            get_tile_value(self.config.tile_config.warp_tile_n),
+            get_tile_value(self.config.tile_config.warp_tile_k),
+        ))
+
+        for trait in self.valid_trait_names:
+            tile_valid_params = list(
+                filter(lambda t: self.is_tile_valid(t, trait), tile_params))
+            if trait not in self.valid_trait_tile_combinations:
+                self.valid_trait_tile_combinations[trait] = []
+            self.valid_trait_tile_combinations[trait].append(tile_valid_params)
+
+    def _generate_instantiation_source_files(self):
+        """Generate kernel instance instantiation source files """
+        for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
+            for tile in tile_valid_params:
+                for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
+                    content = f"""
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+
+
+#include "gemm_{trait}.hpp" 
+
+"""
+                    content += f"""
+
+template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, false>;
+template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;
+
+"""
+
+                    (self.output_dir /
+                     f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}_{warp_tile_m}x{warp_tile_n}x{warp_tile_k}.cpp").write_text(content)
+
     def _generate_dispatcher_file(self):
         """Generate the code block of dispatch mechanism."""
-        content = """// SPDX-License-Identifier: MIT
+        content = """
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
@@ -424,50 +482,34 @@ struct GemmDispatcher {
         if(!kernel_map.empty()) return;
         \n"""
 
-        def get_tile_value(tile_param): return tile_param.generate_candidates(
-        ) if isinstance(tile_param, RangeConfigParam) else tile_param.values
-
-        tile_params = set(itertools.product(
-            get_tile_value(self.config.tile_config.tile_m),
-            get_tile_value(self.config.tile_config.tile_n),
-            get_tile_value(self.config.tile_config.tile_k),
-            get_tile_value(self.config.tile_config.warp_m),
-            get_tile_value(self.config.tile_config.warp_n),
-            get_tile_value(self.config.tile_config.warp_k),
-            get_tile_value(self.config.tile_config.warp_tile_m),
-            get_tile_value(self.config.tile_config.warp_tile_n),
-            get_tile_value(self.config.tile_config.warp_tile_k),
-        ))
-        
-
-        for trait in self.all_trait_names:
-            tile_valid_params = list(filter(lambda t: self.is_tile_valid(t, trait), tile_params))
+        for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
             content += f"""         kernel_map["{trait}"] = {{"""
             for i, tile in enumerate(tile_valid_params):
-                content += f"""[&](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{ """
-                content += f""" if(structured_sparsity){{  // SMFMA"""
-                sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
-                    self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
-                    self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
-                    ((tile[6] == 32 and tile[7] == 32 and tile[8] == 16) or
-                        (tile[6] == 16 and tile[7] == 16 and tile[8] == 32))
-                content += f"""
-                    return run_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(sparse)}>>(args, stream);"""
-                content += f"""
-                            }} else {{"""
-                content += f"""
-                    return run_kernel<{trait}::GemmKernel<{tile[0]}, {tile[1]}, {tile[2]}, {tile[3]}, {tile[4]}, {tile[5]}, {tile[6]}, {tile[7]}, {tile[8]}, {BOOL_MAP(False)}>>(args, stream);"""
-                content += f"""
-                            }} """
-                if i == len(tile_valid_params)-1:
+                for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
+                    content += f"""[&](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{ """
+                    content += f""" if(structured_sparsity){{  // SMFMA"""
+                    sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
+                        self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
+                        self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
+                        ((warp_tile_m == 32 and warp_tile_n == 32 and warp_tile_k == 16) or
+                            (warp_tile_m == 16 and warp_tile_n == 16 and warp_tile_k == 32))
                     content += f"""
-                        }} """
-                else:
+                            return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(sparse)}>>(args, stream);"""
                     content += f"""
-                        }}, """            
+                                    }} else {{"""
+                    content += f"""
+                            return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(False)}>>(args, stream);"""
+                    content += f"""
+                                    }} """
+                    if i == len(tile_valid_params)-1:
+                        content += f"""
+                                }} """
+                    else:
+                        content += f"""
+                                }}, """
             content += f"""
             }};\n """
-    
+
         content += """    }
 
     template <typename Kernel>

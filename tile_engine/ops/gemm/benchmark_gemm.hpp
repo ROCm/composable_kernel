@@ -3,10 +3,16 @@
 
 #pragma once
 
+#include <functional>
+#include <tuple>
+#include <exception>
+
+#include "ck_tile/host.hpp"
 #include "gemm_profiler.hpp"
 
-template <typename Callables>
-void benchmark_gemm(const ck_tile::ArgParser& arg_parser, const std::vector<Callables>& callables)
+void benchmark_gemm(const ck_tile::ArgParser& arg_parser,
+                    const std::vector<std::function<std::tuple<std::string, float>(
+                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
 {
     GemmProblem gemm_problem{arg_parser.get_int("split_k"),
                              arg_parser.get_int("m"),
