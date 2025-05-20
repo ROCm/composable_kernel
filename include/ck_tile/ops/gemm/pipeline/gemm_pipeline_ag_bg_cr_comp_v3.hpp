@@ -20,18 +20,19 @@ namespace ck_tile {
 template <typename Problem>
 struct BaseGemmPipelineAgBgCrCompV3
 {
-    static constexpr index_t PrefetchStages  = 2;
-    static constexpr index_t PrefillStages   = 1;
-    static constexpr index_t GlobalBufferNum = 1;
+    static constexpr index_t PrefetchStages   = 2;
+    static constexpr index_t PrefillStages    = 1;
+    static constexpr index_t GlobalBufferNum  = 1;
+    static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
-    CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
         if(BlockHasHotloop(num_loop))
         {
@@ -104,6 +105,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr auto Scheduler  = Problem::Scheduler;
 
     using Base::PrefetchStages;
+    using Base::UsePersistentKernel;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {

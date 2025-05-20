@@ -89,6 +89,14 @@ struct ReferenceGemm : public device::BaseOperator
                             v_a = type_convert<ComputeTypeA>(
                                 f4_t(arg.a_m_k_(m, k).template unpack<>(Number<0>{})));
                     }
+                    else if constexpr(is_same_v<ADataType, f6x16_pk_t> ||
+                                      is_same_v<ADataType, bf6x16_pk_t> ||
+                                      is_same_v<ADataType, f6x32_pk_t> ||
+                                      is_same_v<ADataType, bf6x32_pk_t>)
+                    {
+                        v_a = type_convert<ComputeTypeA>(
+                            arg.a_m_k_(m, k).unpack(k % ADataType::packed_size));
+                    }
                     else
                     {
                         arg.a_element_op_(v_a, arg.a_m_k_(m, k));
@@ -114,6 +122,14 @@ struct ReferenceGemm : public device::BaseOperator
                         else
                             v_b = type_convert<ComputeTypeB>(
                                 f4_t(arg.b_k_n_(k, n).template unpack<>(Number<0>{})));
+                    }
+                    else if constexpr(is_same_v<BDataType, f6x16_pk_t> ||
+                                      is_same_v<BDataType, bf6x16_pk_t> ||
+                                      is_same_v<BDataType, f6x32_pk_t> ||
+                                      is_same_v<BDataType, bf6x32_pk_t>)
+                    {
+                        v_b = type_convert<ComputeTypeB>(
+                            arg.b_k_n_(k, n).unpack(k % BDataType::packed_size));
                     }
                     else
                     {
