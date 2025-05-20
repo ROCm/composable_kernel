@@ -92,40 +92,19 @@ struct Add
     };
 };
 
-// template <typename Op, typename AccumulatorType, typename TermType, typename... Args>  
-// __host__ __device__  
-// AccumulatorType n_ary_operation(Op operation, TermType first_arg, Args... rest_args) { 
-//     AccumulatorType accumulator = first_arg;  
-  
-//     AccumulatorType dummy[] = {0, ( (void)(accumulator = operation(accumulator, rest_args, accumulator)), 0 )... };  
-//     (void)dummy; // Suppress unused variable warning for dummy array  
- 
-//     // The initial 0 in `int dummy[] = {0, ...}` handles the case where rest_args is empty.  
-//     // If rest_args is empty, dummy becomes {0}.  
-//     // If rest_args is not empty, dummy becomes {0, result_of_pack_expansion_1, result_of_pack_expansion_2, ...}  
-  
-//     return accumulator;  
-// }  
 
 template <typename Op, typename AccumulatorType, typename TermType, typename... Args>  
 __host__ __device__  
-void n_ary_operation2(Op operation, AccumulatorType& output, TermType first_arg, Args... rest_args) { 
-    // AccumulatorType accumulator = first_arg;
-    // accumulator = first_arg ;
-    // using ValueType = typename std::remove_reference<AccumulatorType>::type;
+void binary_operation(Op operation, AccumulatorType& output, TermType first_arg, Args... rest_args) { 
 
     TermType accumulator = 0;
-    // ValueType zero = ValueType{}; // <- null pointer, but I would like a value of '0' at that address, not a null pointer
-    AccumulatorType dummy[] = {AccumulatorType{0}, ( (void)(operation(accumulator, rest_args, accumulator)), AccumulatorType{0})... };  // Use extra register here? We should probably get rid of the assignment or will the compiler workout we don't need this variable
+
+    AccumulatorType dummy[] = {AccumulatorType{0}, ( (void)(operation(accumulator, rest_args, accumulator)), AccumulatorType{0})... };  
     (void)dummy; // Suppress unused variable warning for dummy array 
     operation(output, first_arg, accumulator); // This is the final result of the operation. 
 }  
-  
-// template <typename Op, typename AccumulatorType, typename TermType, typename... Args>  
-// __host__ __device__  
-// AccumulatorType op_variadic_fold(Op operation, TermType first, Args... rest) {  
-//     return n_ary_operation(operation, first, rest...);
-// } 
+
+// TODO: implement a generic operation for unitary functions???
 
 } // namespace element_wise
 } // namespace ck_tile
