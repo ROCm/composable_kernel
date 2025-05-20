@@ -1092,6 +1092,69 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                         b_scale_thread_vec
                                             .template AsType<mfma_scale_input_type_b>(),
                                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+#if 1
+                                    printf(
+                                        "blkIdx: %u, blkIdy: %u, tidx: %u, imxdl: %d, inxdl: "
+                                        "%d, ikxdl: %d, a_thread_vec=<%.2f, %.2f, %.2f, %.2f>, "
+                                        "b_thread_vec=<%.2f, %.2f, %.2f, %.2f>, a_scale=%08x, "
+                                        "b_scale=%08x, c_thread_buf=<%.2f, %.2f, %.2f, %.2f>\n",
+                                        blockIdx.x,
+                                        blockIdx.y,
+                                        threadIdx.x,
+                                        imxdl.value,
+                                        inxdl.value,
+                                        ikxdl.value,
+                                        type_convert<float>(
+                                            a_thread_vec
+                                                .template AsType<ComputeTypeA>()[Number<0>{}]
+                                                .unpack(Number<0>{})),
+                                        type_convert<float>(
+                                            a_thread_vec
+                                                .template AsType<ComputeTypeA>()[Number<0>{}]
+                                                .unpack(Number<1>{})),
+                                        type_convert<float>(
+                                            a_thread_vec
+                                                .template AsType<ComputeTypeA>()[Number<1>{}]
+                                                .unpack(Number<0>{})),
+                                        type_convert<float>(
+                                            a_thread_vec
+                                                .template AsType<ComputeTypeA>()[Number<1>{}]
+                                                .unpack(Number<1>{})),
+                                        type_convert<float>(
+                                            b_thread_vec
+                                                .template AsType<ComputeTypeB>()[Number<0>{}]
+                                                .unpack(Number<0>{})),
+                                        type_convert<float>(
+                                            b_thread_vec
+                                                .template AsType<ComputeTypeB>()[Number<0>{}]
+                                                .unpack(Number<1>{})),
+                                        type_convert<float>(
+                                            b_thread_vec
+                                                .template AsType<ComputeTypeB>()[Number<1>{}]
+                                                .unpack(Number<0>{})),
+                                        type_convert<float>(
+                                            b_thread_vec
+                                                .template AsType<ComputeTypeB>()[Number<1>{}]
+                                                .unpack(Number<1>{})),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            a_scale_thread_vec
+                                                .template AsType<AScaleDataType>()[Number<0>{}]))),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            b_scale_thread_vec
+                                                .template AsType<BScaleDataType>()[Number<0>{}]))),
+                                        type_convert<float>(
+                                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                                .template AsType<float>()[Number<0>{}]),
+                                        type_convert<float>(
+                                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                                .template AsType<float>()[Number<1>{}]),
+                                        type_convert<float>(
+                                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                                .template AsType<float>()[Number<2>{}]),
+                                        type_convert<float>(
+                                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                                .template AsType<float>()[Number<3>{}]));
+#endif
                                 });
                             });
                         });
