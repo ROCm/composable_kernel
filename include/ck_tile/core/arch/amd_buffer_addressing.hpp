@@ -1786,7 +1786,8 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     constexpr index_t bytes = sizeof(T) * N;
     static_assert(bytes == 4 || bytes == 12 || bytes == 16,
                   "wrong! only support in dword, dwordx3, dwordx4");
-
+    ignore = src_wave_addr_offset;
+    ignore = src_immediate_addr_offset;
     if constexpr(oob_conditional_check)
     {
         index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
@@ -1796,8 +1797,8 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
                 reinterpret_cast<uintptr_t>(smem)),
             bytes,
             v_offset,
-            src_wave_addr_offset,
-            src_immediate_addr_offset,
+            0,
+            0,
             static_cast<index_t>(coherence));
     }
     else
@@ -1806,10 +1807,10 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
             src_wave_buffer_resource,
             reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
                 reinterpret_cast<uintptr_t>(smem)),
-            sizeof(uint32_t),
+            bytes,
             src_thread_addr_offset,
-            src_wave_addr_offset,
-            src_immediate_addr_offset,
+            0,
+            0,
             static_cast<index_t>(coherence));
     }
 }
