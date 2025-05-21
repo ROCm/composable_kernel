@@ -3,7 +3,7 @@
 # generate kernel instances to speed up compilation
 
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import fnmatch
 import itertools
 from pathlib import Path
@@ -245,7 +245,7 @@ class FmhaFwdPipeline:
     F_dropout    : str  #
     F_squant     : str  #
     F_mask       : str  # value from MASK_MAP
-    F_constraint : CppConstraint = CppConstraint()
+    F_constraint : CppConstraint = field(default_factory=lambda: CppConstraint())
 
     @property
     def name(self) -> str:
@@ -347,7 +347,7 @@ class FmhaFwdTileSize:
     F_wn1        : int  # gemm1 warp size along n
     F_wk1        : int  # gemm1 warp size along k
     F_occupancy  : int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
-    F_constraint : CppConstraint = CppConstraint()
+    F_constraint : CppConstraint = field(default_factory=lambda: CppConstraint())
 
     @property
     def name(self) -> str:
