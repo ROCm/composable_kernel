@@ -29,27 +29,18 @@ namespace ck_tile {
 template <typename TileWindowType_, typename BottomTensorView_, typename WindowLengths_>
 struct tile_window_base
 {
-    // window_origin
-    using BottomTensorView                    = remove_reference_t<BottomTensorView_>;
-    using BottomTensorDesc                    = typename BottomTensorView::TensorDesc;
-    using WindowLengths                       = remove_cvref_t<WindowLengths_>;
+
+    using BottomTensorView = remove_reference_t<BottomTensorView_>;
+    using WindowLengths    = remove_cvref_t<WindowLengths_>;
+    using BottomTensorDesc = typename BottomTensorView::TensorDesc;
+    using DataType         = remove_cvref_t<typename BottomTensorView::DataType>;
+
     static constexpr index_t NDimBottomTensor = BottomTensorDesc::get_num_of_dimension();
-    using BottomTensorIndex                   = array<index_t, NDimBottomTensor>;
-
-    using DataType = remove_cvref_t<typename BottomTensorView::DataType>;
-
-    // origin ([x0', x1', ...]) of window on bottom tensor
-    BottomTensorIndex window_origin_;
-
-    // window_lengths
 
     static_assert(ck_tile::is_known_at_compile_time<WindowLengths>::value,
                   "wrong! lengths should be static");
-    WindowLengths window_lengths_;
 
-    // this is the bottom tensor view
-    // [x0', x1', ...] ==> [offset]
-    BottomTensorView bottom_tensor_view_;
+    using BottomTensorIndex = array<index_t, NDimBottomTensor>;
 
     CK_TILE_DEVICE constexpr auto get_window_origin() const { return window_origin_; }
     CK_TILE_DEVICE constexpr auto get_window_lengths() const { return window_lengths_; }
@@ -83,6 +74,15 @@ struct tile_window_base
 
     // Default no-op; can be overridden in child
     CK_TILE_DEVICE void move_extended(const BottomTensorIndex&) {}
+
+    // origin ([x0', x1', ...]) of window on bottom tensor
+    BottomTensorIndex window_origin_;
+
+    WindowLengths window_lengths_;
+
+    // this is the bottom tensor view
+    // [x0', x1', ...] ==> [offset]
+    BottomTensorView bottom_tensor_view_;
 };
 
 template <typename TileWindowType_,
@@ -96,7 +96,7 @@ struct tile_window_with_tile_dstr_base
     using TileWindowBase = tile_window_base<TileWindowType_, BottomTensorView_, WindowLengths_>;
 
     using WindowAdaptor = typename TileDstr::PsYs2XsAdaptor;
-    // using BottomTensorDesc = typename TileWindowBase::BottomTensorView::TensorDesc;
+
     static constexpr index_t NDimWindowAdaptorTop = WindowAdaptor::get_num_of_top_dimension();
 
     static constexpr index_t NDimP = TileDstr::get_num_of_dimension_p();

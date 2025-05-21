@@ -38,7 +38,8 @@ namespace ck_tile {
 // TODO: if using this struct, better use load_raw()/store_raw(), can control
 //       the the immediate offset on the fly
 // space-filing-curve is non-snaked here!
-//
+// This struct inherits from tile_window_with_tile_dstr_base, which is an intermediary base class
+// with the ultimate parent class being tile_window_base.
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
@@ -934,7 +935,7 @@ struct tile_window_linear
 
         WINDOW_DISPATCH_ISSUE();
     }
-
+    // *_extended() functions acts like a virtual function with a default implementation exisiting in the base class
     CK_TILE_DEVICE void move_extended(const typename Base::BottomTensorIndex& step)
     {
         static_for<0, NumAccess, 1>{}([&](auto i_access) {
