@@ -590,38 +590,36 @@ struct tile_window_with_static_distribution
         // issues * warps * lanes
         static_assert(LdsTileWindow::get_num_of_dimension() == 3); // TODO: hard coded
 
-        // TODO: LDS offset is not good for intrinsic based implementation(compiler can't
-                figure out
-                // dependency) hence avoid use offset based solution. size_per_buf should be zero
-                (how to
-                // check?)
-                constexpr index_t size_per_buf =
-                    lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
-                        make_tuple(number<0>{}, number<0>{}, number<0>{}));
+        // TODO: LDS offset is not good for intrinsic based implementation(compiler can't figure out
+        // dependency) hence avoid use offset based solution. size_per_buf should be zero how to
+        // check?)
+        constexpr index_t size_per_buf =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<0>{}, number<0>{}));
 
-                constexpr index_t size_per_wave =
-                    lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
-                        make_tuple(number<0>{}, number<1>{}, number<0>{})) -
-                    size_per_buf;
+        constexpr index_t size_per_wave =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<1>{}, number<0>{})) -
+            size_per_buf;
 
-                constexpr index_t size_per_issue =
-                    lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
-                        make_tuple(number<1>{}, number<0>{}, number<0>{})) -
-                    size_per_buf;
+        constexpr index_t size_per_issue =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<1>{}, number<0>{}, number<0>{})) -
+            size_per_buf;
 
-                const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
+        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
 
-                using Traits = load_store_traits;
+        using Traits = load_store_traits;
 
-                using vector_t = typename Traits::vector_t;
-                using SFC_Ys   = typename Traits::SFC_Ys;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
 
-                // TODO: we force CK_TILE_LDS_ADDR
-                CK_TILE_LDS_ADDR LdsDataType* smem =
-                    lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_ + m0_init_value;
+        // TODO: we force CK_TILE_LDS_ADDR
+        CK_TILE_LDS_ADDR LdsDataType* smem =
+            lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_ + m0_init_value;
 
-                // loop over thread tensor space [y0, y1, ...]
-                static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+        // loop over thread tensor space [y0, y1, ...]
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             /// TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
@@ -649,7 +647,7 @@ struct tile_window_with_static_distribution
                     offset
                 }
             });
-                });
+        });
 #endif
     }
 
