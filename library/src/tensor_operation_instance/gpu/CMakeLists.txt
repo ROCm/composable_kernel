@@ -103,6 +103,28 @@ function(add_instance_library INSTANCE_NAME)
             list(REMOVE_ITEM ARGN "${source}")
         endif()
     endforeach()
+
+    foreach(source IN LISTS ARGN)
+        if(MIOPEN_REQ_LIBS_ONLY AND source MATCHES "_gemm_")
+            message("removing gemm instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+
+        if(MIOPEN_REQ_LIBS_ONLY AND source MATCHES "mha")
+            message("removing mha instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+
+        if(MIOPEN_REQ_LIBS_ONLY AND source MATCHES "contraction")
+            message("removing contraction instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+
+        if(MIOPEN_REQ_LIBS_ONLY AND source MATCHES "reduce")
+            message("removing reduce instance ${source} ")
+            list(REMOVE_ITEM ARGN "${source}")
+        endif()
+    endforeach()
     #message("remaining instances: ${ARGN}")
     #only continue if there are some source files left on the list
     if(ARGN)
@@ -343,7 +365,7 @@ if(CK_DEVICE_OTHER_INSTANCES)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_GEMM_INSTANCES)
+if(CK_DEVICE_GEMM_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         add_library(device_gemm_operations ${CK_DEVICE_GEMM_INSTANCES})
         add_library(composablekernels::device_gemm_operations ALIAS device_gemm_operations)
         target_compile_features(device_gemm_operations PUBLIC)
@@ -389,7 +411,7 @@ if(CK_DEVICE_CONV_INSTANCES)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_MHA_INSTANCES)
+if(CK_DEVICE_MHA_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         set(gpu_list ${INST_TARGETS})
         if(gpu_list MATCHES "gfx94" OR gpu_list MATCHES "gfx90a" OR gpu_list MATCHES "gfx95")
             add_library(device_mha_operations ${CK_DEVICE_MHA_INSTANCES})
@@ -411,7 +433,7 @@ if(CK_DEVICE_MHA_INSTANCES)
             )
         endif()
 endif()
-if(CK_DEVICE_CONTRACTION_INSTANCES)
+if(CK_DEVICE_CONTRACTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         add_library(device_contraction_operations ${CK_DEVICE_CONTRACTION_INSTANCES})
         add_library(composablekernels::device_contraction_operations ALIAS device_contraction_operations)
         target_compile_features(device_contraction_operations PUBLIC)
@@ -433,7 +455,7 @@ if(CK_DEVICE_CONTRACTION_INSTANCES)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_REDUCTION_INSTANCES)
+if(CK_DEVICE_REDUCTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         add_library(device_reduction_operations ${CK_DEVICE_REDUCTION_INSTANCES})
         add_library(composablekernels::device_reduction_operations ALIAS device_reduction_operations)
         target_compile_features(device_reduction_operations PUBLIC)
@@ -455,14 +477,16 @@ if(CK_DEVICE_REDUCTION_INSTANCES)
         )
 endif()
 
-add_library(device_operations INTERFACE)
-target_link_libraries(device_operations INTERFACE
-    device_contraction_operations
-    device_conv_operations
-    device_gemm_operations
-    device_other_operations
-    device_reduction_operations
-    utility)
+if(NOT MIOPEN_REQ_LIBS_ONLY)
+    add_library(device_operations INTERFACE)
+    target_link_libraries(device_operations INTERFACE
+        device_contraction_operations
+        device_conv_operations
+        device_gemm_operations
+        device_other_operations
+        device_reduction_operations
+        utility)
+endif()
 
 set(DEV_OPS_INC_DIRS
     ${PROJECT_SOURCE_DIR}/include/ck/
