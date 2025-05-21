@@ -36,6 +36,8 @@ struct ExecutionConfig final
     int init_method     = 2;     // (0=constant values, 1=integer values, 2=decimal values)
     bool time_kernel    = false; // (0=no, 1=yes)
     int verbosity       = 0;     // (0=no info, 1=verbose info)
+    int warm_up         = 10;
+    int repeat          = 10;
 };
 
 struct ProblemSizeSplitK final
@@ -86,6 +88,8 @@ bool parse_cmd_args(int argc,
         if(argc >= 12)
         {
             problem_size.KBatch = std::stoi(argv[11]);
+            config.warm_up      = std::stoi(argv[12]);
+            config.repeat       = std::stoi(argv[13]);
         }
     }
     else
@@ -411,8 +415,9 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         std::cout << "Computing GEMM on device..." << std::endl << std::endl;
     }
 
-    float ave_time =
-        invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, config.verbosity, 20, 50});
+    float ave_time = invoker.Run(
+        argument,
+        StreamConfig{nullptr, config.time_kernel, config.verbosity, config.warm_up, config.repeat});
 
     bool res_verified = true;
     if(config.do_verification > 0)
@@ -484,14 +489,15 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         // partial sums(K/ScaleBlockSize)]
         // FLOPS = 2 * M * N * K + 2 * M * N * K / ScaleBlockSize
         std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / ScaleBlockSize;
-        std::size_t num_btype = sizeof(ADataType) * M * K / ck::pack_size_v<ADataType> +
-                                sizeof(BDataType) * K * N / ck::pack_size_v<BDataType> +
+        std::size_t num_btype = sizeof(ADataType) * M * K / ck::pack_size_v<ADataType> + //
+                                sizeof(BDataType) * K * N / ck::pack_size_v<BDataType> + //
                                 sizeof(CDataType) * M * N +
-                                sizeof(XDataType) * (M * K + K * N) / ScaleBlockSize;
+                                sizeof(XDataType) * M * K / ScaleBlockSize +
+                                sizeof(XDataType) * N * K / ScaleBlockSize;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-        float gb_per_sec = num_btype / 1.E6 / ave_time;
+        float gb_per_sec = static_cast<float>(num_btype) / 1e6f / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
                   << " GB/s, " << device_op.GetTypeString() << std::endl;

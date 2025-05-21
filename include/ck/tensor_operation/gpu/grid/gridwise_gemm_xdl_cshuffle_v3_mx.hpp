@@ -1895,8 +1895,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_scale_grid, b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
-        const AElementwiseOperation a_element_op{};
-        const BElementwiseOperation b_element_op{};
+        static_assert(
+            is_same_v<AElementwiseOperation, tensor_operation::element_wise::PassThrough> &&
+            is_same_v<BElementwiseOperation, tensor_operation::element_wise::PassThrough>);
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
