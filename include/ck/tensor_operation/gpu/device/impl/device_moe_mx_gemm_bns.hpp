@@ -299,20 +299,20 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                 {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              true,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Odd>;
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   true,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Odd>;
                         RunKernel(kernel);
                     }
                     else
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              true,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Even>;
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   true,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Even>;
                         RunKernel(kernel);
                     }
                 }
@@ -348,20 +348,20 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                 {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              false,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Odd>;
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   false,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Odd>;
                         RunKernel(kernel);
                     }
                     else
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              false,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Even>;
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   false,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Even>;
                         RunKernel(kernel);
                     }
                 }

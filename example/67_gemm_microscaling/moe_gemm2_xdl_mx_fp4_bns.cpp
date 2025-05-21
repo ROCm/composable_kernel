@@ -40,7 +40,7 @@ using B0DataType       = F4;
 using B1DataType       = XPackedDataType;
 using EDataType        = F16;
 using AccDataType      = F32;
-using CShuffleDataType = F32;
+using CShuffleDataType = F16;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using D2DataType       = F32;
@@ -62,8 +62,8 @@ struct MulABScaleExpertWeight
     operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
     // for real kernel use
     template <>
-    __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>(
-        EDataType& e, const float& c, const float& d0, const float& d1, const float& d2) const
+    __host__ __device__ constexpr void operator()<EDataType, F16, float, float, float>(
+        EDataType& e, const F16& c, const float& d0, const float& d1, const float& d2) const
     {
         (void)d0;
         (void)d1;
@@ -580,7 +580,7 @@ int main(int argc, char* argv[])
         e_device_buf.ToDevice(e_t_n_device_result.mData.data());
         invoker.Run(argument, StreamConfig{nullptr, false, 0, 0, 1});
 
-        Tensor<CShuffleDataType> c_t_n({tokens, N});
+        Tensor<float> c_t_n({tokens, N});
 
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeMXGemm2<A0DataType,
@@ -588,7 +588,8 @@ int main(int argc, char* argv[])
                                                             B0DataType,
                                                             XDataType,
                                                             D2DataType,
-                                                            CShuffleDataType,
+                                                            float, // using float for Cshuffle type
+                                                                   // in reference
                                                             AccDataType,
                                                             PassThrough,
                                                             PassThrough,
