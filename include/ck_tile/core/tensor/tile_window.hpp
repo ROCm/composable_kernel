@@ -139,28 +139,7 @@ struct tile_window_with_static_distribution
         const typename Base::TileDstr& tile_distribution)
         : pre_computed_coords_{}
     {
-#if 0 // debug
-      // TODO: this use more register for FA, but less register for GEMM
-      // need investigation
-      // only support warp-tile and block-tile
-        static_assert(NDimP == 1 or NDimP == 2, "wrong!");
 
-        WindowAdaptorCoord window_adaptor_thread_coord_tmp;
-
-        if constexpr(NDimP == 1)
-        {
-            window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
-                tile_distribution.get_ps_ys_to_xs_adaptor(), AdaptorTopIndex{get_lane_id(), 0});
-        }
-        else if constexpr(NDimP == 2)
-        {
-            window_adaptor_thread_coord_tmp =
-                make_tensor_adaptor_coordinate(tile_distribution.get_ps_ys_to_xs_adaptor(),
-                                               AdaptorTopIndex{get_warp_id(), get_lane_id(), 0});
-        }
-#else
-        // TODO: this use less register for FA, but more register for GEMM
-        // need investigation
         this->window_origin_                       = window_origin;
         this->window_lengths_                      = window_lengths;
         this->bottom_tensor_view_                  = bottom_tensor_view;
@@ -169,7 +148,6 @@ struct tile_window_with_static_distribution
             tile_distribution.get_ps_ys_to_xs_adaptor(),
             container_concat(detail::get_partition_index(tile_distribution),
                              array<index_t, Base::NDimY>{0}));
-#endif
 
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
