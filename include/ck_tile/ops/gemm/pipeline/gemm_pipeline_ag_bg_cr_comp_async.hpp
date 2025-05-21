@@ -236,14 +236,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                                  b_dram_block_window_tmp.get_window_origin(),
                                  Policy::template MakeBDramTileDistribution<Problem>());
 
-            // A register tile for global load
-            // constexpr auto ABlockTileDistr = a_copy_dram_window.get_tile_distribution();
-            // constexpr auto BBlockTileDistr = b_copy_dram_window.get_tile_distribution();
-            // using ABlockTile =
-            // decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr)); using
-            // BBlockTile = decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr));
-            // ABlockTile a_global_load_tile;
-            // BBlockTile b_global_load_tile;
             auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem_0);
             auto&& [a_lds_block1, b_lds_block1] = Base::GetABLdsTensorViews(p_smem_1);
 
@@ -335,11 +327,10 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 "LDS windows must not be linear");
             buffer_load_fence(a_number_of_access + b_number_of_access);
 
-            block_sync_lds();
-
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
 
+            block_sync_lds();
             Base::GlobalPrefetchAsync(
                 a_copy_lds_window0, a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
@@ -356,7 +347,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         buffer_load_fence(a_number_of_access + b_number_of_access);
                         Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                         Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
-
+                        block_sync_lds();
                         Base::GlobalPrefetchAsync(
                             a_copy_lds_window1, a_copy_dram_window, a_dram_tile_window_step);
                         Base::GlobalPrefetchAsync(
@@ -371,7 +362,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         buffer_load_fence(a_number_of_access + b_number_of_access);
                         Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                         Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
-
+                        block_sync_lds();
                         Base::GlobalPrefetchAsync(
                             a_copy_lds_window0, a_copy_dram_window, a_dram_tile_window_step);
                         Base::GlobalPrefetchAsync(
@@ -386,18 +377,18 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             }
 
             // tail 3
-            if(TailNum == TailNumber::Three)
+            if constexpr(TailNum == TailNumber::Three)
             {
                 // 3
                 {
-                    block_sync_lds();
+                    buffer_load_fence(a_number_of_access + b_number_of_access);
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                 }
                 // 2
                 {
-                    block_sync_lds();
+                    buffer_load_fence(0);
                     Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                     Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                     block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
@@ -412,7 +403,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             {
                 // 2
                 {
-                    block_sync_lds();
+                    buffer_load_fence(0);
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
