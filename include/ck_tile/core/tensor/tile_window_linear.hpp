@@ -44,6 +44,7 @@ template <typename BottomTensorView_,
           typename LinearBottomDims_>
 struct tile_window_linear
 {
+
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
@@ -1214,5 +1215,50 @@ CK_TILE_DEVICE void move_tile_window(
 {
     window.move(step);
 }
+
+/**
+ * @brief Type trait to determine if a type is a linear tile window.
+ *
+ * Defaults to `false_type`. Specialized to `true_type` for types that match
+ * `tile_window_linear<...>`.
+ *
+ * @tparam T The type to check.
+ */
+template <typename T>
+struct is_tile_window_linear : std::false_type
+{
+};
+
+/**
+ * @brief Specialization of `is_tile_window_linear` for `tile_window_linear`.
+ *
+ * Evaluates to `true_type` if the type is a `tile_window_linear` with the given template
+ * parameters.
+ *
+ * @tparam BottomTensorView_ Bottom tensor view type of the tile window.
+ * @tparam WindowLengths_ Static window lengths.
+ * @tparam StaticTileDistribution_ Tile distribution policy.
+ * @tparam LinearBottomDims_ Dimensions of the bottom tensor view that participate in linearization.
+ */
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          typename LinearBottomDims_>
+struct is_tile_window_linear<tile_window_linear<BottomTensorView_,
+                                                WindowLengths_,
+                                                StaticTileDistribution_,
+                                                LinearBottomDims_>> : std::true_type
+{
+};
+
+/**
+ * @brief Helper variable template to check if a type is a linear tile window.
+ *
+ * Equivalent to `is_tile_window_linear<T>::value`.
+ *
+ * @tparam T The type to check.
+ */
+template <typename T>
+inline constexpr bool is_tile_window_linear_v = is_tile_window_linear<T>::value;
 
 } // namespace ck_tile
