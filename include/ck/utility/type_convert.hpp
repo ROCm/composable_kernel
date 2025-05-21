@@ -58,10 +58,29 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
         uint32_t int32;
     } u = {x};
 
+    uint32_t sign = u.int32 & 0x80000000;
+    uint32_t exp  = u.int32 & 0x7F800000;
+
+    // 处理超出bf16指数范围的情况（溢出）
+    if(exp > 0x47800000)
+    { // 原float指数超过bf16最大正常数
+        return sign ? uint16_t(0xFF80) : uint16_t(0x7F80); // 钳位到无穷大
+    }
+    // 处理下溢（此处简化为零，实际可能需要调整尾数）
+    if(exp < 0x38000000)
+    { // 原float指数过小
+        return sign ? uint16_t(0x8000) : uint16_t(0x0000);
+    }
+
     const uint32_t first_bf16_mantisa_bit = ((u.int32 >> 16) & 1);
     constexpr uint32_t rounding_bias      = uint32_t((1 << 15) - 1);
-
-    return uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
+    union
+    {
+        bhalf_t bf16;
+        uint16_t int16;
+    } uh;
+    uh.int16 = uint16_t(u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16;
+    return uh.bf16;
 }
 
 // convert fp16 to bfp16 via fp32 with RTN if higher precision is needed

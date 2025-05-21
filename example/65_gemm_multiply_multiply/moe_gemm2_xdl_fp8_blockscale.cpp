@@ -24,22 +24,23 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-// using BF16 = ck::bhalf_t;
-using F8  = ck::f8_t;
-using F32 = float;
-using I64 = int64_t;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F8   = ck::f8_t;
+using F32  = float;
+using I64  = int64_t;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using A0DataType       = F8;
-using A1DataType       = F32;
-using B0DataType       = F8;
-using B1DataType       = F32;
-using EDataType        = F16;
+using A0DataType = F8;
+using A1DataType = F32;
+using B0DataType = F8;
+using B1DataType = F32;
+using EDataType  = F16;
+// using EDataType        = BF16;
 using AccDataType      = F32;
-using CShuffleDataType = F32; //todo: change to EDataType
+using CShuffleDataType = F32; // todo: change to EDataType
 using D2DataType       = F32;
 using DsDataType       = ck::Tuple<D2DataType>;
 
@@ -62,24 +63,24 @@ struct MulABScaleExpertWeight
     template <>
     __host__ __device__ constexpr void
     operator()<EDataType, EDataType, float>(EDataType& e, const EDataType& c, const float& d2) const
-    {   
-        (void) d2;
-        e = ck::type_convert<EDataType>(c);
+    {
+        // (void) d2;
+        e = ck::type_convert<EDataType>(c * d2);
     }
     template <>
     __host__ __device__ constexpr void
     operator()<EDataType, float, float>(EDataType& e, const float& c, const float& d2) const
     {
-    // for reference cpu
-        e = ck::type_convert<EDataType>(c* d2);
+        // for reference cpu
+        e = ck::type_convert<EDataType>(c * d2);
     }
-        template <>
-    __host__ __device__ constexpr void
-    operator()<float, float, float>(float& e, const float& c, const float& d2) const
-    {
-    // for reference cpu
-        e = ck::type_convert<EDataType>(c* d2);
-    }
+    //     template <>
+    // __host__ __device__ constexpr void
+    // operator()<float, float, float>(float& e, const float& c, const float& d2) const
+    // {
+    // // for reference cpu
+    //     e = ck::type_convert<EDataType>(c * d2);
+    // }
 };
 
 void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int NXdl)
@@ -123,7 +124,7 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
-static constexpr bool MulRoutedWeight = true;
+static constexpr bool MulRoutedWeight      = true;
 
 #if 0
 static constexpr ck::index_t MPerBlock = 32;
@@ -164,14 +165,14 @@ static constexpr ck::index_t MPerBlock = 64; using DeviceOpInstance = ck::tensor
                Row, Col, DsLayout, ELayout,
                A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,   GemmSpec,   
-               64,  Scale_Block_M, Scale_Block_N, Scale_Block_K,
-               MPerBlock,   16,    128,
+               256,  Scale_Block_M, Scale_Block_N, Scale_Block_K,
+               MPerBlock,   128,    128,
                16,   16,
                16,   16,
-               4,    1,
-               S<8, 8, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               S<8, 8, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               2,    1,   S<1, 8, 1, 8>, S<2, 1, 1, 1>,
+               4,    2,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               2,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, 0, false, false, MulRoutedWeight, int32_t, A0DataType>;
 #endif
 // clang-format on
@@ -188,7 +189,7 @@ int main(int argc, char* argv[])
     // per expert:
 
     constexpr ck::index_t valid_tile_num =
-        2; // 13 for 128; 52 for 32; 4096 for ds  // > token * topk / MPerBlock
+        26; // 13 for 128; 52 for 32; 4096 for ds  // > token * topk / MPerBlock
     constexpr ck::index_t sorted_tile_num = valid_tile_num + 3;
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
@@ -196,7 +197,7 @@ int main(int argc, char* argv[])
     // GEMM shape
     ck::index_t N       = 6144;
     ck::index_t K       = 4096;
-    ck::index_t experts = 2;
+    ck::index_t experts = 8;
     ck::index_t tokens  = 832;
     ck::index_t topk    = 2;
 #else
@@ -351,19 +352,15 @@ int main(int argc, char* argv[])
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0, 1.0});
         break;
     case 6:
-        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.5, 0.5});
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{1.0, 1.0});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{1.0, 1.0});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{0.5, 0.5});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{1.0, 1.0});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{1.0, 1.0});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
-        for (auto i = 0; i < 128; i++){
-            a0_t_k_k.mData[i] = ck::type_convert<A0DataType>(0.01 * i);
-            a0_t_k_k.mData[i + 128] = ck::type_convert<A0DataType>(0.01 * i + 1.28);
-            for (auto j = 0; j < 32; j++){
-                b0_e_n_k.mData[i * j] = ck::type_convert<B0DataType>(0.01 * i * j);
-            }
-            d2_e_n.mData[i] = ck::type_convert<D2DataType>(0.01 * i);
-            d2_e_n.mData[i*2] = ck::type_convert<D2DataType>(0.01 * i + 1.28);
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{1.0, 1.0});
+        for(auto i = 0; i < N * K; i++)
+        {
+            b0_e_n_k.mData[i]         = ck::type_convert<B0DataType>(static_cast<float>(0.1));
+            b0_e_n_k.mData[i + N * K] = ck::type_convert<B0DataType>(static_cast<float>(0.2));
         }
         break;
     default:
@@ -470,7 +467,7 @@ int main(int argc, char* argv[])
 
         Tensor<float> a_t_k_k({tokens, topk, K});
         Tensor<float> b_e_n_k({experts, K, N});
-        Tensor<CShuffleDataType> c_t_n({tokens, N});
+        Tensor<EDataType> c_t_n({tokens, N});
 
         for(int t = 0; t < tokens; ++t)
         {
@@ -499,7 +496,7 @@ int main(int argc, char* argv[])
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeGemm2BlockScale<float,
                                                                     float,
-                                                                    float,
+                                                                    EDataType,
                                                                     D2DataType,
                                                                     AccDataType,
                                                                     PassThrough,

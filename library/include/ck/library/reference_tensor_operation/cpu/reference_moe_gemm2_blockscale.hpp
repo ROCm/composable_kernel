@@ -24,8 +24,8 @@ template <typename ADataType,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           bool MulRoutedWeight  = true,
-          typename ComputeTypeA = CDataType,
-          typename ComputeTypeB = ComputeTypeA>
+          typename ComputeTypeA = AccDataType,
+          typename ComputeTypeB = AccDataType>
 struct ReferenceMoeGemm2BlockScale : public device::BaseOperator
 {
     // Argument
@@ -83,11 +83,11 @@ struct ReferenceMoeGemm2BlockScale : public device::BaseOperator
                 AccDataType v_acc{0};
                 ComputeTypeA v_a{0};
                 ComputeTypeB v_b{0};
-                const int t         = arg.sorted_token_ids_(m) & 0xffffff;
-                const int topk_id   = arg.sorted_token_ids_(m) >> 24;
-                const int e         = arg.expert_ids_(m / arg.sorted_tile_size_);
-                const int token_cnt = arg.c_t_n_.mDesc.GetLengths()[0];
-                D2DataType v_topk_w = arg.d2_(m, 0); // expert
+                const int t          = arg.sorted_token_ids_(m) & 0xffffff;
+                const int topk_id    = arg.sorted_token_ids_(m) >> 24;
+                const int e          = arg.expert_ids_(m / arg.sorted_tile_size_);
+                const int token_cnt  = arg.c_t_n_.mDesc.GetLengths()[0];
+                AccDataType v_topk_w = arg.d2_(m, 0); // expert
 
                 if(t < token_cnt)
                 {

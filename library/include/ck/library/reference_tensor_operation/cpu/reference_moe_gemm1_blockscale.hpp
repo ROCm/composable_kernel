@@ -25,8 +25,8 @@ template <typename ADataType,
           typename CElementwiseOperation,
           index_t ActivationType_ = 0,
           bool MulRoutedWeight    = true,
-          typename ComputeTypeA   = CDataType,
-          typename ComputeTypeB   = ComputeTypeA>
+          typename ComputeTypeA   = AccDataType,
+          typename ComputeTypeB   = AccDataType>
 struct ReferenceMoeGemm1BlockScale : public device::BaseOperator
 {
     // Argument

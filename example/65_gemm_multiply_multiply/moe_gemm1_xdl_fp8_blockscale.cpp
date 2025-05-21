@@ -24,19 +24,21 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using F8  = ck::f8_t;
-using F32 = float;
-using I64 = int64_t;
+using F16  = ck::half_t;
+using BF16 = ck::bhalf_t;
+using F8   = ck::f8_t;
+using F32  = float;
+using I64  = int64_t;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using A0DataType       = F8;
-using A1DataType       = F32;
-using B0DataType       = F8;
-using B1DataType       = F32;
-using EDataType        = F16;
+using A0DataType = F8;
+using A1DataType = F32;
+using B0DataType = F8;
+using B1DataType = F32;
+// using EDataType        = F16;
+using EDataType        = BF16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using D2DataType       = F32;
@@ -76,8 +78,7 @@ struct MulABScaleExpertWeight
     operator()<float, float, float>(float& e, const float& c, const float& d2) const
     {
         // for reference cpu
-        (void)d2;
-        e = ck::type_convert<EDataType>(c);
+        e = ck::type_convert<EDataType>(c * d2);
     }
 };
 
@@ -465,7 +466,7 @@ int main(int argc, char* argv[])
         Tensor<float> b_e_n_k({experts, K, N * 2});
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-        Tensor<CShuffleDataType> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
+        Tensor<EDataType> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
 
         // handle scale before ref.
         for(int t = 0; t < tokens; ++t)
@@ -490,7 +491,7 @@ int main(int argc, char* argv[])
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeGemm1BlockScale<float,
                                                                     float,
-                                                                    CShuffleDataType,
+                                                                    EDataType,
                                                                     D2DataType,
                                                                     AccDataType,
                                                                     PassThrough,
