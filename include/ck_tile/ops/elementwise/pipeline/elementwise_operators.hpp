@@ -92,19 +92,37 @@ struct Add
     };
 };
 
+struct UnarySquare
+{
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        y = x * x;
+    };
+};
 
-template <typename Op, typename AccumulatorType, typename TermType, typename... Args>  
+template <typename Op, typename OutputType, typename InputType, typename... InputTypes>
 __host__ __device__  
-void binary_operation(Op operation, AccumulatorType& output, TermType first_arg, Args... rest_args) { 
+void apply_operation(Op operation, OutputType& output, const tuple<InputType, InputTypes...>& xs) {
+    // TODO: If we need to account for nullary operations then this needs a separate overload of
+    // apply_operation, due to typing issues with xs.
 
-    TermType accumulator = 0;
+    if constexpr(sizeof...(InputTypes) == 0)
+    {
+        // If there is only one input, we can just apply the operation directly
+        operation(output, xs.template get<0>());
+    }
+    else
+    {
+        // If there are multiple inputs, we need to apply the operation iteratively
+        InputType accumulator = xs.template get<0>();
 
-    AccumulatorType dummy[] = {AccumulatorType{0}, ( (void)(operation(accumulator, rest_args, accumulator)), AccumulatorType{0})... };  
-    (void)dummy; // Suppress unused variable warning for dummy array 
-    operation(output, first_arg, accumulator); // This is the final result of the operation. 
-}  
-
-// TODO: implement a generic operation for unitary functions???
+        static_for<0, sizeof...(InputTypes), 1>{}([&](auto i) {
+            operation(accumulator, accumulator, xs.get(i));
+        });
+        output = accumulator;
+    }
+}
 
 } // namespace element_wise
 } // namespace ck_tile

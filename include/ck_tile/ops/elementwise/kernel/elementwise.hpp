@@ -50,28 +50,6 @@ constexpr void for_each_in_tuple(F&& f, Tuple&& t) {
         std::make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>{});
 }
 
-
-// Helper to unpack a tuple and call a function with its elements
-// TODO: use CK TILE unpack
-template <typename F, typename Tuple, std::size_t... Is>
-CK_TILE_DEVICE auto apply_tuple_impl(F&& f, Tuple&& t, std::index_sequence<Is...>)
-{
-    // return f(t.get(number<Is>{})...);
-    if constexpr (is_std_tuple<std::decay_t<Tuple>>::value) {
-        return std::forward<F>(f)(std::get<Is>(std::forward<Tuple>(t))...);
-    } else {
-        // Assuming ck_tile::tuple or compatible with .get(number<Is>{})
-        return std::forward<F>(f)(std::forward<Tuple>(t).get(number<Is>{})...);
-    }
-}
-
-template <typename F, typename Tuple>
-CK_TILE_DEVICE auto apply_tuple(F&& f, Tuple&& t)
-{
-    constexpr std::size_t N = std::tuple_size<std::decay_t<Tuple>>::value;
-    return apply_tuple_impl(std::forward<F>(f), std::forward<Tuple>(t), std::make_index_sequence<N>{});
-}
-
 template <std::size_t... Is>
 constexpr auto make_dim_seq_impl(std::index_sequence<Is...>)
 {
@@ -184,9 +162,7 @@ struct ElementWiseKernel
 
             auto y = y_tile(tile_idx);
 
-            apply_tuple([&](auto&&... xs) {
-                binary_operation(ElementWiseOperation{}, y, xs...);
-            }, x_values);
+            apply_operation(ElementWiseOperation{}, y, x_values);
 
             y_tile(tile_idx) = y; // to avoid temporary object to be use when calling n_ary_operation
         });
