@@ -66,6 +66,7 @@ struct MoeGemmKernel
         remove_cvref_t<typename FlatmmPipeline::BlockGemmShape>; // TileFlatmmShape
 
     static constexpr bool IsInputGemm = FlatmmPipeline::IsInputGemm;
+    static constexpr bool IsGateOnly = FlatmmPipeline::IsGateOnly;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename FlatmmPipeline::BDataType>;
@@ -134,7 +135,6 @@ struct MoeGemmKernel
 
     CK_TILE_HOST static constexpr MoeGemmKernelArgs MakeKernelArgs(const MoeGemmHostArgs& hostArgs)
     {
-		printf("in moe gemm kernel args! \n");
         return MoeGemmKernelArgs{hostArgs.p_sorted_token_ids,
                                  hostArgs.p_sorted_expert_ids,
                                  hostArgs.p_max_token_id,
@@ -263,70 +263,6 @@ struct MoeGemmKernel
                 number<1>{});
         }();
 
-
-        // const auto& b_tensor_view = [&]() {
-        //     if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
-        //     {
-        //         if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
-        //         {
-        //             constexpr index_t K1          = FlatmmPipeline::GetSmemPackB();
-        //             const index_t K0              = splitk_batch_offset.splitted_k / K1;
-        //             constexpr index_t VectorSizeB = std::min(K1, FlatmmPipeline::GetVectorSizeB());
-        //             const auto b_k0_n_k1_desc =
-        //                 make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
-        //                                              make_tuple(kargs.N * K1, K1, I1),
-        //                                              number<VectorSizeB>{},
-        //                                              number<1>{});
-        //             const auto b_n_k_desc = transform_tensor_descriptor(
-        //                 b_k0_n_k1_desc,
-        //                 make_tuple(make_merge_transform(make_tuple(K0, K1)),
-        //                            make_pass_through_transform(kargs.N)),
-        //                 make_tuple(sequence<0, 2>{}, sequence<1>{}),
-        //                 make_tuple(sequence<0>{}, sequence<1>{}));
-        //             return make_tensor_view<address_space_enum::global>(b_ptr, b_n_k_desc);
-        //         }
-        //         else
-        //         {
-        //             return make_naive_tensor_view<address_space_enum::global>(
-        //                 b_ptr,
-        //                 make_tuple(splitk_batch_offset.splitted_k, kargs.N),
-        //                 make_tuple(kargs.stride_B, 1),
-        //                 number<FlatmmPipeline::GetVectorSizeB()>{},
-        //                 number<1>{});
-        //         }
-        //     }
-        //     else
-        //     {
-        //         if constexpr(TilePartitioner::BlockGemmShape::PermuteB)
-        //         {
-        //             constexpr index_t K1          = FlatmmPipeline::GetSmemPackB();
-        //             const index_t K0              = splitk_batch_offset.splitted_k / K1;
-        //             constexpr index_t VectorSizeB = std::min(K1, FlatmmPipeline::GetVectorSizeB());
-        //             const auto b_k0_n_k1_desc =
-        //                 make_naive_tensor_descriptor(make_tuple(K0, kargs.N, K1),
-        //                                              make_tuple(kargs.N * K1, K1, I1),
-        //                                              number<VectorSizeB>{},
-        //                                              number<1>{});
-        //             const auto b_n_k_desc = transform_tensor_descriptor(
-        //                 b_k0_n_k1_desc,
-        //                 make_tuple(make_merge_transform(make_tuple(K0, K1)),
-        //                            make_pass_through_transform(kargs.N)),
-        //                 make_tuple(sequence<0, 2>{}, sequence<1>{}),
-        //                 make_tuple(sequence<1>{}, sequence<0>{}));
-        //             return make_tensor_view<address_space_enum::global>(b_ptr, b_n_k_desc);
-        //         }
-        //         else
-        //         {
-        //             return make_naive_tensor_view<address_space_enum::global>(
-        //                 b_ptr,
-        //                 make_tuple(kargs.N, splitk_batch_offset.splitted_k),
-        //                 make_tuple(kargs.stride_B, 1),
-        //                 number<FlatmmPipeline::GetVectorSizeB()>{},
-        //                 number<1>{});
-        //         }
-        //     }
-        // }();
-
         // TODO: enable vector write for C in ColMajor
         const auto& c_tensor_view = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
@@ -421,29 +357,6 @@ struct MoeGemmKernel
                 make_tuple(sequence<0>{}, sequence<1>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
     }
-
-    // template <typename CView>
-    // CK_TILE_DEVICE static auto GetCTransformGemmView(const CView& view, const index_t token_id)
-    // {
-    //     if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, CLayout>)
-    //         return transform_tensor_view(
-    //             view,
-    //             make_tuple(make_indexing_transform(
-    //                            view.get_tensor_descriptor().get_length(number<0>()), token_id),
-    //                        make_pass_through_transform(
-    //                            view.get_tensor_descriptor().get_length(number<1>()))),
-    //             make_tuple(sequence<0>{}, sequence<1>{}),
-    //             make_tuple(sequence<0>{}, sequence<1>{}));
-    //     else
-    //         return transform_tensor_view(
-    //             view,
-    //             make_tuple(make_pass_through_transform(
-    //                            view.get_tensor_descriptor().get_length(number<0>())),
-    //                        make_indexing_transform(
-    //                            view.get_tensor_descriptor().get_length(number<1>()), token_id)),
-    //             make_tuple(sequence<0>{}, sequence<1>{}),
-    //             make_tuple(sequence<0>{}, sequence<1>{}));
-    // }
 
     template <typename PadView>
     CK_TILE_DEVICE static auto TransformGemmPadViews(const PadView& views, const index_t token_id)

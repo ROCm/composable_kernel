@@ -117,6 +117,68 @@ struct BlockFlatmmASmemBSmemCRegV1
             });
         });
     }
+
+    // C += A * B
+    template <typename CBlockTensor, typename ABlockTensor, typename BFlatBlockTensor>
+    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                   ABlockTensor& a_block_tensor,
+                                   BFlatBlockTensor& b_warp_tensor) const
+    {
+        constexpr index_t MPerBlock = BlockGemmShape::kM;
+        constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+        constexpr auto config = BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t MWarp = config.template at<1>();
+
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
+        constexpr index_t NIterPerWarp =
+            BlockTile::at(idxN) / (WarpTile::at(idxN) * BlockWarps::at(idxN));
+        constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+
+        using AWarpDstr   = typename WG::AWarpDstr;
+        using CWarpDstr   = typename WG::CWarpDstr;
+        using AWarpTensor = typename WG::AWarpTensor;
+        using CWarpTensor = typename WG::CWarpTensor;
+
+        constexpr auto a_warp_y_lengths =
+            to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+
+        constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+        // hot loop:
+        static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                // read A warp tensor from A block window
+                AWarpTensor a_warp_tensor;
+                a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    // read C warp tensor from C block tensor
+                    CWarpTensor c_warp_tensor;
+
+                    c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                    // warp GEMM
+                    WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor(nIter)(kIter));
+
+                    // write C warp tensor into C block tensor
+                    c_block_tensor.set_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                        c_warp_tensor.get_thread_buffer());
+                });
+            });
+        });
+    }
 };
 
 } // namespace ck_tile
