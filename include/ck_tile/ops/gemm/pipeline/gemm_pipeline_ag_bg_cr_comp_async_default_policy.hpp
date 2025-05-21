@@ -17,6 +17,8 @@ namespace ck_tile {
 struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
     : public UniversalGemmBasePolicy<GemmPipelineAgBgCrCompAsyncDefaultPolicy>
 {
+    static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
+    static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()

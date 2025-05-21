@@ -99,9 +99,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
-    static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
-    static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
-
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
