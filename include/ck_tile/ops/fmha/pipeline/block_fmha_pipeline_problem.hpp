@@ -53,7 +53,6 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
     static constexpr bool kHasLogitsSoftCap = Traits::kHasLogitsSoftCap;
-    static constexpr bool kIsChunkedPrefill = Traits::kIsChunkedPrefill;
     static constexpr auto BiasEnum          = Traits::BiasEnum;
     static constexpr bool kStoreLSE         = Traits::kStoreLSE;
     static constexpr bool kHasDropout       = Traits::kHasDropout;
