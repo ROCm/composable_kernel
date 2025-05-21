@@ -9,6 +9,27 @@
 
 namespace ck_tile {
 
+// Helper type traits to check if Derived class has ATileAccessPattern and BTileAccessPattern
+template <typename T, typename = void>
+struct has_a_tile_access_pattern : std::false_type
+{
+};
+
+template <typename T>
+struct has_a_tile_access_pattern<T, std::void_t<decltype(T::ATileAccessPattern)>> : std::true_type
+{
+};
+
+template <typename T, typename = void>
+struct has_b_tile_access_pattern : std::false_type
+{
+};
+
+template <typename T>
+struct has_b_tile_access_pattern<T, std::void_t<decltype(T::BTileAccessPattern)>> : std::true_type
+{
+};
+
 template <typename Derived>
 struct UniversalGemmBasePolicy
 {
@@ -16,8 +37,33 @@ struct UniversalGemmBasePolicy
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
 
-    static constexpr auto ATileAccessPattern = tile_distribution_pattern::thread_raked;
-    static constexpr auto BTileAccessPattern = tile_distribution_pattern::thread_raked;
+    // Default tile access patterns
+    static constexpr auto DefaultATileAccessPattern = tile_distribution_pattern::thread_raked;
+    static constexpr auto DefaultBTileAccessPattern = tile_distribution_pattern::thread_raked;
+
+    // Get ATileAccessPattern from Derived if it exists, otherwise use default
+    static constexpr auto ATileAccessPattern = []() {
+        if constexpr(has_a_tile_access_pattern<Derived>::value)
+        {
+            return Derived::ATileAccessPattern;
+        }
+        else
+        {
+            return DefaultATileAccessPattern;
+        }
+    }();
+
+    // Get BTileAccessPattern from Derived if it exists, otherwise use default
+    static constexpr auto BTileAccessPattern = []() {
+        if constexpr(has_b_tile_access_pattern<Derived>::value)
+        {
+            return Derived::BTileAccessPattern;
+        }
+        else
+        {
+            return DefaultBTileAccessPattern;
+        }
+    }();
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
@@ -131,10 +177,10 @@ struct UniversalGemmBasePolicy
             constexpr index_t BlockSize   = Problem::kBlockSize;
             constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
             using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          KPerBlock,
-                                                                          NPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern>;
+                                                                              KPerBlock,
+                                                                              NPerBlock,
+                                                                              VecLoadSize,
+                                                                              BTileAccessPattern>;
 
             constexpr auto BK0 = number<TileEncodingPattern::X1>{};
             constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
@@ -575,14 +621,14 @@ struct UniversalGemmPipelineAgBgCrPolicy
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
-                                                typename Problem::ComputeDataType,
-                                                typename Problem::CDataType,
-                                                WarpTile::at(I0),
-                                                WarpTile::at(I1),
-                                                WarpTile::at(I2),
-                                                Problem::TransposeC,
-                                                false,
-                                                Problem::UseStructuredSparsity>;
+                                                       typename Problem::ComputeDataType,
+                                                       typename Problem::CDataType,
+                                                       WarpTile::at(I0),
+                                                       WarpTile::at(I1),
+                                                       WarpTile::at(I2),
+                                                       Problem::TransposeC,
+                                                       false,
+                                                       Problem::UseStructuredSparsity>;
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
                                                                       typename Problem::CDataType,

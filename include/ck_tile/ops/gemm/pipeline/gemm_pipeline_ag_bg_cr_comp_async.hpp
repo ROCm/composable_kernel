@@ -99,6 +99,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
+    static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
+    static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
@@ -328,11 +331,11 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                                  {0, 0},
                                  BLdsTileDistr);
 
-            static_assert(
-                !(is_tile_window_linear_v<decltype(a_lds_ld_window0)>)&&!(is_tile_window_linear_v<decltype(a_lds_ld_window1)>)&&!(
-                    is_tile_window_linear_v<
-                        decltype(b_lds_ld_window0)>)&&!(is_tile_window_linear_v<decltype(b_lds_ld_window1)>),
-                "LDS windows must not be linear");
+            static_assert(!(is_tile_window_linear_v<decltype(a_lds_ld_window0)>) &&
+                              !(is_tile_window_linear_v<decltype(a_lds_ld_window1)>) &&
+                              !(is_tile_window_linear_v<decltype(b_lds_ld_window0)>) &&
+                              !(is_tile_window_linear_v<decltype(b_lds_ld_window1)>),
+                          "LDS windows must not be linear");
             buffer_load_fence(a_number_of_access + b_number_of_access);
 
             block_sync_lds();
