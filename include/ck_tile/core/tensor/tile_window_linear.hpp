@@ -935,7 +935,8 @@ struct tile_window_linear
 
         WINDOW_DISPATCH_ISSUE();
     }
-    // *_extended() functions acts like a virtual function with a default implementation exisiting in the base class
+    // *_extended() functions acts like a virtual function with a default implementation exisiting
+    // in the base class
     CK_TILE_DEVICE void move_extended(const typename Base::BottomTensorIndex& step)
     {
         static_for<0, NumAccess, 1>{}([&](auto i_access) {
