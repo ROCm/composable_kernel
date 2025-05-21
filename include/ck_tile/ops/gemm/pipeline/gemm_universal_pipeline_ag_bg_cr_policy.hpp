@@ -518,7 +518,7 @@ struct UniversalGemmBasePolicy
                                                                           NPerBlock,
                                                                           KPerBlock,
                                                                           VecLoadSize,
-                                                                          getATileAccessPattern()>;
+                                                                          getBTileAccessPattern()>;
             return TileEncodingPattern::Make2DStaticTileDistribution();
         }
     }
