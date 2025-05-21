@@ -222,6 +222,9 @@
 // TODO: separate index calculation into "compile-time", "global", "block", "wave", "thread"
 #define CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE 0
 
+// workaround: conv crash when K, C is even
+#define CK_WORKAROUND_DISABLE_FILTER1x1STRIDE1PAD0_WHEN_K_C_IS_EVEN 1
+
 // workaround: compiler crash when compiling recursive lambda
 #define CK_WORKAROUND_SWDEV_275126 1
 

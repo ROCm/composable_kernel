@@ -50,20 +50,23 @@ struct MoeSortingProblemEx
 };
 
 template <typename IndexType_,
-          typename WeightType_,
-          index_t SubTokenTile_,    // 1,2,4
+          typename WeightType_, // used for expert mesh in ws
+          typename MeshType_,
+          index_t SubTokenTile_,    // 1,2,4,8
           bool LocalExpertMasking_, // used in EP case
           bool SkipExpertsWithZeroTokens_ = true>
 struct MoeSortingProblemMp
 {
     // TODO: this kernel only support warp per row
     using WeightType = remove_cvref_t<WeightType_>;
+    using MeshType   = remove_cvref_t<MeshType_>;
     using IndexType  = remove_cvref_t<IndexType_>;
 
     static constexpr index_t SubTokenTile           = SubTokenTile_;
     static constexpr bool LocalExpertMasking        = LocalExpertMasking_;
     static constexpr bool SkipExpertsWithZeroTokens = SkipExpertsWithZeroTokens_;
-    static_assert(SubTokenTile == 1 || SubTokenTile == 2 || SubTokenTile == 4);
+    static_assert(SubTokenTile == 1 || SubTokenTile == 2 || SubTokenTile == 4 ||
+                  SubTokenTile == 8 || SubTokenTile == 16);
 };
 
 } // namespace ck_tile
