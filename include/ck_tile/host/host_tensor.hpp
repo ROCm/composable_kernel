@@ -87,14 +87,14 @@ CK_TILE_HOST auto construct_f_unpack_args(F, T args)
 
 /**
  * @brief Descriptor for tensors in host memory.
- * 
- * HostTensorDescriptor manages the shape (dimensions) and memory layout (strides) 
+ *
+ * HostTensorDescriptor manages the shape (dimensions) and memory layout (strides)
  * of a tensor in host memory. It provides functionality to:
  * - Store tensor dimensions and strides
  * - Calculate default strides for contiguous memory layout
  * - Convert multi-dimensional indices to linear memory offsets
  * - Query tensor metadata (dimensions, element counts, etc.)
- * 
+ *
  * The class supports both automatic stride calculation for contiguous memory layout
  * and custom strides for more complex memory patterns.
  */
@@ -153,13 +153,13 @@ struct HostTensorDescriptor
     std::size_t get_num_of_dimension() const { return mLens.size(); }
     /**
      * @brief Calculates the total number of elements in the tensor.
-     * 
+     *
      * Computes the product of all dimension lengths to determine the
      * total element count in the tensor.
-     * 
+     *
      * @pre The lengths array (mLens) and strides array (mStrides) must have
      *      the same size.
-     * 
+     *
      * @return The total number of elements in the tensor.
      */
     std::size_t get_element_size() const
@@ -170,14 +170,14 @@ struct HostTensorDescriptor
     }
     /**
      * @brief Calculates the total element space required for the tensor in memory.
-     * 
+     *
      * This method computes the minimum size of contiguous memory needed to store
      * all elements of the tensor, taking into account the tensor's dimensions and
      * strides. The calculation is based on the formula: 1 + max((length_i - 1) * stride_i)
      * across all dimensions.
-     * 
+     *
      * Dimensions with length 0 are skipped in this calculation.
-     * 
+     *
      * @return The size of the tensor's element space (number of elements).
      */
     std::size_t get_element_space_size() const
@@ -206,11 +206,11 @@ struct HostTensorDescriptor
      *
      * Converts a set of N-dimensional indices into a single linear offset by computing
      * the inner product of the indices with the tensor's strides.
-     * 
+     *
      * @tparam Is Parameter pack of index types (should be convertible to std::size_t)
      * @param is Variable number of indices, one for each dimension of the tensor
      * @return std::size_t Linear offset corresponding to the given multi-dimensional indices
-     * 
+     *
      * @pre The number of indices must match the number of dimensions in the tensor
      */
     template <typename... Is>
@@ -223,10 +223,10 @@ struct HostTensorDescriptor
 
     /**
      * @brief Calculates the linear memory offset from a multi-dimensional index
-     * 
+     *
      * Computes the linear offset by performing an inner product between the provided
      * multi-dimensional indices and the tensor's strides.
-     * 
+     *
      * @param iss Vector containing the multi-dimensional indices
      * @return The calculated linear offset as a size_t
      */
@@ -251,7 +251,7 @@ struct HostTensorDescriptor
     }
 
     private:
-    std::vector<std::size_t> mLens; ///< Lengths of each dimension
+    std::vector<std::size_t> mLens;    ///< Lengths of each dimension
     std::vector<std::size_t> mStrides; ///< Strides for each dimension
 };
 
@@ -740,17 +740,18 @@ struct HostTensor
 
 /**
  * @brief Creates a host tensor descriptor with specified dimensions and layout
- * 
- * Constructs a HostTensorDescriptor with appropriate strides based on whether the tensor 
- * layout is row-major or column-major. This is determined via the compile-time template 
+ *
+ * Constructs a HostTensorDescriptor with appropriate strides based on whether the tensor
+ * layout is row-major or column-major. This is determined via the compile-time template
  * parameter `is_row_major`.
- * 
- * @tparam is_row_major Compile-time flag indicating if the layout is row-major (true) or column-major (false)
- * 
+ *
+ * @tparam is_row_major Compile-time flag indicating if the layout is row-major (true) or
+ * column-major (false)
+ *
  * @param row Number of rows in the tensor
  * @param col Number of columns in the tensor
  * @param stride Stride between adjacent rows (for row-major) or columns (for column-major)
- * 
+ *
  * @return HostTensorDescriptor with shape {row, col} and strides:
  *         - For row-major: {stride, 1}
  *         - For column-major: {1, stride}

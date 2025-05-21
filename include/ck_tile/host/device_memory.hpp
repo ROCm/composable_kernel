@@ -21,27 +21,27 @@ __global__ void set_buffer_value(T* p, T x, uint64_t buffer_element_size)
 
 /**
  * @brief Manages device memory allocation and host-device data transfers
- * 
+ *
  * DeviceMem encapsulates GPU memory management operations using HIP runtime API.
  * It provides functionality for allocating device memory, transferring data between
  * host and device, and performing basic memory operations.
- * 
+ *
  * Key features:
  * - Automatic memory allocation and deallocation
  * - Host-to-device and device-to-host data transfers
  * - Memory initialization operations
  * - Integration with HostTensor for simplified data handling
- * 
+ *
  * Usage example:
  * ```
  * // Allocate device memory
  * BHostTensor<float> AHostData({256});
  * DeviceMem d_mem(BHostData.get_element_space_size_in_bytes());
- * 
+ *
  * // Transfer data to device
  * HostTensor<float> AHostTensor({256});
  * d_mem.ToDevice(AHostData.data());
- * 
+ *
  * // Retrieve data from device
  * HostTensor<float> ResultHostTensor({256});
  * d_mem.FromDevice(ResultHostTensor.data());
@@ -188,7 +188,7 @@ struct DeviceMem
         }
     }
 
-    void* mpDeviceBuf; ///< pointer to device buffer
+    void* mpDeviceBuf;    ///< pointer to device buffer
     std::size_t mMemSize; ///< size of device buffer in bytes
 };
 
