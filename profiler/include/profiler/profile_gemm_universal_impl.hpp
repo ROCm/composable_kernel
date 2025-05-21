@@ -105,9 +105,9 @@ bool profile_gemm_universal_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetElementSpaceSizeInBytes());
+    DeviceMem b_device_buf(b_k_n_permute.GetElementSpaceSizeInBytes());
+    DeviceMem c_device_buf(c_m_n_device_result.GetElementSpaceSizeInBytes());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
 
