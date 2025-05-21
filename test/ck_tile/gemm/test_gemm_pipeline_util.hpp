@@ -36,8 +36,7 @@ enum struct GemmPipelineType
 {
     Mem,
     CompV3,
-    CompV4,
-    Async
+    CompV4
 };
 
 template <GemmPipelineType PT, typename Problem>
@@ -62,13 +61,6 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
 {
     using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<Problem>;
     using pipeline      = ck_tile::GemmPipelineAgBgCrCompV4<Problem>;
-};
-
-template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::Async, Problem>
-{
-    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompAsync<Problem>;
-    using pipeline      = ck_tile::GemmPipelineAgBgCrCompAsync<Problem>;
 };
 
 template <typename Pipeline, ck_tile::TailNumber TN>
@@ -105,10 +97,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         // TODO: This should be parameterized in tests
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile =
-            (PipelineType == GemmPipelineType::CompV4 || PipelineType == GemmPipelineType::Async)
-                ? 32
-                : 64;
+        constexpr ck_tile::index_t K_Tile = (PipelineType == GemmPipelineType::CompV4) ? 32 : 64;
 
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
@@ -122,10 +111,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool kPadN = PadN;
         constexpr bool kPadK = PadK;
 
-        constexpr bool DoubleSmemBuffer =
-            (PipelineType == GemmPipelineType::CompV4 || PipelineType == GemmPipelineType::Async)
-                ? true
-                : false;
+        constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
 
         // TODO: For now - but this should also be a test parameter
         constexpr bool TransposeC = false;

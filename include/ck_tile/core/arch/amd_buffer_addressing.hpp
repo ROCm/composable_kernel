@@ -78,9 +78,6 @@ struct buffer_store;
 template <index_t bytes>
 struct buffer_store_if;
 
-template <index_t bytes, bool pre_nop = false>
-struct async_buffer_load;
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
 // TODO: strict aliasing rule seems fail when reinterpret_cast between vector type
@@ -1651,90 +1648,6 @@ CK_TILE_DEVICE void amd_buffer_load_raw_impl(thread_buffer<T, N>& dst,
     }
 }
 
-template <bool pre_nop>
-struct async_buffer_load<16, pre_nop>
-{
-    template <typename T>
-    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* smem,
-                                   int32x4_t rsrc /*buffer resource*/,
-                                   index_t v_offset,
-                                   index_t /*s_offset*/,
-                                   index_t i_offset /*max 0xFFF*/,
-                                   index_t /*flag*/       = 0,
-                                   bool_constant<pre_nop> = {})
-    {
-#if defined(__gfx950__)
-        asm volatile("s_nop 4\n"
-                     "buffer_load_dwordx4 %1, %2, 0 offen offset:%3 lds"
-                     : "=r"(smem) /*dummy dependency for smem*/
-                     : "v"(v_offset), "s"(rsrc), "n"(i_offset)
-                     : "memory");
-        // __builtin_amdgcn_struct_buffer_load_lds(rsrc, smem, 16, i_offset, v_offset, 0, 0, 0);
-#else
-        ignore = smem;
-        ignore = rsrc;
-        ignore = v_offset;
-        ignore = i_offset;
-#endif
-    }
-};
-
-template <bool pre_nop>
-struct async_buffer_load<12, pre_nop>
-{
-    template <typename T>
-    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* smem,
-                                   int32x4_t rsrc /*buffer resource*/,
-                                   index_t v_offset,
-                                   index_t /*s_offset*/,
-                                   index_t i_offset /*max 0xFFF*/,
-                                   index_t /*flag*/       = 0,
-                                   bool_constant<pre_nop> = {})
-    {
-#if defined(__gfx950__)
-        asm volatile("s_nop 4\n"
-                     "buffer_load_dwordx3 %1, %2, 0 offen offset:%3 lds"
-                     : "=r"(smem) /*dummy dependency for smem*/
-                     : "v"(v_offset), "s"(rsrc), "n"(i_offset)
-                     : "memory");
-        // __builtin_amdgcn_struct_buffer_load_lds(rsrc, smem, 12, i_offset, v_offset, 0, 0, 0);
-#else
-        ignore = smem;
-        ignore = rsrc;
-        ignore = v_offset;
-        ignore = i_offset;
-#endif
-    }
-};
-
-template <bool pre_nop>
-struct async_buffer_load<4, pre_nop>
-{
-    template <typename T>
-    CK_TILE_DEVICE void operator()(CK_TILE_LDS_ADDR T* smem,
-                                   int32x4_t rsrc /*buffer resource*/,
-                                   index_t v_offset,
-                                   index_t /*s_offset*/,
-                                   index_t i_offset /*max 0xFFF*/,
-                                   index_t /*flag*/       = 0,
-                                   bool_constant<pre_nop> = {})
-    {
-#if defined(__gfx950__)
-        asm volatile("s_nop 4\n"
-                     "buffer_load_dword %1, %2, 0 offen offset:%3 lds"
-                     : "=r"(smem) /*dummy dependency for smem*/
-                     : "v"(v_offset), "s"(rsrc), "n"(i_offset)
-                     : "memory");
-        // __builtin_amdgcn_struct_buffer_load_lds(rsrc, smem, 4, i_offset, v_offset, 0, 0, 0);
-#else
-        ignore = smem;
-        ignore = rsrc;
-        ignore = v_offset;
-        ignore = i_offset;
-#endif
-    }
-};
-
 template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
@@ -1746,18 +1659,6 @@ CK_TILE_DEVICE void amd_async_buffer_load_impl(CK_TILE_LDS_ADDR T* smem,
                                                index_t src_immediate_addr_offset = 0,
                                                bool_constant<pre_nop>            = {})
 {
-#if defined(__gfx950__)
-    constexpr index_t bytes = sizeof(T) * N;
-    static_assert(bytes == 4 || bytes == 12 || bytes == 16,
-                  "wrong! only support in dword, dwordx3, dwordx4");
-    async_buffer_load<bytes, pre_nop>{}(smem,
-                                        src_wave_buffer_resource,
-                                        src_thread_addr_offset,
-                                        src_wave_addr_offset,
-                                        src_immediate_addr_offset,
-                                        0,
-                                        bool_constant<pre_nop>{});
-#else
     static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
 
     async_buffer_load_dword_v(smem,
@@ -1767,7 +1668,6 @@ CK_TILE_DEVICE void amd_async_buffer_load_impl(CK_TILE_LDS_ADDR T* smem,
                               src_immediate_addr_offset,
                               0,
                               bool_constant<pre_nop>{});
-#endif
 }
 
 template <typename T,
@@ -1782,10 +1682,13 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
                                           index_t flag                         = 0,
                                           bool_constant<oob_conditional_check> = {})
 {
-    // #if defined(__gfx950__)
     constexpr index_t bytes = sizeof(T) * N;
+#if defined(__gfx950__)
     static_assert(bytes == 4 || bytes == 12 || bytes == 16,
                   "wrong! only support in dword, dwordx3, dwordx4");
+#else
+    static_assert(bytes == 4, "wrong! not implemented vector size");
+#endif
     ignore = src_wave_addr_offset;
     ignore = src_immediate_addr_offset;
     if constexpr(oob_conditional_check)

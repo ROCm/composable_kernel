@@ -33,11 +33,11 @@ struct GemmPipelineAgBgCrImplBase
     }
 
     template <typename DstBlockWindow, typename SrcTileWindow, typename DramTileWindowStep>
-    CK_TILE_DEVICE void GlobalPrefetchAsync(DstBlockWindow& dst_block_tile,
+    CK_TILE_DEVICE void GlobalPrefetchAsync(DstBlockWindow& dst_block_window,
                                             SrcTileWindow& dram_tile_window,
                                             const DramTileWindowStep& dram_tile_window_step) const
     {
-        async_load_tile(dst_block_tile, dram_tile_window);
+        async_load_tile(dst_block_window, dram_tile_window);
         move_tile_window(dram_tile_window, dram_tile_window_step);
     }
 
