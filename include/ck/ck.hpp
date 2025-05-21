@@ -125,7 +125,7 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx9__) // for GPU code
+#elif defined(__gfx9__) || defined(__gfx12__) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
@@ -221,6 +221,9 @@
 // thread-invariant, otherwise it's a bug
 // TODO: separate index calculation into "compile-time", "global", "block", "wave", "thread"
 #define CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE 0
+
+// workaround: conv crash when K, C is even
+#define CK_WORKAROUND_DISABLE_FILTER1x1STRIDE1PAD0_WHEN_K_C_IS_EVEN 1
 
 // workaround: compiler crash when compiling recursive lambda
 #define CK_WORKAROUND_SWDEV_275126 1

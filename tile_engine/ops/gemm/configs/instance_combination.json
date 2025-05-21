@@ -1,5 +1,7 @@
 {
-   
+    "architecture": {
+        "values": ["gfx90a"]
+    },
     "layout_a": {
       "values": ["r"]
     },
@@ -7,10 +9,10 @@
       "values": ["c"]
     },
     "layout_c": {
-      "values": ["r"] 
+      "values": ["r"]
     },
     "datatype": {
-      "values": ["fp16"] 
+      "values": ["fp16"]
     },
     "tile_m": {
       "values": [256]
@@ -19,7 +21,7 @@
       "values": [256]
     },
     "tile_k": {
-      "values": [64, 32]
+      "values": [32]
     },
     "warp_m": {
       "values": [2]
@@ -49,7 +51,7 @@
       "values": [false]
     },
     "pipeline": {
-      "values": ["compv3", "mem"]
+      "values": ["compv3", "compv4", "mem"]
     },
     "scheduler": {
       "values": ["intrawave", "interwave"]

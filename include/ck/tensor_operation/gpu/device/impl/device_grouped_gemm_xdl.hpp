@@ -65,7 +65,7 @@ __global__ void
         group_id = index_t((left + right) / 2);
     }
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
         gemm_desc_ptr[group_id].a_ptr_,
         gemm_desc_ptr[group_id].b_ptr_,
         gemm_desc_ptr[group_id].ds_ptr_,
@@ -242,7 +242,6 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CDEElementwiseOperation,
-        InMemoryDataOperationEnum::Set,
         NumPrefetch, // NumGemmKPrefetchStage
         BlockSize,
         MPerBlock,
