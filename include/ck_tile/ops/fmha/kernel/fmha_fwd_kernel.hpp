@@ -1067,19 +1067,19 @@ struct FmhaFwdKernel
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
             kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
 
-            // # of required blocks is different in each groups, terminate unnecessary blocks
-            // earlier
-            if(kargs.seqlen_q <= i_m0)
-            {
-                return;
-            }
-
             if constexpr(kIsChunkedPrefill)
             {
                 if(kargs.seqlen_q <= kargs.min_seqlen_q)
                 {
                     return;
                 }
+            }
+
+            // # of required blocks is different in each groups, terminate unnecessary blocks
+            // earlier
+            if(kargs.seqlen_q <= i_m0)
+            {
+                return;
             }
 
             if(kargs.seqlen_k_ptr != nullptr)
