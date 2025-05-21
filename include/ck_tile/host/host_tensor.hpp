@@ -741,19 +741,19 @@ struct HostTensor
 /**
  * @brief Creates a host tensor descriptor with specified dimensions and layout
  * 
- * This function constructs a HostTensorDescriptor with appropriate strides based on
- * whether the layout is row-major or column-major.
+ * Constructs a HostTensorDescriptor with appropriate strides based on whether the tensor 
+ * layout is row-major or column-major. This is determined via the compile-time template 
+ * parameter `is_row_major`.
  * 
- * @tparam is_row_major Boolean flag indicating whether tensor layout is row-major (true) or column-major (false)
+ * @tparam is_row_major Compile-time flag indicating if the layout is row-major (true) or column-major (false)
  * 
  * @param row Number of rows in the tensor
  * @param col Number of columns in the tensor
- * @param stride The stride value (distance between consecutive rows or columns)
- * @param bool_constant<is_row_major> Compile-time constant to determine the tensor layout
+ * @param stride Stride between adjacent rows (for row-major) or columns (for column-major)
  * 
- * @return HostTensorDescriptor configured with dimensions {row, col} and appropriate strides
- *         For row-major: strides = {stride, 1}
- *         For column-major: strides = {1, stride}
+ * @return HostTensorDescriptor with shape {row, col} and strides:
+ *         - For row-major: {stride, 1}
+ *         - For column-major: {1, stride}
  */
 template <bool is_row_major>
 auto host_tensor_descriptor(std::size_t row,
@@ -793,5 +793,4 @@ auto get_default_stride(std::size_t row,
     else
         return stride;
 }
-
 } // namespace ck_tile
