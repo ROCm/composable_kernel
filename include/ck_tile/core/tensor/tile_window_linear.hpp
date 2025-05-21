@@ -61,7 +61,7 @@ struct tile_window_linear
                                                  WindowLengths_,
                                                  StaticTileDistribution_>;
 
-    using DataType         = remove_cvref_t<typename Base::BottomTensorView::DataType>;
+    //using DataType         = remove_cvref_t<typename Base::BottomTensorView::DataType>;
     using LinearBottomDims = remove_cvref_t<LinearBottomDims_>;
 
     static_assert(LinearBottomDims::size() == Base::BottomTensorView::get_num_of_dimension());
@@ -71,80 +71,15 @@ struct tile_window_linear
 
     struct traits
     {
-        private:
-        // return vector dimension among [y0, y1, ...]
-        CK_TILE_DEVICE static constexpr auto get_window_adaptor_ys_safe_vector_length_strides()
-        {
-            // bottom tensor top dimension vector lengths and strides
-            const auto [bottom_tensor_top_dim_vector_lengths,
-                        bottom_tensor_top_dim_vector_strides] =
-                typename Base::BottomTensorDesc::get_top_dimension_safe_vector_length_strides();
-
-            // window vector lengths/strides
-            const auto window_adaptor_bottom_dim_vector_lengths =
-                bottom_tensor_top_dim_vector_lengths;
-            const auto window_adaptor_bottom_dim_vector_strides =
-                bottom_tensor_top_dim_vector_strides;
-
-            // window adaptor [p0, p1, ..., y0, y1, ...]
-            array<index_t, Base::WindowAdaptor::get_num_of_hidden_dimension()>
-                window_adaptor_vector_lengths{-1};
-            array<index_t, Base::WindowAdaptor::get_num_of_hidden_dimension()>
-                window_adaptor_vector_strides{-1};
-
-            constexpr auto window_adaptor_bottom_dims =
-                typename Base::WindowAdaptor::get_bottom_dimension_hidden_ids();
-
-            set_container_subset(window_adaptor_vector_lengths,
-                                 window_adaptor_bottom_dims,
-                                 window_adaptor_bottom_dim_vector_lengths);
-            set_container_subset(window_adaptor_vector_strides,
-                                 window_adaptor_bottom_dims,
-                                 window_adaptor_bottom_dim_vector_strides);
-
-            const auto [window_adaptor_ps_ys_vector_lengths, window_adaptor_ps_ys_vector_strides] =
-                typename Base::WindowAdaptor{}.get_top_dimension_safe_vector_length_strides(
-                    window_adaptor_vector_lengths, window_adaptor_vector_strides);
-
-            // [y0, y1, ...]
-            constexpr auto y_dims =
-                typename arithmetic_sequence_gen<Base::TileDstr::get_num_of_dimension_p(),
-                                                 Base::NDimWindowAdaptorTop,
-                                                 1>::type{};
-
-            return make_tuple(get_container_subset(window_adaptor_ps_ys_vector_lengths, y_dims),
-                              get_container_subset(window_adaptor_ps_ys_vector_strides, y_dims));
-        }
-
-        static constexpr auto get_vector_dim_y_scalar_per_vector()
-        {
-            const auto [ys_vector_lengths, ys_vector_strides] =
-                get_window_adaptor_ys_safe_vector_length_strides();
-
-            index_t VectorDimY_      = 0;
-            index_t ScalarPerVector_ = 1;
-
-            for(index_t i = 0; i < Base::NDimY; ++i)
-            {
-                if(ys_vector_strides[i] == 1 && ys_vector_lengths[i] > ScalarPerVector_)
-                {
-                    ScalarPerVector_ = ys_vector_lengths[i];
-                    VectorDimY_      = i;
-                }
-            }
-
-            return make_tuple(VectorDimY_, ScalarPerVector_);
-        }
-
         public:
-        static constexpr index_t PackedSize =
-            ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
-        static constexpr index_t VectorDimY = get_vector_dim_y_scalar_per_vector().template at<0>();
+
+        static constexpr index_t VectorDimY =
+            Base::Traits::get_vector_dim_y_scalar_per_vector().template at<0>();
         static constexpr index_t ScalarPerVector =
-            get_vector_dim_y_scalar_per_vector().template at<1>();
+            Base::Traits::get_vector_dim_y_scalar_per_vector().template at<1>();
 
-        using vector_t = thread_buffer<DataType, ScalarPerVector / PackedSize>;
-
+        using vector_t =
+            thread_buffer<typename Base::DataType, ScalarPerVector / Base::Traits::PackedSize>;
         private:
         static constexpr auto scalars_per_access_ = [] {
             constexpr auto scalars_per_access_arr =
@@ -425,7 +360,7 @@ struct tile_window_linear
 
         constexpr auto tile_dstr = typename Base::TileDstr{};
 
-        auto dst_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
+        auto dst_tensor = make_static_distributed_tensor<typename Base::DataTypeDataType>(tile_dstr);
 
         auto issue = [&](auto i_access_) {
             constexpr auto IAccess = number<i_access_>{};
@@ -447,7 +382,7 @@ struct tile_window_linear
             // data index [y0, y1, ...]
             constexpr auto idx_diff_ys = SFC_Ys::get_index(IAccess);
             // write into distributed tensor
-            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, Base::Traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_diff_ys[jj] + j) : idx_diff_ys[jj];
@@ -455,10 +390,10 @@ struct tile_window_linear
                     number<Base::NDimY>{});
 
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
-                                      traits::PackedSize;
+                                      Base::Traits::PackedSize;
 
                 dst_tensor.get_thread_buffer().template at<d>() =
-                    vec_value.template get_as<DataType>()[j / traits::PackedSize];
+                    vec_value.template get_as<typename Base::DataTypeDataType>()[j / Base::Traits::PackedSize];
             });
 #else
             constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
@@ -506,7 +441,7 @@ struct tile_window_linear
             // data index [y0, y1, ...]
             constexpr auto idx_diff_ys = SFC_Ys::get_index(IAccess);
             // write into distributed tensor
-            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, Base::Traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_diff_ys[jj] + j) : idx_diff_ys[jj];
@@ -514,10 +449,10 @@ struct tile_window_linear
                     number<Base::NDimY>{});
 
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
-                                      traits::PackedSize;
+                                      Base::Traits::PackedSize;
 
                 dst_tensor.get_thread_buffer().template at<d>() =
-                    vec_value.template get_as<DataType>()[j / traits::PackedSize];
+                    vec_value.template get_as<typename Base::DataTypeDataType>()[j / Base::Traits::PackedSize];
             });
 #else
             constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
@@ -546,9 +481,9 @@ struct tile_window_linear
         using SFC_Ys   = typename traits::SFC_Ys;
         static constexpr index_t YElementSize =
             typename Base::TileDstr{}.get_ys_to_d_descriptor().get_element_space_size();
-        static_assert(YElementSize % (traits::PackedSize * traits::ScalarPerVector) == 0);
+        static_assert(YElementSize % (Base::Traits::PackedSize * traits::ScalarPerVector) == 0);
         using vectorized_tbuf =
-            array<vector_t, YElementSize / (traits::PackedSize * traits::ScalarPerVector)>;
+            array<vector_t, YElementSize / (Base::Traits::PackedSize* traits::ScalarPerVector)>;
 
         constexpr auto tile_dstr = typename Base::TileDstr{};
 
@@ -574,7 +509,7 @@ struct tile_window_linear
             constexpr auto idx_ys_start = SFC_Ys::get_index(IAccess);
             constexpr index_t d =
                 tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start) /
-                traits::PackedSize;
+                Base::Traits::PackedSize;
             static_assert(d % traits::ScalarPerVector == 0);
 
             this->get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
@@ -736,7 +671,7 @@ struct tile_window_linear
 
     template <index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void
-    store(const static_distributed_tensor<DataType, typename Base::TileDstr>& dstr_tensor,
+    store(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>& dstr_tensor,
           number<i_access>                     = {},
           bool_constant<oob_conditional_check> = {}) const
     {
@@ -759,7 +694,7 @@ struct tile_window_linear
             // read from distributed tensor
             vector_t vec_value;
 
-            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, Base::Traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
@@ -767,9 +702,9 @@ struct tile_window_linear
                     number<Base::NDimY>{});
 
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
-                                      traits::PackedSize;
+                                      Base::Traits::PackedSize;
 
-                vec_value.template get_as<DataType>()(j / traits::PackedSize) =
+                vec_value.template get_as<typename Base::DataType>()(j / Base::Traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
@@ -787,7 +722,7 @@ struct tile_window_linear
 
     template <index_t i_access = -1>
     CK_TILE_DEVICE void
-    store_raw(const static_distributed_tensor<DataType, typename Base::TileDstr>& dstr_tensor,
+    store_raw(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>& dstr_tensor,
               number<i_access> = {}) const
     {
         using vector_t = typename traits::vector_t;
@@ -809,15 +744,15 @@ struct tile_window_linear
 
             // read from distributed tensor
             vector_t vec_value;
-            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, Base::Traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
                     },
                     number<Base::NDimY>{});
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
-                                      traits::PackedSize;
-                vec_value.template get_as<DataType>()(j / traits::PackedSize) =
+                                      Base::Traits::PackedSize;
+                vec_value.template get_as<typename Base::DataType>()(j / Base::Traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
@@ -832,7 +767,7 @@ struct tile_window_linear
 
     template <index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void
-    update(const static_distributed_tensor<DataType, typename Base::TileDstr>& dstr_tensor,
+    update(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>& dstr_tensor,
            number<i_access>                     = {},
            bool_constant<oob_conditional_check> = {}) const
     {
@@ -856,7 +791,7 @@ struct tile_window_linear
             // read from distributed tensor
             vector_t vec_value;
 
-            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, Base::Traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
@@ -864,9 +799,9 @@ struct tile_window_linear
                     number<Base::NDimY>{});
 
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
-                                      traits::PackedSize;
+                                      Base::Traits::PackedSize;
 
-                vec_value.template get_as<DataType>()(j / traits::PackedSize) =
+                vec_value.template get_as<typename Base::DataTypeDataType>()(j / Base::Traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
@@ -884,7 +819,7 @@ struct tile_window_linear
 
     template <index_t i_access = -1, bool oob_conditional_check = true, bool pre_nop = false>
     CK_TILE_DEVICE void
-    update_raw(const static_distributed_tensor<DataType, typename Base::TileDstr>& dstr_tensor,
+    update_raw(const static_distributed_tensor<typename Base::DataType, typename Base::TileDstr>& dstr_tensor,
                number<i_access>                     = {},
                bool_constant<oob_conditional_check> = {},
                bool_constant<pre_nop>               = {}) const
@@ -909,7 +844,7 @@ struct tile_window_linear
             // read from distributed tensor
             vector_t vec_value;
 
-            static_for<0, traits::ScalarPerVector, traits::PackedSize>{}([&](auto j) {
+            static_for<0, traits::ScalarPerVector, Base::Traits::PackedSize>{}([&](auto j) {
                 constexpr auto idx_ys = generate_tuple(
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
@@ -917,9 +852,9 @@ struct tile_window_linear
                     number<Base::NDimY>{});
 
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
-                                      traits::PackedSize;
+                                      Base::Traits::PackedSize;
 
-                vec_value.template get_as<DataType>()(j / traits::PackedSize) =
+                vec_value.template get_as<typename Base::DataTypeDataType>()(j / Base::Traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 

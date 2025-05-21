@@ -60,33 +60,33 @@ struct tile_window_with_static_distribution
     struct load_store_traits
     {
         private:
-        static constexpr auto get_vector_dim_y_scalar_per_vector()
-        {
-            const auto [ys_vector_lengths, ys_vector_strides] =
-                tile_window_with_static_distribution::
-                    get_window_adaptor_ys_safe_vector_length_strides();
+        // static constexpr auto get_vector_dim_y_scalar_per_vector()
+        // {
+        //     const auto [ys_vector_lengths, ys_vector_strides] =
+        //         Base::
+        //             get_window_adaptor_ys_safe_vector_length_strides();
 
-            index_t VectorDimY_      = 0;
-            index_t ScalarPerVector_ = 1;
+        //     index_t VectorDimY_      = 0;
+        //     index_t ScalarPerVector_ = 1;
 
-            for(index_t i = 0; i < Base::NDimY; ++i)
-            {
-                if(ys_vector_strides[i] == 1 && ys_vector_lengths[i] > ScalarPerVector_)
-                {
-                    ScalarPerVector_ = ys_vector_lengths[i];
-                    VectorDimY_      = i;
-                }
-            }
+        //     for(index_t i = 0; i < Base::NDimY; ++i)
+        //     {
+        //         if(ys_vector_strides[i] == 1 && ys_vector_lengths[i] > ScalarPerVector_)
+        //         {
+        //             ScalarPerVector_ = ys_vector_lengths[i];
+        //             VectorDimY_      = i;
+        //         }
+        //     }
 
-            return make_tuple(VectorDimY_, ScalarPerVector_);
-        }
+        //     return make_tuple(VectorDimY_, ScalarPerVector_);
+        // }
 
         public:
         static constexpr index_t PackedSize =
             ck_tile::numeric_traits<remove_cvref_t<typename Base::DataType>>::PackedSize;
-        static constexpr index_t VectorDimY = get_vector_dim_y_scalar_per_vector().template at<0>();
+        static constexpr index_t VectorDimY = Base::Traits::get_vector_dim_y_scalar_per_vector().template at<0>();
         static constexpr index_t ScalarPerVector =
-            get_vector_dim_y_scalar_per_vector().template at<1>();
+            Base::Traits::get_vector_dim_y_scalar_per_vector().template at<1>();
 
         // using vector_type_t = vector_type_maker_t<DataType, ScalarPerVector>;
         // using vector_t      = typename vector_type_t::type;
@@ -180,45 +180,7 @@ struct tile_window_with_static_distribution
     }
 
     // return vector dimension among [y0, y1, ...]
-    CK_TILE_DEVICE static constexpr auto get_window_adaptor_ys_safe_vector_length_strides()
-    {
-        // bottom tensor top dimension vector lengths and strides
-        const auto [bottom_tensor_top_dim_vector_lengths, bottom_tensor_top_dim_vector_strides] =
-            Base::BottomTensorDesc::get_top_dimension_safe_vector_length_strides();
 
-        // window vector lengths/strides
-        const auto window_adaptor_bottom_dim_vector_lengths = bottom_tensor_top_dim_vector_lengths;
-        const auto window_adaptor_bottom_dim_vector_strides = bottom_tensor_top_dim_vector_strides;
-
-        // window adaptor [p0, p1, ..., y0, y1, ...]
-        array<index_t, Base::WindowAdaptor::get_num_of_hidden_dimension()>
-            window_adaptor_vector_lengths{-1};
-        array<index_t, Base::WindowAdaptor::get_num_of_hidden_dimension()>
-            window_adaptor_vector_strides{-1};
-
-        constexpr auto window_adaptor_bottom_dims =
-            Base::WindowAdaptor::get_bottom_dimension_hidden_ids();
-
-        set_container_subset(window_adaptor_vector_lengths,
-                             window_adaptor_bottom_dims,
-                             window_adaptor_bottom_dim_vector_lengths);
-        set_container_subset(window_adaptor_vector_strides,
-                             window_adaptor_bottom_dims,
-                             window_adaptor_bottom_dim_vector_strides);
-
-        const auto [window_adaptor_ps_ys_vector_lengths, window_adaptor_ps_ys_vector_strides] =
-            typename Base::WindowAdaptor{}.get_top_dimension_safe_vector_length_strides(
-                window_adaptor_vector_lengths, window_adaptor_vector_strides);
-
-        // [y0, y1, ...]
-        constexpr auto y_dims =
-            typename arithmetic_sequence_gen<Base::TileDstr::get_num_of_dimension_p(),
-                                             Base::NDimWindowAdaptorTop,
-                                             1>::type{};
-
-        return make_tuple(get_container_subset(window_adaptor_ps_ys_vector_lengths, y_dims),
-                          get_container_subset(window_adaptor_ps_ys_vector_strides, y_dims));
-    }
 
     CK_TILE_DEVICE constexpr auto get_num_of_access() const { return load_store_traits::NumAccess; }
 
