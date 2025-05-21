@@ -544,6 +544,7 @@ struct tile_window_with_static_distribution
                                    number<i_access_unsupport_>          = {},
                                    bool_constant<oob_conditional_check> = {}) const
     {
+#if defined(__HIP_DEVICE_COMPILE__)
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         using LdsDataType   = typename LdsTileWindow::DataType;
 #if defined(__gfx950__)
@@ -648,6 +649,9 @@ struct tile_window_with_static_distribution
                 }
             });
         });
+#endif
+#else
+        ignore = lds_tile;
 #endif
     }
 
