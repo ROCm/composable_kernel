@@ -89,7 +89,7 @@ using KernelTypes_KM_KN = ::testing::Types<
     std::tuple<       F8,       F16,             F16,       F16>,
     std::tuple<      F16,        F8,             F16,       F16>,
 #endif
-    std::tuple<      F16,       F16,             F16,      F16>
+    std::tuple<      F16,       F16,             F16,       F16>
     >;
 // clang-format on
 

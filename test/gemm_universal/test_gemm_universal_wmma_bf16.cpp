@@ -10,7 +10,6 @@
 using I4   = ck::pk_i4_t;
 using BF16 = ck::bhalf_t;
 using F32  = float;
-using F16  = ck::half_t;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -61,7 +60,7 @@ using KernelTypes_MK_KN = ::testing::Types<
 using KernelTypes_MK_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
 #if defined(CK_ENABLE_FP8) 
-    std::tuple<     BF16,       I4,             BF16,       F16>,
+    std::tuple<     BF16,        I4,            BF16,      BF16>,
 #endif
     std::tuple<     BF16,      BF16,            BF16,      BF16>
     >;
@@ -73,6 +72,9 @@ using KernelTypes_KM_KN = ::testing::Types<
 
 using KernelTypes_KM_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
+#if defined(CK_ENABLE_FP8) 
+    std::tuple<     BF16,        I4,            BF16,      BF16>,
+#endif
     std::tuple<     BF16,      BF16,            BF16,      BF16>
     >;
 // clang-format on
