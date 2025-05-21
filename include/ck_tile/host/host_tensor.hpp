@@ -85,7 +85,6 @@ CK_TILE_HOST auto construct_f_unpack_args(F, T args)
     return construct_f_unpack_args_impl<F>(args, std::make_index_sequence<N>{});
 }
 
-struct HostTensorDescriptor
 /**
  * @brief Descriptor for tensors in host memory.
  * 
@@ -99,6 +98,7 @@ struct HostTensorDescriptor
  * The class supports both automatic stride calculation for contiguous memory layout
  * and custom strides for more complex memory patterns.
  */
+struct HostTensorDescriptor
 {
     HostTensorDescriptor() = default;
 
@@ -755,6 +755,27 @@ struct HostTensor
  *         For row-major: strides = {stride, 1}
  *         For column-major: strides = {1, stride}
  */
+template <bool is_row_major>
+auto host_tensor_descriptor(std::size_t row,
+                            std::size_t col,
+                            std::size_t stride,
+                            bool_constant<is_row_major>)
+{
+    using namespace ck_tile::literals;
+
+    if constexpr(is_row_major)
+    {
+        return HostTensorDescriptor({row, col}, {stride, 1_uz});
+    }
+    else
+    {
+        return HostTensorDescriptor({row, col}, {1_uz, stride});
+    }
+}
+
+template <bool is_row_major>
+auto get_default_stride(std::size_t row,
+                        std::size_t col,
                         std::size_t stride,
                         bool_constant<is_row_major>)
 {

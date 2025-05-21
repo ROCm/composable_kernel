@@ -20,11 +20,6 @@ __global__ void set_buffer_value(T* p, T x, uint64_t buffer_element_size)
 }
 
 /**
- * @brief Container for storing data in GPU device memory
- *
- */
-struct DeviceMem
-/**
  * @brief Manages device memory allocation and host-device data transfers
  * 
  * DeviceMem encapsulates GPU memory management operations using HIP runtime API.
@@ -52,6 +47,8 @@ struct DeviceMem
  * d_mem.FromDevice(ResultHostTensor.data());
  * ```
  */
+struct DeviceMem
+
 {
     DeviceMem() : mpDeviceBuf(nullptr), mMemSize(0) {}
     DeviceMem(std::size_t mem_size) : mMemSize(mem_size)

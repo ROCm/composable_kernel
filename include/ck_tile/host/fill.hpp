@@ -50,7 +50,46 @@ struct FillUniformDistribution
         {
             uint32_t num_thread  = std::thread::hardware_concurrency();
             auto total           = static_cast<std::size_t>(std::distance(first, last));
-            auto work_per_thread = static_cast<std::size_t>((total + num_thread - 
+            auto work_per_thread = static_cast<std::size_t>((total + num_thread - 1) / num_thread);
+
+            std::vector<joinable_thread> threads(num_thread);
+            for(std::size_t it = 0; it < num_thread; ++it)
+            {
+                std::size_t iw_begin = it * work_per_thread;
+                std::size_t iw_end   = std::min((it + 1) * work_per_thread, total);
+                auto thread_f        = [this, total, iw_begin, iw_end, &first] {
+                    if(iw_begin > total || iw_end > total)
+                        return;
+                    // need to make each thread unique, add an offset to current seed
+                    std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
+                                                              : std::random_device{}());
+                    std::uniform_real_distribution<float> dis(a_, b_);
+                    std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
+                        return ck_tile::type_convert<T>(dis(gen));
+                    });
+                };
+                threads[it] = joinable_thread(thread_f);
+            }
+        }
+        else
+        {
+            std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
+            std::uniform_real_distribution<float> dis(a_, b_);
+            std::generate(
+                first, last, [&dis, &gen]() { return ck_tile::type_convert<T>(dis(gen)); });
+        }
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillUniformDistribution&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
 
 namespace impl {
 
