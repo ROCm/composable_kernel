@@ -30,7 +30,16 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(int n_warmup,
                   int n_repeat,
                   int group_count,
@@ -40,10 +49,19 @@ float invoke_gemm(int n_warmup,
     ck_tile::DeviceMem gemm_workspace;
     gemm_workspace.Realloc(get_workspace_size(args));
 
-    float ave_time = grouped_gemm<ALayout, BLayout, CLayout>(
-        args,
-        ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
-        gemm_workspace.GetDeviceBuffer());
+    float ave_time =
+        grouped_gemm<ADataType,
+                     BDataType,
+                     DsDataType,
+                     AccDataType,
+                     CDataType,
+                     ALayout,
+                     BLayout,
+                     DsLayout,
+                     CLayout,
+                     CDEElementWise>(args,
+                                     ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
+                                     gemm_workspace.GetDeviceBuffer());
 
     std::string op_name{"Grouped Gemm"};
 
@@ -172,10 +190,18 @@ int run_grouped_gemm_example_with_layouts(int argc,
         // TODO Add support for kbatch > 1 in grouped gemm
         static constexpr ck_tile::index_t k_batch = 1;
         gemm_descs.push_back(
-            {p_a, p_b, p_c, k_batch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+            {p_a, p_b, {}, p_c, k_batch, M, N, K, stride_As[i], stride_Bs[i], {}, stride_Cs[i]});
     }
 
-    invoke_gemm<ALayout, BLayout, CLayout>(warmup, repeat, group_count, gemm_descs);
+    invoke_gemm<ADataType,
+                BDataType,
+                ck_tile::tuple<>,
+                AccDataType,
+                CDataType,
+                ALayout,
+                BLayout,
+                ck_tile::tuple<>,
+                CLayout>(warmup, repeat, group_count, gemm_descs);
 
     for(int i = 0; i < group_count; i++)
     {

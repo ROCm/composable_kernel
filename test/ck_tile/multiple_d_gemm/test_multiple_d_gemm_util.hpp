@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
 #include <sstream>
@@ -10,25 +10,69 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
+template <typename ADataType,
+          typename BDataType,
+          typename AcEDataType,
+          typename EDataType,
+          typename DsDataType>
+auto calculate_rtol_atol(const ck_tile::index_t K,
+                         const ck_tile::index_t kbatch,
+                         const float max_accumulated_value)
+{
+    using ComputeTypeAB =
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+
+    using ComputeType =
+        std::conditional_t<sizeof(ComputeTypeAB) < sizeof(DsDataType), ComputeTypeAB, DsDataType>;
+
+    // Calculate thresholds
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType, AcEDataType>(
+        ck_tile::integer_divide_ceil(K, kbatch));
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, EDataType, AcEDataType>(
+        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+    // Calculate error due to split_k accumulation
+    const auto rtol_split_k =
+        ck_tile::get_relative_threshold<EDataType, EDataType, EDataType>(kbatch);
+    const auto atol_split_k = ck_tile::get_absolute_threshold<EDataType, EDataType, EDataType>(
+        max_accumulated_value, kbatch);
+    // Use higher threshold
+    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
+
 template <typename Tuple>
-class TestCkTileBatchedGemm : public ::testing::Test
+class TestCkTileMultipleDGemm : public ::testing::Test
 {
     protected:
     using ALayout     = std::tuple_element_t<0, Tuple>;
     using BLayout     = std::tuple_element_t<1, Tuple>;
-    using CLayout     = std::tuple_element_t<2, Tuple>;
-    using ADataType   = std::tuple_element_t<3, Tuple>;
-    using BDataType   = std::tuple_element_t<4, Tuple>;
-    using AccDataType = std::tuple_element_t<5, Tuple>;
-    using CDataType   = std::tuple_element_t<6, Tuple>;
-    using DsLayout    = ck_tile::tuple<>;
-    using DsDataType  = ck_tile::tuple<>;
+    using D0Layout    = std::tuple_element_t<2, Tuple>;
+    using D1Layout    = std::tuple_element_t<3, Tuple>;
+    using ELayout     = std::tuple_element_t<4, Tuple>;
+    using ADataType   = std::tuple_element_t<5, Tuple>;
+    using BDataType   = std::tuple_element_t<6, Tuple>;
+    using D0DataType  = std::tuple_element_t<7, Tuple>;
+    using D1DataType  = std::tuple_element_t<8, Tuple>;
+    using AcEDataType = std::tuple_element_t<9, Tuple>;
+    using EDataType   = std::tuple_element_t<10, Tuple>;
+    using DsLayout    = ck_tile::tuple<D0Layout, D1Layout>;
+    using DsDataType  = ck_tile::tuple<D0DataType, D1DataType>;
 
-    template <typename ALayout, typename BLayout, typename CLayout>
-    void invoke_batched_gemm(const ck_tile::BatchedGemmHostArgs& args,
+    using CDEElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
+
+    template <typename ADataType,
+              typename BDataType,
+              typename DsDataType,
+              typename AcEDataType,
+              typename EDataType,
+              typename ALayout,
+              typename BLayout,
+              typename DsLayout,
+              typename ELayout,
+              typename CDEElementWise = ck_tile::element_wise::PassThrough>
+    void invoke_multi_d_gemm(const ck_tile::GemmHostArgs<DsDataType::size()>& args,
                              const ck_tile::stream_config& s)
     {
         constexpr ck_tile::index_t M_Tile = 256;
@@ -62,17 +106,17 @@ class TestCkTileBatchedGemm : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, ELayout>;
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
                                                                      ALayout,
                                                                      BLayout,
-                                                                     CLayout,
+                                                                     ELayout,
                                                                      TransposeC>;
         using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+            ck_tile::GemmPipelineProblem<ADataType, BDataType, AcEDataType, GemmShape, Traits>;
 
         using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
@@ -94,7 +138,7 @@ class TestCkTileBatchedGemm : public ::testing::Test
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                                BDataType,
-                                                                               AccDataType,
+                                                                               AcEDataType,
                                                                                GemmShape,
                                                                                GemmUniversalTraits,
                                                                                scheduler,
@@ -106,11 +150,11 @@ class TestCkTileBatchedGemm : public ::testing::Test
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
                                                  DsDataType,
-                                                 AccDataType,
-                                                 CDataType,
+                                                 AcEDataType,
+                                                 EDataType,
                                                  DsLayout,
-                                                 CLayout,
-                                                 ck_tile::element_wise::PassThrough,
+                                                 ELayout,
+                                                 CDEElementWise,
                                                  GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
@@ -121,10 +165,11 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                  K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
-            using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+
+            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids = Kernel::GridSize(args.M, args.N, args.k_batch, args.batch_count);
+            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
             constexpr dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
@@ -164,7 +209,6 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                                ck_tile::memory_operation_enum::atomic_add>{});
             }
         };
-
         if(has_hot_loop)
         {
             if(tail_num == ck_tile::TailNumber::Full)
@@ -197,31 +241,25 @@ class TestCkTileBatchedGemm : public ::testing::Test
     void Run(const int M,
              const int N,
              const int K,
-             int StrideA            = 512,
-             int StrideB            = 512,
-             int StrideC            = 256,
-             const int BatchStrideA = 131072,
-             const int BatchStrideB = 131072,
-             const int BatchStrideC = 65536,
-             const int BatchCount   = 8)
+             int StrideA  = 0,
+             int StrideB  = 0,
+             int StrideD0 = 0,
+             int StrideD1 = 0,
+             int StrideE  = 0)
     {
         using namespace ck_tile::literals;
 
-        auto f_host_tensor_descriptor = [](std::size_t batch_count_,
-                                           std::size_t row,
+        auto f_host_tensor_descriptor = [](std::size_t row,
                                            std::size_t col,
                                            std::size_t stride,
-                                           std::size_t batch_stride,
                                            auto layout) {
             if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                return ck_tile::HostTensorDescriptor({batch_count_, row, col},
-                                                     {batch_stride, stride, 1_uz});
+                return ck_tile::HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return ck_tile::HostTensorDescriptor({batch_count_, row, col},
-                                                     {batch_stride, 1_uz, stride});
+                return ck_tile::HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
@@ -229,7 +267,6 @@ class TestCkTileBatchedGemm : public ::testing::Test
             [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
                 if(stride == 0)
                 {
-                    // give a chance if stride is zero, return a default packed stride
                     if constexpr(std::is_same_v<decltype(layout),
                                                 ck_tile::tensor_layout::gemm::RowMajor>)
                     {
@@ -244,66 +281,104 @@ class TestCkTileBatchedGemm : public ::testing::Test
                     return stride;
             };
 
-        StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
-        StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
-        StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
+        StrideA  = f_get_default_stride(M, N, StrideA, ALayout{});
+        StrideB  = f_get_default_stride(K, N, StrideB, BLayout{});
+        StrideD0 = f_get_default_stride(M, N, StrideD0, D0Layout{});
+        StrideD1 = f_get_default_stride(M, N, StrideD1, D1Layout{});
+        StrideE  = f_get_default_stride(M, N, StrideE, ELayout{});
 
-        ck_tile::HostTensor<ADataType> a_m_k(
-            f_host_tensor_descriptor(BatchCount, M, K, StrideA, BatchStrideA, ALayout{}));
-        ck_tile::HostTensor<BDataType> b_k_n(
-            f_host_tensor_descriptor(BatchCount, K, N, StrideB, BatchStrideB, BLayout{}));
-        ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-            f_host_tensor_descriptor(BatchCount, M, N, StrideC, BatchStrideC, CLayout{}));
+        ck_tile::HostTensor<ADataType> a_m_k_tesnor(
+            f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
+        ck_tile::HostTensor<BDataType> b_k_n_tensors(
+            f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+        ck_tile::HostTensor<D0DataType> d0_m_n_tensors(
+            f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
+        ck_tile::HostTensor<D1DataType> d1_m_n_tensors(
+            f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
+        ck_tile::HostTensor<EDataType> e_m_n_device_result(
+            f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
-        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
+        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tesnor);
+        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors);
+        ck_tile::FillUniformDistribution<D0DataType>{-1.f, 1.f}(d0_m_n_tensors);
+        ck_tile::FillUniformDistribution<D1DataType>{-1.f, 1.f}(d1_m_n_tensors);
 
-        ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem a_m_k_dev_buf(a_m_k_tesnor.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem b_k_n_dev_buf(b_k_n_tensors.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem d0_m_n_dev_buf(d0_m_n_tensors.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem d1_m_n_dev_buf(d1_m_n_tensors.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem e_m_n_dev_buf(e_m_n_device_result.get_element_space_size_in_bytes());
 
-        a_m_k_dev_buf.ToDevice(a_m_k.data());
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
-        c_m_n_dev_buf.SetZero();
-        c_m_n_dev_result.SetZero();
+        a_m_k_dev_buf.ToDevice(a_m_k_tesnor.mData.data());
+        b_k_n_dev_buf.ToDevice(b_k_n_tensors.mData.data());
+        d0_m_n_dev_buf.ToDevice(d0_m_n_tensors.mData.data());
+        d1_m_n_dev_buf.ToDevice(d1_m_n_tensors.mData.data());
 
-        ck_tile::BatchedGemmHostArgs args;
-        args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
-        args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
-        args.e_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
-        args.k_batch        = 1;
-        args.M              = M;
-        args.N              = N;
-        args.K              = K;
-        args.stride_A       = StrideA;
-        args.stride_B       = StrideB;
-        args.stride_E       = StrideC;
-        args.batch_stride_A = BatchStrideA;
-        args.batch_stride_B = BatchStrideB;
-        args.batch_stride_E = BatchStrideC;
-        args.batch_count    = BatchCount;
+        e_m_n_dev_buf.SetZero();
+        e_m_n_device_result.SetZero();
 
-        invoke_batched_gemm<ALayout, BLayout, CLayout>(args,
-                                                       ck_tile::stream_config{nullptr, false});
+        std::array<const void*, DsDataType::size()> ds_ptr_buf = {d0_m_n_dev_buf.GetDeviceBuffer(),
+                                                                  d1_m_n_dev_buf.GetDeviceBuffer()};
+        std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
+
+        ck_tile::GemmHostArgs<DsDataType::size()> args({a_m_k_dev_buf.GetDeviceBuffer(),
+                                                        b_k_n_dev_buf.GetDeviceBuffer(),
+                                                        ds_ptr_buf,
+                                                        e_m_n_dev_buf.GetDeviceBuffer(),
+                                                        /* kBatch */ 1,
+                                                        M,
+                                                        N,
+                                                        K,
+                                                        StrideA,
+                                                        StrideB,
+                                                        stridesDs,
+                                                        StrideE});
+
+        invoke_multi_d_gemm<ADataType,
+                            BDataType,
+                            DsDataType,
+                            AcEDataType,
+                            EDataType,
+                            ALayout,
+                            BLayout,
+                            DsLayout,
+                            ELayout,
+                            CDEElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
 
         std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
-                  << " StrideA =" << StrideA << " StrideB =" << StrideB << " StrideC =" << StrideC
-                  << " BatchStrideA =" << BatchStrideA << " BatchStrideB =" << BatchStrideB
-                  << " BatchStrideC =" << BatchStrideC << " BatchCount =" << BatchCount
-                  << std::endl;
+                  << " StrideA =" << StrideA << " StrideB =" << StrideB << " StrideE =" << StrideE
+                  << " StrideD0 =" << StrideD0 << " StrideD1 =" << StrideD1 << std::endl;
 
-        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+        e_m_n_dev_buf.FromDevice(e_m_n_device_result.data());
         bool pass = true;
 
-        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-            f_host_tensor_descriptor(BatchCount, M, N, StrideC, BatchStrideC, CLayout{}));
-        c_m_n_host_ref.SetZero();
+        ck_tile::HostTensor<EDataType> e_m_n_host_ref(
+            f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+        e_m_n_host_ref.SetZero();
 
-        const auto b_n_k = b_k_n.transpose({0, 2, 1});
-        ck_tile::reference_batched_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_n_k, c_m_n_host_ref);
+        ck_tile::reference_gemm_multiple_d<
+            ADataType,
+            BDataType,
+            std::tuple<ck_tile::HostTensor<D0DataType>, ck_tile::HostTensor<D1DataType>>,
+            AcEDataType,
+            EDataType,
+            CDEElementWiseFn>(
+            a_m_k_tesnor, b_k_n_tensors, std::tie(d0_m_n_tensors, d1_m_n_tensors), e_m_n_host_ref);
 
-        pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_host_ref);
+        const float max_accumulated_value =
+            *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());
+        const auto rtol_atol =
+            calculate_rtol_atol<ADataType, BDataType, AcEDataType, EDataType, DsDataType>(
+                K, /* kBatch */ 1, max_accumulated_value);
+        pass = ck_tile::check_err(e_m_n_device_result,
+                                  e_m_n_host_ref,
+                                  "Error: Incorrect results!",
+                                  rtol_atol.at(ck_tile::number<0>{}),
+                                  rtol_atol.at(ck_tile::number<1>{}));
+        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                  << std::endl;
+
         EXPECT_TRUE(pass);
     }
 };

@@ -146,11 +146,14 @@ void permute_vectors_i4x4_b(Tensor& tensor)
 
 template <typename ADataType,
           typename BDataType,
+          typename DsDataType,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
                   ck_tile::DeviceMem& c_m_n_dev_buf,
@@ -164,21 +167,30 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_warmup,
                   int n_repeat)
 {
-    ck_tile::GemmHostArgs args;
-    args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-    args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-    args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-    args.k_batch  = kbatch;
-    args.M        = M;
-    args.N        = N;
-    args.K        = K;
-    args.stride_A = stride_A;
-    args.stride_B = stride_B;
-    args.stride_C = stride_C;
+    ck_tile::GemmHostArgs<> args = {a_m_k_dev_buf.GetDeviceBuffer(),
+                                    b_k_n_dev_buf.GetDeviceBuffer(),
+                                    {},
+                                    c_m_n_dev_buf.GetDeviceBuffer(),
+                                    kbatch,
+                                    M,
+                                    N,
+                                    K,
+                                    stride_A,
+                                    stride_B,
+                                    {},
+                                    stride_C};
 
     float ave_time =
-        gemm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+        gemm<ADataType,
+             BDataType,
+             DsDataType,
+             AccDataType,
+             CDataType,
+             ALayout,
+             BLayout,
+             DsLayout,
+             CLayout,
+             CDEElementWise>(args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -304,19 +316,26 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
-        a_m_k_dev_buf,
-        b_k_n_dev_buf,
-        c_m_n_dev_buf,
-        M,
-        N,
-        K,
-        stride_A,
-        stride_B,
-        stride_C,
-        kbatch,
-        n_warmup,
-        n_repeat);
+    invoke_gemm<ADataType,
+                BDataType,
+                ck_tile::tuple<>,
+                AccDataType,
+                CDataType,
+                ALayout,
+                BLayout,
+                ck_tile::tuple<>,
+                CLayout>(a_m_k_dev_buf,
+                         b_k_n_dev_buf,
+                         c_m_n_dev_buf,
+                         M,
+                         N,
+                         K,
+                         stride_A,
+                         stride_B,
+                         stride_C,
+                         kbatch,
+                         n_warmup,
+                         n_repeat);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;

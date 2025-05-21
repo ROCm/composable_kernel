@@ -11,6 +11,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm/kernel/grouped_gemm_kernel.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 template <typename Tuple>
 class TestCkTileGroupedGemm : public ::testing::Test
@@ -23,6 +24,8 @@ class TestCkTileGroupedGemm : public ::testing::Test
     using BDataType   = std::tuple_element_t<4, Tuple>;
     using AccDataType = std::tuple_element_t<5, Tuple>;
     using CDataType   = std::tuple_element_t<6, Tuple>;
+    using DsLayout    = ck_tile::tuple<>;
+    using DsDataType  = ck_tile::tuple<>;
 
     struct GroupedGemKernelParam
     {
@@ -44,7 +47,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         static const ck_tile::index_t K_Warp_Tile = 8;
     };
 
-    using grouped_gemm_kargs = ck_tile::GemmHostArgs;
+    using grouped_gemm_kargs = ck_tile::GemmHostArgs<>;
     std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
     {
         return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
@@ -123,9 +126,12 @@ class TestCkTileGroupedGemm : public ::testing::Test
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
+                                                 DsDataType,
                                                  AccDataType,
                                                  CDataType,
+                                                 DsLayout,
                                                  CLayout,
+                                                 ck_tile::element_wise::PassThrough,
                                                  GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
@@ -317,8 +323,18 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
             // TODO add support for kbatch > 1
             static constexpr ck_tile::index_t k_batch = 1;
-            gemm_descs.push_back(
-                {p_a, p_b, p_c, k_batch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+            gemm_descs.push_back({p_a,
+                                  p_b,
+                                  {},
+                                  p_c,
+                                  k_batch,
+                                  M,
+                                  N,
+                                  K,
+                                  stride_As[i],
+                                  stride_Bs[i],
+                                  {},
+                                  stride_Cs[i]});
         }
 
         ck_tile::DeviceMem gemm_workspace;
