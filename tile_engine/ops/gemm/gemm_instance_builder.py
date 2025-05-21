@@ -457,11 +457,17 @@ struct GemmKernel {{
 #include "gemm_{trait}.hpp" 
 
 """
-                    content += f"""
-
-template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, false>;
+                    sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
+                        self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
+                        self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
+                        ((warp_tile_m == 32 and warp_tile_n == 32 and warp_tile_k == 16) or
+                            (warp_tile_m == 16 and warp_tile_n == 16 and warp_tile_k == 32))
+                    if sparse:
+                        content += f"""
 template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;
-
+"""
+                    content += f"""
+template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, false>;
 """
 
                     (self.output_dir /
