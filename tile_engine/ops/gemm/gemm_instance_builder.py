@@ -32,6 +32,9 @@ from codegen_utils import (
     get_gpu_name_by_id
 )
 import logging
+import time
+
+logging.basicConfig(level=logging.INFO)
 
 
 class GemmCodeGenerator:
@@ -99,7 +102,7 @@ class GemmCodeGenerator:
                 )
                 self.valid_trait_names.append(trait_name)
             else:
-                logging.warning(
+                logging.debug(
                     f"Invalid combination: {pipeline}-{epilogue}-{scheduler}"
                 )
 
@@ -334,7 +337,7 @@ struct GemmKernel {{
                 f"warp_k({warp_k}) * warp_tile_k({warp_tile_k})")
 
         if invalid_params:
-            logging.warning(
+            logging.debug(
                 f"Trait: [{trait}], Invalid warp configuratio: {', '.join(invalid_params)}. "
                 f"Parameter combination: warp=({warp_m},{warp_n},{warp_k}), "
                 f"warp_tile=({warp_tile_m},{warp_tile_n},{warp_tile_k})"
@@ -354,7 +357,7 @@ struct GemmKernel {{
                 f"tile_k({tile_k}) % [{warp_k}x{warp_tile_k}] = {tile_k % (warp_k * warp_tile_k)}")
 
         if alignment_issues:
-            logging.warning(
+            logging.debug(
                 f"Trait: [{trait}], Dimension alignment failed: {', '.join(alignment_issues)}. "
                 f"Tile dimensions {tile_m}x{tile_n}x{tile_k} must be divisible by "
                 f"[warp]: {warp_m}x{warp_n}x{warp_k} x [warp_tile]: {warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
@@ -370,7 +373,7 @@ struct GemmKernel {{
 
         max_tile_size = 2**16 if pipeline == "compv4" else 2**15
         if total_tile_in_lds > max_tile_size:
-            logging.warning(
+            logging.debug(
                 f"LDS capacity exceeded [{trait}]: Total required {total_tile_in_lds:,}B ({total_tile_in_lds/1024:.1f}KB) > "
                 f"maximum allowed {max_tile_size:,}B ({max_tile_size/1024}KB). Breakdown:\n"
                 f"- Matrix A ({self.config.problem.datatype_map['matrix_a']}): {tile_m}x{tile_k} = {matrix_a_size:,}B\n"
@@ -385,18 +388,18 @@ struct GemmKernel {{
         gpu_name = get_gpu_name_by_id(0)
         gpu_warp_tile_key = warp_tile_supported_combinations.get(gpu_name, {})
         if not gpu_warp_tile_key:
-            logging.warning(
+            logging.debug(
                 f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
             return False
 
         allowed_combinations = gpu_warp_tile_key.get(warp_tile_key, [])
         if not allowed_combinations:
-            logging.warning(
+            logging.debug(
                 f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
             return False
 
         if current_combination not in allowed_combinations:
-            logging.warning(
+            logging.debug(
                 f"Trait: [{trait}], Invalid warp combination: {current_combination} not in allowed list. "
                 f"Valid combinations for data type '{warp_tile_key}': {allowed_combinations}"
             )
@@ -408,17 +411,30 @@ struct GemmKernel {{
         def get_tile_value(tile_param): return tile_param.generate_candidates(
         ) if isinstance(tile_param, RangeConfigParam) else tile_param.values
 
-        tile_params = set(itertools.product(
+        tile_group = list(itertools.product(
             get_tile_value(self.config.tile_config.tile_m),
             get_tile_value(self.config.tile_config.tile_n),
-            get_tile_value(self.config.tile_config.tile_k),
+            get_tile_value(self.config.tile_config.tile_k)
+        ))
+
+        warp_group = list(itertools.product(
             get_tile_value(self.config.tile_config.warp_m),
             get_tile_value(self.config.tile_config.warp_n),
-            get_tile_value(self.config.tile_config.warp_k),
+            get_tile_value(self.config.tile_config.warp_k)
+        ))
+
+        warp_tile_group = list(itertools.product(
             get_tile_value(self.config.tile_config.warp_tile_m),
             get_tile_value(self.config.tile_config.warp_tile_n),
-            get_tile_value(self.config.tile_config.warp_tile_k),
+            get_tile_value(self.config.tile_config.warp_tile_k)
         ))
+
+        tile_params = {
+            t + w + wt
+            for t in tile_group
+            for w in warp_group
+            for wt in warp_tile_group
+        }
 
         for trait in self.valid_trait_names:
             tile_valid_params = list(

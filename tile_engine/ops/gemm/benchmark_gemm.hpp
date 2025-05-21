@@ -128,7 +128,7 @@ struct Setting
     std::string csv_filename_;
 };
 
-std::string get_rocm_version()
+inline std::string get_rocm_version()
 {
     std::ifstream version_file("/opt/rocm/.info/version");
     if(version_file.is_open())
@@ -185,13 +185,6 @@ bool compare(ck_tile::index_t K,
 }
 
 /// @brief Function to get the kernel output with reference implementation on CPU/GPU
-template <typename ADataType,
-          typename BDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout>
 void gemm_host_reference(int verify,
                          ck_tile::HostTensor<ADataType>& a_m_k,
                          ck_tile::HostTensor<BDataType>& b_k_n,
