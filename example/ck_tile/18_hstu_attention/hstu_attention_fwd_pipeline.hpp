@@ -68,6 +68,9 @@ struct HstuAttentionFwdPipelineQRKSVS
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
+    static constexpr index_t kGemmSingleRepM = Policy::template GetQKBlockGemmSingleRepM<Problem>();
+    static constexpr index_t kGemmNumRepM    = kM0 / kGemmSingleRepM;
+
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::Traits::kBlockPerCu != -1)
             return Problem::Traits::kBlockPerCu;
@@ -173,10 +176,11 @@ struct HstuAttentionFwdPipelineQRKSVS
         using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
         OaccBlockTileType o_acc;
 
-        auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
-                                              q_dram_block_window_tmp.get_window_lengths(),
-                                              q_dram_block_window_tmp.get_window_origin(),
-                                              Policy::template MakeQRegTileDistribution<Problem>());
+        auto q_dram_window =
+            make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                             make_tuple(number<kGemmSingleRepM>{}, number<kQKHeaddim>{}),
+                             q_dram_block_window_tmp.get_window_origin(),
+                             Policy::template MakeQDramSingleRepMTileDistribution<Problem>());
 
         const auto q_origin = q_dram_window.get_window_origin();
         const auto [seqlen_k_start, seqlen_k_end] =
@@ -188,14 +192,30 @@ struct HstuAttentionFwdPipelineQRKSVS
                              {seqlen_k_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
 
-        auto q_tile = load_tile(q_dram_window);
+        using q_dram_tile_type = decltype(load_tile(q_dram_window));
+        statically_indexed_array<q_dram_tile_type, kGemmNumRepM> q_dram_tiles;
 
-        clear_tile(o_acc);
+        static_for<0, kGemmNumRepM, 1>{}([&](auto i_rep) {
+            q_dram_tiles[i_rep] = load_tile(q_dram_window);
+            move_tile_window(q_dram_window, {kGemmSingleRepM, 0});
+        });
 
         auto k_tile = load_tile(k_dram_window);
         move_tile_window(k_dram_window, {kK1, 0});
 
         __builtin_amdgcn_sched_barrier(0);
+
+        // K tile in LDS
+        QKVDataType* q_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
+        auto q_lds             = make_tensor_view<address_space_enum::lds>(
+            q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
+        auto q_lds_write_window = make_tile_window(
+            q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+        auto q_lds_read_window =
+            make_tile_window(q_lds,
+                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0},
+                             Policy::template MakeQRegSingleRepMTileDistribution<Problem>());
 
         // K tile in LDS
         QKVDataType* k_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
@@ -284,11 +304,53 @@ struct HstuAttentionFwdPipelineQRKSVS
                 return make_null_tile_window(make_tuple(number<1>{}, number<1>{}));
         }();
 
+        using q_reg_tile_type = decltype(make_static_distributed_tensor<QKVDataType>(
+            Policy::template MakeQRegSingleRepMTileDistribution<Problem>()));
+        statically_indexed_array<q_reg_tile_type, kGemmNumRepM> q_reg_tiles;
+
+        using q_tile_type = decltype(make_static_distributed_tensor<QKVDataType>(
+            Policy::template MakeQRegTileDistribution<Problem>()));
+
+        q_tile_type q_tile;
+
+        {
+            clear_tile(o_acc);
+
+            constexpr index_t complete_tile_thread_buf_size = q_tile_type::get_thread_buffer_size();
+            constexpr index_t splitted_tile_thread_buf_size =
+                q_reg_tile_type::get_thread_buffer_size();
+
+            static_assert(complete_tile_thread_buf_size ==
+                              kGemmNumRepM * splitted_tile_thread_buf_size,
+                          "Check failed!");
+
+            static_for<0, kGemmNumRepM, 1>{}([&](auto i_rep) {
+                store_tile(q_lds_write_window, q_dram_tiles[i_rep]);
+
+                // no need to call __builtin_amdgcn_s_barrier() since the tile-slice written
+                // by each wavefront is read by itself
+                __builtin_amdgcn_s_waitcnt(0xc07f);
+
+                q_reg_tiles[i_rep] = load_tile(q_lds_read_window);
+
+                static_for<0, splitted_tile_thread_buf_size, 1>{}([&](auto i_buf) {
+                    q_tile.get_thread_buffer()[i_rep * splitted_tile_thread_buf_size + i_buf] =
+                        q_reg_tiles[i_rep].get_thread_buffer()[i_buf];
+                });
+
+                // no need to call __builtin_amdgcn_s_barrier() since the tile-slice read
+                // by each wavefront is over-written by itself
+            });
+        };
+
         q_tile = tile_elementwise_in(q_element_func, q_tile);
 
         auto seqlen_k_curr = seqlen_k_start;
 
         index_t i_loop = 0;
+
+        // ensure all q_reg_tiles[] have been loaded from LDS, so the LDS can be reused by k_tile
+        __builtin_amdgcn_s_barrier();
 
         while(i_loop < num_loops)
         {
