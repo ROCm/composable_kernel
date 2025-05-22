@@ -53,7 +53,7 @@ struct FmhaFwdKernel
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
-    static constexpr bool kIsChunkedPrefill = FmhaPipeline::Problem::kIsChunkedPrefill;
+    static constexpr bool kSkipMinSeqlenQ   = FmhaPipeline::Problem::kSkipMinSeqlenQ;
 
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
@@ -259,7 +259,7 @@ struct FmhaFwdKernel
         ck_tile::index_t batch_stride_randval = 0;
     };
 
-    struct FmhaFwdChunkedPrefillKargs
+    struct FmhaFwdSkipMinSeqlenQKargs
     {
         ck_tile::index_t min_seqlen_q = 0;
     };
@@ -295,7 +295,7 @@ struct FmhaFwdKernel
           std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
           std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
-          std::conditional_t<kIsChunkedPrefill, FmhaFwdChunkedPrefillKargs, FmhaFwdEmptyKargs<6>>
+          std::conditional_t<, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<6>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -763,7 +763,7 @@ struct FmhaFwdKernel
         {
             kargs.init_logits_soft_cap(logits_soft_cap);
         }
-        if constexpr(kIsChunkedPrefill)
+        if constexpr(kSkipMinSeqlenQ)
         {
             kargs.min_seqlen_q = min_seqlen_q;
         }
@@ -1067,7 +1067,7 @@ struct FmhaFwdKernel
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
             kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
 
-            if constexpr(kIsChunkedPrefill)
+            if constexpr(kSkipMinSeqlenQ)
             {
                 if(kargs.seqlen_q <= kargs.min_seqlen_q)
                 {

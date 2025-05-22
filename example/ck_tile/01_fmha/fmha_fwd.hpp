@@ -840,7 +840,7 @@ template <ck_tile::index_t HDim_,
           bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
-          bool kIsChunkedPrefill_=false>
+          bool kSkipMinSeqlenQ_=false>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -864,7 +864,7 @@ struct fmha_fwd_traits_
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
-    static constexpr bool kIsChunkedPrefill          = kIsChunkedPrefill_;
+    static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
 };
 
 template <typename Traits_>
@@ -999,7 +999,7 @@ struct fmha_fwd_traits
     bool has_lse;
     bool has_dropout;
     bool do_fp8_static_quant;
-    bool is_chunked_prefill = false;
+    bool skip_min_seqlen_q = false;
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
