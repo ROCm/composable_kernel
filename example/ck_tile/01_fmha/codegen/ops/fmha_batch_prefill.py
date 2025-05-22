@@ -476,7 +476,7 @@ class CustomFactory(KernelComponentFactory):
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                '128' : [FmhaFwdTileSize( 64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('a.max_seqlen_q < 8192')),
+                '128' : [FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('a.max_seqlen_q < 8192')),
                          FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1, CppConstraint('8192 <= a.max_seqlen_q')),]
             }
         else:
