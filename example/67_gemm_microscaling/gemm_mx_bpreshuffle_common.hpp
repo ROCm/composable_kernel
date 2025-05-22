@@ -156,15 +156,15 @@ void preShuffleBuffer(const ck::f4x2_pk_t* src, ck::f4x2_pk_t* dst, int N, int K
     int KPack = 16;
     int NLane = NXdl;
     int KLane = 64 / NLane;
-
-    int K0 = K / (KLane * KPack);
+    int K_pk  = K / 2;
+    int K0    = K_pk / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
     int tempk;
     for(int n = 0; n < N; ++n)
     {
-        for(int k = 0; k < K; ++k)
+        for(int k = 0; k < K_pk; ++k)
         {
             int n0 = n / NLane;
             int n1 = n % NLane;
@@ -177,7 +177,7 @@ void preShuffleBuffer(const ck::f4x2_pk_t* src, ck::f4x2_pk_t* dst, int N, int K
             int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
                               k1 * KPack * NLane + n1 * KPack + k2;
 
-            dst[(outputIndex+1)/2] = src[(n * K + k + 1)/2];
+            dst[outputIndex] = src[n * K_pk + k];
         }
     }
 }
@@ -318,10 +318,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     case 1:
         ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
         ck::utils::FillConstant<BDataType>{b_data_element(1.0f)}(b_k_n);
-        a_m_k_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
-        b_k_n_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        //a_m_k_scale.GenerateTensorValue(
+        //    GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
+        //b_k_n_scale.GenerateTensorValue(
+        //    GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
