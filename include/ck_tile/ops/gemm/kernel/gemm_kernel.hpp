@@ -624,7 +624,7 @@ struct GemmKernel
         const auto& ds_pad_view = generate_tuple(
             [&](auto i) {
                 const auto& d_tensor_view = views.at(I2);
-                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                using DiLayout            = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
                 if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
                 {
                     return pad_tensor_view(d_tensor_view[i],

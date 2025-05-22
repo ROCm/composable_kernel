@@ -107,7 +107,7 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
 
     ck_tile::index_t StrideA = arg_parser.get_int("stride_a");
     ck_tile::index_t StrideB = arg_parser.get_int("stride_b");
-    ck_tile::index_t StrideD = arg_parser.get_int("stride_d");
+    ck_tile::index_t StrideD = arg_parser.get_int("stride_ds");
     ck_tile::index_t StrideE = arg_parser.get_int("stride_e");
 
     ck_tile::index_t StrideD0 = StrideD;
