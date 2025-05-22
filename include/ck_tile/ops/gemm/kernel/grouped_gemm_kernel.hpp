@@ -28,7 +28,7 @@ struct GemmTransKernelArg
     {
     }
 
-    GemmTransKernelArg(GemmKernelArgs&& karg) : group_karg{karg}, block_start{0}, block_end{0} {}
+    GemmTransKernelArg(GemmKernelArgs<>&& karg) : group_karg{karg}, block_start{0}, block_end{0} {}
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
@@ -65,8 +65,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // clang-format on
     }
 
-    CK_TILE_HOST static auto GetWorkSpaceSize(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs)
-        -> std::size_t
+    CK_TILE_HOST static auto
+    GetWorkSpaceSize(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs) -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
     }
@@ -95,7 +95,8 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs)
+    CK_TILE_HOST static constexpr auto
+    GridSize(const std::vector<GemmHostArgs</*NumDTensor = 0*/>>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -180,7 +181,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         Run(kargs.group_karg, block_idx_2d, block_idx_z);
     }
 
-    CK_TILE_DEVICE void Run(const GemmKernelArgs& kargs,
+    CK_TILE_DEVICE void Run(const GemmKernelArgs<>& kargs,
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
@@ -195,7 +196,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
             static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
         const BDataType* b_ptr =
             static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
-        CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
+        CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
@@ -233,7 +234,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
                                  const BDataType* b_ptr,
                                  CDataType* c_ptr,
                                  void* smem_ptr_0,
-                                 const GemmKernelArgs& kargs,
+                                 const GemmKernelArgs<>& kargs,
                                  const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                  const index_t block_idx_m,
                                  const index_t block_idx_n)
