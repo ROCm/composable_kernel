@@ -85,6 +85,20 @@ struct FillUniformDistributionIntegerValue
     }
 };
 
+/**
+ * @brief A functor for filling a container with a monotonically increasing or decreasing sequence.
+ *
+ * FillMonotonicSeq generates a sequence of values starting from an initial value
+ * and incrementing by a fixed step for each subsequent element.
+ *
+ * @tparam T The numeric type of the sequence elements.
+ *
+ * Example usage:
+ * ```
+ * std::vector<int> v(5);
+ * FillMonotonicSeq<int>{10, 2}(v); // Fills v with {10, 12, 14, 16, 18}
+ * ```
+ */
 template <typename T>
 struct FillMonotonicSeq
 {
