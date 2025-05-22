@@ -114,6 +114,9 @@ def check_arch(){
     else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
         arch_type = 6
     }
+    else if ( runShell('grep -n "gfx950" rocminfo.log') ) {
+        arch_type = 7
+    }
     return arch_type
 }
 
@@ -262,6 +265,9 @@ def cmake_build(Map conf=[:]){
     }
     if (setup_args.contains("gfx94")){
         invocation_tag="gfx94"
+    }
+    if (setup_args.contains("gfx95")){
+        invocation_tag="gfx95"
     }
     echo "invocation tag: ${invocation_tag}"
     def redis_pre_setup_cmd = pre_setup_cmd
@@ -638,6 +644,13 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_onnx_gemm_gfx908.log"
                             stash includes: "perf_onnx_gemm_gfx908.log", name: "perf_log_gfx908"
                         }
+                        else if ( arch == 7 ){
+                            // run basic tests on gfx950
+                            echo "Run performance tests"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx950"
+                            archiveArtifacts "perf_onnx_gemm_gfx950.log"
+                            stash includes: "perf_onnx_gemm_gfx950.log", name: "perf_log_gfx950"
+                        }
                         }
                     }
                     if (params.hipTensor_test && arch == 1 ){
@@ -775,7 +788,7 @@ def process_results(Map conf=[:]){
 
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;RUN_CODEGEN_TESTS=true;BUILD_GFX908=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;RUN_CODEGEN_TESTS=true;BUILD_GFX908=true;BUILD_GFX950=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
@@ -870,6 +883,10 @@ pipeline {
             name: "BUILD_GFX908",
             defaultValue: false,
             description: "Build CK and run tests on gfx908 (default: OFF)")
+        booleanParam(
+            name: "BUILD_GFX950",
+            defaultValue: false,
+            description: "Build CK and run tests on gfx950 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX12",
             defaultValue: true,
@@ -1188,7 +1205,7 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK for all gfx9 targets")
+                stage("Build CK and run Tests on gfx942")
                 {
                     when {
                         beforeAgent true
@@ -1202,6 +1219,28 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx942" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
+                    }
+                }
+                stage("Build CK and run Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_GFX950.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install \
+                                         -DGPU_TARGETS="gfx950" \
+                                         -DCMAKE_CXX_FLAGS=" -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx950" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
@@ -1250,7 +1289,7 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK instances for different targets")
+                stage("Build CK instances for all supported targets")
                 {
                     when {
                         beforeAgent true
