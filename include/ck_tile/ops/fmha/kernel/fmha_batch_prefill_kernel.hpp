@@ -651,8 +651,15 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             };
 
             const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
-
-            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+            if constexpr(kHasMask)
+            {
+                // assume that num_tile_n1 is always 1
+                return ck_tile::make_tuple(gridDim.z - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
+            }
+            else
+            {
+                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+            }
         }
         else
         {
@@ -672,7 +679,15 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
             const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
 
-            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+            if constexpr(kHasMask)
+            {
+                // assume that num_tile_n1 is always 1
+                return ck_tile::make_tuple(gridDim.x - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
+            }
+            else
+            {
+                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+            }
         }
     }
 
