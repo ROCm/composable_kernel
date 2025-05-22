@@ -149,7 +149,6 @@ struct tile_window_with_tile_dstr_base
         static constexpr index_t PackedSize =
             ck_tile::numeric_traits<remove_cvref_t<typename TileWindowBase::DataType>>::PackedSize;
 
-
         static constexpr auto get_vector_dim_y_scalar_per_vector()
         {
             const auto [ys_vector_lengths, ys_vector_strides] =
@@ -169,6 +168,42 @@ struct tile_window_with_tile_dstr_base
 
             return make_tuple(VectorDimY_, ScalarPerVector_);
         }
+
+        static constexpr index_t VectorDimY = get_vector_dim_y_scalar_per_vector().template at<0>();
+        static constexpr index_t ScalarPerVector =
+            get_vector_dim_y_scalar_per_vector().template at<1>();
+        using vector_t =
+            thread_buffer<typename TileWindowBase::DataType, ScalarPerVector / PackedSize>;
+
+        static constexpr auto scalars_per_access_ = [] {
+            constexpr auto scalars_per_access_arr = generate_array(
+                [&](auto i) { return (i == VectorDimY) ? ScalarPerVector : 1; }, number<NDimY>{});
+
+            /// TODO: add non-automatic storage argument support to macro TO_SEQUENCE()
+            constexpr auto NDimY_ = NDimY;
+
+            return TO_SEQUENCE(scalars_per_access_arr, NDimY_);
+        }();
+
+        static constexpr auto get_space_filling_curve()
+        {
+            constexpr auto thread_tensor_lengths_ys =
+                to_sequence(TileDstr{}.get_ys_to_d_descriptor().get_lengths());
+
+            // FIXME: need logic to judge dim access order
+            using DimAccessOrder = typename arithmetic_sequence_gen<0, NDimY, 1>::type;
+
+            return space_filling_curve<decltype(thread_tensor_lengths_ys),
+                                       DimAccessOrder,
+                                       decltype(scalars_per_access_),
+                                       false /*!!! no snaked curve! */>{};
+        }
+
+        using SFC_Ys = decltype(get_space_filling_curve());
+
+        static constexpr index_t NumAccess = SFC_Ys::get_num_of_access();
+
+        static_assert(0 < NumAccess, "Wrong! NumAccess should be larger than 0");
     };
 
     // return vector dimension among [y0, y1, ...]
@@ -211,6 +246,7 @@ struct tile_window_with_tile_dstr_base
                           get_container_subset(window_adaptor_ps_ys_vector_strides, y_dims));
     }
 
+    CK_TILE_DEVICE constexpr auto get_num_of_access() const { return Traits::NumAccess; }
     // Tile tensor distribution, which contains:
     //   1. adaptor for window: [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...]
     //   2. thread descriptor for thread tensor in register: [y0, y1, ...] ==> [d]

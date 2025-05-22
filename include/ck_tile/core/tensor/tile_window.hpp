@@ -57,78 +57,58 @@ struct tile_window_with_static_distribution
     static constexpr auto I1 = number<1>{};
     static_assert(NumCoord == 1);
 
-    struct load_store_traits
-    {
-        private:
-        // static constexpr auto get_vector_dim_y_scalar_per_vector()
-        // {
-        //     const auto [ys_vector_lengths, ys_vector_strides] =
-        //         Base::
-        //             get_window_adaptor_ys_safe_vector_length_strides();
+    // struct load_store_traits
+    // {
+    //     public:
+    //     // static constexpr index_t VectorDimY =
+    //     Base::Traits::get_vector_dim_y_scalar_per_vector().template at<0>();
+    //     // static constexpr index_t ScalarPerVector =
+    //     //     Base::Traits::get_vector_dim_y_scalar_per_vector().template at<1>();
 
-        //     index_t VectorDimY_      = 0;
-        //     index_t ScalarPerVector_ = 1;
+    //     // using vector_type_t = vector_type_maker_t<DataType, ScalarPerVector>;
+    //     // using vector_t      = typename vector_type_t::type;
+    //     // using vector_t = thread_buffer<typename Base::DataType, ScalarPerVector /
+    //     Base::Traits::PackedSize>;
 
-        //     for(index_t i = 0; i < Base::NDimY; ++i)
-        //     {
-        //         if(ys_vector_strides[i] == 1 && ys_vector_lengths[i] > ScalarPerVector_)
-        //         {
-        //             ScalarPerVector_ = ys_vector_lengths[i];
-        //             VectorDimY_      = i;
-        //         }
-        //     }
+    //     private:
+    //     static constexpr auto scalars_per_access_ = [] {
+    //         constexpr auto scalars_per_access_arr =
+    //             generate_array([&](auto i) { return (i == VectorDimY) ? ScalarPerVector : 1; },
+    //                            number<Base::NDimY>{});
 
-        //     return make_tuple(VectorDimY_, ScalarPerVector_);
-        // }
+    //         /// TODO: add non-automatic storage argument support to macro TO_SEQUENCE()
+    //         constexpr auto NDimY_ = Base::NDimY;
 
-        public:
-        static constexpr index_t PackedSize =
-            ck_tile::numeric_traits<remove_cvref_t<typename Base::DataType>>::PackedSize;
-        static constexpr index_t VectorDimY = Base::Traits::get_vector_dim_y_scalar_per_vector().template at<0>();
-        static constexpr index_t ScalarPerVector =
-            Base::Traits::get_vector_dim_y_scalar_per_vector().template at<1>();
+    //         return TO_SEQUENCE(scalars_per_access_arr, NDimY_);
+    //     }();
 
-        // using vector_type_t = vector_type_maker_t<DataType, ScalarPerVector>;
-        // using vector_t      = typename vector_type_t::type;
-        using vector_t = thread_buffer<typename Base::DataType, ScalarPerVector / PackedSize>;
+    //     static constexpr auto get_space_filling_curve()
+    //     {
+    //         constexpr auto tile_dstr = typename Base::TileDstr{};
 
-        private:
-        static constexpr auto scalars_per_access_ = [] {
-            constexpr auto scalars_per_access_arr =
-                generate_array([&](auto i) { return (i == VectorDimY) ? ScalarPerVector : 1; },
-                               number<Base::NDimY>{});
+    //         constexpr auto thread_tensor_lengths_ys =
+    //             to_sequence(tile_dstr.get_ys_to_d_descriptor().get_lengths());
 
-            /// TODO: add non-automatic storage argument support to macro TO_SEQUENCE()
-            constexpr auto NDimY_ = Base::NDimY;
+    //         // FIXME: need logic to judge dim access order
+    //         using DimAccessOrder = typename arithmetic_sequence_gen<0, Base::NDimY, 1>::type;
 
-            return TO_SEQUENCE(scalars_per_access_arr, NDimY_);
-        }();
+    //         return space_filling_curve<decltype(thread_tensor_lengths_ys),
+    //                                    DimAccessOrder,
+    //                                    decltype(scalars_per_access_)>{};
+    //     }
 
-        static constexpr auto get_space_filling_curve()
-        {
-            constexpr auto tile_dstr = typename Base::TileDstr{};
+    //     public:
+    //     using SFC_Ys = decltype(get_space_filling_curve());
 
-            constexpr auto thread_tensor_lengths_ys =
-                to_sequence(tile_dstr.get_ys_to_d_descriptor().get_lengths());
+    //     static constexpr index_t NumAccess = SFC_Ys::get_num_of_access();
 
-            // FIXME: need logic to judge dim access order
-            using DimAccessOrder = typename arithmetic_sequence_gen<0, Base::NDimY, 1>::type;
+    //     static_assert(0 < NumAccess, "Wrong! NumAccess should be larger than 0");
 
-            return space_filling_curve<decltype(thread_tensor_lengths_ys),
-                                       DimAccessOrder,
-                                       decltype(scalars_per_access_)>{};
-        }
+    // };
 
-        public:
-        using SFC_Ys = decltype(get_space_filling_curve());
-
-        static constexpr index_t NumAccess = SFC_Ys::get_num_of_access();
-
-        static_assert(0 < NumAccess, "Wrong! NumAccess should be larger than 0");
-        static_assert(NumAccess % NumCoord == 0, "wrong! # of access is not divisible by NumCoord");
-    };
-
-    static constexpr index_t NumAccessPerCoord = load_store_traits::NumAccess / NumCoord;
+    static_assert(Base::Traits::NumAccess % NumCoord == 0,
+                  "wrong! # of access is not divisible by NumCoord");
+    static constexpr index_t NumAccessPerCoord = Base::Traits::NumAccess / NumCoord;
 
     CK_TILE_DEVICE constexpr tile_window_with_static_distribution() = default;
 
@@ -157,7 +137,7 @@ struct tile_window_with_static_distribution
 
         // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
         // future load/store() calls (might allocate more registers)
-        using Traits = load_store_traits;
+        using Traits = typename Base::Traits;
         using SFC_Ys = typename Traits::SFC_Ys;
 
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -181,8 +161,7 @@ struct tile_window_with_static_distribution
 
     // return vector dimension among [y0, y1, ...]
 
-
-    CK_TILE_DEVICE constexpr auto get_num_of_access() const { return load_store_traits::NumAccess; }
+    // CK_TILE_DEVICE constexpr auto get_num_of_access() const { return Base::Traits::NumAccess; }
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE auto load(number<i_access_unsupport_>          = {},
@@ -201,7 +180,7 @@ struct tile_window_with_static_distribution
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
-        using Traits   = load_store_traits;
+        using Traits   = typename Base::Traits;
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
@@ -223,7 +202,6 @@ struct tile_window_with_static_distribution
                 const vector_t vec_value =
                     this->get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
                         bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
-#if 1
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
                     constexpr auto idx_ys = generate_tuple(
@@ -241,14 +219,6 @@ struct tile_window_with_static_distribution
                         vec_value
                             .template get_as<typename Base::DataType>()[j / Traits::PackedSize];
                 });
-#else
-                constexpr index_t d =
-                    tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
-                static_assert(d % Traits::ScalarPerVector == 0);
-
-                dst_tensor.get_thread_buffer().template get_as<vector_t>()(
-                    number<d / Traits::ScalarPerVector>{}) = bit_cast<vector_t>(vec_value);
-#endif
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
                 {
@@ -274,7 +244,7 @@ struct tile_window_with_static_distribution
                                  bool_constant<oob_conditional_check> = {},
                                  bool_constant<pre_nop>               = {}) const
     {
-        using Traits = load_store_traits;
+        using Traits = typename Base::Traits;
 
         // using vector_type_t = typename Traits::vector_type_t;
         using vector_t = typename Traits::vector_t;
@@ -284,10 +254,6 @@ struct tile_window_with_static_distribution
         static_assert(YElementSize % (Traits::PackedSize * Traits::ScalarPerVector) == 0);
         using vectorized_tbuf =
             array<vector_t, YElementSize / (Traits::PackedSize * Traits::ScalarPerVector)>;
-        // StaticBuffer<address_space_enum::vgpr,
-        //                                      vector_t,
-        //                                      YElementSize / Traits::ScalarPerVector,
-        //                                      true>;
 
         constexpr auto tile_dstr = typename Base::TileDstr{};
 
@@ -380,7 +346,7 @@ struct tile_window_with_static_distribution
         const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
         m0_set_with_memory(m0_init_value); // This should be wave independent
 
-        using Traits = load_store_traits;
+        using Traits = typename Base::Traits;
 
         // using vector_type_t = typename Traits::vector_type_t;
         using vector_t = typename Traits::vector_t;
@@ -457,7 +423,7 @@ struct tile_window_with_static_distribution
 
         const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
 
-        using Traits = load_store_traits;
+        using Traits = typename Base::Traits;
 
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
@@ -503,7 +469,7 @@ struct tile_window_with_static_distribution
                               number<i_access_unsupport_>          = {},
                               bool_constant<oob_conditional_check> = {}) const
     {
-        using Traits = load_store_traits;
+        using Traits = typename Base::Traits;
 
         // using vector_type_t = typename Traits::vector_type_t;
         using vector_t = typename Traits::vector_t;
@@ -573,7 +539,7 @@ struct tile_window_with_static_distribution
                   dstr_tensor,
               number<i_access_unsupport_> = {}) const
     {
-        using Traits = load_store_traits;
+        using Traits = typename Base::Traits;
 
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
@@ -637,7 +603,7 @@ struct tile_window_with_static_distribution
            number<i_access_unsupport_>          = {},
            bool_constant<oob_conditional_check> = {}) const
     {
-        using Traits = load_store_traits;
+        using Traits = typename Base::Traits;
 
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
@@ -706,7 +672,7 @@ struct tile_window_with_static_distribution
                bool_constant<oob_conditional_check> = {},
                bool_constant<pre_nop>               = {}) const
     {
-        using Traits = load_store_traits;
+        using Traits = typename Base::Traits;
 
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
@@ -795,7 +761,7 @@ struct tile_window_with_static_distribution
 
         // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
         // future load/store() calls (might allocate more registers)
-        using Traits = load_store_traits;
+        using Traits = typename Base::Traits;
         using SFC_Ys = typename Traits::SFC_Ys;
 
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
