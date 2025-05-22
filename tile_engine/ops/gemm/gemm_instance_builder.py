@@ -525,7 +525,7 @@ struct GemmDispatcher {
             content += f"""         kernel_map["{trait}"] = {{"""
             for i, tile in enumerate(tile_valid_params):
                 for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
-                    content += f"""[&](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{ """
+                    content += f"""[=](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{ """
                     content += f""" if(structured_sparsity){{  // SMFMA"""
                     sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
                         self.config.problem.datatype_map['matrix_b'] == 'fp16' and \

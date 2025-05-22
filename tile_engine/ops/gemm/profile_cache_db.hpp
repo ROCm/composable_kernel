@@ -124,14 +124,23 @@ class ProfileCacheDB
         oss << gemm_problem;
         auto problem_json = oss.str();
         CHECK_SQLITE3(
-            sqlite3_bind_text(
-                raw_stmt, idx++, problem_json.c_str(), problem_json.size(), SQLITE_TRANSIENT),
+            sqlite3_bind_text(raw_stmt, idx++, problem_json.c_str(), -1, SQLITE_TRANSIENT),
             db_ptr_.get());
 
         int rc;
         CHECK_SQLITE3_RC(sqlite3_step(raw_stmt), db_ptr_.get(), rc);
         CHECK_SQLITE3(sqlite3_reset(raw_stmt), db_ptr_.get());
         CHECK_SQLITE3(sqlite3_clear_bindings(raw_stmt), db_ptr_.get());
+
+        std::cout << "Query params:\n"
+                  << "rocm_version: " << rocm_version << "\n"
+                  << "device_name: " << device_name << "\n"
+                  << "problem_json: " << problem_json << std::endl;
+
+        if(rc == SQLITE_DONE)
+        {
+            std::cout << "No matching records found" << std::endl;
+        }
         return (rc == SQLITE_ROW);
     }
 

@@ -55,7 +55,7 @@ struct GemmProblem
            << "   \"dtype_c\":\"" << problem.dtype_c_ << "\",\n"
            << "   \"layout_a\":\"" << problem.layout_a_ << "\",\n"
            << "   \"layout_b\":\"" << problem.layout_b_ << "\",\n"
-           << "   \"layout_c\":\"" << problem.layout_c_ << "\"\n"
+           << "   \"layout_c\":\"" << problem.layout_c_ << "\",\n"
            << "   \"structured_sparsity\":\"" << problem.structured_sparsity_ << "\"\n"
            << "}";
         return os;

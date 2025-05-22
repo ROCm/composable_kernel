@@ -58,9 +58,6 @@ class GemmProfiler
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
     {
-        if(is_problem_record_cache(gemm_problem))
-            return;
-
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
         const CLayout layout_c = CLayout{};
@@ -71,6 +68,9 @@ class GemmProfiler
             gemm_problem.k_, gemm_problem.n_, gemm_problem.stride_b_, is_row_major(layout_b));
         gemm_problem.stride_c_ = ck_tile::get_default_stride(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c));
+
+        if(is_problem_record_cache(gemm_problem))
+            return;
 
         ck_tile::HostTensor<ADataType> a_m_k(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.k_, gemm_problem.stride_a_, is_row_major(layout_a)));
@@ -157,7 +157,7 @@ class GemmProfiler
                                 gemm_problem.stride_c_);
         }
 
-        for(auto& callable : callables)
+        for(auto callable : callables)
         {
             auto kernel_run_result = callable(gemm_args,
                                               ck_tile::stream_config{nullptr,
