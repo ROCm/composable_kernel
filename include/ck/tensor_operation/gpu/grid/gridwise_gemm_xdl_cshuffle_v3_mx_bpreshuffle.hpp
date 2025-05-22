@@ -1857,7 +1857,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
+            __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave / NXdlPack);
 
         // lds max alignment
         // constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);

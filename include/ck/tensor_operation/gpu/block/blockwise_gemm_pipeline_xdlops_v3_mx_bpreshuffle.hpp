@@ -417,7 +417,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
         // Local prefetch 1, sync the async load
         __builtin_amdgcn_s_waitcnt(3952);
         block_sync_lds();
-        static_for<0, 2 * MXdlPack, 1>{}([&](auto m0) {
+        static_for<0, MXdlPack, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
                                         (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
