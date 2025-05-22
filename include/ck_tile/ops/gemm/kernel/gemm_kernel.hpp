@@ -624,7 +624,8 @@ struct GemmKernel
         const auto& ds_pad_view = generate_tuple(
             [&](auto i) {
                 const auto& d_tensor_view = views.at(I2);
-                if constexpr(std::is_same_v<DsLayout, tensor_layout::gemm::RowMajor>)
+                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
                 {
                     return pad_tensor_view(d_tensor_view[i],
                                            make_tuple(number<TilePartitioner::MPerBlock>{},
@@ -708,7 +709,8 @@ struct GemmKernel
 
         const auto ds_block_window = generate_tuple(
             [&](auto i) {
-                if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
                 {
                     return make_tile_window(ds_pad_view[i],
                                             make_tuple(number<TilePartitioner::MPerBlock>{},
