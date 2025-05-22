@@ -68,15 +68,20 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     static constexpr auto block_slice_lengths    = BlockSliceLengths{};
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
-    static constexpr auto wave_thread_cluster_lengths =  Sequence<ThreadClusterLengths{}.At(I0), ThreadClusterLengths{}.At(I1)*64/ThreadGroup::GetNumOfThread(),1>{};
-    static constexpr auto wave_cluster_lengths = Sequence<1, ThreadGroup::GetNumOfThread()/64, 1>{};
+    static constexpr auto wave_thread_cluster_lengths =
+        Sequence<ThreadClusterLengths{}.At(I0),
+                 ThreadClusterLengths{}.At(I1) * 64 / ThreadGroup::GetNumOfThread(),
+                 1>{};
+    static constexpr auto wave_cluster_lengths =
+        Sequence<1, ThreadGroup::GetNumOfThread() / 64, 1>{};
 
     static constexpr auto thread_single_load_size = generate_sequence(
         detail::lambda_scalar_per_access<DstVectorDim, ScalarPerVector>{}, Number<nDim>{});
     // After a load, each thread moves by `thread_steps` instead of loading the next elements.
     // It makes the whole wavefront load contiguous memory, what is required for direct loads.
-    static constexpr auto thread_steps         = thread_cluster_lengths * thread_single_load_size;
-    static constexpr auto wave_single_load_size= wave_thread_cluster_lengths*thread_single_load_size;
+    static constexpr auto thread_steps = thread_cluster_lengths * thread_single_load_size;
+    static constexpr auto wave_single_load_size =
+        wave_thread_cluster_lengths * thread_single_load_size;
     static constexpr auto thread_slice_lengths = block_slice_lengths / thread_steps;
 
     static __device__ constexpr bool AreThreadClusterLengthsValid()
@@ -171,17 +176,17 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
-        
-        const auto wave_cluster_idx =
-            wave_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()/64));
+
+        const auto wave_cluster_idx = wave_cluster_desc_.CalculateBottomIndex(
+            make_multi_index(ThreadGroup::GetThreadId() / 64));
 
         const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
-        const auto wave_data_idx_begin = wave_cluster_idx * wave_single_load_size;
+        const auto wave_data_idx_begin   = wave_cluster_idx * wave_single_load_size;
 
         SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
         // We don't need threadwise offset for lds since it was calculate by HW
         // We still need input the wavewise offset.
-        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin); 
+        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin);
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)

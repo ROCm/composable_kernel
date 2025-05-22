@@ -16,6 +16,8 @@ template <index_t BlockSize,
           typename BDataType,
           typename ATileDesc,
           typename BTileDesc,
+          typename AScaleTileDesc,
+          typename BScaleTileDesc,
           typename AMmaTileDesc,
           typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
@@ -148,6 +150,24 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         return make_tuple(0, waveId_n, 0, xdlops_b_idx[I1], KThreadChunk * xdlops_b_idx[I0]);
     }
 
+    __device__ static auto CalculateAScaleThreadOriginDataIndex()
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+
+        return make_tuple(waveId_m, 0, get_thread_local_1d_id() % 64);
+    }
+
+    __device__ static auto CalculateBScaleThreadOriginDataIndex()
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_n = wave_idx[I1];
+
+        return make_tuple(waveId_n, 0, get_thread_local_1d_id() % 64);
+    }
+
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
         CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
@@ -181,6 +201,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     }
 
     using Tuple5 = decltype(CalculateAThreadOriginDataIndex());
+    using Tuple3 = decltype(CalculateAScaleThreadOriginDataIndex());
 
     /**
      * @brief Constructor for BlockwiseGemmXdlops_mx_pipeline_base.
@@ -376,6 +397,9 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
     static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_m3_k;
     static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_n3_k;
+
+    static constexpr AScaleTileDesc a_scale_block_desc;
+    static constexpr BScaleTileDesc b_scale_block_desc;
 
     protected:
     // M1, N1 as double buffer index

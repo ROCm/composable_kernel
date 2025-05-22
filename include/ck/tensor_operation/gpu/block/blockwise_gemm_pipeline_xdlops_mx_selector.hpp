@@ -51,6 +51,8 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
+          typename AScaleTileDesc,
+          typename BScaleTileDesc,
           typename AMmaTileDesc,
           typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
@@ -67,31 +69,34 @@ constexpr auto BlockGemmMXPipeline_Selector()
 {
 
     // Hardware MX GEMM pipeline
-    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-    {
-        return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
-                                                  ThreadBlockSize,
-                                                  ScaleBlockSize,
-                                                  ADataType,
-                                                  AScaleDataType,
-                                                  BDataType,
-                                                  BScaleDataType,
-                                                  ATileDesc,
-                                                  BTileDesc,
-                                                  AMmaTileDesc,
-                                                  BMmaTileDesc,
-                                                  ABlockTransferSrcScalarPerVector,
-                                                  BBlockTransferSrcScalarPerVector,
-                                                  MPerBlock,
-                                                  NPerBlock,
-                                                  KPerBlock,
-                                                  MPerXDL,
-                                                  NPerXDL,
-                                                  MRepeat,
-                                                  NRepeat,
-                                                  KPack>{};
-    }
-    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+    //     if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+    //     {
+    //         return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
+    //                                                   ThreadBlockSize,
+    //                                                   ScaleBlockSize,
+    //                                                   ADataType,
+    //                                                   AScaleDataType,
+    //                                                   BDataType,
+    //                                                   BScaleDataType,
+    //                                                   ATileDesc,
+    //                                                   BTileDesc,
+    //                                                   AScaleTileDesc,
+    // BScaleTileDesc,
+    //                                                   AMmaTileDesc,
+    //                                                   BMmaTileDesc,
+    //                                                   ABlockTransferSrcScalarPerVector,
+    //                                                   BBlockTransferSrcScalarPerVector,
+    //                                                   MPerBlock,
+    //                                                   NPerBlock,
+    //                                                   KPerBlock,
+    //                                                   MPerXDL,
+    //                                                   NPerXDL,
+    //                                                   MRepeat,
+    //                                                   NRepeat,
+    //                                                   KPack>{};
+    //     }
+    //     else
+    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
         return BlockwiseGemmXdlops_pipeline_v3_mx<BlkGemmPipeSche,
                                                   ThreadBlockSize,
@@ -102,6 +107,8 @@ constexpr auto BlockGemmMXPipeline_Selector()
                                                   BScaleDataType,
                                                   ATileDesc,
                                                   BTileDesc,
+                                                  AScaleTileDesc,
+                                                  BScaleTileDesc,
                                                   AMmaTileDesc,
                                                   BMmaTileDesc,
                                                   ABlockTransferSrcScalarPerVector,
