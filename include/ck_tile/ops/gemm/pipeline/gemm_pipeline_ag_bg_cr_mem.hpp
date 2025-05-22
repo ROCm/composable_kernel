@@ -111,13 +111,13 @@ struct BaseGemmPipelineAgBgCrMem
             }
         };
 
-#define CHECK_TAIL_NUMBER(TAIL_NUMBER, PREFETCH_VALUE) \
-    else if (tail_number == TailNumber::TAIL_NUMBER) \
-    { \
-        if constexpr (PrefetchStages > PREFETCH_VALUE) \
-        { \
+#define CHECK_TAIL_NUMBER(TAIL_NUMBER, PREFETCH_VALUE)                                      \
+    else if(tail_number == TailNumber::TAIL_NUMBER)                                         \
+    {                                                                                       \
+        if constexpr(PrefetchStages > PREFETCH_VALUE)                                       \
+        {                                                                                   \
             return tail_dispatch(integral_constant<TailNumber, TailNumber::TAIL_NUMBER>{}); \
-        } \
+        }                                                                                   \
     }
         // Handle all the valid cases.
         if(tail_number == TailNumber::One)
