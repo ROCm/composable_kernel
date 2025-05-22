@@ -54,12 +54,12 @@ struct BaseGemmPipelineAgBgCrMem
     static constexpr index_t GlobalBufferNum    = PrefetchStages;
     static constexpr bool UsePersistentKernel   = Problem::Traits::UsePersistentKernel;
 
-    CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
         if(num_loop % PrefetchStages == 1)
         {
@@ -96,39 +96,79 @@ struct BaseGemmPipelineAgBgCrMem
     }
 
     template <typename RunFunction>
-    CK_TILE_HOST_DEVICE static auto TailHandler(RunFunction run_func, bool has_hot_loop, TailNumber tail_number)
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(RunFunction run_func, bool has_hot_loop, TailNumber tail_number)
     {
         // Wrap the hot_loop dispatch first.
-        auto do_dispatch = [&](auto tail_num_constant) {
-            if (has_hot_loop) {
+        auto tail_dispatch = [&](auto tail_num_constant) {
+            if(has_hot_loop)
+            {
                 return run_func(bool_constant<true>{}, tail_num_constant);
-            } else {
+            }
+            else
+            {
                 return run_func(bool_constant<false>{}, tail_num_constant);
             }
         };
         // Handle all the valid cases.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wswitch-enum"
-        switch(tail_number)
+        if(tail_number == TailNumber::One)
         {
-            case TailNumber::One:   return do_dispatch(integral_constant<TailNumber, TailNumber::One>{});
-            case TailNumber::Two:   return do_dispatch(integral_constant<TailNumber, TailNumber::Two>{});
-            // TODO: handle this with if constexpr to avoid compiling TailNumber > PrefetchStages
-            // case TailNumber::Three: return do_dispatch(integral_constant<TailNumber, TailNumber::Three>{});
-            // case TailNumber::Four:  return do_dispatch(integral_constant<TailNumber, TailNumber::Four>{});
-            // case TailNumber::Five:  return do_dispatch(integral_constant<TailNumber, TailNumber::Five>{});
-            // case TailNumber::Six:   return do_dispatch(integral_constant<TailNumber, TailNumber::Six>{});
-            // case TailNumber::Seven: return do_dispatch(integral_constant<TailNumber, TailNumber::Seven>{});
-            case TailNumber::Full:  return do_dispatch(integral_constant<TailNumber, TailNumber::Full>{});
-            default:
-#if defined(__HIP_DEVICE_COMPILE__)
-                // This path should be unreachable in device code if tail_number is always valid.
-                __builtin_unreachable();
-#else
-                throw std::logic_error("Invalid TailNumber: Only TailNumber::One-Seven and TailNumber::Full are supported.");
-#endif
+            return tail_dispatch(integral_constant<TailNumber, TailNumber::One>{});
         }
-#pragma clang diagnostic pop
+        else if(tail_number == TailNumber::Full)
+        {
+            return tail_dispatch(integral_constant<TailNumber, TailNumber::Full>{});
+        }
+        else if(tail_number == TailNumber::Two)
+        {
+            if constexpr(PrefetchStages > 2)
+            {
+                return tail_dispatch(integral_constant<TailNumber, TailNumber::Two>{});
+            }
+        }
+        else if(tail_number == TailNumber::Three)
+        {
+            if constexpr(PrefetchStages > 3)
+            {
+                return tail_dispatch(integral_constant<TailNumber, TailNumber::Three>{});
+            }
+        }
+        else if(tail_number == TailNumber::Four)
+        {
+            if constexpr(PrefetchStages > 4)
+            {
+                return tail_dispatch(integral_constant<TailNumber, TailNumber::Four>{});
+            }
+        }
+        else if(tail_number == TailNumber::Five)
+        {
+            if constexpr(PrefetchStages > 5)
+            {
+                return tail_dispatch(integral_constant<TailNumber, TailNumber::Five>{});
+            }
+        }
+        else if(tail_number == TailNumber::Six)
+        {
+            if constexpr(PrefetchStages > 6)
+            {
+                return tail_dispatch(integral_constant<TailNumber, TailNumber::Six>{});
+            }
+        }
+        else if(tail_number == TailNumber::Seven)
+        {
+            if constexpr(PrefetchStages > 7)
+            {
+                return tail_dispatch(integral_constant<TailNumber, TailNumber::Seven>{});
+            }
+        }
+
+        // We shouldn't get here unless we have a tail number larger than the prefetch stages.
+#if defined(__HIP_DEVICE_COMPILE__)
+        __builtin_unreachable();
+#else
+        throw std::logic_error("Invalid TailNumber: Only TailNumber::Full and smaller than "
+                               "PrefetchStages are supported.");
+#endif
     }
 };
 
@@ -786,8 +826,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             p_smem);
     }
 
-    template <typename ADramBlockWindowTmp,
-              typename BDramBlockWindowTmp>
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    index_t num_loop,
@@ -796,8 +835,8 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                    void* p_smem) const
     {
         const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
-            constexpr bool hot_loop = hot_loop_.value;
-            constexpr auto tail_num = tail_num_.value;
+            constexpr bool hot_loop    = hot_loop_.value;
+            constexpr auto tail_num    = tail_num_.value;
             constexpr auto PassThrough = [](const auto& x) { return x; };
             return PipelineImpl<Scheduler>{}.template operator()<hot_loop, tail_num>(
                 a_dram_block_window_tmp,

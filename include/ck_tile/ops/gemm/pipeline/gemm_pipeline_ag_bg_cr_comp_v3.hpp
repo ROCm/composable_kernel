@@ -52,25 +52,29 @@ struct BaseGemmPipelineAgBgCrCompV3
     }
 
     template <typename RunFunction>
-    CK_TILE_HOST_DEVICE static auto TailHandler(RunFunction run_func, bool has_hot_loop, TailNumber tail_number)
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(RunFunction run_func, bool has_hot_loop, TailNumber tail_number)
     {
         // Handle all the valid cases.
         if(has_hot_loop)
         {
             if(tail_number == TailNumber::Full)
             {
-                return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Full>{});
+                return run_func(bool_constant<true>{},
+                                integral_constant<TailNumber, TailNumber::Full>{});
             }
         }
         else
         {
             if(tail_number == TailNumber::Odd)
             {
-                return run_func(bool_constant<false>{}, integral_constant<TailNumber, TailNumber::Odd>{});
+                return run_func(bool_constant<false>{},
+                                integral_constant<TailNumber, TailNumber::Odd>{});
             }
             else if(tail_number == TailNumber::Even)
             {
-                return run_func(bool_constant<false>{}, integral_constant<TailNumber, TailNumber::Even>{});
+                return run_func(bool_constant<false>{},
+                                integral_constant<TailNumber, TailNumber::Even>{});
             }
         }
 #if defined(__HIP_DEVICE_COMPILE__)
@@ -80,11 +84,13 @@ struct BaseGemmPipelineAgBgCrCompV3
         // If execution reaches here, it's an invalid combination of arguments.
         if(has_hot_loop)
         {
-            throw std::logic_error("Invalid TailNumber: If has_hot_loop is true, tail_number must be TailNumber::Full.");
+            throw std::logic_error("Invalid TailNumber: If has_hot_loop is true, tail_number must "
+                                   "be TailNumber::Full.");
         }
         else
         {
-            throw std::logic_error("Invalid TailNumber: If has_hot_loop is false, tail_number must be TailNumber::Odd or TailNumber::Even.");
+            throw std::logic_error("Invalid TailNumber: If has_hot_loop is false, tail_number must "
+                                   "be TailNumber::Odd or TailNumber::Even.");
         }
 #endif
     }
@@ -596,12 +602,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     /**
      * @brief This function runs the pipeline by wrapping it with the tail handler.
-     * 
+     *
      * @note This is used by the persistent gemm kernel variants that don't determine
      *       hot loop and tail number on the host side, e.g. grouped gemm kernel.
      */
-    template <typename ADramBlockWindowTmp,
-              typename BDramBlockWindowTmp>
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    index_t num_loop,
@@ -610,8 +615,8 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    void* p_smem) const
     {
         const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
-            constexpr bool hot_loop = hot_loop_.value;
-            constexpr auto tail_num = tail_num_.value;
+            constexpr bool hot_loop    = hot_loop_.value;
+            constexpr auto tail_num    = tail_num_.value;
             constexpr auto PassThrough = [](const auto& x) { return x; };
             return PipelineImpl<Scheduler>{}.template operator()<hot_loop, tail_num>(
                 a_dram_block_window_tmp,
@@ -626,7 +631,8 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     /**
      * @brief This function runs the pipeline using compile-time known hot loop and tail number.
-     * @param num_loop The number of loop iterations. This is determined at runtime due to e.g. SplitK.
+     * @param num_loop The number of loop iterations. This is determined at runtime due to e.g.
+     * SplitK.
      * @note This is used by the kernel variants that are able to determine
      *       hot loop and tail number on the host side, e.g. non-persistent gemm kernel.
      */
