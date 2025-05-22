@@ -104,27 +104,17 @@ function(add_instance_library INSTANCE_NAME)
         endif()
     endforeach()
 
-    foreach(source IN LISTS ARGN)
-        if(MIOPEN_REQ_LIBS_ONLY AND source MATCHES "_gemm_")
-            message("removing gemm instance ${source} ")
-            list(REMOVE_ITEM ARGN "${source}")
-        endif()
-
-        if(MIOPEN_REQ_LIBS_ONLY AND source MATCHES "mha")
-            message("removing mha instance ${source} ")
-            list(REMOVE_ITEM ARGN "${source}")
-        endif()
-
-        if(MIOPEN_REQ_LIBS_ONLY AND source MATCHES "contraction")
-            message("removing contraction instance ${source} ")
-            list(REMOVE_ITEM ARGN "${source}")
-        endif()
-
-        if(MIOPEN_REQ_LIBS_ONLY AND source MATCHES "reduce")
-            message("removing reduce instance ${source} ")
-            list(REMOVE_ITEM ARGN "${source}")
-        endif()
-    endforeach()
+    if(MIOPEN_REQ_LIBS_ONLY)
+        message("Removing all sources that are not required for MIOpen")
+        foreach(source IN LISTS ARGN)
+            if(source MATCHES "gemm" OR 
+               source MATCHES "mha" OR 
+               source MATCHES "contraction" OR 
+               source MATCHES "reduce")
+                    list(REMOVE_ITEM ARGN "${source}")
+            endif()
+        endforeach()
+    endif()
     #message("remaining instances: ${ARGN}")
     #only continue if there are some source files left on the list
     if(ARGN)

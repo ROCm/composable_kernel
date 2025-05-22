@@ -606,7 +606,7 @@ ENDFOREACH()
 
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
 
-option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" ON)
+option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
 
 add_subdirectory(library)
 
