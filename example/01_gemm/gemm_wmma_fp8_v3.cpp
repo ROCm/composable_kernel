@@ -13,8 +13,8 @@ using CDataType        = ck::bhalf_t;
 using ComputeTypeA     = ck::f8_t;
 using ComputeTypeB     = ck::f8_t;
 
-using ALayout = Col;
-using BLayout = Row;
+using ALayout = Row;
+using BLayout = Col;
 using CLayout = Row;
 
 using AElementOp = PassThrough;
@@ -25,20 +25,21 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 
 // clang-format off
 using DeviceGemmV2Instance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffleV3<
-        ALayout,   BLayout,  CLayout,   
-        ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
-        PassThrough, PassThrough, PassThrough, GemmDefault, 
-        128,
-        64, 64, 
-        32, 8, 8,
-        16,   16,
-        2,    2, 
-        S<4, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
-        2, 8, 8, 0,
-        S<4, 32, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
-        1, 2, 4, 1, 1, 1,
-        S<1, 32, 1, 2>,   8,
-        ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3, ComputeTypeA, ComputeTypeB>;
+    ALayout, BLayout, CLayout,
+    ADataType, BDataType, CDataType, AccDataType, CShuffleDataType,
+    PassThrough, PassThrough, PassThrough, GemmDefault,
+    128,
+    128, 64, 64,
+    8, 8,
+    16, 16,
+    4, 2,
+    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,
+    2, 8, 8, 0,
+    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,
+    2, 8, 8, 0,
+    1, 1, S<1, 32, 1, 4>, 8,
+    ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1,
+    ComputeTypeA, ComputeTypeB>;
 // clang-format on
 
 using ReferenceComputeType  = ck::f8_t;
@@ -54,4 +55,13 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
 
 #include "run_gemm_example_v2.inc"
 
-int main(int argc, char* argv[]) { return !run_gemm_splitk_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    if(!ck::is_gfx12_supported())
+    {
+        std::cout << "This kernel support gfx12 only" << std::endl;
+
+        return 0;
+    }
+    return !run_gemm_splitk_example(argc, argv);
+}

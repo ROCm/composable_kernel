@@ -23,20 +23,20 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 
 // clang-format off
 using DeviceGemmV2Instance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuffleV3<
-        ALayout,   BLayout,  CLayout,   
-        ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
-        PassThrough, PassThrough, PassThrough, GemmDefault, 
-        128,
-        128, 64, 
-        64, 8, 8,
-        16,   16,
-        4,    2, 
-        S<4, 32, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
-        1, 1, 8, 1, 
-        S<4, 32, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
-        1,  1,  8,  1,  1,  1,
-        S<1, 32, 1, 4>,   8,
-        ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
+    ALayout, BLayout, CLayout,
+    ADataType, BDataType, CDataType, AccDataType, CShuffleDataType,
+    PassThrough, PassThrough, PassThrough, GemmDefault,
+    128,
+    128, 64,
+    64, 8, 8,
+    16, 16,
+    4, 2,
+    S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
+    1, 1, 8, 1,
+    S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
+    1, 1, 8, 1,
+    1, 1, S<1, 32, 1, 4>, 8,
+    ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
