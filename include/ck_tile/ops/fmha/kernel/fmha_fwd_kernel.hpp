@@ -295,7 +295,7 @@ struct FmhaFwdKernel
           std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
           std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
-          std::conditional_t<, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<6>>
+          std::conditional_t<kSkipMinSeqlenQ, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<6>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -707,7 +707,7 @@ struct FmhaFwdKernel
                     {},               // placeholder for fp8_static_quant args
                     {},               // placeholder for dropout
                     {},               // placeholder for logits_soft_cap
-                    {},               // placeholder for min_seqlen_q 
+                    {},               // placeholder for min_seqlen_q
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};

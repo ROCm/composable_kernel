@@ -840,7 +840,7 @@ template <ck_tile::index_t HDim_,
           bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
-          bool kSkipMinSeqlenQ_=false>
+          bool kSkipMinSeqlenQ_ = false>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
