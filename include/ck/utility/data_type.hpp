@@ -351,6 +351,51 @@ inline constexpr index_t packed_size_v = packed_type_info<T>::packed_size;
 template <typename T>
 inline constexpr bool is_packed_type_v = packed_size_v<T> > 1;
 
+template <typename T, index_t N = 0>
+struct packed_type_maker
+{
+    private:
+    static constexpr auto get_packed_type()
+    {
+        using U = remove_cvref_t<T>;
+        if constexpr(std::is_same_v<U, int4_t>)
+        {
+            static_assert(N == 0 || N == 2, "Packed size N for int4_t must be 2.");
+            return pk_i4_t{};
+        }
+        else if constexpr(std::is_same_v<U, f4_t>)
+        {
+            static_assert(N == 0 || N == 2, "Packed size N for f4_t must be 2.");
+            return f4x2_pk_t{};
+        }
+        else if constexpr(std::is_same_v<U, f6_t>)
+        {
+            static_assert(N == 0 || N == 16 || N == 32, "Packed size N for f6_t must be 16 or 32.");
+            if constexpr(N == 16)
+                return f6x16_pk_t{};
+            else if constexpr(N == 0 || N == 32)
+                return f6x32_pk_t{};
+        }
+        else if constexpr(std::is_same_v<U, bf6_t>)
+        {
+            static_assert(N == 0 || N == 16 || N == 32,
+                          "Packed size N for bf6_t must be 16 or 32.");
+            if constexpr(N == 16)
+                return bf6x16_pk_t{};
+            else if constexpr(N == 0 || N == 32)
+                return bf6x32_pk_t{};
+        }
+        else
+            return T{};
+    }
+
+    public:
+    using packed_type = remove_cvref_t<decltype(get_packed_type())>;
+};
+
+template <typename T, index_t N = 0>
+using packed_type_t = typename packed_type_maker<T, N>::packed_type;
+
 #if defined(_WIN32)
 using int64_t = long long;
 #else
