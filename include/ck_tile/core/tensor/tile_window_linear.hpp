@@ -61,7 +61,6 @@ struct tile_window_linear
                                                  WindowLengths_,
                                                  StaticTileDistribution_>;
 
-    // using DataType         = remove_cvref_t<typename Base::BottomTensorView::DataType>;
     using LinearBottomDims = remove_cvref_t<LinearBottomDims_>;
 
     static_assert(LinearBottomDims::size() == Base::BottomTensorView::get_num_of_dimension());
@@ -151,7 +150,6 @@ struct tile_window_linear
         static constexpr auto get_non_linear_access_histogram()
         {
             constexpr auto m_ = get_non_linear_access_map();
-            // m_.foo();
 
             constexpr auto r_ =
                 typename arithmetic_sequence_gen<0, get_num_non_linear_access() + 1, 1>::type{};
@@ -307,8 +305,6 @@ struct tile_window_linear
             return linear_offset;
         }
     }
-
-    // CK_TILE_DEVICE constexpr auto get_num_of_access() const { return traits::NumAccess; }
 
     template <index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE auto load(number<i_access> = {}, bool_constant<oob_conditional_check> = {}) const
