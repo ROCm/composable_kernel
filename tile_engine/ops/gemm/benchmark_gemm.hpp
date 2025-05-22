@@ -118,6 +118,8 @@ struct KernelInstance
 
 struct Setting
 {
+    bool enable_profile_cache_;
+    bool flush_profile_cache_;
     int n_warmup_;
     int n_repeat_;
     bool is_gpu_timer_;

@@ -1,9 +1,11 @@
 
+find_package(SQLite3 REQUIRED)
+
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            # --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json
+            --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json
             --list_blobs
     RESULT_VARIABLE ret
 )
@@ -31,7 +33,7 @@ add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
             --working_path ${CMAKE_CURRENT_BINARY_DIR}
-            # --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json
+            --config_json ${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json
             --gen_blobs
 )
 
@@ -51,8 +53,8 @@ target_link_libraries(gemm_host_api INTERFACE gemm_template_instances)
 
 add_executable(${BENCHMARK_GEMM_EXECUTABLE} EXCLUDE_FROM_ALL benchmark_gemm.cpp)
 target_include_directories(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE benchmark_gemm.hpp gemm_profiler.hpp)
-target_link_libraries(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE gemm_host_api)
+target_sources(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE benchmark_gemm.hpp gemm_profiler.hpp profile_cache_db.hpp)
+target_link_libraries(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE gemm_host_api SQLite::SQLite3)
 
 set(EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS)
 

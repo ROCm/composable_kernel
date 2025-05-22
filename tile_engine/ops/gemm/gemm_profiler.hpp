@@ -6,10 +6,12 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <filesystem>
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "benchmark_gemm.hpp"
+#include "profile_cache_db.hpp"
 
 class GemmProfiler
 {
@@ -20,10 +22,45 @@ class GemmProfiler
         return instance;
     }
 
+    bool is_problem_record_cache(const GemmProblem& gemm_problem)
+    {
+        if(setting_.enable_profile_cache_)
+        {
+            if(!cache_db_->check_if_record_problem(
+                   get_rocm_version(), ck_tile::get_device_name(), gemm_problem))
+            {
+                return false;
+            }
+            else
+            {
+                auto [name, perf_result] = cache_db_->query_cache(
+                    get_rocm_version(), ck_tile::get_device_name(), gemm_problem);
+                KernelInstance kernel_instance;
+                kernel_instance.problem_                = gemm_problem;
+                kernel_instance.name_                   = name;
+                kernel_instance.perf_result_.latency_   = perf_result.latency_;
+                kernel_instance.perf_result_.tflops_    = perf_result.tflops_;
+                kernel_instance.perf_result_.bandwidth_ = perf_result.bandwidth_;
+                std::cout << "Skip this problem for " << gemm_problem
+                          << ", Because it has already been recorded in the cache database"
+                          << std::endl;
+                kernel_instances_.emplace_back(kernel_instance);
+                return true;
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
     {
+        if(is_problem_record_cache(gemm_problem))
+            return;
+
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
         const CLayout layout_c = CLayout{};
@@ -134,6 +171,12 @@ class GemmProfiler
                            c_m_n_host_result,
                            c_m_n_dev_result,
                            kernel_run_result);
+        }
+
+        if(setting_.enable_profile_cache_)
+        {
+            cache_db_->insert_cache(
+                get_rocm_version(), ck_tile::get_device_name(), kernel_instances_);
         }
     }
 
@@ -247,14 +290,92 @@ class GemmProfiler
         return kernel_instance;
     }
 
-    GemmProfiler(const GemmProfiler&) = delete;
+    GemmProfiler(const GemmProfiler&)            = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     private:
     ~GemmProfiler() { kernel_instances_.clear(); }
-    GemmProfiler(Setting setting) : setting_(setting) {}
+    GemmProfiler(Setting setting) : setting_(setting) { initialize_profile_cache(); }
+
+    void initialize_profile_cache()
+    {
+        if(setting_.enable_profile_cache_)
+        {
+            std::filesystem::path cache_db_prefix_path =
+                std::filesystem::current_path() / ".tile_engine";
+            if(!create_cache_directory(cache_db_prefix_path))
+            {
+                std::cerr << "Error: Failed to create cache directory" << std::endl;
+                return;
+            }
+            std::filesystem::path cache_db_path =
+                cache_db_prefix_path / ("tile_engine_" + ck_tile::get_device_name() + ".db");
+
+            handle_flush_cache(cache_db_path);
+
+            initialize_cache_db(cache_db_path);
+        }
+        else
+        {
+            std::cout << "Gemm profiler disable profile cache! " << std::endl;
+        }
+    }
+
+    bool create_cache_directory(const std::filesystem::path& cache_db_prefix_path)
+    {
+        std::error_code ec;
+        bool created = std::filesystem::create_directories(cache_db_prefix_path, ec);
+
+        if(ec)
+        {
+            std::cerr << "Error creating directory " << cache_db_prefix_path << ": " << ec.message()
+                      << std::endl;
+            return false;
+        }
+
+        if(created)
+
+        {
+            std::cout << "Created cache directory: " << cache_db_prefix_path << std::endl;
+        }
+        else
+        {
+            std::cout << "Using existing cache directory: " << cache_db_prefix_path << std::endl;
+        }
+        return true;
+    }
+
+    void handle_flush_cache(const std::filesystem::path& cache_db_path) const
+    {
+        if(setting_.flush_profile_cache_ && std::filesystem::exists(cache_db_path))
+        {
+            std::error_code ec;
+            if(std::filesystem::remove(cache_db_path, ec))
+
+            {
+                std::cout << "Successfully flushed cache: " << cache_db_path << std::endl;
+            }
+            else
+            {
+                std::cerr << "Error flushing cache: " << ec.message() << std::endl;
+            }
+        }
+    }
+
+    void initialize_cache_db(const std::filesystem::path& path)
+    {
+        try
+        {
+            cache_db_ = std::make_unique<ProfileCacheDB>(path);
+            std::cout << "Loaded profile cache from " << path << std::endl;
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << "Failed to initialize profile cache: " << e.what() << std::endl;
+        }
+    }
 
     Setting setting_;
-
+    std::unique_ptr<ProfileCacheDB> cache_db_;
     std::vector<KernelInstance> kernel_instances_;
 };

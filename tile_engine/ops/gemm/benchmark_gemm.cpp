@@ -27,6 +27,8 @@ void benchmark_gemm(const ck_tile::ArgParser& arg_parser)
                              arg_parser.get_bool("structured_sparsity")};
 
     Setting setting{
+        arg_parser.get_bool("enable_profile_cache"),
+        arg_parser.get_bool("flush_profile_cache"),
         arg_parser.get_int("warmup"),
         arg_parser.get_int("repeat"),
         arg_parser.get_bool("timer"),
