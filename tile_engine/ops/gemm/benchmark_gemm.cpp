@@ -124,24 +124,18 @@ void benchmark_gemm(const ck_tile::ArgParser& arg_parser,
 
     if(setting.verify_)
     {
-        gemm_host_reference<ADataType,
-                            BDataType,
-                            AccDataType,
-                            CDataType,
-                            ALayout,
-                            BLayout,
-                            CLayout>(setting.verify_,
-                                     a_m_k,
-                                     b_k_n,
-                                     c_m_n_host_result,
-                                     a_m_k_dev_buf,
-                                     b_k_n_dev_buf,
-                                     gemm_problem.m_,
-                                     gemm_problem.n_,
-                                     gemm_problem.k_,
-                                     gemm_problem.stride_a_,
-                                     gemm_problem.stride_b_,
-                                     gemm_problem.stride_c_);
+        gemm_host_reference(setting.verify_,
+                            a_m_k,
+                            b_k_n,
+                            c_m_n_host_result,
+                            a_m_k_dev_buf,
+                            b_k_n_dev_buf,
+                            gemm_problem.m_,
+                            gemm_problem.n_,
+                            gemm_problem.k_,
+                            gemm_problem.stride_a_,
+                            gemm_problem.stride_b_,
+                            gemm_problem.stride_c_);
     }
 
     try
