@@ -110,6 +110,15 @@ struct BaseGemmPipelineAgBgCrMem
                 return run_func(bool_constant<false>{}, tail_num_constant);
             }
         };
+
+#define CHECK_TAIL_NUMBER(TAIL_NUMBER, PREFETCH_VALUE) \
+    else if (tail_number == TailNumber::TAIL_NUMBER) \
+    { \
+        if constexpr (PrefetchStages > PREFETCH_VALUE) \
+        { \
+            return tail_dispatch(integral_constant<TailNumber, TailNumber::TAIL_NUMBER>{}); \
+        } \
+    }
         // Handle all the valid cases.
         if(tail_number == TailNumber::One)
         {
@@ -119,48 +128,13 @@ struct BaseGemmPipelineAgBgCrMem
         {
             return tail_dispatch(integral_constant<TailNumber, TailNumber::Full>{});
         }
-        else if(tail_number == TailNumber::Two)
-        {
-            if constexpr(PrefetchStages > 2)
-            {
-                return tail_dispatch(integral_constant<TailNumber, TailNumber::Two>{});
-            }
-        }
-        else if(tail_number == TailNumber::Three)
-        {
-            if constexpr(PrefetchStages > 3)
-            {
-                return tail_dispatch(integral_constant<TailNumber, TailNumber::Three>{});
-            }
-        }
-        else if(tail_number == TailNumber::Four)
-        {
-            if constexpr(PrefetchStages > 4)
-            {
-                return tail_dispatch(integral_constant<TailNumber, TailNumber::Four>{});
-            }
-        }
-        else if(tail_number == TailNumber::Five)
-        {
-            if constexpr(PrefetchStages > 5)
-            {
-                return tail_dispatch(integral_constant<TailNumber, TailNumber::Five>{});
-            }
-        }
-        else if(tail_number == TailNumber::Six)
-        {
-            if constexpr(PrefetchStages > 6)
-            {
-                return tail_dispatch(integral_constant<TailNumber, TailNumber::Six>{});
-            }
-        }
-        else if(tail_number == TailNumber::Seven)
-        {
-            if constexpr(PrefetchStages > 7)
-            {
-                return tail_dispatch(integral_constant<TailNumber, TailNumber::Seven>{});
-            }
-        }
+        CHECK_TAIL_NUMBER(Two, 2)
+        CHECK_TAIL_NUMBER(Three, 3)
+        CHECK_TAIL_NUMBER(Four, 4)
+        CHECK_TAIL_NUMBER(Five, 5)
+        CHECK_TAIL_NUMBER(Six, 6)
+        CHECK_TAIL_NUMBER(Seven, 7)
+#undef CHECK_TAIL_NUMBER
 
         // We shouldn't get here unless we have a tail number larger than the prefetch stages.
 #if defined(__HIP_DEVICE_COMPILE__)
