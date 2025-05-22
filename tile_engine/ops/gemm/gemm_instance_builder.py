@@ -326,6 +326,9 @@ struct GemmKernel {{
 
         # Parameter validity check
         invalid_params = []
+        if (warp_m, warp_n, warp_k) not in [(1,4,1), (2,2,1), (4,1,1)]:
+            invalid_params.append(
+                f"warp_m({warp_m}) * warp_n({warp_n}) * warp_k({warp_k})")
         if (warp_m * warp_tile_m) == 0:
             invalid_params.append(
                 f"warp_m({warp_m}) * warp_tile_m({warp_tile_m})")
@@ -338,7 +341,7 @@ struct GemmKernel {{
 
         if invalid_params:
             logging.debug(
-                f"Trait: [{trait}], Invalid warp configuratio: {', '.join(invalid_params)}. "
+                f"Trait: [{trait}], Invalid warp configuration: {', '.join(invalid_params)}. "
                 f"Parameter combination: warp=({warp_m},{warp_n},{warp_k}), "
                 f"warp_tile=({warp_tile_m},{warp_tile_n},{warp_tile_k})"
             )
@@ -366,9 +369,9 @@ struct GemmKernel {{
 
         # LDS capacity verification
         matrix_a_size = (tile_m * tile_k) * \
-            element_size(self.config.problem.datatype_map['matrix_a'])
+            pow(2, element_size(self.config.problem.datatype_map['matrix_a']))
         matrix_b_size = (tile_n * tile_k) * \
-            element_size(self.config.problem.datatype_map['matrix_b'])
+            pow(2, element_size(self.config.problem.datatype_map['matrix_b']))
         total_tile_in_lds = matrix_a_size + matrix_b_size
 
         max_tile_size = 2**16 if pipeline == "compv4" else 2**15
@@ -524,23 +527,26 @@ struct GemmDispatcher {
         for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
             content += f"""         kernel_map["{trait}"] = {{"""
             for i, tile in enumerate(tile_valid_params):
-                for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
+                for j in range(len(tile)):
+                    tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k = tile[j]
                     content += f"""[&](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{ """
-                    content += f""" if(structured_sparsity){{  // SMFMA"""
+                    content += f""" 
+                                    if(structured_sparsity){{  // SMFMA"""
                     sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
                         self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
                         self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
                         ((warp_tile_m == 32 and warp_tile_n == 32 and warp_tile_k == 16) or
                             (warp_tile_m == 16 and warp_tile_n == 16 and warp_tile_k == 32))
                     content += f"""
-                            return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(sparse)}>>(args, stream);"""
+                                        return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(sparse)}>>(args, stream);"""
                     content += f"""
                                     }} else {{"""
                     content += f"""
-                            return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(False)}>>(args, stream);"""
+                                        return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(False)}>>(args, stream);"""
                     content += f"""
                                     }} """
-                    if i == len(tile_valid_params)-1:
+                   
+                    if j == len(tile)-1:
                         content += f"""
                                 }} """
                     else:
