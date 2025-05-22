@@ -103,7 +103,7 @@ function(add_instance_library INSTANCE_NAME)
             list(REMOVE_ITEM ARGN "${source}")
         endif()
     endforeach()
-    message("remaining instances: ${ARGN}")
+    #message("remaining instances: ${ARGN}")
     #only continue if there are some source files left on the list
     if(ARGN)
         set(INST_OBJ)

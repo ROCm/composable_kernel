@@ -94,6 +94,9 @@ add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
 
+# Recent change in compiler makes this warning ON by default, which led to compile errors.
+add_compile_options(-Wno-nrvo)
+
 if(NOT DISABLE_DL_KERNELS)
     add_definitions(-DDL_KERNELS)
     set(DL_KERNELS "ON")

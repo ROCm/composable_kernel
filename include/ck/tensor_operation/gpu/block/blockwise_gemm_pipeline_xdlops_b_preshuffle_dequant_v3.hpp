@@ -124,7 +124,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
     using Base::I1;
     using Base::I2;
     using Base::KRepeat;
-    using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
 
     using Base::a_block_desc_m0_m1_m2_k;
@@ -144,6 +143,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
     using Base::BMmaKStride;
 
     using Base::MWaves;
+
+    static constexpr auto xdlops_gemm =
+        XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, BDataType>{};
 
     static constexpr index_t PrefetchStages        = 2;
     static constexpr index_t PrefillStages         = 1;
