@@ -85,19 +85,7 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
 
     if(!s.time_kernel_)
     {
-        if constexpr(sizeof...(callables) == 2)
-        {
-            auto preprocess      = std::get<0>(std::make_tuple(callables...));
-            auto kernel_launcher = std::get<1>(std::make_tuple(callables...));
-
-            preprocess();
-            launch_and_check(s, kernel_launcher);
-        }
-        else
-        {
-            auto kernel_launcher = std::get<0>(std::make_tuple(callables...));
-            launch_and_check(s, kernel_launcher);
-        }
+        launch_and_check(s, std::forward<Callables>(callables)...);
         return 0;
     }
 
@@ -105,48 +93,62 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
         // Warmup
         for(int i = 0; i < s.cold_niters_; i++)
         {
-            if constexpr(sizeof...(callables) == 2)
-            {
-                auto kernel_launcher = std::get<1>(std::make_tuple(callables...));
-                launch_and_check(s, kernel_launcher);
-            }
-            else
-            {
-                auto kernel_launcher = std::get<0>(std::make_tuple(callables...));
-                launch_and_check(s, kernel_launcher);
-            }
+            launch_and_check(s, std::forward<Callables>(callables)...);
         }
 
         timer.start(s.stream_id_);
         for(int i = 0; i < s.nrepeat_; i++)
         {
-            if constexpr(sizeof...(callables) == 2)
-            {
-                auto preprocess      = std::get<0>(std::make_tuple(callables...));
-                auto kernel_launcher = std::get<1>(std::make_tuple(callables...));
-
-                preprocess();
-                launch_and_check(s, kernel_launcher);
-            }
-            else
-            {
-                auto kernel_launcher = std::get<0>(std::make_tuple(callables...));
-                launch_and_check(s, kernel_launcher);
-            }
+            launch_and_check(s, std::forward<Callables>(callables)...);
         }
         timer.stop(s.stream_id_);
 
-        if constexpr(sizeof...(callables) == 2)
+        return timer.duration() / s.nrepeat_;
+    };
+
+    if(s.is_gpu_timer_)
+    {
+        return time_launches(gpu_timer{});
+    }
+    else
+    {
+        return time_launches(cpu_timer{});
+    }
+}
+
+template <typename PreprocessFunc, typename... Callables>
+CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
+                                            PreprocessFunc preprocess,
+                                            Callables&&... callables)
+{
+    static_assert(sizeof...(callables) > 0, "At least one callable is required!");
+
+    if(!s.time_kernel_)
+    {
+        preprocess();
+        launch_and_check(s, std::forward<Callables>(callables)...);
+        return 0;
+    }
+
+    auto time_launches = [&](auto timer) {
+        // Warmup
+        for(int i = 0; i < s.cold_niters_; i++)
         {
-            hipDeviceProp_t deviceProps;
-            HIP_CHECK_ERROR(hipGetDeviceProperties(&deviceProps, 0));
-            float preprocess_offset = deviceProps.multiProcessorCount == 80 ? 0.005 : 0.01;
-            return (timer.duration() - preprocess_offset * s.nrepeat_) / s.nrepeat_;
+            launch_and_check(s, std::forward<Callables>(callables)...);
         }
-        else
+
+        timer.start(s.stream_id_);
+        for(int i = 0; i < s.nrepeat_; i++)
         {
-            return timer.duration() / s.nrepeat_;
+            preprocess();
+            launch_and_check(s, std::forward<Callables>(callables)...);
         }
+        timer.stop(s.stream_id_);
+
+        hipDeviceProp_t deviceProps;
+        HIP_CHECK_ERROR(hipGetDeviceProperties(&deviceProps, 0));
+        float preprocess_offset = deviceProps.multiProcessorCount == 80 ? 0.005 : 0.01;
+        return (timer.duration() - preprocess_offset * s.nrepeat_) / s.nrepeat_;
     };
 
     if(s.is_gpu_timer_)

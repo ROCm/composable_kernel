@@ -40,6 +40,8 @@ rm -rf tile_engine/ && make tile_engine_gemm -j  # rebuild
              -repeat    Number of iterations to benchmark the kernel (default:100)
               -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
                -init    Value for initializing tensor- random: 0, linear: 1, constant(1): 2 (default:0)
+        -flush_cache    To flush cache in between different runs: true, false (default: false)
+     -rotating_count    count to flush cache (defult: 5)
 -structured_sparsity    Sparsity for tensor - 0:false, 1:true (default: 0)
            -pipeline    possible values are: compv3, compv4, mem (default:compv3)
           -scheduler    possible values are: intrawave, interwave (default:intrawave)
