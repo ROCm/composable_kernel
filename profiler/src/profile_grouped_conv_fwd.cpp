@@ -324,6 +324,7 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         }
         else if(data_type == ConvDataType::F16_F16_F16)
         {
+            printf("profile ngchw gkcyx ngkhw");
             return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
         else if(data_type == ConvDataType::BF16_BF16_BF16)

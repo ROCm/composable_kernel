@@ -704,9 +704,46 @@ struct TransformConvFwdToGemm
 
     template <typename ALayout,
               typename ck::enable_if<NDimSpatial == 2 &&
+                                         (is_same_v<ALayout, tensor_layout::convolution::NGCHW>),
+                                     bool>::type = false>
+    __host__ __device__ auto MakeADescriptor_M_K() const
+    {
+                const auto in_n_hi_wi_c_desc = make_naive_tensor_descriptor(
+                    make_tuple(N_, Hi_, Wi_, C_),
+                    make_tuple(NStrideTensorA_, HiStride_, WiStride_, CStrideTensorA_));
+
+                const auto in_n_hip_wip_c_desc = transform_tensor_descriptor(
+                    in_n_hi_wi_c_desc,
+                    make_tuple(make_pass_through_transform(N_),
+                               make_pad_transform(Hi_, InLeftPadH_, InRightPadH_),
+                               make_pad_transform(Wi_, InLeftPadW_, InRightPadW_),
+                               make_pass_through_transform(C_)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+                const auto in_n_y_ho_x_wo_c_desc = transform_tensor_descriptor(
+                    in_n_hip_wip_c_desc,
+                    make_tuple(make_pass_through_transform(N_),
+                               make_embed_transform(make_tuple(Y_, Ho_),
+                                                    make_tuple(ConvDilationH_, ConvStrideH_)),
+                               make_embed_transform(make_tuple(X_, Wo_),
+                                                    make_tuple(ConvDilationW_, ConvStrideW_)),
+                               make_pass_through_transform(C_)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
+
+                return transform_tensor_descriptor(
+                    in_n_y_ho_x_wo_c_desc,
+                    make_tuple(make_merge_transform(make_tuple(N_, Ho_, Wo_)),
+                               make_merge_transform(make_tuple(C_, Y_, X_))),
+                    make_tuple(Sequence<0, 2, 4>{}, Sequence<5, 1, 3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+    }
+
+    template <typename ALayout,
+              typename ck::enable_if<NDimSpatial == 2 &&
                                          (is_same_v<ALayout, tensor_layout::convolution::G_NHW_C> ||
                                           is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
-                                          is_same_v<ALayout, tensor_layout::convolution::NGCHW> ||
                                           is_same_v<ALayout, tensor_layout::convolution::GNHWC>),
                                      bool>::type = false>
     __host__ __device__ auto MakeADescriptor_M_K() const
@@ -948,6 +985,7 @@ struct TransformConvFwdToGemm
               typename ck::enable_if<
                   NDimSpatial == 3 && (is_same_v<ALayout, tensor_layout::convolution::G_NDHW_C> ||
                                        is_same_v<ALayout, tensor_layout::convolution::NDHWGC> ||
+                                       is_same_v<ALayout, tensor_layout::convolution::NGCDHW> ||
                                        is_same_v<ALayout, tensor_layout::convolution::GNDHWC>),
                   bool>::type = false>
     __host__ __device__ auto MakeADescriptor_M_K() const
@@ -1257,6 +1295,7 @@ struct TransformConvFwdToGemm
     template <typename BLayout,
               typename ck::enable_if<is_same_v<BLayout, tensor_layout::convolution::GKXC> ||
                                          is_same_v<BLayout, tensor_layout::convolution::GKYXC> ||
+                                         is_same_v<BLayout, tensor_layout::convolution::GKCZYX> ||
                                          is_same_v<BLayout, tensor_layout::convolution::GKZYXC>,
                                      bool>::type = false>
     __host__ __device__ auto MakeBDescriptor_N_K() const
@@ -1315,7 +1354,6 @@ struct TransformConvFwdToGemm
                                    is_same_v<BLayout, tensor_layout::convolution::G_K_ZYX_C> ||
                                    is_same_v<BLayout, tensor_layout::convolution::KXGC> ||
                                    is_same_v<BLayout, tensor_layout::convolution::KYXGC> ||
-                                   is_same_v<BLayout, tensor_layout::convolution::GKCYX> ||
                                    is_same_v<BLayout, tensor_layout::convolution::KZYXGC>,
                                bool>::type = false>
     __host__ __device__ auto MakeBDescriptor_N_K() const
@@ -1326,6 +1364,24 @@ struct TransformConvFwdToGemm
         const auto wei_gemmn_gemmk_desc = transform_tensor_descriptor(
             wei_k_yx_c_desc,
             make_tuple(make_pass_through_transform(K_), make_merge_transform(make_tuple(ZYX_, C_))),
+            make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return wei_gemmn_gemmk_desc;
+    }
+
+    template <
+        typename BLayout,
+        typename ck::enable_if<is_same_v<BLayout, tensor_layout::convolution::GKCYX>,
+                               bool>::type = false>
+    __host__ __device__ auto MakeBDescriptor_N_K() const
+    {
+        const auto wei_k_yx_c_desc = make_naive_tensor_descriptor(
+            make_tuple(K_, C_, ZYX_), make_tuple(KStrideTensorB_, CStrideTensorB_, XStride_));
+
+        const auto wei_gemmn_gemmk_desc = transform_tensor_descriptor(
+            wei_k_yx_c_desc,
+            make_tuple(make_pass_through_transform(K_), make_merge_transform(make_tuple(C_, ZYX_))),
             make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
@@ -1421,13 +1477,30 @@ struct TransformConvFwdToGemm
         }
     }
 
+
     template <typename CLayout,
               index_t NDimSp = NDimSpatial,
+              typename ck::enable_if<NDimSp == 2 &&
+                                         (is_same_v<CLayout, tensor_layout::convolution::NGKHW>),
+                                     bool>::type = false>
+    __host__ __device__ auto MakeCDescriptor_M_N() const
+    {
+        auto desc = make_naive_tensor_descriptor(make_tuple(N_, K_, Ho_, Wo_),
+                                                make_tuple(K_ * Wo_ * Ho_ , Ho_* Wo_ , Wo_, I1));
 
+        return transform_tensor_descriptor(
+                desc,
+                make_tuple(make_merge_transform(make_tuple(N_, Ho_, Wo_)),
+                           make_pass_through_transform(K_)),
+                make_tuple(Sequence<0, 2, 3>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+    }
+
+    template <typename CLayout,
+              index_t NDimSp = NDimSpatial,
               typename ck::enable_if<NDimSp == 2 &&
                                          (is_same_v<CLayout, tensor_layout::convolution::G_NHW_K> ||
                                           is_same_v<CLayout, tensor_layout::convolution::NHWGK> ||
-                                          is_same_v<CLayout, tensor_layout::convolution::NGKHW> ||
                                           is_same_v<CLayout, tensor_layout::convolution::GNHWK>),
                                      bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
@@ -1485,6 +1558,7 @@ struct TransformConvFwdToGemm
               typename ck::enable_if<
                   NDimSp == 3 && (is_same_v<CLayout, tensor_layout::convolution::G_NDHW_K> ||
                                   is_same_v<CLayout, tensor_layout::convolution::NDHWGK> ||
+                                  is_same_v<CLayout, tensor_layout::convolution::NGKDHW> ||
                                   is_same_v<CLayout, tensor_layout::convolution::GNDHWK>),
                   bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const

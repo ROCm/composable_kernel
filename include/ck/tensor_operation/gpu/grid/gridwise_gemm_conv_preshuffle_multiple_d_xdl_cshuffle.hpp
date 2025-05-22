@@ -57,6 +57,7 @@ template <typename ADataType,
           index_t X,
           bool PadH,
           bool PadW,
+          typename ACHWSliceTransferThreadClusterLengths_N_C_H_W,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -114,7 +115,7 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
 
     static constexpr auto TrueKPerBlock = Number<CSlice * X * Y>{}; 
 
-    static constexpr auto PaddedCSlice = Number<8>{}; // hardcore for now, should enable even elem distribution between all threads
+    static constexpr auto PaddedCSlice = KPerBlock == 64 ? Number<8>{} : Number<4>{}; // hardcore for now, should enable even elem distribution between all threads
 
 
     // also WoutSlice * Hout_Slice must be equal to MPerBlock
@@ -158,11 +159,20 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
         // Slice of NCHW after im2col, src of lds1 -> lds2 blockwise copy
 
         constexpr auto nchw_slice_desc = make_naive_tensor_descriptor(
-            make_tuple(NSlice, CSlice, HSlice, WSlice),
-            make_tuple(CSlice * HSlice * WSlice, HSlice * WSlice, WSlice, I1));
+            make_tuple(NSlice, PaddedCSlice, HSlice, WSlice),
+            make_tuple(PaddedCSlice * HSlice * WSlice, HSlice * WSlice, WSlice, I1));
+
+        constexpr auto nchw_slice_sliced_desc = transform_tensor_descriptor(
+                    nchw_slice_desc,
+                    make_tuple(make_pass_through_transform(NSlice),
+                               make_slice_transform(PaddedCSlice, I0, CSlice),
+                               make_pass_through_transform(HSlice),
+                               make_pass_through_transform(WSlice)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
         constexpr auto nchw_padded_slice_desc = transform_tensor_descriptor(
-                    nchw_slice_desc,
+                    nchw_slice_sliced_desc,
                     make_tuple(make_pass_through_transform(NSlice),
                                make_pass_through_transform(CSlice),
                                make_pass_through_transform(HSlice),
@@ -170,24 +180,24 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
 
-        constexpr auto nhowocyx_desc = transform_tensor_descriptor(
+        constexpr auto n_c_y_ho_x_wo_desc = transform_tensor_descriptor(
                     nchw_padded_slice_desc,
                     make_tuple(make_pass_through_transform(NSlice),
                                make_pass_through_transform(CSlice),
-                               make_embed_transform(make_tuple(HoutSlice, Y),
-                                                    make_tuple(ConvStrideH, ConvDilationH)),
-                               make_embed_transform(make_tuple(WoutSlice, X),
-                                                    make_tuple(ConvStrideW, ConvDilationW))),
+                               make_embed_transform(make_tuple(Y, HoutSlice),
+                                                    make_tuple(ConvDilationH, ConvStrideH)),
+                               make_embed_transform(make_tuple(X, WoutSlice),
+                                                    make_tuple(ConvDilationW, ConvStrideW))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
 
         
 
         constexpr auto mk_desc = transform_tensor_descriptor(
-                    nhowocyx_desc,
+                    n_c_y_ho_x_wo_desc,
                     make_tuple(make_merge_transform(make_tuple(NSlice, HoutSlice, WoutSlice)),
                                make_merge_transform(make_tuple(CSlice, Y, X))),
-                    make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}),
+                    make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         constexpr auto FinalMKPad = KPerBlock - TrueKPerBlock;
@@ -506,7 +516,7 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
 
     __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
-        const index_t num_loop = K / KPerBlock;
+        const index_t num_loop = K / TrueKPerBlock;
 
         return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
     }
@@ -667,10 +677,18 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
         //const index_t m_block_data_idx_on_grid =
         //    __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
 
-        const index_t m_block_data_idx_on_grid_nchw = __builtin_amdgcn_readfirstlane(block_work_idx[I0] * HoutSlice);
+        const index_t Hout = PadH ? a_grid_desc_nchw.GetLength(I2) - Y + 1 : a_grid_desc_nchw.GetLength(I2);
+
+        const index_t m_block_data_idx_on_grid_nchw_n = __builtin_amdgcn_readfirstlane((block_work_idx[I0]  * HoutSlice) / Hout);
+        const index_t m_block_data_idx_on_grid_nchw_h = __builtin_amdgcn_readfirstlane((block_work_idx[I0] * HoutSlice) % Hout);
 
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
+
+        // if(threadIdx.x == 0) {
+        //     printf("BlockIdx.x %d, mblock idx %d n %d h%d nblock idx %d Hout %d", blockIdx.x, block_work_idx[I0],
+        //          m_block_data_idx_on_grid_nchw_n, m_block_data_idx_on_grid_nchw_h, n_block_data_idx_on_grid, Hout);
+        // }
 
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1, BK1);
@@ -705,9 +723,9 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                // 1, 8, 4, 56
+                                                // 1, 8, 4, 64
                                                 Sequence<NSlice, PaddedCSlice, HSlice, WSlice>, // Should be Sequence<NSlice, PaddedCSlice, HSlice, WSlice>
-                                                Sequence<1, 8, 4, 2>,//ABlockTransferThreadClusterLengths_AK0_M_AK1, // should be <1, 8, 4, 2>
+                                                ACHWSliceTransferThreadClusterLengths_N_C_H_W,//ABlockTransferThreadClusterLengths_AK0_M_AK1, // should be <1, 8, 4, 2>
                                                 Sequence<0, 1, 2, 3>,//ABlockTransferThreadClusterArrangeOrder,
                                                 ADataType,
                                                 AComputeDataType,
@@ -717,21 +735,19 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                                                 Sequence<0, 1, 2, 3>,//Sequence<1, 0, 2>,
                                                 3,//ABlockTransferSrcVectorDim,
                                                 3,
-                                                4,//ABlockTransferSrcScalarPerVector,
-                                                ABlockTransferDstScalarPerVector_AK1,
+                                                ABlockTransferSrcScalarPerVector,
+                                                ABlockTransferDstScalarPerVector_AK1, //
                                                 1,
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
                                                 NumGemmKPrefetchStage>(
                 a_grid_desc_nchw,
-                make_multi_index(0, 0, m_block_data_idx_on_grid_nchw, 0), // shift!
+                make_multi_index(m_block_data_idx_on_grid_nchw_n, 0, m_block_data_idx_on_grid_nchw_h, 0),
                 a_element_op,
                 a_block1_desc_cslice_hslice_wslice,
                 make_multi_index(0, 0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
-
-        a_global_into_lds1_blockwise_copy.RunRead(a_grid_desc_nchw, a_grid_buf);
 
         auto a_lds1_into_lds2_blockwise_copy =
             ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
@@ -750,15 +766,15 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                                                 Sequence<1, 0, 2>,
                                                 ABlockTransferSrcVectorDim,
                                                 2,
-                                                ABlockTransferSrcScalarPerVector, // probably 1
-                                                ABlockTransferDstScalarPerVector_AK1,
+                                                1,//ABlockTransferSrcScalarPerVector, // probably 1
+                                                ABlockTransferDstScalarPerVector_AK1,//ABlockTransferDstScalarPerVector_AK1,
                                                 1,
                                                 1,
                                                 true,//AThreadTransferSrcResetCoordinateAfterRun,
                                                 true,
                                                 NumGemmKPrefetchStage>(
                 a_block1_desc_nhowo_cyx,
-                make_multi_index(0, 0, 0), // shift!
+                make_multi_index(0, 0, 0),
                 a_element_op,
                 a_block2_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
@@ -814,7 +830,7 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                                                 Sequence<1, 0, 2>,
                                                 BBlockTransferSrcVectorDim,
                                                 2,
-                                                BBlockTransferSrcScalarPerVector,
+                                                BBlockTransferSrcScalarPerVector, // probably 1 for now
                                                 BBlockTransferDstScalarPerVector_BK1,
                                                 1,
                                                 1,
@@ -880,7 +896,7 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
             a_block1_desc_cslice_hslice_wslice.GetElementSpaceSize());
 
         auto a_block_buf2 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<AComputeDataType*>(p_shared) + + a_block1_space_size_aligned, 
+            static_cast<AComputeDataType*>(p_shared) + a_block1_space_size_aligned, 
             a_block2_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
@@ -889,7 +905,8 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
 
         //constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
         constexpr auto a_block_slice_copy_step = make_multi_index(0, CSlice, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
+        //constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(TrueKPerBlock / BK1, 0, TrueKPerBlock % BK1);
 
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline =
@@ -897,7 +914,13 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-            KPerBlock); // TrueKPerBlock ?
+            TrueKPerBlock) + ((a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) %
+            TrueKPerBlock != 0); // TrueKPerBlock ?
+
+        // if(threadIdx.x == 0) {
+        //     printf("hasmainkblockloop: %d\n", HasMainKBlockLoop);
+        //     printf("Running %d k block iters", num_k_block_main_loop);
+        // }
 
         gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_nchw, // global
                                                                a_block1_desc_cslice_hslice_wslice, // lds1 write

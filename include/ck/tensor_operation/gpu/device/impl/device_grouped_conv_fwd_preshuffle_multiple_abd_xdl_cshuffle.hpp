@@ -275,6 +275,7 @@ template <index_t NDimSpatial,
           index_t X,
           bool PadH,
           bool PadW,
+          typename ACHWSliceTransferThreadClusterLengths_N_C_H_W,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -461,7 +462,7 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
         const auto nchw_padded_desc = transform_tensor_descriptor(
                 nchw_desc,
                 make_tuple(make_pass_through_transform(N),
-                           make_pad_transform(C, 0, 8), // hardcode for now, ensure additional reads wont go past memory
+                           make_right_pad_transform(C, 8), // hardcode for now, ensure additional reads wont go past memory
                            make_pad_transform(Hi, InLeftPadH, InRightPadH), // Pad only Hi at this point, Wi will
                            make_pass_through_transform(Wi)),                // be padded at lds1 -> lds2 transfer
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
@@ -498,6 +499,7 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
         InMemoryDataOperationEnum::Set, NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, \
         KPerBlock, AK1, BK1, MPerXDL, NPerXDL, MXdlPerWave, NXdlPerWave, HPerBlock, WPerBlock,  \
         Y, X, PadH, PadW,                                                                       \
+        ACHWSliceTransferThreadClusterLengths_N_C_H_W,                                          \
         ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder,  \
         ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                               \
         ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,          \
@@ -918,8 +920,7 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
 
         std::size_t GetWorkspaceSizeBytes() const
         {
-            return GetWorkspaceATensorSizeBytes() + GetWorkspaceBTensorSizeBytes() +
-                   GetWorkspaceETensorSizeBytes();
+            return 0;
         }
 
         void Print() const
@@ -1007,7 +1008,7 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
                 arg.Print();
             }
 
-            const index_t num_workgroups_per_Conv_N =
+            [[maybe_unused]] const index_t num_workgroups_per_Conv_N =
                 arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
 
             const index_t gdx = arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_);
@@ -1016,6 +1017,8 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+
+            //printf("K: %d\n", K);
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
@@ -1118,6 +1121,9 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
                         has_main_loop,
                         isMultiA,
                         isMultiB>;
+                    
+                    // printf("(gdx:%d, gdy:%d, gdz:%d)\n", gdx, gdy, gdz);
+                    // printf("Blocksize:%d\n", BlockSize);
 
                     return launch_and_time_kernel(
                         stream_config,
@@ -1467,17 +1473,17 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
                 return false;
             }
 
-            if(!arg.p_workspace_)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Warning: Workspace for "
-                                 "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle::Argument is not "
-                                 "allocated, use SetWorkSpacePointer."
-                              << std::endl;
-                }
-                return false;
-            }
+            // if(!arg.p_workspace_)
+            // {
+            //     if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            //     {
+            //         std::cout << "Warning: Workspace for "
+            //                      "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle::Argument is not "
+            //                      "allocated, use SetWorkSpacePointer."
+            //                   << std::endl;
+            //     }
+            //     return false;
+            // }
 
             // constexpr long_index_t TwoGB = (long_index_t{1} << 31);
             // if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
