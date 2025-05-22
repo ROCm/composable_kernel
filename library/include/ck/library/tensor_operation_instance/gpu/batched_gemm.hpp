@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,16 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
+
+#ifdef CK_USE_WMMA
+#ifdef CK_ENABLE_FP16
+void add_device_batched_gemm_wmma_universal_f16_f16_f16_gmk_gkn_gmn_instances(
+    std::vector<std::unique_ptr<
+        DeviceBatchedGemm<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+#endif
+#endif // CK_USE_WMMA
+#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_BF16
 void add_device_batched_gemm_xdl_bf16_bf16_bf16_gkm_gkn_gmn_instances(
     std::vector<std::unique_ptr<
@@ -124,6 +134,8 @@ void add_device_batched_gemm_xdl_int8_int8_int8_gmk_gnk_gmn_instances(
                                                   PassThrough,
                                                   PassThrough>>>& instances);
 #endif
+#endif // CK_USE_XDL
+
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -154,6 +166,21 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+#ifdef CK_USE_WMMA
+#ifdef CK_ENABLE_FP16
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<CDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_batched_gemm_wmma_universal_f16_f16_f16_gmk_gkn_gmn_instances(op_ptrs);
+            }
+        }
+#endif
+#endif // CK_USE_WMMA
+#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_FP32
         if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
                      is_same_v<CDataType, float>)
@@ -258,6 +285,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceBatche
             }
         }
 #endif
+#endif // CK_USE_XDL
         return op_ptrs;
     }
 };
