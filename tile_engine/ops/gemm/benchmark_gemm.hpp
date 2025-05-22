@@ -8,8 +8,7 @@
 #include <fstream>
 #include <stdexcept>
 
-#include "ck_tile/host.hpp"
-#include "gemm_common.hpp"
+#include "gemm_host_api.hpp"
 
 enum class Metric
 {

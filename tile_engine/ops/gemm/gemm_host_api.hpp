@@ -9,6 +9,7 @@
 
 #include "ck_tile/host.hpp"
 #include "gemm_dispatcher.hpp"
+#include "gemm_common.hpp"
 
 template <typename T>
 struct DataTypeTraits;
