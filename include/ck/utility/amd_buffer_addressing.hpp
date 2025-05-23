@@ -1022,7 +1022,12 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
     // Direct loads require that each thread reads and writes exactly a single DWORD.
     constexpr auto dword_bytes      = 4;
     constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
+#if defined(__gfx950__)
+    static_assert(bytes_per_thread == dword_bytes || bytes_per_thread == dword_bytes * 3 ||
+                  bytes_per_thread == dword_bytes * 4);
+#else
     static_assert(bytes_per_thread == dword_bytes);
+#endif
 
 #ifndef CK_CODE_GEN_RTC
     const uint32_t* global_ptr =
@@ -1059,7 +1064,7 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
 #endif
 
     llvm_amdgcn_raw_buffer_load_lds(
-        src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0, 0, 0);
+        src_resource, lds_ptr, bytes_per_thread, global_offset_bytes, 0, 0, 0);
 #endif
 }
 #endif
