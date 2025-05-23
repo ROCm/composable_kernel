@@ -605,6 +605,10 @@ ENDIF()
 ENDFOREACH()
 
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
+
+option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
+
 add_subdirectory(library)
 
 if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
@@ -624,11 +628,13 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
    endif()
 endif()
 
-rocm_package_setup_component(profiler
-    LIBRARY_NAME composablekernel
-    PACKAGE_NAME ckprofiler
-)
-add_subdirectory(profiler)
+if (NOT MIOPEN_REQ_LIBS_ONLY)
+    rocm_package_setup_component(profiler
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME ckprofiler
+    )
+    add_subdirectory(profiler)
+endif()
 
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
   add_subdirectory(codegen)
