@@ -147,7 +147,7 @@ constexpr ck::index_t ScaleBlockSize   = 32;                   // scaling block 
 constexpr ck::index_t KPerBlock        = 256 / DataPackedSize; // 256 f4 = 128 fp4x2
 static constexpr ck::index_t Nswizzle  = false;
 static constexpr ck::index_t ActOP     = 0; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MPerBlock = 64;
 static constexpr ck::index_t NPerBlock = 128;
 static constexpr ck::index_t BlockSize = 256;
 static constexpr bool MulRoutedWeight  = true;
@@ -161,7 +161,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     MPerBlock,      NPerBlock,    KPerBlock,
     16,   16,
     16,   16,
-    4,     4,
+    2,     4,
     S<8, 32, 1>, S<1, 0, 2>,     S<1, 0, 2>,    2, 16, 16, 0,
     S<8, 32, 1>, S<1, 0, 2>,     S<1, 0, 2>,    2, 16, 16, 0,
     2,    2,     S<1, 32, 1, 8>, S<8, 1, 1, 1>,
