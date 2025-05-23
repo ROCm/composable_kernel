@@ -66,15 +66,27 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
     static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
 
     static constexpr auto block_slice_lengths    = BlockSliceLengths{};
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
+    static constexpr auto wave_thread_cluster_lengths =
+        Sequence<ThreadClusterLengths{}.At(I0),
+                 ThreadClusterLengths{}.At(I1) * 64 / ThreadGroup::GetNumOfThread(),
+                 1>{};
+    static constexpr auto wave_cluster_lengths =
+        Sequence<1, ThreadGroup::GetNumOfThread() / 64, 1>{};
 
     static constexpr auto thread_single_load_size = generate_sequence(
         detail::lambda_scalar_per_access<DstVectorDim, ScalarPerVector>{}, Number<nDim>{});
+
+    // CK_PRINT<decltype(thread_single_load_size)>();
+
     // After a load, each thread moves by `thread_steps` instead of loading the next elements.
     // It makes the whole wavefront load contiguous memory, what is required for direct loads.
-    static constexpr auto thread_steps         = thread_cluster_lengths * thread_single_load_size;
+    static constexpr auto thread_steps = thread_cluster_lengths * thread_single_load_size;
+    static constexpr auto wave_single_load_size =
+        wave_thread_cluster_lengths * thread_single_load_size;
     static constexpr auto thread_slice_lengths = block_slice_lengths / thread_steps;
     static constexpr index_t gather_num        = thread_slice_lengths.At(Number<GatherDim>{});
 
@@ -172,10 +184,16 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
 
+        const auto wave_cluster_idx = wave_cluster_desc_.CalculateBottomIndex(
+            make_multi_index(ThreadGroup::GetThreadId() / 64));
+
         const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
+        const auto wave_data_idx_begin   = wave_cluster_idx * wave_single_load_size;
 
         SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
-        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + thread_data_idx_begin);
+        // We don't need threadwise offset for lds since it was calculate by HW
+        // We still need input the wavewise offset.
+        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin);
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -187,6 +205,9 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
             });
             return idx;
         }();
+
+        // CK_PRINT<decltype(adjusted_src_origin_idx)>();
+        // CK_PRINT<decltype(src_slice_origin_idx)>();
 
         src_coord_        = make_tensor_coordinate(src_desc, adjusted_src_origin_idx);
         src_slice_origin_ = adjusted_src_origin_idx;
@@ -230,20 +251,45 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 
         // Loop over the destination block and copy data.
         static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
-            // CK_PRINT<decltype(dst_access_lengths), decltype(ordered_dst_access_idx)>();
-            auto gather_offset    = gather_offsets_(Number<GatherDim>{});
-            const auto src_offset = src_coord_.GetOffset() + gather_offset;
-            const auto dst_offset = dst_coord_.GetOffset();
-            // printf("Tid: %03d, src_offset: %d, dst_offset: %d\n", get_thread_local_1d_id(),
-            // src_coord_.GetOffset(), dst_coord_.GetOffset());
+            IndexType gather_offset = gather_offsets_[ordered_dst_access_idx[Number<GatherDim>{}]];
+            const IndexType src_offset = src_coord_.GetOffset() + gather_offset;
+            const IndexType dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
+
             // Check if src data is not in the logic padding area.
-            const bool is_src_valid =
-                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+            // Leave the HW for oob checking
+            // const bool is_src_valid =
+            //     coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc,
+            //     src_coord_);
 
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
-                dst_buf, src_offset, dst_offset, is_src_valid);
+                dst_buf, src_offset, dst_offset, true);
 
-            constexpr auto move_on_dim = [&]() constexpr
+#if 1
+            __builtin_amdgcn_s_waitcnt(3952);
+            block_sync_lds();
+            printf("blkx: %u, blky: %u, tid: %u, red_id: %d src: %d (cal: %d, gather: %d), "
+                   "dst_offset: "
+                   "%d, a_dst_buffer=<0x%08x, 0x%08x, 0x%08x, 0x%08x>\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   threadIdx.x,
+                   static_cast<int>(ordered_dst_access_idx[Number<GatherDim>{}]),
+                   src_offset,
+                   src_coord_.GetOffset(),
+                   gather_offset,
+                   dst_offset,
+                   //    *(reinterpret_cast<const uint32_t*>(&(dst_buf[dst_offset + 0].data))),
+                   *(reinterpret_cast<const uint32_t*>(
+                       &(dst_buf[dst_offset + 16 * threadIdx.x].data))),
+                   *(reinterpret_cast<const uint32_t*>(
+                       &(dst_buf[dst_offset + 16 * threadIdx.x].data))),
+                   *(reinterpret_cast<const uint32_t*>(
+                       &(dst_buf[dst_offset + 32 * threadIdx.x].data))),
+                   *(reinterpret_cast<const uint32_t*>(
+                       &(dst_buf[dst_offset + 48 * threadIdx.x].data))));
+#endif
+
+            constexpr auto move_src_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
@@ -254,6 +300,22 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
                         move_on_dim_(i) &= ordered_dst_access_idx[j] == dst_access_lengths[j] - 1;
                     });
                     move_on_dim_(i) &= i.value != GatherDim;
+                });
+
+                return move_on_dim_;
+            }
+            ();
+
+            constexpr auto move_dst_on_dim = [&]() constexpr
+            {
+                StaticallyIndexedArray<bool, nDim> move_on_dim_;
+
+                static_for<0, nDim, 1>{}([&](auto i) {
+                    move_on_dim_(i) = ordered_dst_access_idx[i] < dst_access_lengths[i] - 1;
+
+                    static_for<i + 1, nDim, 1>{}([&](auto j) {
+                        move_on_dim_(i) &= ordered_dst_access_idx[j] == dst_access_lengths[j] - 1;
+                    });
                 });
 
                 return move_on_dim_;
@@ -280,21 +342,57 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
             }();
 
             static_for<0, nDim, 1>{}([&](auto i) {
-                if constexpr(move_on_dim[i])
+                // Move the source coordinate.
+                if constexpr(move_src_on_dim[i])
                 {
                     if constexpr(forward_sweep[i])
                     {
-                        move_tensor_coordinate(dst_desc, dst_coord_, dst_forward_steps[i]);
                         move_tensor_coordinate(src_desc, src_coord_, src_forward_steps[i]);
                     }
                     else
                     {
-                        move_tensor_coordinate(dst_desc, dst_coord_, dst_backward_steps[i]);
                         move_tensor_coordinate(src_desc, src_coord_, src_backward_steps[i]);
+                    }
+                }
+
+                // Move the destination coordinate.
+                if constexpr(move_dst_on_dim[i])
+                {
+                    if constexpr(forward_sweep[i])
+                    {
+                        move_tensor_coordinate(dst_desc, dst_coord_, dst_forward_steps[i]);
+                    }
+                    else
+                    {
+                        move_tensor_coordinate(dst_desc, dst_coord_, dst_backward_steps[i]);
                     }
                 }
             });
         });
+
+#if 0
+        __builtin_amdgcn_s_waitcnt(3952);
+        block_sync_lds();
+
+        if(threadIdx.x == 0)
+        {
+            // Print the contents of the destination buffer.
+            printf("blkx: %u, blky: %u, tid: %u, a_dst_buf_offset=<%d, %d, %d, %d>, "
+                   "a_dst_buffer=<%02x, %02x, %02x, %02x>\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   threadIdx.x,
+                   0,
+                   16,
+                   32,
+                   48,
+                   static_cast<uint8_t>(dst_buf[Number<0>{}].data),
+                   static_cast<uint8_t>(dst_buf[Number<16>{}].data),
+                   static_cast<uint8_t>(dst_buf[Number<32>{}].data),
+                   static_cast<uint8_t>(dst_buf[Number<48>{}].data));
+        }
+
+#endif
 
         // Reset the destination slice since the entire buffer has been already filled.
         ResetDstSliceWindow(dst_desc);
@@ -325,6 +423,8 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
     private:
     static constexpr auto thread_cluster_desc_ =
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
+    static constexpr auto wave_cluster_desc_ =
+        make_cluster_descriptor(wave_cluster_lengths, ThreadClusterArrangeOrder{});
 
     SrcCoord src_coord_;
     DstCoord dst_coord_;

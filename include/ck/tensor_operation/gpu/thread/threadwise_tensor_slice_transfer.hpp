@@ -1504,6 +1504,23 @@ struct ThreadwiseTensorSliceTransfer_v4
 
                     dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
                 });
+#if 1
+                printf("blky: %u, tid: %u, src_offset: %d, repeat_id: %d, dst_tmp_vec=<0x%08x, "
+                       "0x%08x, 0x%08x, "
+                       "0x%08x\n",
+                       blockIdx.y,
+                       threadIdx.x,
+                       static_cast<int>(ordered_access_idx[Number<1>{}]),
+                       src_data_coord.GetOffset(),
+                       *(reinterpret_cast<const uint32_t*>(
+                           &(dst_tmp_vector.template AsType<f4x8_t>()[Number<0>{}]))),
+                       *(reinterpret_cast<const uint32_t*>(
+                           &(dst_tmp_vector.template AsType<f4x8_t>()[Number<1>{}]))),
+                       *(reinterpret_cast<const uint32_t*>(
+                           &(dst_tmp_vector.template AsType<f4x8_t>()[Number<2>{}]))),
+                       *(reinterpret_cast<const uint32_t*>(
+                           &(dst_tmp_vector.template AsType<f4x8_t>()[Number<3>{}]))));
+#endif
             }
         });
     }

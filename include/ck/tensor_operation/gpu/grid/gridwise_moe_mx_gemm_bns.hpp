@@ -1387,6 +1387,7 @@ struct GridwiseMoeGemmMXBNS
                                BElementwiseOperation b_element_op,
                                CElementwiseOperation c_element_op)
     {
+        ignore                           = a_element_op;
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
@@ -1657,35 +1658,22 @@ struct GridwiseMoeGemmMXBNS
                 p_b_grid_up + expert_id * expert_stride,
                 b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
-            auto b_blockwise_copy_up =
-                ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
-                                                    BElementwiseOperation,
-                                                    ck::tensor_operation::element_wise::PassThrough,
-                                                    InMemoryDataOperationEnum::Set,
-                                                    Sequence<BK0Number, NPerBlock, BK1Number>,
-                                                    BBlockTransferThreadClusterLengths_BK0_N_BK1,
-                                                    BBlockTransferThreadClusterArrangeOrder,
-                                                    BDataType,
-                                                    BDataType,
-                                                    decltype(b_grid_desc_bk0_n_bk1),
-                                                    decltype(b_block_desc_bk0_n_bk1),
-                                                    BBlockTransferSrcAccessOrder,
-                                                    Sequence<0, 1, 2>,
-                                                    BBlockTransferSrcVectorDim,
-                                                    2,
-                                                    BBlockTransferSrcScalarPerVector,
-                                                    BBlockTransferDstScalarPerVector_BK1,
-                                                    1,
-                                                    1,
-                                                    BThreadTransferSrcResetCoordinateAfterRun,
-                                                    true,
-                                                    BlockwiseGemmPipe::GlobalBufferNum>(
-                    b_grid_desc_bk0_n_bk1,
-                    make_multi_index(0, n_block_data_idx_on_grid, 0),
-                    b_element_op,
-                    b_block_desc_bk0_n_bk1,
-                    make_multi_index(0, 0, 0),
-                    ck::tensor_operation::element_wise::PassThrough{});
+            auto b_blockwise_copy_up = ThreadGroupTensorSliceTransfer_DirectLoad<
+                ThisThreadBlock,
+                Sequence<BK0Number, NPerBlock, BK1Number>,
+                BBlockTransferThreadClusterLengths_BK0_N_BK1,
+                BBlockTransferThreadClusterArrangeOrder,
+                BDataType,
+                BDataType,
+                decltype(b_grid_desc_bk0_n_bk1),
+                decltype(b_block_desc_bk0_n_bk1),
+                BBlockTransferSrcAccessOrder,
+                BBlockTransferSrcVectorDim,
+                2,
+                BBlockTransferSrcScalarPerVector>(b_grid_desc_bk0_n_bk1,
+                                                  make_multi_index(0, n_block_data_idx_on_grid, 0),
+                                                  b_block_desc_bk0_n_bk1,
+                                                  make_multi_index(0, 0, 0));
 
             const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2;
             const auto b_scale_grid_buf_up          = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -2167,6 +2155,7 @@ struct GridwiseMoeGemmMXBNS
                                     BElementwiseOperation b_element_op,
                                     CElementwiseOperation c_element_op)
     {
+        ignore                           = a_element_op;
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
@@ -2253,7 +2242,7 @@ struct GridwiseMoeGemmMXBNS
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
 
-#if 0
+#if 1
         printf("blkx: %u, blky: %u, tidx: %u, token_pos: %d, gather_offsets:<%d, %d, %d, %d>\n",
                blockIdx.x,
                blockIdx.y,

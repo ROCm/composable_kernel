@@ -202,6 +202,21 @@ struct DynamicBuffer
         static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
                       "Destination data must be stored in an LDS memory buffer.");
 
+#if 0
+        // if(blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0)
+        // {
+        //     printf("DirectCopyToLds: src_offset=%d, dst_offset=%d\n", src_offset, dst_offset);
+        // }
+        printf("blkx: %u, blky: %u, tid: %u, src_offset: %d, dst_offset: %d, sizeof(src_offset): "
+               "%lu, sizeof(dst_offset): %lu\n",
+               blockIdx.x,
+               blockIdx.y,
+               threadIdx.x,
+               src_offset,
+               dst_offset,
+               sizeof(src_offset),
+               sizeof(dst_offset));
+#endif
         amd_direct_load_global_to_lds<T, NumElemsPerThread>(p_data_,
                                                             src_offset,
                                                             dst_buf.p_data_,

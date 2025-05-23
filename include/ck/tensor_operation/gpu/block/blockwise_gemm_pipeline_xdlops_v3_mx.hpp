@@ -472,6 +472,25 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         __builtin_amdgcn_s_waitcnt(3952);
         block_sync_lds();
 
+#if 0
+        printf("blkx: %u, blky: %u, tid: %u, a_block_bufs(0):<0x%08x, 0x%08x, 0x%08x, 0x%08x, "
+               "0x%08x, 0x%08x, 0x%08x, 0x%08x, 0x%08x, 0x%08x>\n",
+               blockIdx.x,
+               blockIdx.y,
+               threadIdx.x,
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[0].data))),
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[16].data))),
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[32].data))),
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[48].data))),
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[64].data))),
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[80].data))),
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[96].data))),
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[112].data))),
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[1024 + 0].data))),
+               *(reinterpret_cast<const uint32_t*>(&(a_block_bufs(I0)[1024 + 112].data))));
+
+#endif
+
         static_for<0, KRepeat, 1>{}([&](auto k) {
             constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
                                     (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
@@ -1080,11 +1099,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                         b_scale_thread_vec
                                             .template AsType<mfma_scale_input_type_b>(),
                                         c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-#if 0
+#if 1
                                     printf(
                                         "blkIdx: %u, blkIdy: %u, tidx: %u, imxdl: %d, inxdl: "
-                                        "%d, ikxdl: %d, a_thread_vec=<%.2f, %.2f, %.2f, %.2f>, "
-                                        "b_thread_vec=<%.2f, %.2f, %.2f, %.2f>, a_scale=%08x, "
+                                        "%d, ikxdl: %d, a_thread_vec=<%08x, %08x, %08x, %08x>, "
+                                        "b_thread_vec=<%08x, %08x, %08x, %08x>, a_scale=%08x, "
                                         "b_scale=%08x, c_thread_buf=<%.2f, %.2f, %.2f, %.2f>\n",
                                         blockIdx.x,
                                         blockIdx.y,
@@ -1092,38 +1111,22 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                         imxdl.value,
                                         inxdl.value,
                                         ikxdl.value,
-                                        type_convert<float>(
-                                            a_thread_vec
-                                                .template AsType<ComputeTypeA>()[Number<0>{}]
-                                                .unpack(Number<0>{})),
-                                        type_convert<float>(
-                                            a_thread_vec
-                                                .template AsType<ComputeTypeA>()[Number<0>{}]
-                                                .unpack(Number<1>{})),
-                                        type_convert<float>(
-                                            a_thread_vec
-                                                .template AsType<ComputeTypeA>()[Number<1>{}]
-                                                .unpack(Number<0>{})),
-                                        type_convert<float>(
-                                            a_thread_vec
-                                                .template AsType<ComputeTypeA>()[Number<1>{}]
-                                                .unpack(Number<1>{})),
-                                        type_convert<float>(
-                                            b_thread_vec
-                                                .template AsType<ComputeTypeB>()[Number<0>{}]
-                                                .unpack(Number<0>{})),
-                                        type_convert<float>(
-                                            b_thread_vec
-                                                .template AsType<ComputeTypeB>()[Number<0>{}]
-                                                .unpack(Number<1>{})),
-                                        type_convert<float>(
-                                            b_thread_vec
-                                                .template AsType<ComputeTypeB>()[Number<1>{}]
-                                                .unpack(Number<0>{})),
-                                        type_convert<float>(
-                                            b_thread_vec
-                                                .template AsType<ComputeTypeB>()[Number<1>{}]
-                                                .unpack(Number<1>{})),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            a_thread_vec.template AsType<f4x8_t>()[Number<0>{}]))),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            a_thread_vec.template AsType<f4x8_t>()[Number<1>{}]))),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            a_thread_vec.template AsType<f4x8_t>()[Number<2>{}]))),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            a_thread_vec.template AsType<f4x8_t>()[Number<3>{}]))),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            b_thread_vec.template AsType<f4x8_t>()[Number<0>{}]))),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            b_thread_vec.template AsType<f4x8_t>()[Number<1>{}]))),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            b_thread_vec.template AsType<f4x8_t>()[Number<2>{}]))),
+                                        *(reinterpret_cast<const uint32_t*>(&(
+                                            b_thread_vec.template AsType<f4x8_t>()[Number<3>{}]))),
                                         *(reinterpret_cast<const uint32_t*>(&(
                                             a_scale_thread_vec
                                                 .template AsType<AScaleDataType>()[Number<0>{}]))),

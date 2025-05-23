@@ -68,15 +68,20 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     static constexpr auto block_slice_lengths    = BlockSliceLengths{};
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
-    static constexpr auto wave_thread_cluster_lengths =  Sequence<ThreadClusterLengths{}.At(I0), ThreadClusterLengths{}.At(I1)*64/ThreadGroup::GetNumOfThread(),1>{};
-    static constexpr auto wave_cluster_lengths = Sequence<1, ThreadGroup::GetNumOfThread()/64, 1>{};
+    static constexpr auto wave_thread_cluster_lengths =
+        Sequence<ThreadClusterLengths{}.At(I0),
+                 ThreadClusterLengths{}.At(I1) * 64 / ThreadGroup::GetNumOfThread(),
+                 1>{};
+    static constexpr auto wave_cluster_lengths =
+        Sequence<1, ThreadGroup::GetNumOfThread() / 64, 1>{};
 
     static constexpr auto thread_single_load_size = generate_sequence(
         detail::lambda_scalar_per_access<DstVectorDim, ScalarPerVector>{}, Number<nDim>{});
     // After a load, each thread moves by `thread_steps` instead of loading the next elements.
     // It makes the whole wavefront load contiguous memory, what is required for direct loads.
-    static constexpr auto thread_steps         = thread_cluster_lengths * thread_single_load_size;
-    static constexpr auto wave_single_load_size= wave_thread_cluster_lengths*thread_single_load_size;
+    static constexpr auto thread_steps = thread_cluster_lengths * thread_single_load_size;
+    static constexpr auto wave_single_load_size =
+        wave_thread_cluster_lengths * thread_single_load_size;
     static constexpr auto thread_slice_lengths = block_slice_lengths / thread_steps;
 
     static __device__ constexpr bool AreThreadClusterLengthsValid()
@@ -171,17 +176,17 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
-        
-        const auto wave_cluster_idx =
-            wave_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()/64));
+
+        const auto wave_cluster_idx = wave_cluster_desc_.CalculateBottomIndex(
+            make_multi_index(ThreadGroup::GetThreadId() / 64));
 
         const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
-        const auto wave_data_idx_begin = wave_cluster_idx * wave_single_load_size;
+        const auto wave_data_idx_begin   = wave_cluster_idx * wave_single_load_size;
 
         SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
         // We don't need threadwise offset for lds since it was calculate by HW
         // We still need input the wavewise offset.
-        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin); 
+        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin);
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -240,6 +245,22 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, is_src_valid);
 
+#if 0
+            __builtin_amdgcn_s_waitcnt(3952);
+            block_sync_lds();
+            printf("blkx: %u, blky: %u, tid: %u, src: %d, b_dst_offset: "
+                   "%d, b_dst_buffer=<%02x, %02x, %02x, %02x>\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   threadIdx.x,
+                   src_offset,
+                   dst_offset,
+                   static_cast<uint8_t>(dst_buf[dst_offset].data),
+                   static_cast<uint8_t>(dst_buf[dst_offset + 16].data),
+                   static_cast<uint8_t>(dst_buf[dst_offset + 32].data),
+                   static_cast<uint8_t>(dst_buf[dst_offset + 48].data));
+#endif
+
             constexpr auto move_on_dim = [&]() constexpr
             {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
@@ -291,6 +312,23 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                 }
             });
         });
+
+#if 0
+        block_sync_lds();
+        if(threadIdx.x == 0)
+        {
+            // Print the contents of the destination buffer.
+            printf("blkx: %u, blky: %u, tid: %u, B_dst_buffer=<%02x, %02x, %02x, %02x>\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   threadIdx.x,
+                   static_cast<uint8_t>(dst_buf[Number<0>{}].data),
+                   static_cast<uint8_t>(dst_buf[Number<16>{}].data),
+                   static_cast<uint8_t>(dst_buf[Number<32>{}].data),
+                   static_cast<uint8_t>(dst_buf[Number<48>{}].data));
+        }
+
+#endif
 
         // Reset the destination slice since the entire buffer has been already filled.
         ResetDstSliceWindow(dst_desc);
