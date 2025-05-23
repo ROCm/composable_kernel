@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -868,7 +868,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op) override
+        const CDEElementwiseOperation& cde_element_op,
+        const ck::index_t split_k) override
     {
         return std::make_unique<Argument>(p_a,
                                           p_b,
@@ -914,7 +915,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                         const std::array<long_index_t, NDimSpatial>& input_right_pads,
                         const AElementwiseOperation& a_element_op,
                         const BElementwiseOperation& b_element_op,
-                        const CDEElementwiseOperation& cde_element_op) override
+                        const CDEElementwiseOperation& cde_element_op,
+                        const ck::index_t split_k) override
     {
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
