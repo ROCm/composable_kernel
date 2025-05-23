@@ -561,12 +561,16 @@ int main(int argc, char* argv[])
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
         std::size_t flop =
-            std::size_t(2) * tokens * N * 2 * K + std::size_t(2) * tokens * N * K / ScaleBlockSize;
+            // FMA * tokens * N * (Gate+Up) * topk * K +
+            // FMA * tokens * N * (Gate+Up) * topk * (K/BlockScale)
+            std::size_t(2) * tokens * N * 2 * topk * K +
+            std::size_t(2) * tokens * N * 2 * topk * K / ScaleBlockSize;
 
-        std::size_t num_btype =
-            sizeof(A0DataType) / 2 * tokens * K + sizeof(B0DataType) / 2 * K * N * 2 * experts +
-            sizeof(XDataType) / 2 * tokens * K + sizeof(XDataType) / 2 * K * N * 2 * experts +
-            sizeof(EDataType) * tokens * N;
+        std::size_t num_btype = sizeof(A0DataType) / 2 * tokens * topk * K +
+                                sizeof(B0DataType) / 2 * K * N * 2 * experts +
+                                sizeof(XDataType) * tokens * topk * K / ScaleBlockSize +
+                                sizeof(XDataType) * K / ScaleBlockSize * N * 2 * experts +
+                                sizeof(EDataType) * tokens * topk * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -635,6 +639,7 @@ int main(int argc, char* argv[])
         e_device_buf.FromDevice(e_t_k_n_device_result.mData.data());
 
 #if 0
+        e_t_k_n_device_result.savetxt("e_t_k_n_device_result.txt", "float");
         printf("e_t_k_n_device_result:\n");
         for(int t = 0; t < tokens; ++t)
         {
