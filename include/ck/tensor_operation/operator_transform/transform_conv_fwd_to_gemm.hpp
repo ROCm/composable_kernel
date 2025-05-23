@@ -1478,23 +1478,23 @@ struct TransformConvFwdToGemm
     }
 
 
-    template <typename CLayout,
-              index_t NDimSp = NDimSpatial,
-              typename ck::enable_if<NDimSp == 2 &&
-                                         (is_same_v<CLayout, tensor_layout::convolution::NGKHW>),
-                                     bool>::type = false>
-    __host__ __device__ auto MakeCDescriptor_M_N() const
-    {
-        auto desc = make_naive_tensor_descriptor(make_tuple(N_, K_, Ho_, Wo_),
-                                                make_tuple(K_ * Wo_ * Ho_ , Ho_* Wo_ , Wo_, I1));
+    // template <typename CLayout,
+    //           index_t NDimSp = NDimSpatial,
+    //           typename ck::enable_if<NDimSp == 2 &&
+    //                                      (is_same_v<CLayout, tensor_layout::convolution::NGKHW>),
+    //                                  bool>::type = false>
+    // __host__ __device__ auto MakeCDescriptor_M_N() const
+    // {
+    //     auto desc = make_naive_tensor_descriptor(make_tuple(N_, K_, Ho_, Wo_),
+    //                                             make_tuple(K_ * Wo_ * Ho_ , Ho_* Wo_ , Wo_, I1));
 
-        return transform_tensor_descriptor(
-                desc,
-                make_tuple(make_merge_transform(make_tuple(N_, Ho_, Wo_)),
-                           make_pass_through_transform(K_)),
-                make_tuple(Sequence<0, 2, 3>{}, Sequence<1>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
-    }
+    //     return transform_tensor_descriptor(
+    //             desc,
+    //             make_tuple(make_merge_transform(make_tuple(N_, Ho_, Wo_)),
+    //                        make_pass_through_transform(K_)),
+    //             make_tuple(Sequence<0, 2, 3>{}, Sequence<1>{}),
+    //             make_tuple(Sequence<0>{}, Sequence<1>{}));
+    // }
 
     template <typename CLayout,
               index_t NDimSp = NDimSpatial,
