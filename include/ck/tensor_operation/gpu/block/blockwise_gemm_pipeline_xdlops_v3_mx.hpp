@@ -246,8 +246,9 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto num_ds_read_a_scale = MRepeat / MXdlPack * KRepeat / KXdlPack;
         constexpr auto num_ds_read_b_scale = NRepeat / NXdlPack * KRepeat / KXdlPack;
 
-        constexpr auto num_dsread_a_scale_mfma = num_ds_read_a_scale;
-        constexpr auto num_dsread_b_scale_mfma = num_ds_read_b_scale;
+        // seems like compiler will use ds_read2_b32 for it.
+        constexpr auto num_dsread_a_scale_mfma = num_ds_read_a_scale/2;
+        constexpr auto num_dsread_b_scale_mfma = num_ds_read_b_scale/2;
         // To relieve TA backport pressure:
         // give small interval for buffer_load_dword
         // give large interval for buffer_load_dwordx4
@@ -513,7 +514,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-
+        
         a_scale_blockwise_copy.Run(
             a_scale_grid_desc, a_scale_grid_buf, a_scale_block_desc, a_scale_block_bufs(I0));
         b_scale_blockwise_copy.Run(

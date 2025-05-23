@@ -416,6 +416,28 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                         Run(kernel);
                     }
                 }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3){
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                            false,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Odd>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                            false,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Even>;
+                            Run(kernel);
+                        }
+                }
             }
 
             return ave_time;

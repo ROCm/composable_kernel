@@ -41,6 +41,7 @@ namespace ck {
  */
 template <typename ThreadGroup,
           typename BlockSliceLengths,
+          typename WaveClusterLengths, // Ugly, FIX me.
           typename ThreadClusterLengths,
           typename ThreadClusterArrangeOrder,
           typename SrcData,
@@ -68,12 +69,8 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     static constexpr auto block_slice_lengths    = BlockSliceLengths{};
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
-    static constexpr auto wave_thread_cluster_lengths =
-        Sequence<ThreadClusterLengths{}.At(I0),
-                 ThreadClusterLengths{}.At(I1) * 64 / ThreadGroup::GetNumOfThread(),
-                 1>{};
-    static constexpr auto wave_cluster_lengths =
-        Sequence<1, ThreadGroup::GetNumOfThread() / 64, 1>{};
+    static constexpr auto wave_cluster_lengths = WaveClusterLengths{};
+    static constexpr auto wave_thread_cluster_lengths = thread_cluster_lengths/wave_cluster_lengths;
 
     static constexpr auto thread_single_load_size = generate_sequence(
         detail::lambda_scalar_per_access<DstVectorDim, ScalarPerVector>{}, Number<nDim>{});

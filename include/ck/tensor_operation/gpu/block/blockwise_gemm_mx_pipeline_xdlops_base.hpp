@@ -404,17 +404,19 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     protected:
     // M1, N1 as double buffer index
     // Read buffer + Compute buffer
-    // A[M0, M1, M2, KPack]
+    // A[MRepeat/MXdlPack, MWave, MXdlPack, KRepeat, KPack]
+    //   1                 0      3         2           4
+    // 
     static constexpr auto a_thread_desc_ =
         make_naive_tensor_descriptor(make_tuple(Number<MRepeat / MXdlPack>{},
                                                 I1,
                                                 Number<MXdlPack>{},
                                                 Number<KRepeat>{},
                                                 Number<KPack>{}),
-                                     make_tuple(Number<KPack * MXdlPack>{},
-                                                Number<KRepeat * MRepeat * KPack>{},
-                                                Number<MRepeat * KPack>{},
+                                     make_tuple(Number<KRepeat * MXdlPack* KPack>{},
+                                                Number<MRepeat * KRepeat * KPack>{},
                                                 Number<KPack>{},
+                                                Number<MXdlPack*KPack>{},
                                                 I1));
 
     // B[N0, N1, N2, KPack]
@@ -424,10 +426,10 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                 Number<KRepeat>{},
                                                 Number<NXdlPack>{},
                                                 Number<KPack>{}),
-                                     make_tuple(Number<KPack * NXdlPack>{},
-                                                Number<KRepeat * NRepeat * KPack>{},
-                                                Number<NRepeat * KPack>{},
+                                     make_tuple(Number<KRepeat * NXdlPack* KPack>{},
+                                                Number<NRepeat * KRepeat * KPack>{},
                                                 Number<KPack>{},
+                                                Number<NXdlPack*KPack>{},
                                                 I1));
 
     // C[M, N, NumRegXdlops]

@@ -1253,6 +1253,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         auto a_blockwise_copy =
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
+                                                      Sequence<1, BlockSize/64, 1>,
                                                       Sequence<AK0Number, MPerBlock, AK1Number>,
                                                       ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                       ABlockTransferThreadClusterArrangeOrder,
@@ -1272,6 +1273,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // B matrix blockwise copy
         auto b_blockwise_copy =
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
+                                                      Sequence<1, BlockSize/64, 1>,
                                                       Sequence<BK0Number, NPerBlock, BK1Number>,
                                                       BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                       BBlockTransferThreadClusterArrangeOrder,
@@ -1755,6 +1757,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         auto a_blockwise_copy =
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<AK0Number, MPerBlock, AK1Number>,
+                                                      Sequence<1, BlockSize/64, 1>,
                                                       ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                       ABlockTransferThreadClusterArrangeOrder,
                                                       ADataType,
@@ -1774,6 +1777,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         auto b_blockwise_copy =
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<BK0Number, NPerBlock, BK1Number>,
+                                                      Sequence<1, BlockSize/64, 1>,
                                                       BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                       BBlockTransferThreadClusterArrangeOrder,
                                                       BDataType,
@@ -1828,6 +1832,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             Sequence<MPerBlock/MPerXdl / MXdlPack,
                      KRepeat / KXdlPack,
                      64* KXdlPack * MXdlPack / scale_pack_size_b>,
+            Sequence<BlockSize / 64, 1, 1>,
             Sequence<BlockSize / 64, 1, 64>,
             Sequence<0, 1, 2>,
             AScaleDataType,
@@ -1847,6 +1852,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             Sequence<NPerBlock/NPerXdl / NXdlPack,
                      KRepeat / KXdlPack,
                      64* KXdlPack * NXdlPack / scale_pack_size_b>,
+            Sequence<BlockSize / 64, 1, 1>,
             Sequence<BlockSize / 64, 1, 64>,
             Sequence<0, 1, 2>,
             BScaleDataType,
