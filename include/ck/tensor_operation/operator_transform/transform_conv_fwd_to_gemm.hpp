@@ -1477,8 +1477,6 @@ struct TransformConvFwdToGemm
         }
     }
 
-// NGCHW x KCYX 
-// NHoWoCYX KCYX = NHoWoK
 
     template <typename CLayout,
               index_t NDimSp = NDimSpatial,
