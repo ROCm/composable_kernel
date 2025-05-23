@@ -137,7 +137,8 @@ struct DeviceGroupedConvFwdMultipleABD : public BaseOperator
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op) = 0;
+        const CDEElementwiseOperation& cde_element_op,
+        const ck::index_t split_k = 1) = 0;
 
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(APointers p_a,
@@ -160,7 +161,8 @@ struct DeviceGroupedConvFwdMultipleABD : public BaseOperator
                         const std::array<long_index_t, NDimSpatial>& input_right_pads,
                         const AElementwiseOperation& a_element_op,
                         const BElementwiseOperation& b_element_op,
-                        const CDEElementwiseOperation& cde_element_op) = 0;
+                        const CDEElementwiseOperation& cde_element_op,
+                        const ck::index_t split_k = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 #endif

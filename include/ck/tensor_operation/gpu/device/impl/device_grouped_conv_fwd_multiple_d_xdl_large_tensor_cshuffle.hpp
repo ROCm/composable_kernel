@@ -935,8 +935,10 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op) override
+        const CDEElementwiseOperation& cde_element_op,
+        const ck::index_t split_k) override
     {
+        (void)split_k;
 
         std::array<long_index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i64;
         std::array<long_index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i64;
@@ -1009,8 +1011,10 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                         const std::array<long_index_t, NDimSpatial>& input_right_pads,
                         const AElementwiseOperation& a_element_op,
                         const BElementwiseOperation& b_element_op,
-                        const CDEElementwiseOperation& cde_element_op) override
+                        const CDEElementwiseOperation& cde_element_op,
+                        const ck::index_t split_k) override
     {
+        (void)split_k;
 
         return std::make_unique<Argument>(p_a,
                                           p_b,
