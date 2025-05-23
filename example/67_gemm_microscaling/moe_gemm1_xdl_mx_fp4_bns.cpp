@@ -560,12 +560,13 @@ int main(int argc, char* argv[])
         // not result correct here because output buf not setzero
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-        std::size_t flop = std::size_t(2) * tokens * topk * N * 2 * K +
-                           std::size_t(2) * tokens * topk * N * K / ScaleBlockSize;
+        std::size_t flop =
+            std::size_t(2) * tokens * N * 2 * K + std::size_t(2) * tokens * N * K / ScaleBlockSize;
 
-        std::size_t num_btype = sizeof(A0DataType) / 2 * tokens * K * topk +
-                                sizeof(B0DataType) / 2 * K * N * 2 * experts +
-                                sizeof(EDataType) * tokens * N;
+        std::size_t num_btype =
+            sizeof(A0DataType) / 2 * tokens * K + sizeof(B0DataType) / 2 * K * N * 2 * experts +
+            sizeof(XDataType) / 2 * tokens * K + sizeof(XDataType) / 2 * K * N * 2 * experts +
+            sizeof(EDataType) * tokens * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
