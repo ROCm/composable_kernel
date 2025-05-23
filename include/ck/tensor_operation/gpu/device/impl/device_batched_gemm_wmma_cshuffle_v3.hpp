@@ -21,6 +21,44 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+template <typename GridwiseGemm,
+          bool HasMainKBlockLoop,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+          index_t MinimumOccupancy = 1,
+          TailNumber TailNum       = TailNumber::Full>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+#endif
+        kernel_batched_gemm_wmma_cshuffle_v3(typename GridwiseGemm::Argument karg)
+{
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if defined(__gfx11__)
+    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
+    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_c_grid)>>;
+    if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
+                   (std::is_same_v<c_data_type, ck::half_t> ||
+                    std::is_same_v<c_data_type, ck::bhalf_t>)))
+    {
+#endif
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+            karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
+            p_shared,
+            karg);
+#if defined(__gfx11__)
+    }
+#endif
+#else
+    ignore = karg;
+#endif
+}
+
 /// @brief \"Universal\" GEMM operation with SplitK support.
 ///
 /// @par Overview
@@ -183,6 +221,36 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
     static_assert(PermuteB == false,
                   "Permute B functionality not supported by DeviceBatchedGemm operations.\n");
 
+    struct ComputePtrOffsetOfStridedBatch
+    {
+        ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
+                                       index_t BatchStrideB,
+                                       index_t BatchStrideC)
+            : BatchStrideA_(BatchStrideA), BatchStrideB_(BatchStrideB), BatchStrideC_(BatchStrideC)
+        {
+        }
+
+        __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideA_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideB_);
+        }
+
+        __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
+        {
+            return g_idx * static_cast<long_index_t>(BatchStrideC_);
+        }
+
+        private:
+        index_t BatchStrideA_;
+        index_t BatchStrideB_;
+        index_t BatchStrideC_;
+    };
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
@@ -234,8 +302,43 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
         false,  // PermuteA
         false>; // PermuteB
 
-    // TODO Kiefer: We need completely custom argument!
-    using Argument = typename GridwiseGemm::Argument;
+    // Argument
+    struct Argument : public GridwiseGemm::Argument
+    {
+        __host__ Argument(const ADataType* p_a_grid_,
+                          const BDataType* p_b_grid_,
+                          CDataType* p_c_grid_,
+                          index_t M_,
+                          index_t N_,
+                          index_t K_,
+                          index_t StrideA_,
+                          index_t StrideB_,
+                          index_t StrideC_,
+                          index_t BatchStrideA_,
+                          index_t BatchStrideB_,
+                          index_t BatchStrideC_,
+                          index_t Batch_,
+                          index_t k_batch_,
+                          bool is_reduce_ = false)
+            : GridwiseGemm::Argument(p_a_grid_,
+                                     p_b_grid_,
+                                     p_c_grid_,
+                                     M_,
+                                     N_,
+                                     K_,
+                                     StrideA_,
+                                     StrideB_,
+                                     StrideC_,
+                                     k_batch_,
+                                     is_reduce_),
+              batch(Batch_),
+              compute_ptr_offset_of_batch{BatchStrideA_, BatchStrideB_, BatchStrideC_}
+        {
+        }
+
+        index_t batch;
+        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
+    };
 
     /// @brief  Helper structure responsible for kernel invocation.
     ///
@@ -352,20 +455,20 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                 {
                     if(arg.KBatch > 1)
                     {
-                        const auto kernel =
-                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                         true,
-                                                         InMemoryDataOperationEnum::AtomicAdd,
-                                                         minimum_occupancy>;
+                        const auto kernel = kernel_batched_gemm_wmma_cshuffle_v3<
+                            GridwiseGemm,
+                            true,
+                            InMemoryDataOperationEnum::AtomicAdd,
+                            minimum_occupancy>;
                         Run(kernel);
                     }
                     else
                     {
                         const auto kernel =
-                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                         true,
-                                                         InMemoryDataOperationEnum::Set,
-                                                         minimum_occupancy>;
+                            kernel_batched_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                                 true,
+                                                                 InMemoryDataOperationEnum::Set,
+                                                                 minimum_occupancy>;
                         Run(kernel);
                     }
                 }
@@ -444,47 +547,58 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
     // bool GetPermuteA() override { return PermuteA; }
     // bool GetPermuteB() override { return PermuteB; }
 
-    static auto
-    MakeArgument(const ADataType* p_a,
-                 const BDataType* p_b,
-                 CDataType* p_c,
-                 index_t M,
-                 index_t N,
-                 index_t K,
-                 index_t StrideA,
-                 index_t StrideB,
-                 index_t StrideC,
-                 [[maybe_unused]] index_t BatchStrideA,
-                 [[maybe_unused]] index_t BatchStrideB,
-                 [[maybe_unused]] index_t BatchStrideC,
-                 [[maybe_unused]] index_t Batch, // TODO Kiefer: Figure out where Batch arguments go
-                 AElementwiseOperation,
-                 BElementwiseOperation,
-                 CElementwiseOperation)
+    static auto MakeArgument(const ADataType* p_a,
+                             const BDataType* p_b,
+                             CDataType* p_c,
+                             index_t M,
+                             index_t N,
+                             index_t K,
+                             index_t StrideA,
+                             index_t StrideB,
+                             index_t StrideC,
+                             index_t BatchStrideA,
+                             index_t BatchStrideB,
+                             index_t BatchStrideC,
+                             index_t Batch,
+                             AElementwiseOperation,
+                             BElementwiseOperation,
+                             CElementwiseOperation)
     {
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, 1 /* KBatch */};
+        return Argument{p_a,
+                        p_b,
+                        p_c,
+                        M,
+                        N,
+                        K,
+                        StrideA,
+                        StrideB,
+                        StrideC,
+                        BatchStrideA,
+                        BatchStrideB,
+                        BatchStrideC,
+                        Batch,
+                        1 /* KBatch */};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(
-        const void* p_a,
-        const void* p_b,
-        void* p_c,
-        index_t M,
-        index_t N,
-        index_t K,
-        index_t StrideA,
-        index_t StrideB,
-        index_t StrideC,
-        [[maybe_unused]] index_t BatchStrideA,
-        [[maybe_unused]] index_t BatchStrideB,
-        [[maybe_unused]] index_t BatchStrideC,
-        [[maybe_unused]] index_t Batch, // TODO Kiefer: Figure out where Batch arguments go
-        AElementwiseOperation,
-        BElementwiseOperation,
-        CElementwiseOperation) override
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
+                                                      const void* p_b,
+                                                      void* p_c,
+                                                      index_t M,
+                                                      index_t N,
+                                                      index_t K,
+                                                      index_t StrideA,
+                                                      index_t StrideB,
+                                                      index_t StrideC,
+                                                      index_t BatchStrideA,
+                                                      index_t BatchStrideB,
+                                                      index_t BatchStrideC,
+                                                      index_t Batch,
+                                                      AElementwiseOperation,
+                                                      BElementwiseOperation,
+                                                      CElementwiseOperation) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
@@ -495,6 +609,10 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                                           StrideA,
                                           StrideB,
                                           StrideC,
+                                          BatchStrideA,
+                                          BatchStrideB,
+                                          BatchStrideC,
+                                          Batch,
                                           1); // KBatch
     }
 
