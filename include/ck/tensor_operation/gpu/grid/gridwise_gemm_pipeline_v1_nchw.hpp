@@ -36,7 +36,8 @@ struct GridwiseGemmPipeline_v1_nchw<1, true, true>
               typename AGridBuffer,
               typename ABlock1Buffer,
               typename ABlock2Buffer,
-              typename ABlockTransferStep,
+              typename ABlock1TransferSteps,
+              typename ABlock2TransferSteps,
               typename BGridDesc,
               typename BBlockDesc,
               typename BBlockTransfer,
@@ -54,7 +55,8 @@ struct GridwiseGemmPipeline_v1_nchw<1, true, true>
                                [[maybe_unused]] const AGridBuffer& a_grid_buf,
                                [[maybe_unused]] ABlock1Buffer& a_block1_buf,
                                [[maybe_unused]] ABlock2Buffer& a_block2_buf,
-                               [[maybe_unused]] const ABlockTransferStep& a_block_copy_step,
+                               [[maybe_unused]] const ABlock1TransferSteps& a_block1_copy_steps,
+                               [[maybe_unused]] const ABlock2TransferSteps& a_block2_copy_steps,
                                [[maybe_unused]] const BGridDesc& b_grid_desc,
                                [[maybe_unused]] const BBlockDesc& b_block_desc,
                                [[maybe_unused]] BBlockTransfer& b_blockwise_copy,
@@ -69,7 +71,7 @@ struct GridwiseGemmPipeline_v1_nchw<1, true, true>
         a_blockwise_global_to_lds1_copy.RunRead(a_grid_desc, a_grid_buf);
         b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
 
-        a_blockwise_global_to_lds1_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        a_blockwise_global_to_lds1_copy.MoveSrcSliceWindow(a_grid_desc, a_block1_copy_steps[0]);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
         //block_sync_lds();
         a_blockwise_global_to_lds1_copy.RunWrite(a_block1_desc_nchw_slice, a_block1_buf);
@@ -83,9 +85,11 @@ struct GridwiseGemmPipeline_v1_nchw<1, true, true>
         a_blockwise_lds1_to_lds2_copy.RunRead(a_block1_desc_nhowo_cyx, a_block1_buf);//a_block2_buf); ?? jaki bufor
         a_blockwise_lds1_to_lds2_copy.RunWrite(a_block2_desc_ak0_m_k1, a_block2_buf);
         //block_sync_lds();
+        a_blockwise_lds1_to_lds2_copy.MoveSrcSliceWindow(a_block1_desc_nhowo_cyx, a_block2_copy_steps[0]);
 
         // if(threadIdx.x == 0) {
-        //     for(int c=0; c<4; ++c) {
+        //     printf("Next iter\n");
+        //     for(int c=0; c<5; ++c) {
         //         for(int h=0; h<2;++h) {
         //             for(int w=0; w<64;++w) {
         //                 printf("Ag[%d][%d][%d]=%f\n", c, h, w, static_cast<float>(a_grid_buf[c * 64 * 2 + h * 64 + w]));
@@ -93,9 +97,9 @@ struct GridwiseGemmPipeline_v1_nchw<1, true, true>
         //         }
         //     }
 
-        //        // A[3][2][33]=0.000000
+        // //        // A[3][2][33]=0.000000
 
-        //     for(int c=0; c<8; ++c) {
+        //     for(int c=0; c<4; ++c) {
         //         for(int h=0; h<4;++h) {
         //             for(int w=0; w<64;++w) {
         //                 printf("A[%d][%d][%d]=%f\n", c, h, w, static_cast<float>(a_block1_buf[c * 64 * 4 + h * 64 + w]));
@@ -104,14 +108,14 @@ struct GridwiseGemmPipeline_v1_nchw<1, true, true>
         //     }
 
         //     for(int m=0; m<128; ++m) {
-        //         for(int k0=0; k0<8; ++k0) {
+        //         for(int k0=0; k0<4; ++k0) {
         //             for(int k1=0;k1<8;++k1) {
         //                 printf("A[%d][%d]=%f\n", m, k0*8+k1, static_cast<float>(a_block2_buf[k0*8*128 + m*8 + k1]));
                     
-        //                 int k = k0*8+k1;
-        //                 int x = k%3;
-        //                 int y = (k/3)%3;
-        //                 int c = k/(9);
+        //                 // int k = k0*8+k1;
+        //                 // int x = k%3;
+        //                 // int y = (k/3)%3;
+        //                 // int c = k/(9);
 
         //                 // A[m][k] = A[c, y+m/64,x+m%64] z oryginalnego obrazka
 
@@ -142,6 +146,7 @@ struct GridwiseGemmPipeline_v1_nchw<1, true, true>
             do
             { // ask bartek how to structure this pipeline
                 a_blockwise_global_to_lds1_copy.RunRead(a_grid_desc, a_grid_buf);  // A Global -> VGPR
+                block_sync_lds();
                 b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);                 // B Global -> VGPR
                 //
 
@@ -151,13 +156,53 @@ struct GridwiseGemmPipeline_v1_nchw<1, true, true>
                 block_sync_lds();
                 a_blockwise_lds1_to_lds2_copy.RunRead(a_block1_desc_nhowo_cyx, a_block1_buf); // A LDS1 -> LDS2
 
-                a_blockwise_global_to_lds1_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                a_blockwise_lds1_to_lds2_copy.MoveSrcSliceWindow(a_block1_desc_nhowo_cyx, a_block2_copy_steps[i+1]);
+                a_blockwise_global_to_lds1_copy.MoveSrcSliceWindow(a_grid_desc, a_block1_copy_steps[i+1]);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-                //block_sync_lds();
 
                 a_blockwise_lds1_to_lds2_copy.RunWrite(a_block2_desc_ak0_m_k1, a_block2_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
-                //block_sync_lds();
+                // block_sync_lds(); // delete later
+
+        // if(threadIdx.x == 0) {
+        //     printf("Next iter\n");
+
+        // //        // A[3][2][33]=0.000000
+
+        //     for(int c=0; c<4; ++c) {
+        //         for(int h=0; h<4;++h) {
+        //             for(int w=0; w<64;++w) {
+        //                 printf("A[%d][%d][%d]=%f\n", c, h, w, static_cast<float>(a_block1_buf[c * 64 * 4 + h * 64 + w]));
+        //             }         
+        //         }
+        //     }
+
+        //     for(int m=0; m<128; ++m) {
+        //         for(int k0=0; k0<4; ++k0) {
+        //             for(int k1=0;k1<8;++k1) {
+        //                 printf("A[%d][%d]=%f\n", m, k0*8+k1, static_cast<float>(a_block2_buf[k0*8*128 + m*8 + k1]));
+                    
+        //                 // int k = k0*8+k1;
+        //                 // int x = k%3;
+        //                 // int y = (k/3)%3;
+        //                 // int c = k/(9);
+
+        //                 // A[m][k] = A[c, y+m/64,x+m%64] z oryginalnego obrazka
+
+        //                 // if(x+m%64 > 0 && x+m%64 < 127) {
+        //                 //     auto lds1 = static_cast<float>(a_block1_buf[c * 64 * 4 + (m/64 + y) * 64 + m%64 + x - 1]);
+        //                 //     auto lds2 = static_cast<float>(a_block2_buf[k0*8*128 + m*8 + k1]);
+        //                 //     printf("lds2[%d][%d]:%f lds1[%d][%d][%d]:%f %s\n", m, k0*8+k1, lds2, c, y + m/64, m%64 + x - 1, lds1, (lds1 > lds2)? "diff" : "");
+
+        //                 // }
+
+        //                     // if(lds1 > lds2) {
+        //                     //     printf("diff lds1[%d][%d][%d]:%f lds2[%d][%d]:%f\n", c, y + m/64, m%64 + x, lds1, m, k0*8+k1 - 1, lds2);
+        //                     // }
+        //             }
+        //         }
+        //     }
+        // }
 
                 ++i;
             } while(i < (num_loop - 1));

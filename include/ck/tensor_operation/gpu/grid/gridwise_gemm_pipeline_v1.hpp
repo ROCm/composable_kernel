@@ -72,7 +72,7 @@ struct GridwiseGemmPipeline_v1<1, true, true>
 
         // if(threadIdx.x == 0){
         //     for(int m=0; m<128; ++m) {
-        //         for(int k0=0; k0<8; ++k0) {
+        //         for(int k0=0; k0<4; ++k0) {
         //             for(int k1=0;k1<8;++k1) {
         //                 printf("A[%d][%d]=%f\n", m, k0*8+k1, static_cast<float>(a_block_buf[k0*8*128 + m*8 + k1]));
         //             }
@@ -102,6 +102,16 @@ struct GridwiseGemmPipeline_v1<1, true, true>
 
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+                block_sync_lds();
+                // if(threadIdx.x == 0){
+                //     for(int m=0; m<128; ++m) {
+                //         for(int k0=0; k0<4; ++k0) {
+                //             for(int k1=0;k1<8;++k1) {
+                //                 printf("A[%d][%d]=%f\n", m, k0*8+k1, static_cast<float>(a_block_buf[k0*8*128 + m*8 + k1]));
+                //             }
+                //         }
+                //     }
+                // }
 
                 ++i;
             } while(i < (num_loop - 1));

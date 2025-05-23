@@ -1264,6 +1264,7 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
 
+        const index_t W = arg.a_g_n_c_wis_lengths_[I4]; // assume 2d for now
         const index_t G = arg.b_g_k_c_xs_lengths_[I0];
         const index_t K = arg.b_g_k_c_xs_lengths_[I1];
         const index_t C = arg.b_g_k_c_xs_lengths_[I2];
@@ -1351,6 +1352,7 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
                 return false;
             }
         }
+        //printf("checking a vector \n");
 
         // check vector access of A
         // FIXME: layout
@@ -1362,7 +1364,7 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
                      is_same_v<ALayout, ctc::NGCHW> || is_same_v<ALayout, ctc::NGCDHW>)
         {
             // Check access per C
-            if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
+            if(!(ABlockTransferSrcVectorDim == 2 && W % ABlockTransferSrcScalarPerVector == 0)) // changed from C % to H%
             {
                 // If not possible, check access per G
                 if(!(ABlockTransferSrcVectorDim == 1 && (C == 1 || NumGroupsToMerge == 1) &&
@@ -1371,15 +1373,17 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
                       is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()) &&
                      G % ABlockTransferSrcScalarPerVector == 0))
                 {
+                    printf("checking a vector failed \n");
                     return false;
                 }
             }
         }
         else
         {
+            printf("checking a vector wtf \n");
             return false;
         }
-
+        // printf("checking b vector \n");
         // check vector access of B
         // FIXME: layout
         if constexpr(is_same_v<BLayout, ctc::G_K_X_C> || is_same_v<BLayout, ctc::G_K_YX_C> ||
@@ -1448,30 +1452,30 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
         if constexpr(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
                      is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>())
         {
-            if((G * C) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
-            {
-                return false;
-            }
+            // if((G * C) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+            // {
+            //     return false;
+            // }
 
-            if((G * K) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
-            {
-                return false;
-            }
+            // if((G * K) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+            // {
+            //     return false;
+            // }
 
-            const index_t input_spatial_acum = ck::accumulate_n<index_t>(
-                arg.a_g_n_c_wis_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
-            const index_t output_spatial_acum = ck::accumulate_n<index_t>(
-                arg.e_g_n_k_wos_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
+            // const index_t input_spatial_acum = ck::accumulate_n<index_t>(
+            //     arg.a_g_n_c_wis_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
+            // const index_t output_spatial_acum = ck::accumulate_n<index_t>(
+            //     arg.e_g_n_k_wos_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
 
-            if(input_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
-            {
-                return false;
-            }
+            // if(input_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+            // {
+            //     return false;
+            // }
 
-            if(output_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
-            {
-                return false;
-            }
+            // if(output_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+            // {
+            //     return false;
+            // }
 
             // if(!arg.p_workspace_)
             // {
@@ -1497,7 +1501,7 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
         {
             return false;
         }
-
+        // printf("checking e vector \n");
         // check vector access of E
         if constexpr(is_same_v<ELayout, ctc::G_NW_K> || is_same_v<ELayout, ctc::G_NHW_K> ||
                      is_same_v<ELayout, ctc::G_NDHW_K> || is_same_v<ELayout, ctc::GNWK> ||
@@ -1532,6 +1536,7 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
         }
         else
         {
+            //printf("gonig into gemm validation\n");
             return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                                arg.b_grid_desc_n_k_,
                                                arg.ds_grid_desc_m_n_,
