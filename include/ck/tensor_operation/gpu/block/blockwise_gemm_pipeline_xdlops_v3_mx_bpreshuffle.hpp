@@ -446,6 +446,29 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
         // Global prefetch 2
         a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(I1));
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        
+        printf(
+                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n"
+                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                                           get_thread_local_1d_id(),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<7>{}))),
+                                           get_thread_local_1d_id(),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+7>{})))
+                                            );
 
         // Initialize C
         c_thread_buf.Clear();
@@ -972,7 +995,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                 make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
                                     });
 
-#if defined(__gfx950__)
+#if defined(__gfx950__) && 0
                                     printf("Tid: %02d, ik, im, in = %d, %d, %d\n"
                                            "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n"
                                            "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n",
@@ -1058,7 +1081,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                         });
                     });
                 });
-                if constexpr(m0.value == (MRepeat - LocalPrefetchStages * MXdlPack) / MXdlPack)
+                if constexpr(m0.value < (MRepeat - LocalPrefetchStages * MXdlPack) / MXdlPack)
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k) {
                         static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
@@ -1089,6 +1112,28 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                             });
                             });
                     });
+                    printf(
+                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n"
+                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                                           get_thread_local_1d_id(),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<7>{}))),
+                                           get_thread_local_1d_id(),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+7>{})))
+                                            );
                 }
             });
         }

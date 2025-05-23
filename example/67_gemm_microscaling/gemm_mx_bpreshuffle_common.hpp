@@ -318,9 +318,9 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     case 1:
         ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
         ck::utils::FillConstant<BDataType>{b_data_element(1.0f)}(b_k_n);
-        //a_m_k_scale.GenerateTensorValue(
+        // a_m_k_scale.GenerateTensorValue(
         //    GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
-        //b_k_n_scale.GenerateTensorValue(
+        // b_k_n_scale.GenerateTensorValue(
         //    GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
@@ -362,19 +362,33 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     int NPerXdl = 16; // Fixed 16
     preShuffleBuffer(b_k_n.mData.data(), b_preshuffled.mData.data(), N, K, NPerXdl);
 #endif
-    printf("b:\n");
-    for(ck::index_t i = 0; i < N; i++)
+    printf("a:\n");
+    for(ck::index_t i = 0; i < M; i++)
     {
-        for(ck::index_t j = 0; j < K; j+=2)
+        for(ck::index_t j = 0; j < K; j += 2)
         {
-            printf("%02x ", *reinterpret_cast<uint8_t*>(&b_k_n(j, i)));
-            if ( j %32 == 31)
+            printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k(i, j)));
+            if(j % 32 == 31)
             {
                 printf("\n");
             }
         }
         printf("\n");
     }
+
+    // printf("b:\n");
+    // for(ck::index_t i = 0; i < N; i++)
+    // {
+    //     for(ck::index_t j = 0; j < K; j += 2)
+    //     {
+    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&b_k_n(j, i)));
+    //         if(j % 32 == 31)
+    //         {
+    //             printf("\n");
+    //         }
+    //     }
+    //     printf("\n");
+    // }
     // printf("b_scale:\n");
     // for(ck::index_t i = 0; i < N; i++)
     // {
