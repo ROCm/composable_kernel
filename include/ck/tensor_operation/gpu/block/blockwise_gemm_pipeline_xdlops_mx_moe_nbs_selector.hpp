@@ -5,6 +5,8 @@
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v1_mx.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v3_mx.hpp"
+//#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_mx_moe_nbs_gufusion_v1.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_mx_moe_nbs_gufusion_v3.hpp"
 
 namespace ck {
 
@@ -103,7 +105,27 @@ constexpr auto BlockGemmMXNBSPipeline_Selector()
     {
         if constexpr(GUFusion)
         {
-            return nullptr;
+            return BlockwiseGemmXdlops_pipeline_bns_gufusion_v3<BlkGemmPipeSche,
+                                                                ThreadBlockSize,
+                                                                ScaleBlockSize,
+                                                                ADataType,
+                                                                AScaleDataType,
+                                                                BDataType,
+                                                                BScaleDataType,
+                                                                ATileDesc,
+                                                                BTileDesc,
+                                                                AMmaTileDesc,
+                                                                BMmaTileDesc,
+                                                                ABlockTransferSrcScalarPerVector,
+                                                                BBlockTransferSrcScalarPerVector,
+                                                                MPerBlock,
+                                                                NPerBlock,
+                                                                KPerBlock,
+                                                                MPerXDL,
+                                                                NPerXDL,
+                                                                MRepeat,
+                                                                NRepeat,
+                                                                KPack>{};
         }
         else
         {

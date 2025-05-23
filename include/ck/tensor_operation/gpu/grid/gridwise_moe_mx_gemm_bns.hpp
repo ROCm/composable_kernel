@@ -1102,9 +1102,18 @@ struct GridwiseMoeGemmMXBNS
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
+        if constexpr(IsInputGemm)
+        {
         return math::max((a_block_space_size_aligned * sizeof(ADataType) +
-                          b_block_space_size_aligned * sizeof(BDataType)),
+                          b_block_space_size_aligned * sizeof(BDataType)) * 2,
                          c_block_size * sizeof(CShuffleDataType));
+        }
+        else
+        {
+            return math::max((a_block_space_size_aligned * sizeof(ADataType) +
+                              b_block_space_size_aligned * sizeof(BDataType)),
+                             c_block_size * sizeof(CShuffleDataType));
+        }
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -1379,7 +1388,7 @@ struct GridwiseMoeGemmMXBNS
 #endif
 
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
-            make_tuple((IsInputGemm ? problem.NumTokens : problem.M) / (MXdlPack * MPerXdl),
+            make_tuple(problem.M / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
                            (KXdlPack * 64 / MPerXdl),
                        64 * KXdlPack * MXdlPack / scale_pack_size_a));
@@ -1634,7 +1643,15 @@ struct GridwiseMoeGemmMXBNS
 
         if constexpr(IsInputGemm)
         {
-            const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
+            constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
+                b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
+            auto b_block_buf_up = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) +
+                                             a_block_space_size_aligned * sizeof(ADataType) +                                          
+                                             b_block_space_size_aligned * sizeof(BDataType)),
+                b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+
+            const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_b_grid_up + expert_id * expert_stride,
                 b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
@@ -1669,9 +1686,9 @@ struct GridwiseMoeGemmMXBNS
                     make_multi_index(0, 0, 0),
                     ck::tensor_operation::element_wise::PassThrough{});
 
-            const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2;
+            const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2 / sizeof(BScaleDataType);
             const auto b_scale_grid_buf_up          = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_scale_grid_up + expert_id * expert_scale_stride,
+                p_b_scale_grid_up + expert_id * expert_scale_stride / sizeof(BScaleDataType),
                 b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
             auto b_scale_thread_copy_up = ThreadwiseTensorSliceTransfer_v2<
@@ -1691,12 +1708,14 @@ struct GridwiseMoeGemmMXBNS
                                  thread_offset_shuffled / scale_pack_size_b));
 
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
+                // A
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
                 a_blockwise_copy,
                 a_grid_buf,
                 a_block_buf,
                 a_block_slice_copy_step,
+                // Gate and Up
                 b_grid_desc_bk0_n_bk1,
                 b_block_desc_bk0_n_bk1,
                 b_blockwise_copy,
@@ -1704,12 +1723,16 @@ struct GridwiseMoeGemmMXBNS
                 b_grid_buf,
                 b_grid_buf_up,
                 b_block_buf,
+                b_block_buf_up,
                 b_block_slice_copy_step,
+                // C
                 c_thread_buf,
                 c_thread_buf_up,
+                // A scale
                 a_scale_grid_desc_am_ak,
                 a_scale_thread_copy,
                 a_scale_grid_buf,
+                // Gate and Up scale
                 b_scale_grid_desc_bn_ak,
                 b_scale_thread_copy,
                 b_scale_thread_copy_up,
@@ -1741,7 +1764,7 @@ struct GridwiseMoeGemmMXBNS
                 b_scale_grid_buf,
                 num_k_block_main_loop);
         }
-
+        
         // shuffle C and write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
@@ -1829,6 +1852,16 @@ struct GridwiseMoeGemmMXBNS
                                             }
                                             tensor_operation::element_wise::Gelu{}(gate, gate);
                                             c_thread_buf_fp32(cidx) = gate * up;
+
+                                            /*float gate = c_thread_buf[cidx];
+                                            float up   = c_thread_buf_up[cidx];
+                                            if constexpr(MulRoutedWeight)
+                                            {
+                                                gate = gate * topk_weights.AsType<float>()[m5];
+                                                //up   = up * topk_weights.AsType<float>()[m5];
+                                            }
+                                            tensor_operation::element_wise::Gelu{}(gate, gate);
+                                            c_thread_buf_fp32(cidx) = up;*/
                                         }
                                     }
                                     else
