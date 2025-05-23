@@ -423,8 +423,8 @@ bool profile_gemm_mx_impl(int do_verification,
                     std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / ScaleBlockSize;
 
                 // TODO: fp6?
-                std::size_t num_btype = sizeof(ADataType) * M * K / pack_size_v<ADataType> +
-                                        sizeof(BDataType) * K * N / pack_size_v<BDataType> +
+                std::size_t num_btype = sizeof(ADataType) * M * K / packed_size_v<ADataType> +
+                                        sizeof(BDataType) * K * N / packed_size_v<BDataType> +
                                         sizeof(CDataType) * M * N +
                                         sizeof(XDataType) * (M * K + K * N) / ScaleBlockSize;
 
