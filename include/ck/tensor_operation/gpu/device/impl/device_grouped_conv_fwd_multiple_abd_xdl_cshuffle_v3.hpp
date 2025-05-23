@@ -1883,6 +1883,35 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         const index_t GemmK =
             arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
+        if(arg.k_batch_ > 1)
+        {
+            if(!arg.p_workspace_)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Warning: Workspace for "
+                                 "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3::Argument is not "
+                                 "allocated, use SetWorkSpacePointer."
+                              << std::endl;
+                }
+                return false;
+            }
+
+            typename GridwiseGemmSplitK::Argument gemm_arg{
+                nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
+
+            const auto num_k_loop = gemm_arg.AK0 / (KPerBlock / AK1);
+            if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+            {
+                if(num_k_loop <= GridwiseGemm::BlockwiseGemmPipe::PrefetchStages)
+                {
+                    return false;
+                }
+            }
+
+            return GridwiseGemmSplitK::CheckValidity(gemm_arg);
+        }
+
         typename GridwiseGemm::Argument gemm_arg{
             nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, I1 /*KBatch*/};
 

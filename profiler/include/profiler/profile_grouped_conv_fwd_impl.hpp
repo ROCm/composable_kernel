@@ -39,7 +39,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                    int init_method,
                                    bool do_log,
                                    bool time_kernel,
-                                   const ck::utils::conv::ConvParam& conv_param)
+                                   const ck::utils::conv::ConvParam& conv_param,
+                                   ck::index_t split_k)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -227,29 +228,48 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
     std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
 
+    std::vector<ck::index_t> split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
+
+    if(split_k > 0)
+    {
+        split_k_list = {split_k};
+    }
+
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
-                                                        wei_device_buf.GetDeviceBuffer(),
-                                                        {},
-                                                        out_device_buf.GetDeviceBuffer(),
-                                                        a_g_n_c_wis_lengths,
-                                                        a_g_n_c_wis_strides,
-                                                        b_g_k_c_xs_lengths,
-                                                        b_g_k_c_xs_strides,
-                                                        {},
-                                                        {},
-                                                        e_g_n_k_wos_lengths,
-                                                        e_g_n_k_wos_strides,
-                                                        conv_filter_strides,
-                                                        conv_filter_dilations,
-                                                        input_left_pads,
-                                                        input_right_pads,
-                                                        in_element_op,
-                                                        wei_element_op,
-                                                        out_element_op);
+        std::string op_type   = op_ptr->GetTypeString();
+        bool supports_split_k = op_type.find("V3") != std::string::npos;
 
-        run_impl(op_ptr, argument_ptr);
+        if(!supports_split_k)
+        {
+            split_k_list = {1};
+        }
+
+        for(std::size_t split_k_id = 0; split_k_id < split_k_list.size(); split_k_id++)
+        {
+            auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                            wei_device_buf.GetDeviceBuffer(),
+                                                            {},
+                                                            out_device_buf.GetDeviceBuffer(),
+                                                            a_g_n_c_wis_lengths,
+                                                            a_g_n_c_wis_strides,
+                                                            b_g_k_c_xs_lengths,
+                                                            b_g_k_c_xs_strides,
+                                                            {},
+                                                            {},
+                                                            e_g_n_k_wos_lengths,
+                                                            e_g_n_k_wos_strides,
+                                                            conv_filter_strides,
+                                                            conv_filter_dilations,
+                                                            input_left_pads,
+                                                            input_right_pads,
+                                                            in_element_op,
+                                                            wei_element_op,
+                                                            out_element_op,
+                                                            split_k_list[split_k_id]);
+
+            run_impl(op_ptr, argument_ptr);
+        }
     }
 
     std::cout << "Best configuration parameters:"
