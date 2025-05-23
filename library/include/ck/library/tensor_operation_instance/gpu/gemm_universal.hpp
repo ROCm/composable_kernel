@@ -160,7 +160,7 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8) && defined(CK_USE_WMMA_FP8))
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, bhalf_t>)
         {
@@ -185,8 +185,7 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
-#endif
-#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
+
         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, pk_i4_t> &&
                      is_same_v<CDataType, bhalf_t>)
         {
@@ -204,7 +203,7 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8) && defined(CK_USE_WMMA_FP8))
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<CDataType, half_t>)
         {

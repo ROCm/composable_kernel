@@ -155,7 +155,7 @@ void add_device_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_comp_mnkpadding_inst
         DeviceGemmV2<Col, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
-#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8) && defined(CK_USE_WMMA_FP8))
 void add_device_gemm_wmma_universal_f8_f8_bf16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
         DeviceGemmV2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
@@ -215,7 +215,7 @@ void add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_default_instances
         DeviceGemmV2<Col, Col, Row, BF16, I4, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
-#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8) && defined(CK_USE_WMMA_FP8))
 void add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
         DeviceGemmV2<Row, Row, Row, F8, F16, F16, PassThrough, PassThrough, PassThrough>>>&
