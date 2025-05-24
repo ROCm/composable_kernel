@@ -143,7 +143,7 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
         // Slice of NCHW - initial A matrix part in LDS memory, dst of global -> lds1 blockwise copy
         return make_naive_tensor_descriptor(
             make_tuple(NSlice, PaddedCSlice, HSlice, WSlice),
-            make_tuple(PaddedCSlice * HSlice * WSlice, HSlice * WSlice, WSlice, I1));
+            make_tuple(Number<PaddedCSlice * HSlice * WSlice + ABlockLdsExtraM>{}, HSlice * WSlice, WSlice, I1));
     }
 
     __host__ __device__ static auto GetABlockDescriptor_A_NHoWoCYX()
@@ -160,7 +160,7 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
 
         constexpr auto nchw_slice_desc = make_naive_tensor_descriptor(
             make_tuple(NSlice, PaddedCSlice, HSlice, WSlice),
-            make_tuple(PaddedCSlice * HSlice * WSlice, HSlice * WSlice, WSlice, I1));
+            make_tuple(Number<PaddedCSlice * HSlice * WSlice + ABlockLdsExtraM>{}, HSlice * WSlice, WSlice, I1));
 
         constexpr auto nchw_slice_sliced_desc = transform_tensor_descriptor(
                     nchw_slice_desc,
