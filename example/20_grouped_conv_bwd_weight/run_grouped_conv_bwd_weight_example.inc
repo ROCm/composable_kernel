@@ -95,6 +95,9 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                       WeiElementOp{},
                                       OutElementOp{},
                                       split_k);
+    invoker.ShowInfo(argument);
+    DeviceMem gemm_workspace_dev(conv.GetWorkSpaceSize(&argument));
+    conv.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
 
     if(!conv.IsSupportedArgument(argument))
     {
@@ -104,7 +107,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         return true;
     }
 
-    invoker.Run(argument, StreamConfig{nullptr, false});
+    invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
     if(config.do_verification)
     {

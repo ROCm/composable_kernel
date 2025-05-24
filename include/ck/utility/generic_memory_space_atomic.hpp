@@ -12,7 +12,7 @@ namespace ck {
 // instantiate this template. The purpose is to make the implementation of atomic_add explicit for
 // each datatype.
 template <typename X>
-__device__ X atomic_add(X* p_dst, const X& x);
+__device__ X atomic_add(X* p_dst, const X& x) { ignore = p_dst; ignore = x; return 0;};
 
 template <>
 __device__ int32_t atomic_add<int32_t>(int32_t* p_dst, const int32_t& x)

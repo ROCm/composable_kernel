@@ -41,13 +41,15 @@ struct CommonLayoutSetting
     using WeightLayout = WeightLay;
     using OutputLayout = OutputLay;
 };
-
+using ALayout  = ck::tensor_layout::convolution::NHWGC;
+using BLayout = ck::tensor_layout::convolution::GKYXC;
+using ELayout = ck::tensor_layout::convolution::NHWGK;
 namespace ctl = ck::tensor_layout::convolution;
 template <ck::index_t NDimSpatial>
 struct CommonLayoutSettingSelector
     : CommonLayoutSetting<ck::tuple_element_t<NDimSpatial - 1,
                                               ck::Tuple<ck::tensor_layout::convolution::GNWC,
-                                                        ck::tensor_layout::convolution::GNHWC,
+                                                        ck::tensor_layout::convolution::NHWGC,
                                                         ck::tensor_layout::convolution::GNDHWC>>,
                           ck::tuple_element_t<NDimSpatial - 1,
                                               ck::Tuple<ck::tensor_layout::convolution::GKXC,
@@ -55,7 +57,7 @@ struct CommonLayoutSettingSelector
                                                         ck::tensor_layout::convolution::GKZYXC>>,
                           ck::tuple_element_t<NDimSpatial - 1,
                                               ck::Tuple<ck::tensor_layout::convolution::GNWK,
-                                                        ck::tensor_layout::convolution::GNHWK,
+                                                        ck::tensor_layout::convolution::NHWGK,
                                                         ck::tensor_layout::convolution::GNDHWK>>>
 {
 };
@@ -123,7 +125,7 @@ inline bool parse_cmd_args(int argc,
 
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
         conv_param                        = ck::utils::conv::parse_conv_param(
-            num_dim_spatial, threshold_to_catch_partial_args, argv);
+            num_dim_spatial, threshold_to_catch_partial_args + 1, argv);
     }
     else
     {

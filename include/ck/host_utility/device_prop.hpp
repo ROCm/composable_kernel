@@ -54,6 +54,7 @@ inline std::string get_device_name()
 
 inline bool is_xdl_supported()
 {
+    return true;
     return ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
            ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950";
 }

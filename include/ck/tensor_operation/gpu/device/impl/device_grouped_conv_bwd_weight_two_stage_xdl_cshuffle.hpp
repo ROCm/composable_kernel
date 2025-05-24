@@ -1422,6 +1422,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+#if 1            
+//#ifdef  NDEBUG            
             float avg_time                 = 0.f;
             auto launch_elementwise_kernel = [&]() {
                 const AccDataType* p_c_grid = type_convert<const AccDataType*>(arg.p_workspace_);
@@ -1543,6 +1545,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             avg_time += RunGemmV3(arg, stream_config);
             avg_time += launch_elementwise_kernel();
             return avg_time;
+#else
+            ignore = arg;
+            ignore = stream_config;
+            return 0;
+#endif
         }
 
         float Run(const BaseArgument* p_arg,
@@ -1596,6 +1603,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         }
         if constexpr(NDimSpatial == 2)
         {
+            static_assert(is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>() ||
+                           is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>());
             if constexpr(!(is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>() ||
                            is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>()))
             {
@@ -1632,8 +1641,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         if constexpr(NumGroupsToMerge > 1)
         {
             // support only if whole M and N can be proccessed on one block
+            //static_assert(GemmM <= MPerBlock && GemmN <= NPerBlock);
             if(!(GemmM <= MPerBlock && GemmN <= NPerBlock))
             {
+                printf("%d, %d, %d, %d\n",GemmM,MPerBlock, GemmN,NPerBlock);
                 return false;
             }
             if(!(arg.Conv_C_ == 1 && arg.Conv_K_ == 1))
@@ -1669,6 +1680,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         }
 
         // vector load A/B matrix from global memory
+        static_assert(ABlockTransferSrcVectorDim == 1 && BBlockTransferSrcVectorDim == 1);
         if(!(ABlockTransferSrcVectorDim == 1 && BBlockTransferSrcVectorDim == 1))
         {
             return false;
