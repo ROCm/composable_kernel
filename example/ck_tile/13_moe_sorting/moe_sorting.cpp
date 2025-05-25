@@ -351,7 +351,7 @@ int main(int argc, char** argv)
 
         return r ? 0 : -1;
     }
-    catch (const std::runtime_error& e)
+    catch(const std::runtime_error& e)
     {
         std::cerr << "Runtime error: " << e.what() << '\n';
         return EXIT_FAILURE;
