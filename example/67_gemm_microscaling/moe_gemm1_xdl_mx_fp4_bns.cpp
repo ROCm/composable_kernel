@@ -66,7 +66,7 @@ struct MulABScaleExpertWeight
         EDataType& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
         (void)d0;
-        (void)d1;
+        (void)d1; 
         (void)d2;
 
         e = ck::type_convert<EDataType>(c);
@@ -169,6 +169,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     ActOP, Nswizzle, true, MulRoutedWeight, ck::index_t, A0DataType>;
 // clang-format on
 
+#if 0
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
@@ -683,3 +684,530 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+#else
+template <
+    ck::index_t MPerBlock_,
+    ck::index_t NPerBlock_,
+    ck::index_t MWaves_,
+    ck::index_t NWaves_>
+struct  TestDeviceCfgBase : public ck::tensor_operation::device::DeviceMoeGemmMXBNS<    
+            A0Layout,    B0Layout,    DsLayout,    ELayout, 
+            A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
+            AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
+            ScaleBlockSize, BlockSize,   
+            MPerBlock_, NPerBlock_, KPerBlock,
+            16,   16,
+            16,   16,
+            MPerBlock_/MWaves_/16,     NPerBlock_/NWaves_/16,
+            S<8, 32, 1>, S<1, 0, 2>,     S<1, 0, 2>,    2, 16, 16, 0,
+            S<8, 32, 1>, S<1, 0, 2>,     S<1, 0, 2>,    2, 16, 16, 0,
+            2,    2,     S<1, 32, 1, 8>, S<8, 1, 1, 1>,
+            ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, 
+            ActOP, Nswizzle, true, MulRoutedWeight, ck::index_t, A0DataType>
+{    
+    ck::index_t MPerBlock = MPerBlock_;
+    ck::index_t NPerBlock = NPerBlock_;
+    ck::index_t MXdlPerWave = MPerBlock_/MWaves_/16;
+    ck::index_t NXdlPerWave = NPerBlock_/NWaves_/16;
+};
+
+// 32 -> 1
+// 64 -> 2
+// 128 -> 4
+using TestDeviceCfgs32 = std::tuple<
+    //                      M per block,    N per block,    Waves in M,     Waves in N
+    TestDeviceCfgBase<      32,             128,            1,              4>,
+    TestDeviceCfgBase<      32,             256,            1,              4>,
+    TestDeviceCfgBase<      32,             512,            1,              4>
+>;
+auto test_dev_cfgs_32 = TestDeviceCfgs32{};
+
+using TestDeviceCfgs64 = std::tuple<
+    //                      M per block,    N per block,    Waves in M,     Waves in N
+    TestDeviceCfgBase<      64,             64,             2,              2>,
+    TestDeviceCfgBase<      64,             128,            1,              4>,
+    TestDeviceCfgBase<      64,             128,            2,              2>,
+    TestDeviceCfgBase<      64,             256,            1,              4>,
+    TestDeviceCfgBase<      64,             256,            2,              2>
+>;
+auto test_dev_cfgs_64 = TestDeviceCfgs64{};
+
+using TestDeviceCfgs128 = std::tuple<
+    //                      M per block,    N per block,    Waves in M,     Waves in N
+    //TestDeviceCfgBase<      128,            32,             4,              1>,
+    TestDeviceCfgBase<      128,            64,             2,              2>,
+    //TestDeviceCfgBase<      128,            64,             4,              1> // cmp err
+    TestDeviceCfgBase<      128,            128,            1,              4>,
+    TestDeviceCfgBase<      128,            128,            2,              2>,
+    //TestDeviceCfgBase<      128,            128,            4,              1> // cmp err
+    //TestDeviceCfgBase<      128,            256,            1,              4>,
+    TestDeviceCfgBase<      128,            256,            2,              2>
+    //TestDeviceCfgBase<      128,            256,            4,              1> // cmp err
+>;
+auto test_dev_cfgs_128 = TestDeviceCfgs128{};
+int fftoken;
+int ffmperblk, ffnperblk, ffwavem, ffwaven;
+float fftflops;
+
+/*using TestDeviceCfgs96 = std::tuple<
+    //                      M per block,    N per block,    Waves in M,     Waves in N
+    TestDeviceCfgBase<      64,             64,             2,              2>,
+    TestDeviceCfgBase<      64,             128,            1,              4>,
+    TestDeviceCfgBase<      64,             128,            2,              2>,
+    TestDeviceCfgBase<      64,             256,            1,              4>,
+    TestDeviceCfgBase<      96,             256,            2,              2>
+>;
+auto test_dev_cfgs_96 = TestDeviceCfgs96{};
+using TestDeviceCfgs256 = std::tuple<
+    //                      M per block,    N per block,    Waves in M,     Waves in N
+    TestDeviceCfgBase<      256,            32,             4,              1>,
+    TestDeviceCfgBase<      256,            64,             2,              2>,
+    TestDeviceCfgBase<      256,            64,             4,              1>,
+
+    TestDeviceCfgBase<      256,            128,            1,              4>,
+    TestDeviceCfgBase<      256,            128,            2,              2>,
+    TestDeviceCfgBase<      256,            128,            4,              1>,
+
+    TestDeviceCfgBase<      256,            256,            1,              4>,
+    TestDeviceCfgBase<      256,            256,            2,              2>,
+    TestDeviceCfgBase<      256,            256,            4,              1>
+>;
+//auto test_dev_cfgs_256 = TestDeviceCfgs256{};
+*/
+
+int main(int argc, char* argv[])
+{
+    //ck::index_t token_ = 13;
+    //ck::index_t m_per_blk_ = 128;
+
+    auto test_m_per_blk = [&](ck::index_t token_, ck::index_t m_per_blk_) -> void{
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = true;
+
+    // per expert:
+    // GEMM shape
+    ck::index_t tokens  = token_;
+    ck::index_t topk    = 2;
+    ck::index_t experts = 8;
+
+    ck::index_t m_per_block = m_per_blk_;
+    ck::index_t sorted_tile_num = (tokens + MPerBlock - 1) / MPerBlock;
+    ck::index_t valid_tile_num  = sorted_tile_num;
+    ck::index_t sorted_size               = sorted_tile_num * m_per_block;
+    ck::index_t valid_size                = valid_tile_num * m_per_block;
+
+    ck::index_t N       = 4096;
+    ck::index_t K       = 6144;
+
+    if(argc == 1)
+    {
+        // use default case
+    }
+    else if(argc == 3)
+    {
+        // use default case
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+    }
+    else if(argc == 7)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+        N               = std::stoi(argv[4]);
+        K               = std::stoi(argv[5]);
+        tokens          = std::stoi(argv[6]);
+    }
+    else if(argc == 8)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+        N               = std::stoi(argv[4]);
+        K               = std::stoi(argv[5]);
+        tokens          = std::stoi(argv[6]);
+        m_per_block     = std::stoi(argv[7]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
+        printf("arg4 to 6: N, K, tokens\n");
+        exit(0);
+    }
+
+    if(K % ScaleBlockSize != 0)
+    {
+        throw std::runtime_error("wrong! K must be multiple of ScaleBlockSize.");
+    };
+
+    ck::index_t StrideA              = K;
+    ck::index_t StrideB              = K;
+    ck::index_t StrideE              = N;
+    ck::index_t Scale_Stride_AM      = (K + ScaleBlockSize - 1) / ScaleBlockSize;
+    ck::index_t Scale_Stride_BN      = (K + ScaleBlockSize - 1) / ScaleBlockSize;
+    constexpr ck::index_t NumDTensor = DsDataType::Size();
+    constexpr auto StrideDs          = std::array<ck::index_t, NumDTensor>{0, 0, 0};
+
+    ck::index_t KBatch = 1;
+
+    Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
+    Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
+    Tensor<ck::index_t> max_token_id(HostTensorDescriptor({sorted_tile_num + 1}));
+    max_token_id.mData[0] = valid_size;
+
+    for(int i = 0; i < sorted_tile_num; i++)
+    {
+        expert_ids.mData[i] = i / ck::math::integer_divide_ceil(valid_tile_num, experts);
+    }
+    int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
+    int tokenid        = 0;
+    for(int i = 0; i < sorted_size; i++)
+    {
+        int tile_off = i % m_per_block;
+        if(tile_off < token_per_tile)
+        {
+            sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
+            tokenid++;
+        }
+        else
+        {
+            sorted_token_ids.mData[i] = tokens;
+        }
+    }
+
+    printf("tokens = %d, m_per_block = %d, sorted_tile_num = %d, experts = %d, topk = %d\n", 
+        tokens, m_per_block, sorted_tile_num, experts, topk);
+    fftoken = tokens;
+
+    Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
+    Tensor<XDataType> a1_t_k(HostTensorDescriptor(
+        {tokens, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
+    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
+    Tensor<XDataType> b1_e_n_k(
+        HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N * 2},
+                             {(N * 2 * Scale_Stride_BN), 1, Scale_Stride_BN}));
+
+    // A, B Scale preshuffle
+    Tensor<XDataType> a_scale_sorted(HostTensorDescriptor(
+        {sorted_size, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
+    Tensor<XDataType> a_scale_preshuffled(HostTensorDescriptor(
+        {sorted_size, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
+    Tensor<XDataType> b_scale_preshuffled(
+        HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N * 2},
+                             {N * 2 * Scale_Stride_BN, 1, Scale_Stride_BN}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
+    Tensor<EDataType> e_t_k_n_host_result(
+        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
+    Tensor<EDataType> e_t_k_n_device_result(
+        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
+
+    e_t_k_n_device_result.SetZero();
+
+    switch(init_method)
+    {
+    case 0: break;
+    case 1:
+        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-1, 1});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0, 1.0});
+        break;
+    case 2:
+        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.1f});
+
+        // a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
+        // b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
+        // a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        // b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        break;
+    case 3:
+        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-1, 1});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        break;
+    case 4:
+        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 5.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        break;
+    case 5:
+        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{1});
+        break;
+    case 6:
+        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        break;
+    case 7:
+        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{0.5f});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{1.5f});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{1.0f});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{1.0f});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.1f});
+        break;
+    default:
+        a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0.0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0.0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+    }
+    DeviceMem sorted_token_ids_dev(sizeof(ck::index_t) * sorted_token_ids.GetElementSpaceSize());
+    DeviceMem expert_ids_dev(sizeof(ck::index_t) * expert_ids.GetElementSpaceSize());
+    DeviceMem max_token_id_dev(sizeof(ck::index_t) * max_token_id.GetElementSpaceSize());
+    DeviceMem a0_device_buf(sizeof(A0DataType) * a0_t_k.GetElementSpaceSize());
+    DeviceMem a1_device_buf(sizeof(XDataType) * a_scale_sorted.GetElementSpaceSize());
+    DeviceMem b0_device_buf(sizeof(B0DataType) * b0_e_n_k.GetElementSpaceSize());
+    DeviceMem b1_device_buf(sizeof(XDataType) * b1_e_n_k.GetElementSpaceSize());
+    DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.GetElementSpaceSize());
+    DeviceMem e_device_buf(sizeof(EDataType) * e_t_k_n_device_result.GetElementSpaceSize());
+
+    // A scale sorted
+    for(int i = 0; i < sorted_size; i++)
+    {
+        int token_id = sorted_token_ids.mData[i] & 0x00FFFFFF;
+
+        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; k++)
+        {
+            if(token_id == tokens)
+            {
+                a_scale_sorted(i, k) = ck::type_convert<XDataType>(0);
+            }
+            else
+            {
+                a_scale_sorted(i, k) = a1_t_k(token_id, k);
+            }
+        }
+    }
+
+    // A/B scale shuffle
+    preShuffleScaleBuffer<ck::is_same_v<A0Layout, Row>>(a_scale_sorted.mData.data(),
+                                                        a_scale_preshuffled.mData.data(),
+                                                        sorted_size,
+                                                        K / ScaleBlockSize);
+    preShuffleScaleBuffer<ck::is_same_v<B0Layout, Col>>(b1_e_n_k.mData.data(),
+                                                        b_scale_preshuffled.mData.data(),
+                                                        N * 2 * experts,
+                                                        K / ScaleBlockSize);
+
+    sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
+    expert_ids_dev.ToDevice(expert_ids.mData.data());
+    max_token_id_dev.ToDevice(max_token_id.mData.data());
+    a0_device_buf.ToDevice(a0_t_k.mData.data());
+    b0_device_buf.ToDevice(b0_e_n_k.mData.data());
+    a1_device_buf.ToDevice(a_scale_preshuffled.mData.data());
+    b1_device_buf.ToDevice(b_scale_preshuffled.mData.data());
+    d2_device_buf.ToDevice(d2_e_n.mData.data());
+    e_device_buf.ToDevice(e_t_k_n_device_result.mData.data());
+
+    auto a_element_op   = AElementOp{};
+    auto b_element_op   = BElementOp{};
+    auto cde_element_op = CDEElementOp{};
+
+    // do GEMM
+    //auto device_op = DeviceOpInstance{};        
+    auto test_dev_cfg = [&](auto device_cfg) -> void{
+        auto invoker  = device_cfg.MakeInvoker();
+        auto argument = device_cfg.MakeArgument(
+            sorted_token_ids_dev.GetDeviceBuffer(),
+            expert_ids_dev.GetDeviceBuffer(),
+            max_token_id_dev.GetDeviceBuffer(),
+            a0_device_buf.GetDeviceBuffer(),
+            a1_device_buf.GetDeviceBuffer(),
+            b0_device_buf.GetDeviceBuffer(),
+            b1_device_buf.GetDeviceBuffer(),
+            std::array<const void*, NumDTensor>{nullptr, nullptr, d2_device_buf.GetDeviceBuffer()},
+            e_device_buf.GetDeviceBuffer(),
+            tokens,
+            topk,
+            sorted_size,
+            N,
+            K,
+            StrideA,
+            Scale_Stride_AM,
+            StrideB,
+            Scale_Stride_BN,
+            StrideDs,
+            StrideE,
+            KBatch,
+            a_element_op,
+            b_element_op,
+            cde_element_op);
+
+        if(!device_cfg.IsSupportedArgument(argument))
+        {
+            throw std::runtime_error(
+                "wrong! device_gemm with the specified compilation parameters does "
+                "not support this GEMM problem");
+        }
+
+        if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+        {
+            std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
+        }
+
+        if(time_kernel)
+        {
+            // not result correct here because output buf not setzero
+            float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+
+            std::size_t flop =
+                // FMA * tokens * N * (Gate+Up) * topk * K +
+                // FMA * tokens * N * (Gate+Up) * topk * (K/BlockScale)
+                std::size_t(2) * tokens * N * 2 * topk * K +
+                std::size_t(2) * tokens * N * 2 * topk * K / ScaleBlockSize;
+
+            std::size_t num_btype = sizeof(A0DataType) / 2 * tokens * topk * K +
+                                    sizeof(B0DataType) / 2 * K * N * 2 * experts +
+                                    sizeof(XDataType) * tokens * topk * K / ScaleBlockSize +
+                                    sizeof(XDataType) * K / ScaleBlockSize * N * 2 * experts +
+                                    sizeof(EDataType) * tokens * topk * N;
+
+            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+            float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+            //std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+            //        << " GB/s" << device_cfg.GetTypeString() << std::endl;
+
+            printf("TFlops = %.3f, MPerBlock = %d, NPerBlock = %d, MXdlPerWave = %d, NXdlPerWave = %d\n", 
+                tflops, 
+                device_cfg.MPerBlock, device_cfg.NPerBlock, device_cfg.MXdlPerWave, device_cfg.NXdlPerWave);
+            if(tflops > fftflops)
+            {
+                fftflops = tflops;
+                ffmperblk = device_cfg.MPerBlock;
+                ffnperblk = device_cfg.NPerBlock;
+                ffwavem = device_cfg.MXdlPerWave;
+                ffwaven = device_cfg.NXdlPerWave;
+            }
+        }
+
+        if(do_verification)
+        {
+            // gemm2 use atomic, so need to reinit outputs
+            e_device_buf.ToDevice(e_t_k_n_device_result.mData.data());
+            invoker.Run(argument, StreamConfig{nullptr, false, 0, 0, 1});
+
+            Tensor<CShuffleDataType> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
+
+            using ReferenceGemmInstance =
+                ck::tensor_operation::host::ReferenceMoeMXGemm1<A0DataType,
+                                                                XDataType,
+                                                                B0DataType,
+                                                                XDataType,
+                                                                CShuffleDataType,
+                                                                D2DataType,
+                                                                AccDataType,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                ActOP,
+                                                                MulRoutedWeight>;
+            auto ref_moe_gemm = ReferenceGemmInstance{};
+            auto ref_invoker  = ref_moe_gemm.MakeInvoker();
+
+            auto ref_argument = ref_moe_gemm.MakeArgument(sorted_token_ids,
+                                                        expert_ids,
+                                                        max_token_id,
+                                                        m_per_block,
+                                                        a0_t_k,
+                                                        a1_t_k,
+                                                        b0_e_n_k,
+                                                        b1_e_n_k,
+                                                        d2_e_n,
+                                                        c_t_k_n,
+                                                        PassThrough{},
+                                                        PassThrough{},
+                                                        PassThrough{});
+
+            ref_invoker.Run(ref_argument);
+            for(int m = 0; m < valid_size; ++m)
+            {
+                const int fuse_t  = sorted_token_ids.mData[m];
+                const int t       = fuse_t & 0xffffff;
+                const int topk_id = (fuse_t & 0xff000000) >> 24;
+
+                if(t >= tokens)
+                {
+                    continue;
+                }
+                for(int n = 0; n < N; ++n)
+                {
+                    e_t_k_n_host_result(t, topk_id, n) =
+                        ck::type_convert<EDataType>(c_t_k_n(t, topk_id, n));
+                }
+            }
+
+            e_device_buf.FromDevice(e_t_k_n_device_result.mData.data());
+
+            ck::utils::check_err(
+                e_t_k_n_device_result, e_t_k_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)
+                ? 0
+                : 1;
+        }
+    };
+
+    ck::static_for<0, std::tuple_size_v<std::remove_reference_t<TestDeviceCfgs32>>, 1>{}([&](auto i) {
+        if (m_per_block != 32)
+            return;
+        auto device_cfg_ = std::get<i>(test_dev_cfgs_32);
+        test_dev_cfg(device_cfg_);
+    });
+    ck::static_for<0, std::tuple_size_v<std::remove_reference_t<TestDeviceCfgs64>>, 1>{}([&](auto i) {
+        if (m_per_block != 64)
+            return;
+        auto device_cfg_ = std::get<i>(test_dev_cfgs_64);
+        test_dev_cfg(device_cfg_);
+    });
+    ck::static_for<0, std::tuple_size_v<std::remove_reference_t<TestDeviceCfgs128>>, 1>{}([&](auto i) {
+        if (m_per_block != 128)
+            return;
+        auto device_cfg_ = std::get<i>(test_dev_cfgs_128);
+        test_dev_cfg(device_cfg_);
+    });
+
+    };
+
+    /*ck::static_for<11, 128, 1>{}([&](auto token){
+        fftflops = 0.0f;
+        test_m_per_blk(token, 32);
+        test_m_per_blk(token, 64);
+        test_m_per_blk(token, 128);
+        printf("[best]%d, %.3f, \tm_per_blk = %d, n_per_blk = %d, m_xdl_per_wave = %d, n_xdl_per_wave = %d\n",
+            fftoken, fftflops,
+            ffmperblk, ffnperblk, ffwavem, ffwaven);
+    });*/
+
+    ck::static_for<256, 1024+256, 256>{}([&](auto token){
+        fftflops = 0.0f;
+        test_m_per_blk(token, 32);
+        test_m_per_blk(token, 64);
+        test_m_per_blk(token, 128);
+        printf("[best]%d, %.3f, \tm_per_blk = %d, n_per_blk = %d, m_xdl_per_wave = %d, n_xdl_per_wave = %d\n",
+            fftoken, fftflops,
+            ffmperblk, ffnperblk, ffwavem, ffwaven);
+    });
+
+    return 0;
+}
+#endif
