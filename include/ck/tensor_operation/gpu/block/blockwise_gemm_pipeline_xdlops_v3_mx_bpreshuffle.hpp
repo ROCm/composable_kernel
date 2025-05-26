@@ -157,10 +157,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
     using ComputeTypeB = typename Base::ComputeTypeB;
 
     static constexpr index_t PrefetchStages        = 2;
-    static constexpr index_t LocalPrefetchStages   = 2;
+    static constexpr index_t LocalPrefetchStages   = math::min(2, MRepeat/MXdlPack);
     static constexpr index_t PrefillStages         = 1;
     static constexpr index_t GlobalBufferNum       = 1;
-    static constexpr index_t HotloopLocalBufSwitch = MRepeat % 2 == 0 ? 0 : 1;
+    static constexpr index_t HotloopLocalBufSwitch = MRepeat % LocalPrefetchStages == 0 ? 0 : 1;
 
     static constexpr auto ScalesPerKBlockSize =
         KPerBlock / ScaleBlockSize; // How many mx-vectors per K block
@@ -417,7 +417,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
         // Local prefetch 1, sync the async load
         __builtin_amdgcn_s_waitcnt(3952);
         block_sync_lds();
-        static_for<0, math::min(2 * MXdlPack, MRepeat), 1>{}([&](auto m0) {
+        static_for<0, LocalPrefetchStages * MXdlPack, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
                                         (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
@@ -464,10 +464,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                          b_block_desc,
                                          b_block_origin_idx,
                                          b_thread_bufs(scale_mem_buf));
-
-                    //block_sync_lds();
-                    //a_blockwise_copy.Run(
-                    //    a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(scale_comp_buf));
 
                     // Prefetch a_scales
                     static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
@@ -518,6 +514,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                     static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                         if constexpr(m0.value == (MRepeat/ MXdlPack - LocalPrefetchStages))
                         {
+                            __builtin_amdgcn_s_waitcnt(3952);
                             block_sync_lds();
                             a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(scale_comp_buf));
                             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
@@ -570,7 +567,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                     ik) = a_thread_buf
                                                     [Number<a_thread_desc_.CalculateOffset(
                                                         make_tuple((m0 + HotloopLocalBufSwitch * scale_comp_buf) %
-                                                           2, I0, imxdl, kxdl, ik))>{}];
+                                                           LocalPrefetchStages, I0, imxdl, kxdl, ik))>{}];
                                                 b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                                     b_thread_bufs[scale_comp_buf][Number<
                                                         b_thread_desc_.CalculateOffset(make_tuple(
@@ -627,7 +624,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                                 a_thread_copy_.Run(
                                     a_block_desc_m0_m1_m2_m3_k,
-                                    make_tuple(Number<(m0 + 2) % (MRepeat / MXdlPack)>{},
+                                    make_tuple(Number<(m0 + LocalPrefetchStages) % (MRepeat / MXdlPack)>{},
                                                I0,
                                                imxdl,
                                                I0,
@@ -636,7 +633,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     a_thread_desc_,
                                     make_tuple(Number<(m0 + LocalPrefetchStages +
                                                        HotloopLocalBufSwitch * scale_comp_buf) %
-                                                      2>{},
+                                                      LocalPrefetchStages>{},
                                                I0,
                                                imxdl,
                                                k,
@@ -737,7 +734,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     static_for<0, KPack, 1>{}([&](auto ik) {
                                         a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                             a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                                make_tuple(m0 % 2, I0, imxdl, kxdl, ik))>{}];
+                                                make_tuple(m0 % LocalPrefetchStages, I0, imxdl, kxdl, ik))>{}];
                                         b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                             b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
                                                 make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
@@ -778,6 +775,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                         });
                     });
                 });
+
                 if constexpr(m0.value == (MRepeat - LocalPrefetchStages * MXdlPack) / MXdlPack)
                 {
                     __builtin_amdgcn_s_waitcnt(3952);
@@ -797,14 +795,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                 k_step +
                                 chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                             a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
-                                               make_tuple(Number<(m0 + 2) % (MRepeat / MXdlPack)>{},
+                                               make_tuple(Number<(m0 + LocalPrefetchStages) % (MRepeat / MXdlPack)>{},
                                                           I0,
                                                           imxdl,
                                                           I0,
                                                           Number<a_k_step_chunk>{}),
                                                a_block_bufs(Number<lds_buf>{}),
                                                a_thread_desc_,
-                                               make_tuple(Number<(m0 + LocalPrefetchStages) % 2>{},
+                                               make_tuple(Number<(m0 + LocalPrefetchStages) % LocalPrefetchStages>{},
                                                           I0,
                                                           imxdl,
                                                           k,
@@ -852,7 +850,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     static_for<0, KPack, 1>{}([&](auto ik) {
                                         a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                             a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                                make_tuple((m0 + HotloopLocalBufSwitch) % 2, I0, imxdl, kxdl, ik))>{}];
+                                                make_tuple((m0 + HotloopLocalBufSwitch) % LocalPrefetchStages, I0, imxdl, kxdl, ik))>{}];
                                         b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                             b_thread_bufs[I1][Number<b_thread_desc_.CalculateOffset(
                                                 make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
@@ -893,7 +891,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                         });
                     });
                 });
-                if constexpr(m0.value == (MRepeat - LocalPrefetchStages * MXdlPack) / MXdlPack)
+                if constexpr(m0.value < (MRepeat - LocalPrefetchStages * MXdlPack) / MXdlPack)
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k) {
                         static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
@@ -906,7 +904,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                                 a_thread_copy_.Run(
                                     a_block_desc_m0_m1_m2_m3_k,
-                                    make_tuple(Number<(m0 + 2) % (MRepeat / MXdlPack)>{},
+                                    make_tuple(Number<(m0 + LocalPrefetchStages) % (MRepeat / MXdlPack)>{},
                                                I0,
                                                imxdl,
                                                I0,
@@ -915,7 +913,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     a_thread_desc_,
                                     make_tuple(
                                         Number<(m0 + LocalPrefetchStages + HotloopLocalBufSwitch) %
-                                               2>{},
+                                               LocalPrefetchStages>{},
                                         I0,
                                         imxdl,
                                         k,
@@ -966,13 +964,13 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     static_for<0, KPack, 1>{}([&](auto ik) {
                                         a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                             a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                                make_tuple(m0%2, I0, imxdl, kxdl, ik))>{}];
+                                                make_tuple(m0%LocalPrefetchStages, I0, imxdl, kxdl, ik))>{}];
                                         b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                             b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
                                                 make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
                                     });
 
-#if defined(__gfx950__)
+#if 0
                                     printf("Tid: %02d, ik, im, in = %d, %d, %d\n"
                                            "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n"
                                            "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n",
@@ -1058,7 +1056,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                         });
                     });
                 });
-                if constexpr(m0.value == (MRepeat - LocalPrefetchStages * MXdlPack) / MXdlPack)
+                if constexpr(m0.value < (MRepeat - LocalPrefetchStages * MXdlPack) / MXdlPack)
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k) {
                         static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
@@ -1071,7 +1069,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                                 a_thread_copy_.Run(
                                     a_block_desc_m0_m1_m2_m3_k,
-                                    make_tuple(Number<(m0 + 2) % (MRepeat / MXdlPack)>{},
+                                    make_tuple(Number<(m0 + LocalPrefetchStages) % (MRepeat / MXdlPack)>{},
                                                I0,
                                                imxdl,
                                                I0,
@@ -1080,7 +1078,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     a_thread_desc_,
                                     make_tuple(
                                         Number<(m0 + LocalPrefetchStages + HotloopLocalBufSwitch) %
-                                               2>{},
+                                               LocalPrefetchStages>{},
                                         I0,
                                         imxdl,
                                         k,
@@ -1096,7 +1094,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
 
 //  Length:  A[ARegBuf, MWave, MXdlPack, KRepeat, KPack]
     //  Order:     1        0      3         2        4
-    static constexpr auto ARegBuf = 2;
+    static constexpr auto ARegBuf = LocalPrefetchStages;
     static constexpr auto a_thread_desc_ =
         make_naive_tensor_descriptor(make_tuple(Number<ARegBuf>{},
                                                 I1,
