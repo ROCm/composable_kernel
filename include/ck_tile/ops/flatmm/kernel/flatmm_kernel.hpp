@@ -123,9 +123,13 @@ struct FlatmmKernel
                                 hostArgs.k_batch};
     }
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPingSize()
     {
         return max(FlatmmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
+    }
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPongSize()
+    {
+        return FlatmmPipeline::GetSmemSize();
     }
 
     struct SplitKBatchOffset
@@ -429,7 +433,8 @@ struct FlatmmKernel
     CK_TILE_DEVICE static void RunFlatmm(const ADataType* a_ptr,
                                          const BDataType* b_flat_ptr,
                                          CDataType* c_ptr,
-                                         void* smem_ptr,
+                                         void* smem_ptr_ping,
+                                         void* smem_ptr_pong,
                                          const FlatmmKernelArgs& kargs,
                                          const SplitKBatchOffset& splitk_batch_offset,
                                          const index_t block_idx_m,
@@ -448,13 +453,13 @@ struct FlatmmKernel
         const auto& a_block_window      = gemm_tile_windows.at(I0);
         const auto& b_flat_block_window = gemm_tile_windows.at(I1);
         const auto& c_block_tile        = FlatmmPipeline{}.template operator()(
-            a_block_window, b_flat_block_window, num_loop, smem_ptr);
+            a_block_window, b_flat_block_window, num_loop, smem_ptr_ping, smem_ptr_pong);
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, smem_ptr);
+            c_block_window, c_block_tile, smem_ptr_ping);
     }
 
     CK_TILE_DEVICE void operator()(FlatmmKernelArgs kargs) const
@@ -472,13 +477,14 @@ struct FlatmmKernel
         CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
 
         // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
+        __shared__ char smem_ptr_ping[GetSmemPingSize()];
+        __shared__ char smem_ptr_pong[GetSmemPongSize()];
 
         if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
                        EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                        is_any_of<CDataType, fp16_t, bf16_t>::value))
         {
-            RunFlatmm(a_ptr, b_flat_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+            RunFlatmm(a_ptr, b_flat_ptr, c_ptr, smem_ptr_ping, smem_ptr_pong, kargs, splitk_batch_offset, i_m, i_n);
         }
     }
 };
