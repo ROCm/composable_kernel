@@ -20,7 +20,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kHasDropout_,
           bool kDoFp8StaticQuant_,
           index_t kBlockPerCu_  = -1, /* overwrite occupancy if not -1 */
-          bool kSkipMinSeqlenQ_ = false>
+          bool kSkipMinSeqlenQ_ = false /* skip min seqlen q while chunked prefill */>
 struct TileFmhaTraits
 {
     static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;

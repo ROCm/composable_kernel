@@ -161,7 +161,7 @@ class FmhaFwdApiTrait:
     skpad     : str
     dpad      : str
     dvpad     : str
-    skip   : str
+    skip      : str
 
     @property
     def name(self) -> str:
@@ -541,6 +541,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     cond &= pipeline.F_vlayout == 'row'
                     cond &= pipeline.F_bias in ['no', 'alibi']
                     cond &= pipeline.F_squant == 'f'
+                    cond &= pipeline.F_skip == 'f'
                     if not cond:
                         continue
                 # PyTorch integration
@@ -549,6 +550,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     cond &= pipeline.F_vlayout == 'row'
                     cond &= pipeline.F_bias in ['no', 'bias']
                     cond &= pipeline.F_squant == 'f'
+                    cond &= pipeline.F_skip == 'f'
                     if not cond:
                         continue
                 # Aiter(mha_fwd) integration
@@ -574,6 +576,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
@@ -592,6 +595,7 @@ def write_blobs(output_dir : Path, kernel_filter : str, receipt, optdim_list, ma
     write_fwd_api(api_pool, output_dir)
 
 def list_blobs(file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+    # import pdb; pdb.set_trace()
     with file_path.open('a') as f:
         _, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
         for kernel in kernels:
