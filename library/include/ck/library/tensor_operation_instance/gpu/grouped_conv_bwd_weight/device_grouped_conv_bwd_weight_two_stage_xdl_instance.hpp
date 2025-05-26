@@ -162,12 +162,16 @@ using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_bf16_instance
     // clang-format on
     >;
 
-typename ALayout, typename BLayout, typename ELayout,
-    ConvolutionBackwardWeightSpecialization ConvSpec, BlockGemmPipelineScheduler Scheduler,
-    BlockGemmPipelineVersion PipelineVersion >
-        using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_bf16_part2_instances =
-        std::tuple<
-            // clang-format off
+template <ck::index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename ELayout,
+          ConvolutionBackwardWeightSpecialization ConvSpec,
+          BlockGemmPipelineScheduler Scheduler,
+          BlockGemmPipelineVersion PipelineVersion>
+using device_grouped_conv_bwd_weight_two_stage_nhwgc_xdl_c_shuffle_bf16_part2_instances =
+    std::tuple<
+        // clang-format off
         //#########################################|              Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm| NumGroups|
         //#########################################|              Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|   ToMerge|
         //#########################################|          Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl| Scheduler|   Version|          |
@@ -180,8 +184,8 @@ typename ALayout, typename BLayout, typename ELayout,
 
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,   256,     32,   8,   16,   16,    1,   16,   S<4, 2, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              8,              8,      false,  S<4, 16,  1>,  S<2, 0, 1>, S<1, 0, 2>,                1,              8,              8,      false,           1,           1,   S<1, 4, 1, 16>,                 1, Scheduler, PipelineVersion, 8>,
         DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    16,   128,     32,   8,   16,   16,    1,    8,   S<4, 4, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              4,              8,      false,  S<4, 16,  1>,  S<2, 0, 1>, S<1, 0, 2>,                1,              4,              8,      false,           1,           1,   S<1, 4, 1, 16>,                 1, Scheduler, PipelineVersion, 4>
-            // clang-format on
-            >;
+        // clang-format on
+        >;
 
 template <ck::index_t NDimSpatial,
           typename ALayout,
