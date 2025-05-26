@@ -45,6 +45,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libelf-dev \
     libnuma-dev \
     libpthread-stubs0-dev \
+    libsqlite3-dev \
     llvm-amdgpu \
     mpich \
     net-tools \
