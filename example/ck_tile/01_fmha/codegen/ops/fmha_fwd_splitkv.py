@@ -282,10 +282,16 @@ FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F
                 static_assert({F_bm0} % kM0 == 0);
                 static_assert({F_bn1} % 32 == 0);
 
-                if (t.has_lse && std::is_same_v<{F_dtype}, FmhaFwdFp8>) {{
-                    return -1;
+                if (t.has_lse) {{
+                    if constexpr (std::is_same_v<{F_dtype}, FmhaFwdFp8>) {{
+                        return -1;
+                    }} else {{
+                        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, /*F_bn1=*/32, true, {F_squant}, {F_spad}, {F_dvpad}>;
+
+                        return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
+                    }}
                 }} else {{
-                    using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, /*F_bn1=*/32, {F_lse}, {F_squant}, {F_spad}, {F_dvpad}>;
+                    using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, /*F_bn1=*/32, false, {F_squant}, {F_spad}, {F_dvpad}>;
 
                     return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
                 }}
