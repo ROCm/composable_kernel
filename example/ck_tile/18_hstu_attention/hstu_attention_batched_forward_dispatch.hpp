@@ -22,6 +22,7 @@
 #include "hstu_attention_traits.hpp"
 #include "hstu_attention_fwd_pipeline.hpp"
 #include "hstu_attention_fwd_kernel.hpp"
+#include "hstu_attention_epilogue.hpp"
 
 template <typename InOutDataType,
           bool kUseCausal,
@@ -59,33 +60,35 @@ struct batched_forward_causal_local_bias_dropout_dispatch
         // buffer_load_dwordxx/buffer_store_dwordxx can handle oob access
         constexpr bool kPadSeqLenQ = false;
 
-        BOOL_SWITCH_3(
-            pad_seqlen_k,
-            kPadSeqLenK,
-            pad_headdim_qk,
-            kPadHeadDimQK,
-            pad_headdim_v,
-            kPadHeadDimV,
-            [&] {
-                using HstuTraits = ck_tile::HstuAttentionFwdTraits<kPadSeqLenQ,
-                                                                   kPadSeqLenK,
-                                                                   kPadHeadDimQK,
-                                                                   kPadHeadDimV,
-                                                                   occupancy>;
+        BOOL_SWITCH_3(pad_seqlen_k,
+                      kPadSeqLenK,
+                      pad_headdim_qk,
+                      kPadHeadDimQK,
+                      pad_headdim_v,
+                      kPadHeadDimV,
+                      [&] {
+                          using HstuTraits = ck_tile::HstuAttentionFwdTraits<kPadSeqLenQ,
+                                                                             kPadSeqLenK,
+                                                                             kPadHeadDimQK,
+                                                                             kPadHeadDimV,
+                                                                             occupancy>;
 
-                using HstuPipelineProblem = HstuPipelineProblemTemp<HstuTraits>;
+                          using HstuPipelineProblem = HstuPipelineProblemTemp<HstuTraits>;
 
-                using HstuEpilogue = ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<
-                    typename HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType,
-                    typename HstuAttentionFwdTypeConfig<InOutDataType>::ODataType,
-                    kPadSeqLenQ,
-                    kPadHeadDimV>>;
+                          using HstuEpilogue =
+                              ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                                  typename HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType,
+                                  typename HstuAttentionFwdTypeConfig<InOutDataType>::ODataType,
+                                  kPadSeqLenQ,
+                                  kPadHeadDimV>>;
 
-                using HstuPipeline = ck_tile::HstuAttentionFwdPipelineQRKSVS<HstuPipelineProblem>;
-                using HstuKernel   = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+                          using HstuPipeline =
+                              ck_tile::HstuAttentionFwdPipelineQRKSVS<HstuPipelineProblem>;
+                          using HstuKernel =
+                              ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
 
-                RunWithKernel<HstuKernel>(param, stream);
-            });
+                          RunWithKernel<HstuKernel>(param, stream);
+                      });
     };
 
     template <typename HstuKernel>

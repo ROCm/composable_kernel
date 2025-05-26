@@ -71,6 +71,10 @@ struct HstuAttentionFwdPipelineQRKSVS
     static constexpr index_t kGemmSingleRepM = Policy::template GetQKBlockGemmSingleRepM<Problem>();
     static constexpr index_t kGemmNumRepM    = kM0 / kGemmSingleRepM;
 
+    // used by NRepetitions2DEpilogue
+    static constexpr index_t kGemm1SingleRepN =
+        Policy::template GetKVBlockGemmSingleRepN<Problem>();
+
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::Traits::kBlockPerCu != -1)
             return Problem::Traits::kBlockPerCu;

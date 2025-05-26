@@ -550,6 +550,13 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemmSingleRepN()
+    {
+        return Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) *
+               Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
+    };
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemm()
     {
         using GemmProblem =

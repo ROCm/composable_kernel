@@ -22,6 +22,7 @@
 #include "hstu_attention_traits.hpp"
 #include "hstu_attention_fwd_pipeline.hpp"
 #include "hstu_attention_fwd_kernel.hpp"
+#include "hstu_attention_epilogue.hpp"
 
 template <typename InOutDataType,
           bool kUseCausal,
@@ -69,7 +70,7 @@ struct jagged_forward_causal_local_bias_dropout_dispatch
 
             using HstuPipelineProblem = HstuPipelineProblemTemp<HstuTraits>;
 
-            using HstuEpilogue = ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<
+            using HstuEpilogue = ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
                 typename HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType,
                 typename HstuAttentionFwdTypeConfig<InOutDataType>::ODataType,
                 kPadSeqLenQ,
