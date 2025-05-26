@@ -1,16 +1,30 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "functional4.hpp"
 #include "tuple.hpp"
+#ifndef CK_CODE_GEN_RTC
 #include "is_detected.hpp"
+#endif
 
 namespace ck {
 
+template <typename F, index_t... ids>
+__host__ __device__ constexpr auto generate_tuple_for(F&& f, Sequence<ids...>)
+{
+    return make_tuple(f(Number<ids>{})...);
+}
+
 template <typename F, index_t N>
 __host__ __device__ constexpr auto generate_tuple(F&& f, Number<N>)
+{
+    return generate_tuple_for(f, make_index_sequence<N>{});
+}
+
+template <typename F, index_t N>
+__host__ __device__ constexpr auto generate_tuple(F&& f, LongNumber<N>)
 {
     return unpack([&f](auto&&... xs) { return make_tuple(f(xs)...); },
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
@@ -29,7 +43,7 @@ __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>&
                                                              const Tuple<Y&...>& ty)
 {
     return unpack2(
-        [&](auto&&... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        [&](auto&&... zs) { return Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
         tx,
         ty);
 }
@@ -38,7 +52,7 @@ template <typename... X, typename... Y>
 __host__ __device__ constexpr auto concat_tuple(const Tuple<X...>& tx, const Tuple<Y...>& ty)
 {
     return unpack2(
-        [&](auto... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        [&](auto... zs) { return Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
         tx,
         ty);
 }
@@ -157,13 +171,17 @@ __host__ __device__ constexpr auto TupleReduce(F&& f, const Tuple<Ts...>& tuple)
     }
 }
 
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename T>
-using is_tuple = decltype(std::declval<T&>().IsTuple());
+using is_tuple = decltype(ck::declval<T&>().IsTuple());
+#endif
 
 template <typename... Ts>
 __host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
 {
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     return (is_detected<is_tuple, Ts>::value || ...);
+#endif
 }
 
 template <index_t depth = 0, typename T>

@@ -92,18 +92,24 @@ endif()
 add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
+add_compile_options(-Wno-unique-object-duplication)
 
-if(DL_KERNELS)
+# Recent change in compiler makes this warning ON by default, which led to compile errors.
+add_compile_options(-Wno-nrvo)
+
+if(NOT DISABLE_DL_KERNELS)
     add_definitions(-DDL_KERNELS)
+    set(DL_KERNELS "ON")
     set(CK_ENABLE_DL_KERNELS "ON")
 endif()
-if(DPP_KERNELS)
+if(NOT DISABLE_DPP_KERNELS)
     add_definitions(-DDPP_KERNELS)
+    set(DPP_KERNELS "ON")
     set(CK_ENABLE_DPP_KERNELS "ON")
 endif()
 option(CK_USE_CODEGEN "Enable codegen library" OFF)
 if(CK_USE_CODEGEN)
-    add_definitions(-DCK_USE_CODEGEN)
+   add_definitions(-DCK_USE_CODEGEN)
 endif()
 
 option(CK_TIME_KERNEL "Enable kernel time tracking" ON)
@@ -164,8 +170,10 @@ if(NOT ENABLE_ASAN_PACKAGING)
     if(NOT WIN32 AND ${hip_VERSION_FLAT} LESS 600300000)
         # WORKAROUND: compiler does not yet fully support gfx12 targets, need to fix version above
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
-    else()
+    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600300000 AND ${hip_VERSION_FLAT} LESS 600400000)
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201")
+    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600400000)
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201;gfx950")
     endif()
 else()
     #build CK only for xnack-supported targets when using ASAN
@@ -196,8 +204,8 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
     add_definitions(-DCK_USE_XDL)
     set(CK_USE_XDL "ON")
 endif()
-if (SUPPORTED_GPU_TARGETS MATCHES "gfx94")
-    message("Enabling FP8 gemms on native architectures")
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx94" OR SUPPORTED_GPU_TARGETS MATCHES "gfx95")
+    message("Enabling XDL FP8 gemms on native architectures")
     add_definitions(-DCK_USE_GFX94)
     set(CK_USE_GFX94 "ON")
 endif()
@@ -207,12 +215,21 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1
     set(CK_USE_WMMA "ON")
 endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx12")
+    message("Enabling WMMA FP8 gemms on native architectures")
+    add_definitions(-DCK_USE_WMMA_FP8)
+    set(CK_USE_WMMA_FP8 "ON")
+endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx12" OR SUPPORTED_GPU_TARGETS MATCHES "gfx950")
     add_definitions(-DCK_USE_OCP_FP8)
     set(CK_USE_OCP_FP8 "ON")
 endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx90a" OR SUPPORTED_GPU_TARGETS MATCHES "gfx94")
     add_definitions(-DCK_USE_FNUZ_FP8)
     set(CK_USE_FNUZ_FP8 "ON")
+endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx950")
+    add_definitions(-DCK_USE_NATIVE_MX_SUPPORT)
+    set(CK_USE_NATIVE_MX_SUPPORT "ON")
 endif()
 
 option(CK_USE_FP8_ON_UNSUPPORTED_ARCH "Enable FP8 GEMM instances on older architectures" OFF)
@@ -588,6 +605,10 @@ ENDIF()
 ENDFOREACH()
 
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
+
+option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
+
 add_subdirectory(library)
 
 if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
@@ -601,16 +622,19 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
+   add_subdirectory(tile_engine)
    if(BUILD_TESTING)
        add_subdirectory(test)
    endif()
 endif()
 
-rocm_package_setup_component(profiler
-    LIBRARY_NAME composablekernel
-    PACKAGE_NAME ckprofiler
-)
-add_subdirectory(profiler)
+if (NOT MIOPEN_REQ_LIBS_ONLY)
+    rocm_package_setup_component(profiler
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME ckprofiler
+    )
+    add_subdirectory(profiler)
+endif()
 
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
   add_subdirectory(codegen)

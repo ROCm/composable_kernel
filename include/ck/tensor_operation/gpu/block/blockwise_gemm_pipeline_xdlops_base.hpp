@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -46,7 +46,8 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
     static constexpr index_t A_K1 = ATileDesc{}.GetLength(I2);
-    static constexpr index_t B_K1 = BTileDesc{}.GetLength(I2);
+    static constexpr index_t B_K1 =
+        BTileDesc{}.GetLength(Number < BTileDesc{}.GetNumOfDimension() == 4 ? 3 : 2 > {});
 
     static constexpr auto xdlops_gemm =
         XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, ComputeDataType, TransposeC>{};
@@ -54,8 +55,14 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t AMmaKStride = KPack;
     static constexpr index_t BMmaKStride = KPack;
 
-    static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
-    static constexpr index_t KRepeat    = KPerThread / KPack;
+    static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
+    static constexpr index_t KRepeat       = KPerThread / KPack;
+    static constexpr index_t KPerInnerLoop = KPack;
+    static constexpr index_t KGroup =
+        ((MPerXDL == 16 && MPerXDL == 16 && xdlops_gemm.KPerXdlops == 128) ||
+         (MPerXDL == 32 && MPerXDL == 32 && xdlops_gemm.KPerXdlops == 64))
+            ? 2
+            : 1;
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
@@ -110,6 +117,17 @@ struct BlockwiseGemmXdlops_pipeline_base
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
         return make_tuple(0, waveId_m, xdlops_a_idx[I1], KPerThread * xdlops_a_idx[I0]);
+    }
+
+    __device__ static auto CalculateAThreadOriginDataIndex6D()
+    {
+        const auto wave_idx = GetWaveIdx();
+
+        const auto waveId_m = wave_idx[I0];
+
+        const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
+
+        return make_tuple(0, waveId_m, xdlops_a_idx[I1], 0, xdlops_a_idx[I0], 0);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -169,6 +187,23 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     using Tuple4 = decltype(CalculateAThreadOriginDataIndex());
 
+    /**
+     * @brief Constructor for BlockwiseGemmXdlops_pipeline_base.
+     *
+     * This constructor initializes the thread copy objects for matrices A and B.
+     * It also performs several compile-time checks to ensure the correctness of the
+     * matrix tile descriptors.
+     *
+     * @param a_origin The origin data index for matrix A.
+     * @param b_origin The origin data index for matrix B.
+     *
+     * @note The constructor includes static assertions to ensure that:
+     * - The matrix tile descriptors for A and B are known at compile-time.
+     * - The number of threads in the thread block matches the product of MWaves, NWaves, and
+     * WaveSize.
+     * - The dimensions of the block are divisible by the product of the corresponding XDL and
+     * repeat dimensions.
+     */
     __host__ __device__
     BlockwiseGemmXdlops_pipeline_base(Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
                                       Tuple4 b_origin = CalculateBThreadOriginDataIndex())
@@ -304,7 +339,7 @@ struct BlockwiseGemmXdlops_pipeline_base
         return xdlops_gemm.MakeCDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2(
             c_grid_desc_g_m0_n0_m1_n1_m2_n2);
     }
-
+    __host__ __device__ static constexpr auto GetCThreadDesc() { return c_thread_desc_; }
     static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_k;
     static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_k;
 

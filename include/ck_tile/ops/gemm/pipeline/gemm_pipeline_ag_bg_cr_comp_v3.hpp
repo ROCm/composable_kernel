@@ -3,10 +3,14 @@
 
 #pragma once
 
+#include <string>
+#include <sstream>
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
 
@@ -16,19 +20,35 @@ namespace ck_tile {
 template <typename Problem>
 struct BaseGemmPipelineAgBgCrCompV3
 {
-    static constexpr index_t PrefetchStages  = 2;
-    static constexpr index_t PrefillStages   = 1;
-    static constexpr index_t GlobalBufferNum = 1;
+    static constexpr index_t PrefetchStages   = 2;
+    static constexpr index_t PrefillStages    = 1;
+    static constexpr index_t GlobalBufferNum  = 1;
+    static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
 
-    CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
+
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
-        ignore = num_loop;
-        return TailNumber::Full;
+        if(BlockHasHotloop(num_loop))
+        {
+            return TailNumber::Full;
+        }
+        else
+        {
+            if(num_loop == 1)
+            {
+                return TailNumber::Odd;
+            }
+            else
+            {
+                return TailNumber::Even;
+            }
+        }
     }
 };
 
@@ -48,6 +68,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
+    static constexpr index_t APackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    static constexpr index_t BPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+
     using ALayout = remove_cvref_t<typename Problem::ALayout>;
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
@@ -62,28 +87,88 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t VectorSizeA = Policy::template GetVectorSizeA<Problem>();
-    static constexpr index_t VectorSizeB = Policy::template GetVectorSizeB<Problem>();
-    static constexpr index_t VectorSizeC = Policy::template GetVectorSizeC<Problem>();
+    static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
+    static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
+    static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
+
+    static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
+    static constexpr index_t GetSmemPackB() { return Policy::template GetSmemPackB<Problem>(); }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
+
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
     using Base::PrefetchStages;
+    using Base::UsePersistentKernel;
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AgBgCrCompV3", BlockSize,
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
+    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
+    CK_TILE_HOST static std::string Print()
     {
-        return Policy::template IsTransposeC<Problem>();
+        constexpr index_t MPerXDL = BlockGemm::WarpGemm::kM;
+        constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
+        constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
+
+        constexpr index_t WaveSize = 64;
+        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
+        constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
+
+        // Below should be equal to AK1|BK1
+        constexpr index_t A_LDS_Read_Width = GetSmemPackA();
+        constexpr index_t B_LDS_Read_Width = GetSmemPackB();
+
+        constexpr index_t A_LDS_Write_Width = GetSmemPackA();
+        constexpr index_t B_LDS_Write_Width = GetSmemPackB();
+
+        constexpr index_t A_Buffer_Load_Inst_Num =
+            MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
+        constexpr index_t B_Buffer_Load_Inst_Num =
+            NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
+
+        constexpr index_t A_LDS_Write_Inst_Num =
+            MPerBlock * KPerBlock / (BlockSize * A_LDS_Write_Width);
+        constexpr index_t B_LDS_Write_Inst_Num =
+            NPerBlock * KPerBlock / (BlockSize * B_LDS_Write_Width);
+
+        constexpr index_t A_LDS_Read_Inst_Num =
+            WaveNumN * MPerBlock * KPerBlock / (BlockSize * A_LDS_Read_Width);
+        constexpr index_t B_LDS_Read_Inst_Num =
+            WaveNumM * NPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
+
+        constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
+                                            (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
+
+        auto str = std::stringstream{};
+
+        str << "A/B vector size: " << GetVectorSizeA() << ", " << GetVectorSizeB() << "\n"
+            << "A/B LDS read/write width: " << A_LDS_Read_Width << ", " << B_LDS_Read_Width << "\n"
+            << "A/B buffer load inst: " << A_Buffer_Load_Inst_Num << ", " << B_Buffer_Load_Inst_Num
+            << "\n"
+            << "A/B LDS write inst: " << A_LDS_Write_Inst_Num << ", " << B_LDS_Write_Inst_Num
+            << "\n"
+            << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"
+            << "C MFMA inst: " << C_MFMA_Inst_Num << "\n"
+            << "KPack: " << BlockGemm::Traits::KPack << "\n"
+            << "PrefetchStages: " << PrefetchStages << "\n";
+        return str.str();
     }
 
     template <GemmPipelineScheduler Scheduler>
@@ -98,29 +183,35 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
         CK_TILE_DEVICE static constexpr auto HotLoopScheduler()
         {
-            constexpr index_t MPerXDL = BlockGemmShape::WarpTile::at(I0{});
-            constexpr index_t NPerXDL = BlockGemmShape::WarpTile::at(I1{});
-            constexpr index_t KPerXDL = BlockGemmShape::WarpTile::at(I2{});
+            constexpr index_t MPerXDL = BlockGemm::WarpGemm::kM;
+            constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
+            constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
 
             constexpr index_t WaveSize = 64;
             constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
             constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
-            constexpr index_t A_LDS_Read_Width = KPerXDL;
-            constexpr index_t B_LDS_Read_Width = KPerXDL;
+            // Below should be equal to AK1|BK1
+            constexpr index_t A_LDS_Read_Width = GetSmemPackA();
+            constexpr index_t B_LDS_Read_Width = GetSmemPackB();
+
+            constexpr index_t A_LDS_Write_Width = GetSmemPackA();
+            constexpr index_t B_LDS_Write_Width = GetSmemPackB();
 
             constexpr index_t A_Buffer_Load_Inst_Num =
-                MPerBlock * KPerBlock / (BlockSize * VectorSizeA);
+                MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
             constexpr index_t B_Buffer_Load_Inst_Num =
-                NPerBlock * KPerBlock / (BlockSize * VectorSizeB);
+                NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
 
-            constexpr index_t A_LDS_Write_Inst_Num = MPerBlock * KPerBlock / (BlockSize * KPerXDL);
-            constexpr index_t B_LDS_Write_Inst_Num = NPerBlock * KPerBlock / (BlockSize * KPerXDL);
+            constexpr index_t A_LDS_Write_Inst_Num =
+                MPerBlock * KPerBlock / (BlockSize * A_LDS_Write_Width);
+            constexpr index_t B_LDS_Write_Inst_Num =
+                NPerBlock * KPerBlock / (BlockSize * B_LDS_Write_Width);
 
             constexpr index_t A_LDS_Read_Inst_Num =
-                WaveNumN * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumN * MPerBlock * KPerBlock / (BlockSize * A_LDS_Read_Width);
             constexpr index_t B_LDS_Read_Inst_Num =
-                WaveNumM * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
+                WaveNumM * NPerBlock * KPerBlock / (BlockSize * B_LDS_Read_Width);
 
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
@@ -128,12 +219,12 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             // A/B split schedule
             // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
-            constexpr auto num_ds_read_inst_a = A_LDS_Read_Width * sizeof(ADataType) == 16
-                                                    ? A_LDS_Read_Inst_Num
-                                                    : A_LDS_Read_Inst_Num / 2;
-            constexpr auto num_ds_read_inst_b = B_LDS_Read_Width * sizeof(BDataType) == 16
-                                                    ? B_LDS_Read_Inst_Num
-                                                    : B_LDS_Read_Inst_Num / 2;
+            constexpr auto num_ds_read_inst_a =
+                A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? A_LDS_Read_Inst_Num
+                                                                         : A_LDS_Read_Inst_Num / 2;
+            constexpr auto num_ds_read_inst_b =
+                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? B_LDS_Read_Inst_Num
+                                                                         : B_LDS_Read_Inst_Num / 2;
 
             constexpr auto num_ds_write_inst_a = A_LDS_Write_Inst_Num;
             constexpr auto num_ds_write_inst_b = B_LDS_Write_Inst_Num;
@@ -145,9 +236,9 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
             constexpr auto ds_read_a_issue_cycle =
-                A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
+                A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? 8 : 4;
             constexpr auto ds_read_b_issue_cycle =
-                B_LDS_Read_Width * sizeof(BDataType) == 16 ? 8 : 4;
+                B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? 8 : 4;
             constexpr auto ds_read_a_mfma_rate =
                 (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
             constexpr auto ds_read_b_mfma_rate =
@@ -273,17 +364,23 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // A/B tiles in LDS
             auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
 
+            // Tile distribution for load from lds
+            constexpr auto a_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
+            constexpr auto b_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
+
             // A DRAM tile window for load
             // A LDS tile window for store
             // A LDS tile for block GEMM
             auto&& [a_copy_dram_window, a_copy_lds_window, a_lds_gemm_window] =
-                Base::GetAWindows(a_dram_block_window_tmp, a_lds_block);
+                Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
 
             // B DRAM tile window for load
             // B LDS tile window for store
             // B LDS tile for block GEMM
             auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
-                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block);
+                Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
 
             // Block GEMM
             auto block_gemm   = BlockGemm();
@@ -388,6 +485,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
                     block_sync_lds();
+
                     block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
@@ -396,12 +494,43 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 } while(i < (num_loop - 1));
             }
             // tail
-            if constexpr(TailNum == TailNumber::Full)
+            if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
             {
+                // Leak last MFMA block to epilogue region, cover the potential lds-shuffle
+                // latency
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             }
-            // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
-            // latency
+            else
+            {
+                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                block_sync_lds();
+
+                if constexpr(is_a_col_major)
+                {
+                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                        Policy::template MakeShuffledARegTileDistribution<Problem>());
+                    transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                }
+                else
+                {
+                    Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                }
+                if constexpr(is_b_row_major)
+                {
+                    auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                        Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                    transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                    Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
+                }
+                else
+                {
+                    Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                }
+                block_sync_lds();
+                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+            }
             // __builtin_amdgcn_sched_barrier(0);
             return c_block_tile;
         }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#ifndef CK_CODE_GEN_RTC
 #pragma once
 
 #include <cstdlib>
@@ -183,3 +184,9 @@ void UpdateEnvVar(EnvVar, const std::string_view& val)
 }
 
 } // namespace ck
+
+// environment variable to enable logging:
+// export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
+CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
+
+#endif

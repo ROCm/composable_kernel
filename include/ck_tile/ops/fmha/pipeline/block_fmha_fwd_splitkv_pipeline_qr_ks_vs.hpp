@@ -26,6 +26,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     using PDataType           = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType           = remove_cvref_t<typename Problem::ODataType>;
+    using AttentionVariant    = remove_cvref_t<typename Problem::AttentionVariant>;
     using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
@@ -43,15 +44,23 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     static constexpr index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
 
-    static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK      = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
-    static constexpr auto BiasEnum         = Problem::BiasEnum;
-    static constexpr bool kStoreLSE        = Problem::kStoreLSE;
-    static constexpr bool kIsPagedKV       = Problem::kIsPagedKV;
-    static constexpr bool kHasUnevenSplits = Problem::kHasUnevenSplits;
+    static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+
+    static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
+    static constexpr auto BiasEnum          = Problem::BiasEnum;
+    static constexpr bool kStoreLSE         = Problem::kStoreLSE;
+    static constexpr bool kIsPagedKV        = Problem::kIsPagedKV;
+    static constexpr bool kHasUnevenSplits  = Problem::kHasUnevenSplits;
+
+    static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
+                   (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
+                    !kHasLogitsSoftCap)) ||
+                  (!CK_TILE_FMHA_FWD_FAST_EXP2 && !kHasLogitsSoftCap));
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -96,6 +105,10 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             {
                 return 1;
             }
+            else
+            {
+                return 1;
+            }
         }
     }();
 
@@ -121,7 +134,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename SAccElementFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -143,6 +158,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
                void* smem_ptr) const
     {
@@ -180,11 +198,10 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
 
-        auto q_dram_window = make_tile_window(
-            q_dram_block_window_tmp.get_bottom_tensor_view(),
-            q_dram_block_window_tmp.get_window_lengths(),
-            q_dram_block_window_tmp.get_window_origin(),
-            Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+                                              q_dram_block_window_tmp.get_window_lengths(),
+                                              q_dram_block_window_tmp.get_window_origin(),
+                                              Policy::template MakeQRegTileDistribution<Problem>());
 
         auto q = load_tile(q_dram_window);
 
@@ -396,9 +413,28 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             else
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                if constexpr(kHasLogitsSoftCap)
+                {
+                    auto apply_logits_transform =
+                        [&variant, &variant_params, &block_indices](auto& x) {
+                            x = variant.LogitsTransform(variant_params,
+                                                        variant.QueryTransform(variant_params, x),
+                                                        block_indices.batch_idx,
+                                                        block_indices.qo_head_idx,
+                                                        block_indices.kv_head_idx);
+                        };
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                    tile_elementwise_inout(apply_logits_transform, s_acc);
+#else
+                    tile_elementwise_inout(apply_logits_transform, s_acc);
 #endif
+                }
+                else
+                {
+#if !CK_TILE_FMHA_FWD_FAST_EXP2
+                    tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+#endif
+                }
             }
             move_tile_window(bias_dram_window, {0, kN0});
 
@@ -492,7 +528,14 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                     }
                     else
                     {
-                        p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                        if constexpr(kHasLogitsSoftCap)
+                        {
+                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        }
+                        else
+                        {
+                            p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                        }
                     }
 #else
                     p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -517,8 +560,16 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                     }
                     else
                     {
-                        auto row_max = scale_s * get_validated_m(m[i_idx]);
-                        return exp2(scale_s * m_old[i_idx] - row_max);
+                        if constexpr(kHasLogitsSoftCap)
+                        {
+
+                            return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                        }
+                        else
+                        {
+                            auto row_max = scale_s * get_validated_m(m[i_idx]);
+                            return exp2(scale_s * m_old[i_idx] - row_max);
+                        }
                     }
                 }();
 #else
@@ -615,7 +666,14 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 }
                 else
                 {
-                    lse_acc(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                    if constexpr(kHasLogitsSoftCap)
+                    {
+                        lse_acc(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+                    }
+                    else
+                    {
+                        lse_acc(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                    }
                 }
 #else
                     lse_acc(i_idx) = m_[i_idx] + log(l_[i_idx]);
@@ -657,7 +715,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename VPageBlockNavigator,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,         // M0*K0 tile
                const KDramBlockWindowLengths& k_dram_block_window_lengths, // N0*K0 tile
@@ -671,6 +731,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
                void* smem_ptr) const
     {
@@ -694,6 +757,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                           mask,
                           position_encoding,
                           scale_s,
+                          variant,
+                          variant_params,
+                          block_indices,
                           kv_l2p_offset,
                           smem_ptr);
     }

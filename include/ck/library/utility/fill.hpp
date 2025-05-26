@@ -85,6 +85,20 @@ struct FillUniformDistributionIntegerValue
     }
 };
 
+/**
+ * @brief A functor for filling a container with a monotonically increasing or decreasing sequence.
+ *
+ * FillMonotonicSeq generates a sequence of values starting from an initial value
+ * and incrementing by a fixed step for each subsequent element.
+ *
+ * @tparam T The numeric type of the sequence elements.
+ *
+ * Example usage:
+ * ```
+ * std::vector<int> v(5);
+ * FillMonotonicSeq<int>{10, 2}(v); // Fills v with {10, 12, 14, 16, 18}
+ * ```
+ */
 template <typename T>
 struct FillMonotonicSeq
 {
@@ -94,7 +108,7 @@ struct FillMonotonicSeq
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::generate(first, last, [=, n = init_value_]() mutable {
+        std::generate(first, last, [=, *this, n = init_value_]() mutable {
             auto tmp = n;
             n += step_;
             return tmp;
@@ -150,7 +164,7 @@ struct TransformIntoStructuralSparsity
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::for_each(first, last, [=, idx = 0](T& elem) mutable {
+        std::for_each(first, last, [=, *this, idx = 0](T& elem) mutable {
             auto tmp_idx = idx;
             idx += 1;
             return elem *= valid_sequences[tmp_idx % (sizeof(valid_sequences) / sizeof(T))];

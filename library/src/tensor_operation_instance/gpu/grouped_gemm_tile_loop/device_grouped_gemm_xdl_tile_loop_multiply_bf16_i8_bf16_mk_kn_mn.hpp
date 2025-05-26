@@ -39,6 +39,21 @@ static constexpr auto GemmMNKPadding = GemmSpecialization::MNKPadding;
 static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
 
+// double rate mfma instances on gfx950
+template <typename DsLayout,
+          typename DsDataType,
+          typename CDEElementwiseOp,
+          GemmSpecialization GemmSpec = GemmMNKPadding>
+using device_grouped_gemm_xdl_tile_loop_bf16_i8_bf16_mk_kn_mn_comp_instances_2x = std::tuple<
+    // clang-format off
+        //###########################################|      A|      B|          Ds|      E| AData| BData| AccData| CShuffle|      DsData| EData|           A|           B|                C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+        //###########################################| Layout| Layout|      Layout| Layout|  Type|  Type|    Type| DataType|        Type|  Type| Elementwise| Elementwise|      Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+        //###########################################|       |       |            |       |      |      |        |         |            |      |   Operation|   Operation|        Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+        //###########################################|       |       |            |       |      |      |        |         |            |      |            |            |                 |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |   S<C,D0...,D_N| 
+        DeviceGroupedGemmMultipleDXdlCShuffleTileLoop<   Row,     Row,    DsLayout,    Row,  BF16,    I8,     F32,      F32,  DsDataType,  BF16, PassThrough, PassThrough, CDEElementwiseOp,       GemmSpec,        1,   256,   128,   128,    128,  16,   4,   32,   32,    2,    2,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         0,    S<16, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              4,         0,           1,           1,               S<1, 32, 1, 8>,        S<8,8,8>,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1>
+    // clang-format on
+    >;
+
 template <typename DsLayout,
           typename DsDataType,
           typename CDEElementwiseOp,

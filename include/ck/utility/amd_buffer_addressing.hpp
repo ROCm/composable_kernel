@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "data_type.hpp"
@@ -581,7 +581,7 @@ __device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::typ
                                                       tmp.template AsType<half2_t>()[i]);
         });
     }
-#if defined(__gfx942__)
+#if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx12__)
     else if constexpr(is_same<T, bhalf_t>::value)
     {
         vector_type<bhalf_t, N> tmp{src_thread_data};
@@ -1008,6 +1008,7 @@ llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 index_t offset,
                                 index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
 
+#ifndef __HIPCC_RTC__
 template <typename T, index_t NumElemsPerThread>
 __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
                                               const index_t global_offset,
@@ -1021,15 +1022,24 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
     constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
     static_assert(bytes_per_thread == dword_bytes);
 
+#ifndef CK_CODE_GEN_RTC
     const uint32_t* global_ptr =
         reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(global_base_ptr));
+#else
+    const uint32_t* global_ptr =
+        reinterpret_cast<uint32_t*>(reinterpret_cast<size_t>(global_base_ptr));
+#endif
     const int32x4_t src_resource = make_wave_buffer_resource(global_ptr, src_element_space_size);
     const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
 
 #if CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
     T* lds_ptr = lds_base_ptr + lds_offset;
+#ifndef CK_CODE_GEN_RTC
     auto const lds_ptr_sgpr =
         __builtin_amdgcn_readfirstlane((reinterpret_cast<uintptr_t>(lds_ptr)));
+#else
+    auto const lds_ptr_sgpr = __builtin_amdgcn_readfirstlane((reinterpret_cast<size_t>(lds_ptr)));
+#endif
     asm volatile("s_mov_b32 m0, %0; \n\t"
                  "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
                  "v"(global_offset_bytes),
@@ -1038,12 +1048,18 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
 #else
     // LDS pointer must be attributed with the LDS address space.
     __attribute__((address_space(3))) uint32_t* lds_ptr =
+#ifndef CK_CODE_GEN_RTC
         reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
             reinterpret_cast<uintptr_t>(lds_base_ptr + lds_offset));
+#else
+        reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
+            reinterpret_cast<size_t>(lds_base_ptr + lds_offset));
+#endif
 
     llvm_amdgcn_raw_buffer_load_lds(
         src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0, 0, 0);
 #endif
 }
+#endif
 
 } // namespace ck

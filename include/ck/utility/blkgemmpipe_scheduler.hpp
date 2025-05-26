@@ -8,6 +8,19 @@
 
 namespace ck {
 
+enum struct BlockGemmPipelineVersion
+{
+    // For GEMM
+    v1, // Naive
+    v2, // Mem
+    v3, // Comp
+    v4, // Comp, double lds buffer
+    v5, // Comp, double global prefetch register buffer
+
+    // For GEMM with preshuffled weight
+    // v1, single lds buffer
+    // v2, double lds buffer
+};
 enum struct BlockGemmPipelineScheduler
 {
     Intrawave,
@@ -35,6 +48,15 @@ enum struct TailNumber
     // prefetchstages
     Full,
 };
+
+enum SchedulerGroup : uint32_t
+{
+    SCHED_GROUP_MFMA      = 0x008, // Matrix FMA instructions
+    SCHED_GROUP_VMEM      = 0x020, // Global memory operations
+    SCHED_GROUP_LDS_READ  = 0x100, // LDS read operations
+    SCHED_GROUP_LDS_WRITE = 0x200  // LDS write operations
+};
+
 template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
@@ -72,10 +94,21 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t A_LDS_Read_Inst_Num =
         WaveNumN * MPerBlock * KPerBlock / (BlockSize * ALDSReadWidth);
     static constexpr index_t B_LDS_Read_Inst_Num =
-        WaveNumM * MPerBlock * KPerBlock / (BlockSize * BLDSReadWidth);
+        WaveNumM * NPerBlock * KPerBlock / (BlockSize * BLDSReadWidth);
 
     static constexpr index_t C_MFMA_Inst_Num =
         MPerBlock * NPerBlock * KPerBlock / (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
+
+    static constexpr index_t C_MFMA_Inst_Cycle = []() {
+        if constexpr(NPerXDL == 16)
+        {
+            return KPerXDL == 128 ? 32 : 16;
+        }
+        else if constexpr(NPerXDL == 32)
+        {
+            return KPerXDL == 64 ? 64 : 32;
+        }
+    }();
 
     static constexpr auto Print()
     {
@@ -90,14 +123,22 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
                KPerXDL);
 
         printf(" A/B buffer load inst: %d, %d\n A/B LDS write inst: %d, %d\n A/B LDS read inst: "
-               "%d, %d\n C MFMA inst: %d\n",
+               "%d, %d\n C MFMA inst: %d\n"
+               "A/B LDS read width: %d, %d, A/B LDS write width: %d, %d, A/B buffer load width: "
+               "%d/ %d\n",
                A_Buffer_Load_Inst_Num,
                B_Buffer_Load_Inst_Num,
                A_LDS_Write_Inst_Num,
                B_LDS_Write_Inst_Num,
                A_LDS_Read_Inst_Num,
                B_LDS_Read_Inst_Num,
-               C_MFMA_Inst_Num);
+               C_MFMA_Inst_Num,
+               A_LDS_Read_Width,
+               B_LDS_Read_Width,
+               ALDSWriteWidth,
+               BLDSWriteWidth,
+               ABufferLoadWidth,
+               BBufferLoadWidth);
     }
 };
 

@@ -4,17 +4,13 @@
 #pragma once
 
 #include "ck/config.h"
-#include "ck/utility/env.hpp"
 
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 #endif
-
-// environment variable to enable logging:
-// export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
-CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
-
+#endif
 // to do: add various levels of logging with CK_LOG_LEVEL
 
 #ifndef CK_TIME_KERNEL
@@ -54,11 +50,10 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #endif
 
 // define general macros for various architectures
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
 #define __gfx9__
 #endif
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)
@@ -70,7 +65,8 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #define __gfx103__
 #endif
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
-    defined(__gfx1103__) || defined(__gfx11_generic__)
+    defined(__gfx1103__) || defined(__gfx1150__) || defined(__gfx1151__) || \
+    defined(__gfx1152__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
 #if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
@@ -129,7 +125,7 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx9__) // for GPU code
+#elif defined(__gfx9__) || defined(__gfx12__) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
@@ -162,6 +158,16 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 // set rounding to nearest even as default for f8 conversions
 #define CK_USE_SR_F8_CONVERSION 0
+
+// set rounding to nearest even as default for f6 conversions
+#define CK_USE_SR_F6_CONVERSION 0
+
+// set rounding to nearest even as default for f4 conversions
+#define CK_USE_SR_F4_CONVERSION 0
+
+// shuffle pk_i4 values during conversion to optimize number of binary
+// operations
+#define CK_USE_PK4_LAYOUT_SHUFFLE 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
@@ -216,6 +222,9 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // TODO: separate index calculation into "compile-time", "global", "block", "wave", "thread"
 #define CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE 0
 
+// workaround: conv crash when K, C is even
+#define CK_WORKAROUND_DISABLE_FILTER1x1STRIDE1PAD0_WHEN_K_C_IS_EVEN 1
+
 // workaround: compiler crash when compiling recursive lambda
 #define CK_WORKAROUND_SWDEV_275126 1
 
@@ -235,13 +244,30 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
 
-// denorm test fix, required to work around dissue
-#ifndef CK_WORKAROUND_DENORM_FIX
-#define CK_WORKAROUND_DENORM_FIX 0
+// workaround: compiler issue on gfx950
+#define CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION 1
+
+// workaround: compiler issue on gfx950
+#define CK_TEMP_DISABLE_FP4_TESTS 1
+
+// workaround: compiler issue on gfx950
+#define CK_WORKAROUND_FP16_TO_FP8_CONVERSION 1
+
+// workaround: compiler issue on gfx950
+#define CK_WORKAROUND_BF16_TO_FP8_CONVERSION 1
+
+// denorm test fix, necessary for gfx90a
+#ifndef CK_GFX90A_DENORM_WORKAROUND
+#define CK_GFX90A_DENORM_WORKAROUND 0
+#endif // CK_GFX90A_DENORM_WORKAROUND
+// Enable only for gfx90a
+#if defined(__gfx90a__)
+#if CK_GFX90A_DENORM_WORKAROUND
+#define CK_GFX90A_DENORM_WORKAROUND 1
+#endif // CK_GFX90A_DENORM_WORKAROUND is set to 1
 #else
-// enable only for gfx90a
-#define CK_WORKAROUND_DENORM_FIX = CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
-#endif // CK_WORKAROUND_DENORM_FIX
+#define CK_GFX90A_DENORM_WORKAROUND 0
+#endif // gfx90a
 
 // set flag to 1 to build deprecated instances
 #define CK_BUILD_DEPRECATED 1

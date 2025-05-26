@@ -1,6 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <rtc/kernel.hpp>
 #include <rtc/manage_ptr.hpp>
 #include <rtc/hip.hpp>
+#include <stdexcept>
 #include <cassert>
 
 // extern declare the function since hip/hip_ext.h header is broken

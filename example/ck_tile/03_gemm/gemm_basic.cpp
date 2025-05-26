@@ -10,9 +10,15 @@
 #include <tuple>
 
 #include "ck_tile/host.hpp"
-#include "gemm_basic.hpp"
+#include "gemm_utils.hpp"
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
@@ -20,16 +26,12 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
-    constexpr bool kTilePermute = false;
-    // The rank and permutation will also be generate out by the CodeGen part.
-    constexpr ck_tile::index_t kOutputRank = 2;
-
     constexpr int kBlockPerCu = 1;
 
     // This part comes from the Codegen
-    constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 128;
-    constexpr ck_tile::index_t K_Tile = 32;
+    constexpr ck_tile::index_t M_Tile = 256;
+    constexpr ck_tile::index_t N_Tile = 256;
+    constexpr ck_tile::index_t K_Tile = 64;
 
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
@@ -37,69 +39,137 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 8;
-
-    // Whether doing the CShuffle (transpose before the global memory), depending on the output
-    // layout.
-    constexpr bool CShuffleEpilogue =
-        std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>;
+    constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     using CodegenGemmShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-    using TilePartitioner = ck_tile::GemmTile2DPartitioner<CodegenGemmShape>;
-
-    using GemmEpilogue = std::conditional_t<
-        CShuffleEpilogue,
-        ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
-                                                                   CDataType,
-                                                                   kPadM,
-                                                                   kPadN,
-                                                                   kTilePermute,
-                                                                   kOutputRank,
-                                                                   1,
-                                                                   0,
-                                                                   TilePartitioner::MPerBlock,
-                                                                   TilePartitioner::NPerBlock>>,
-        ck_tile::Default2DEpilogue<
-            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadM, kPadN>>>;
+    using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
     using CodegenGemmTraits =
         ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
     using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
-    // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
-    // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
-    using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
 
-    auto kargs = Kernel::MakeKernelArgs(args);
+    const auto Run = [&](const auto memory_operation_) {
+        constexpr auto memory_operation = memory_operation_.value;
 
-    const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-    constexpr dim3 blocks = Kernel::BlockSize();
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             CLayout,
+                                             CodegenPipelineProblem::kBlockSize,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             CodegenPipelineProblem::TransposeC,
+                                             memory_operation>>;
 
-    if(!Kernel::IsSupportedArgument(kargs))
+        // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
+        // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
+        using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKernelArgs(args);
+
+        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
+        constexpr dim3 blocks = Kernel::BlockSize();
+
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+        }
+
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                      << "shape: " << CodegenGemmShape::GetName() << '\n'
+                      << "problem: " << CodegenPipelineProblem::GetName() << '\n'
+                      << "pipeline: " << CodegenGemmPipeline::GetName() << '\n'
+                      << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << std::endl;
+        }
+
+        float ave_time = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+
+        return ave_time;
+    };
+
+    if(args.k_batch == 1)
     {
-        throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::set>{});
     }
-
-    if(s.log_level_ > 0)
+    else
     {
-        std::cout << "Launching kernel with args:"
-                  << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                  << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                  << std::endl;
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::atomic_add>{});
     }
-
-    float ave_time = ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-
-    return ave_time;
 }
 
 #include "run_gemm_example.inc"
+
+template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
+int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+{
+    using Row = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    {
+        if(a_layout == "R" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Col{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported memory layout for the input matrices when "
+                                     "BPrecType is ck_tile::pk_int4_t!");
+        }
+    }
+    else
+    {
+        if(a_layout == "R" && b_layout == "R")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Row{}, Row{}, Row{});
+        }
+        else if(a_layout == "R" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Row{}, Col{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "R")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Col{}, Row{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Col{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported memory layout for the input matrices!");
+        }
+    }
+}
 
 int run_gemm_example(int argc, char* argv[])
 {
@@ -107,19 +177,40 @@ int run_gemm_example(int argc, char* argv[])
     if(!result)
         return -1;
 
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+    std::string data_type = arg_parser.get_str("prec");
+    std::string a_layout  = arg_parser.get_str("a_layout");
+    std::string b_layout  = arg_parser.get_str("b_layout");
 
-    std::string a_layout = arg_parser.get_str("a_layout");
-    std::string b_layout = arg_parser.get_str("b_layout");
-
-    if(a_layout == "R" && b_layout == "C")
+    if(data_type == "fp16")
     {
-        return run_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+        return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
+    else if(data_type == "bf16")
+    {
+        return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "fp8")
+    {
+        return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "bf8")
+    {
+        return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
+
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+    else if(data_type == "pk_int4_t")
+    {
+        // TODO: Add support for bhalf_t ADataType
+        return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
+#endif
     else
     {
-        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+        throw std::runtime_error("Unsupported data type for this operation !!!");
     }
 }
 
