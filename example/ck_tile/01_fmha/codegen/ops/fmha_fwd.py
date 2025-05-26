@@ -388,7 +388,7 @@ class FmhaFwdKernel:
                 F_lse           = BOOL_MAP[self.F_pipeline.F_lse],
                 F_dropout       = BOOL_MAP[self.F_pipeline.F_dropout],
                 F_squant        = BOOL_MAP[self.F_pipeline.F_squant],
-                F_skip       = BOOL_MAP[self.F_pipeline.F_skip],
+                F_skip          = BOOL_MAP[self.F_pipeline.F_skip],
                 F_occupancy     = self.F_tile.F_occupancy,
                 F_pipeline_enum = PIPELINE_ENUM_MAP[self.F_pipeline.tag],
                 F_mask          = get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
@@ -595,7 +595,6 @@ def write_blobs(output_dir : Path, kernel_filter : str, receipt, optdim_list, ma
     write_fwd_api(api_pool, output_dir)
 
 def list_blobs(file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
-    # import pdb; pdb.set_trace()
     with file_path.open('a') as f:
         _, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
         for kernel in kernels:
