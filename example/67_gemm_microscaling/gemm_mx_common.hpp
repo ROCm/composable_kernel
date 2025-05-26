@@ -410,14 +410,26 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                                  "not consistent with the supported device_gemm arguments.");
     }
 
+    std::size_t total_size =
+        a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes() +
+        a_m_k_scale.GetElementSpaceSizeInBytes() + b_k_n_scale.GetElementSpaceSizeInBytes() +
+        a_shuffled_scale.GetElementSpaceSizeInBytes() +
+        b_shuffled_scale.GetElementSpaceSizeInBytes();
+    const auto total_cnt     = ck::math::integer_divide_ceil(512 * 1024 * 1024, total_size);
+    const int rotating_count = std::max(1, std::min(config.repeat, static_cast<int>(total_cnt)));
     if(config.verbosity > 0)
     {
         std::cout << "Computing GEMM on device..." << std::endl << std::endl;
     }
 
-    float ave_time = invoker.Run(
-        argument,
-        StreamConfig{nullptr, config.time_kernel, config.verbosity, config.warm_up, config.repeat});
+    float ave_time = invoker.Run(argument,
+                                 StreamConfig{nullptr,
+                                              config.time_kernel,
+                                              config.verbosity,
+                                              config.warm_up,
+                                              config.repeat,
+                                              rotating_count > 1,
+                                              rotating_count});
 
     bool res_verified = true;
     if(config.do_verification > 0)
