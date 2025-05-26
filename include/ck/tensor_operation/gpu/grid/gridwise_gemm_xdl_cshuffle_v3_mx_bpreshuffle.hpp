@@ -422,13 +422,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
         constexpr index_t NkSwizzleNumber = Number<warpSize * KPack>{};
-        return make_naive_tensor_descriptor(
-            make_tuple(N0 / NWave / NXdlPack, NWave, NXdlPack, K0, NkSwizzleNumber),
-            make_tuple(NWave * NXdlPack * K0 * NkSwizzleNumber,
-                       NXdlPack * K0 * NkSwizzleNumber,
-                       K0 * NkSwizzleNumber,
-                       NkSwizzleNumber,
-                       I1));
+        return make_naive_tensor_descriptor_packed(
+            make_tuple(N0 / NWave / NXdlPack, NWave, NXdlPack, K0, NkSwizzleNumber));
     }
 
     __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
@@ -1903,7 +1898,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                      Number<NXdlPack>{},
                      Number<KRepeat>{},
                      Number<BK1Value>{}>,
-            Sequence<1, 2, 3, 0, 4>,
+            Sequence<0, 1, 2, 3, 4>,
             4,
             BBlockTransferSrcScalarPerVector,
             BThreadTransferSrcResetCoordinateAfterRun,

@@ -382,29 +382,19 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     // Read buffer + Compute buffer
     // A[M0, M1, M2, KPack]
     static constexpr auto a_thread_desc_ =
-        make_naive_tensor_descriptor(make_tuple(Number<MRepeat / MXdlPack>{},
+        make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
                                                 I1,
                                                 Number<MXdlPack>{},
                                                 Number<KRepeat>{},
-                                                Number<KPack>{}),
-                                     make_tuple(Number<KPack * MXdlPack>{},
-                                                Number<KRepeat * MRepeat * KPack>{},
-                                                Number<MRepeat * KPack>{},
-                                                Number<KPack>{},
-                                                I1));
+                                                Number<KPack>{}));
 
     // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ =
-        make_naive_tensor_descriptor(make_tuple(Number<NRepeat / NXdlPack>{},
+        make_naive_tensor_descriptor_packed(make_tuple(Number<NRepeat / NXdlPack>{},
                                                 I1,
-                                                Number<KRepeat>{},
                                                 Number<NXdlPack>{},
-                                                Number<KPack>{}),
-                                     make_tuple(Number<KPack * NXdlPack>{},
-                                                Number<KRepeat * NRepeat * KPack>{},
-                                                Number<NRepeat * KPack>{},
-                                                Number<KPack>{},
-                                                I1));
+                                                Number<KRepeat>{},
+                                                Number<KPack>{}));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ =

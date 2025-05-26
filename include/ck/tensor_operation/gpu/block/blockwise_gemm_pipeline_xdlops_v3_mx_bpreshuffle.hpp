@@ -446,30 +446,82 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
         // Global prefetch 2
         a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(I1));
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-        
+#if defined(__gfx950__) && 0
         printf(
-                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                                           "Tid: %02d, NRepeat0, B 00-31 %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n"
+                                           "Tid: %02d, NRepeat0, B 32-63 %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n"
+                                           "Tid: %02d, NRepeat1, B 00-31 %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n"
+                                           "Tid: %02d, NRepeat1, B 32-63 %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
                                            get_thread_local_1d_id(),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<0>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<1>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<2>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<3>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<4>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<5>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<6>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<7>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<7>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<8+0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<8+1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<8+2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<8+3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<8+4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<8+5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<8+6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<8+7>{}))),
                                            get_thread_local_1d_id(),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+0>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+1>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+2>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+3>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+4>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+5>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+6>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+7>{})))
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+7>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+8+0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+8+1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+8+2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+8+3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+8+4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+8+5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+8+6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<16+8+7>{}))),
+                                           get_thread_local_1d_id(),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+7>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+8+0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+8+1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+8+2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+8+3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+8+4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+8+5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+8+6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+8+7>{}))),
+                                           get_thread_local_1d_id(),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+7>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+8+0>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+8+1>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+8+2>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+8+3>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+8+4>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+8+5>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+8+6>{}))),
+                                           *reinterpret_cast<uint8_t*>(&(b_thread_bufs(I0)(Number<32+16+8+7>{})))
                                             );
-
+#endif
         // Initialize C
         c_thread_buf.Clear();
         __builtin_amdgcn_sched_barrier(0);
@@ -996,11 +1048,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                     });
 
 #if defined(__gfx950__) && 0
-                                    printf("Tid: %02d, ik, im, in = %d, %d, %d\n"
-                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                                    printf("Tid: %02d, ik0, im0, in0, ikxdl, imxdl, inxdl = %d, %d, %d, %d, %d, %d\n"
+                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n"
+                                           "Tid: %02d, B %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
                                            get_thread_local_1d_id(),
-                                           ikxdl.value, imxdl.value, inxdl.value,
+                                           k0.value, m0.value, n0.value, ikxdl.value, imxdl.value, inxdl.value,
                                            get_thread_local_1d_id(),
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<0>{}))),
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<1>{}))),
@@ -1010,7 +1062,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<5>{}))),
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<6>{}))),
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<7>{}))),
-                                           get_thread_local_1d_id(),
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<8+0>{}))),
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<8+1>{}))),
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<8+2>{}))),
@@ -1018,13 +1069,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<8+4>{}))),
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<8+5>{}))),
                                            *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<8+6>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<8+7>{})))
-                                            );
-                                    printf("Tid: %02d, ik, im, in = %d, %d, %d\n"
-                                           "Tid: %02d, B %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                           "Tid: %02d, B %02x %02x %02x %02x %02x %02x %02x %02x\n",
-                                           get_thread_local_1d_id(),
-                                           ikxdl.value, imxdl.value, inxdl.value,
+                                           *reinterpret_cast<uint8_t*>(&(a_thread_vec.template AsType<ComputeTypeA>()(Number<8+7>{}))),
                                            get_thread_local_1d_id(),
                                            *reinterpret_cast<uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()(Number<0>{}))),
                                            *reinterpret_cast<uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()(Number<1>{}))),
@@ -1034,7 +1079,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                            *reinterpret_cast<uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()(Number<5>{}))),
                                            *reinterpret_cast<uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()(Number<6>{}))),
                                            *reinterpret_cast<uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()(Number<7>{}))),
-                                           get_thread_local_1d_id(),
                                            *reinterpret_cast<uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()(Number<8+0>{}))),
                                            *reinterpret_cast<uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()(Number<8+1>{}))),
                                            *reinterpret_cast<uint8_t*>(&(b_thread_vec.template AsType<ComputeTypeA>()(Number<8+2>{}))),
@@ -1080,8 +1124,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                             });
                         });
                     });
-                });
-                if constexpr(m0.value < (MRepeat - LocalPrefetchStages * MXdlPack) / MXdlPack)
+                }); 
+                if constexpr(m0.value < (MRepeat - LocalPrefetchStages *MXdlPack) / MXdlPack)
                 {
                     static_for<0, KRepeat, 1>{}([&](auto k) {
                         static_for<0, MXdlPack, 1>{}([&](auto imxdl) {
@@ -1112,28 +1156,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                             });
                             });
                     });
-                    printf(
-                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                           "Tid: %02d, A %02x %02x %02x %02x %02x %02x %02x %02x\n",
-                                           get_thread_local_1d_id(),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<0>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<1>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<2>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<3>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<4>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<5>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<6>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<7>{}))),
-                                           get_thread_local_1d_id(),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+0>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+1>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+2>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+3>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+4>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+5>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+6>{}))),
-                                           *reinterpret_cast<uint8_t*>(&(a_thread_buf(Number<8+7>{})))
-                                            );
                 }
             });
         }
@@ -1143,16 +1165,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
     //  Order:     1        0      3         2        4
     static constexpr auto ARegBuf = 2;
     static constexpr auto a_thread_desc_ =
-        make_naive_tensor_descriptor(make_tuple(Number<ARegBuf>{},
+        make_naive_tensor_descriptor_packed(make_tuple(Number<ARegBuf>{},
                                                 I1,
                                                 Number<MXdlPack>{},
                                                 Number<KRepeat>{},
-                                                Number<KPack>{}),
-                                     make_tuple(Number<KRepeat * MXdlPack* KPack>{},
-                                                Number<ARegBuf * MXdlPack * KRepeat * KPack>{},
-                                                Number<KPack>{},
-                                                Number<MXdlPack*KPack>{},
-                                                I1));
+                                                Number<KPack>{}));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<ADataType,
                                                          ComputeTypeA,

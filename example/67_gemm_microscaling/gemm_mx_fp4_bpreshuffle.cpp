@@ -49,24 +49,24 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     CElementOp,       // CElementwiseOperation
     GemmSpec,         // GemmSpec
     ScaleBlockSize,   // ScaleBlockSize: Scaling block size
-    64,               // BlockSize: Thread block size
-    64,               // MPerBlock
-    64,               // NPerBlock
+    256,               // BlockSize: Thread block size
+    128,               // MPerBlock
+    256,               // NPerBlock
     KPerBlock,        // KPerBlock
     16,               // AK1
     16,               // BK1
     16,               // MPerXDL
     16,               // NPerXDL
-    4,                // MXdlPerWave
+    8,                // MXdlPerWave
     4,                // NXdlPerWave
-    S<8, 8, 1>,       // ABlockTransferThreadClusterLengths_AK0_M_AK1
+    S<8, 32, 1>,       // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // ABlockTransferSrcAccessOrder
     2,                // ABlockTransferSrcVectorDim
     16,               // ABlockTransferSrcScalarPerVector
     16,               // ABlockTransferDstScalarPerVector_AK1
     true,             // ABlockLdsExtraM
-    S<8, 8, 1>,       // BBlockTransferThreadClusterLengths_BK0_N_BK1
+    S<8, 32, 1>,       // BBlockTransferThreadClusterLengths_BK0_N_BK1
     S<1, 0, 2>,       // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,       // BBlockTransferSrcAccessOrder
     2,                // BBlockTransferSrcVectorDim
@@ -75,7 +75,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     true,             // BBlockLdsExtraN
     2,                // CShuffleMXdlPerWavePerShuffle
     2,                // CShuffleNXdlPerWavePerShuffle
-    S<1, 16, 1, 4>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+    S<1, 32, 1, 8>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
     8,                // CShuffleBlockTransferScalarPerVector_NPerBlock
     BlkGemmPSched,    // BlkGemmPipeSched
     BlkGemmPVer,      // BlkGemmPipelineVer

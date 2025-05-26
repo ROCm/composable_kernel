@@ -253,6 +253,22 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     using AScaleLayout = Row;
     using BScaleLayout = Col;
 
+    const auto APackedSize = []() {
+        if constexpr(ck::is_same_v<ck::remove_cvref_t<ADataType>, ck::pk_i4_t> ||
+                     ck::is_same_v<ck::remove_cvref_t<ADataType>, ck::f4x2_pk_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    const auto BPackedSize = []() {
+        if constexpr(ck::is_same_v<ck::remove_cvref_t<BDataType>, ck::pk_i4_t> ||
+                     ck::is_same_v<ck::remove_cvref_t<BDataType>, ck::f4x2_pk_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     auto Scale_Stride_AM = f_get_default_stride(M, K / ScaleBlockSize, -1, AScaleLayout{});
     auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
 
@@ -362,32 +378,32 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     int NPerXdl = 16; // Fixed 16
     preShuffleBuffer(b_k_n.mData.data(), b_preshuffled.mData.data(), N, K, NPerXdl);
 #endif
-    printf("a:\n");
-    for(ck::index_t i = 0; i < M; i++)
-    {
-        for(ck::index_t j = 0; j < K; j += 2)
-        {
-            printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k(i, j)));
-            if(j % 32 == 31)
-            {
-                printf("\n");
-            }
-        }
-        printf("\n");
-    }
-
-    // printf("b:\n");
-    // for(ck::index_t i = 0; i < N; i++)
+    // printf("a:\n");
+    // for(ck::index_t i = 0; i < M; i++)
     // {
     //     for(ck::index_t j = 0; j < K; j += 2)
     //     {
-    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&b_k_n(j, i)));
+    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k(i, j)));
     //         if(j % 32 == 31)
     //         {
     //             printf("\n");
     //         }
     //     }
     //     printf("\n");
+    // }
+
+    // printf("b:\n");
+    // for(ck::index_t i = 0; i < N; i++)
+    // {
+    //     for(ck::index_t j = 0; j < K; j += 2)
+    //     {
+    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&b_preshuffled(j, i)));
+    //         if(j % 128 == 126)
+    //         {
+    //             printf("\n");
+    //         }
+    //     }
+    //     // printf("\n");
     // }
     // printf("b_scale:\n");
     // for(ck::index_t i = 0; i < N; i++)
@@ -547,9 +563,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         // partial sums(K/ScaleBlockSize)]
         // FLOPS = 2 * M * N * K + 2 * M * N * K / ScaleBlockSize
         std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / ScaleBlockSize;
-        std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+        std::size_t num_btype = sizeof(ADataType) * M * K / APackedSize+ 
+                                sizeof(BDataType) * K * N / BPackedSize+
                                 sizeof(CDataType) * M * N +
-                                sizeof(XDataType) * (M * K + K * N) / ScaleBlockSize;
+                                sizeof(XDataType) * M * K / ScaleBlockSize + 
+                                sizeof(XDataType) * N * K / ScaleBlockSize;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
