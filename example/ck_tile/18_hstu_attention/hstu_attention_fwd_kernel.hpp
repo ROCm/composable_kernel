@@ -765,7 +765,9 @@ struct HstuAttentionFwdKernel
             make_tuple(number<HstuAttentionPipeline::kM0>{}, number<HstuAttentionPipeline::kN1>{}),
             {i_m0, i_n1});
 
-        EpiloguePipeline{}(o_dram_window, o_acc_tile);
+        constexpr index_t NumRepN =
+            HstuAttentionPipeline::kN1 / HstuAttentionPipeline::kGemm1SingleRepN;
+        EpiloguePipeline{}(o_dram_window, o_acc_tile, number<NumRepN>{});
     }
 };
 
