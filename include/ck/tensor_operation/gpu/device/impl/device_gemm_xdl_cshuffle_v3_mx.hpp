@@ -327,13 +327,31 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                        KBatch_cond_choice.value == (arg.KBatch > 1) &&
                        tail_num_choice.value == tail_num)
                     {
-                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds< //
-                            GridwiseGemm,
-                            mainloop_choice.value,
-                            CGlobalMemoryDataOperation,
-                            minimum_occupancy,
-                            tail_num_choice.value>;
-                        Run(kernel);
+                        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3< //
+                                GridwiseGemm,
+                                mainloop_choice.value,
+                                CGlobalMemoryDataOperation,
+                                minimum_occupancy,
+                                tail_num_choice.value>;
+                            Run(kernel);
+                        }
+                        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                        {
+
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds< //
+                                GridwiseGemm,
+                                mainloop_choice.value,
+                                CGlobalMemoryDataOperation,
+                                minimum_occupancy,
+                                tail_num_choice.value>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            static_assert(false, "Unexpected BlkGemmPipelineVer!");
+                        }
                     }
                 });
             return ave_time;

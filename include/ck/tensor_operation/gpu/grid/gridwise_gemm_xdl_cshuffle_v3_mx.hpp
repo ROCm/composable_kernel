@@ -331,12 +331,28 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             // pad M, but not K
             const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
                 a_grid_desc_mraw_kraw,
-                make_tuple(make_unmerge_transform(make_tuple(AK0, AK1Value)),
+                make_tuple(make_unmerge_transform(make_tuple(K / KPerBlock, AK0Number, AK1Value)),
                            make_right_pad_transform(M, MPad - M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
-            return a_grid_desc_ak0_m_ak1;
+            const auto a_grid_desc_permuted = transform_tensor_descriptor(
+                a_grid_desc_ak0_m_ak1,
+                make_tuple(make_pass_through_transform(K / KPerBlock),
+                           make_xor_with_modulo_transform(make_tuple(MPad, AK0Number)),
+                           make_pass_through_transform(AK1Value)),
+                make_tuple(Sequence<0>{}, Sequence<2, 1>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<2, 1>{}, Sequence<3>{}));
+
+            const auto a_grid_desc = transform_tensor_descriptor(
+                a_grid_desc_permuted,
+                make_tuple(
+                    make_merge_transform_v3_division_mod(make_tuple(K / KPerBlock, AK0Number)),
+                    make_pass_through_transform(MPad),
+                    make_pass_through_transform(AK1Value)),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+            return a_grid_desc;
         }
         else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
                           GemmSpec == GemmSpecialization::NKPadding)
@@ -408,8 +424,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                         GemmSpec != GemmSpecialization::Default),
                       "pk_i4_t does not support padding");
         static_assert(!(is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t> &&
-                        GemmSpec != GemmSpecialization::Default),
-                      "f4x2_pk_t does not support padding");
+                        (GemmSpec != GemmSpecialization::Default &&
+                         GemmSpec != GemmSpecialization::MPadding)),
+                      "f4x2_pk_t does not support K padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -1357,6 +1374,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
                   "B scale pack data type too large!");
 
+    static_assert(is_same_v<AElementwiseOperation, tensor_operation::element_wise::PassThrough> &&
+                      is_same_v<BElementwiseOperation, tensor_operation::element_wise::PassThrough>,
+                  "A/B ElementwiseOperation should be PassThrough as load_to_lds is used!");
+
     template <typename AGridDesc_AK0_M_K1,
               typename AScaleGridDesc_AM_AK,
               typename BGridDesc_BK0_N_K1,
@@ -1394,8 +1415,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_scale_grid, b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
-        const AElementwiseOperation a_element_op{};
-        const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
@@ -1895,9 +1914,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_scale_grid, b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
-        static_assert(
-            is_same_v<AElementwiseOperation, tensor_operation::element_wise::PassThrough> &&
-            is_same_v<BElementwiseOperation, tensor_operation::element_wise::PassThrough>);
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
