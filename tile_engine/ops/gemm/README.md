@@ -36,6 +36,8 @@ rm -rf tile_engine/ && ninja benchmark_gemm  # rebuild
                -stride_b    The stride value for tensor B. Default is 0.
                -stride_c    The stride value for tensor C  Default is 0.
                 -split_k    The split value for k dimension. Default is 1.
+   -enable_profile_cache    Whether flush profile cache or not when benchmark kernel. Possible values are or false. Default is true.
+    -flush_profile_cache    Whether flush profile cache or not when benchmark kernel. Possible values are true or false. Default is false.
                       -v    The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 for validation on GPU. Default is 2, validation on GPU.
                     -log    Wether output kernel instance information or not. Possible values are true or false. Default is false.
                  -warmup    The number of iterations before benchmark the kernel. Default is 50.

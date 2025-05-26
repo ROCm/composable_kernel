@@ -75,12 +75,12 @@ inline auto create_args(int argc, char* argv[])
         .insert("split_k", "1", "The split value for k dimension. Default is 1.")
         .insert("enable_profile_cache",
                 "true",
-                "whether use profile cache or not when benchmark kernel, Possible values are true "
-                "or false. Default is true")
+                "Whether use profile cache or not when benchmark kernel, Possible values are true "
+                "or false. Default is true.")
         .insert("flush_profile_cache",
                 "false",
-                "whether flush profile cache or not when benchmark kernel. Possible values are "
-                "true or false. Default is false")
+                "Whether flush profile cache or not when benchmark kernel. Possible values are "
+                "true or false. Default is false.")
         .insert("verify",
                 "2",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
