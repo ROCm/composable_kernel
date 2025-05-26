@@ -43,7 +43,7 @@ void add_device_gemm_add_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instances(
                                                     Add>>>&);
 
 #elif defined(CK_USE_WMMA)
-void add_device_gemm_add_wmma_c_shuffle_f16_i8_f16_f16_mk_kn_mn_mn_instances(
+void add_device_gemm_add_wmma_c_shuffle_f16_f16_f16_f16_mk_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
                                                     Row_Tuple,
@@ -56,7 +56,7 @@ void add_device_gemm_add_wmma_c_shuffle_f16_i8_f16_f16_mk_kn_mn_mn_instances(
                                                     PassThrough,
                                                     Add>>>&);
 
-void add_device_gemm_add_wmma_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instances(
+void add_device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
                                                     Row_Tuple,
@@ -131,26 +131,30 @@ struct DeviceOperationInstanceFactory<
         }
 #endif
 #elif defined(CK_USE_WMMA)
-#if defined(CK_ENABLE_INT8) && defined(CK_ENABLE_FP16)
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, int8_t> &&
+// TODO:
+// here for WMMA, currently BDataType and ADataType must be the same
+#if defined(CK_ENABLE_FP16)
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_wmma_c_shuffle_f16_i8_f16_f16_mk_kn_mn_mn_instances(op_ptrs);
+                add_device_gemm_add_wmma_c_shuffle_f16_f16_f16_f16_mk_kn_mn_mn_instances(op_ptrs);
             }
         }
 #endif
 
-#if defined(CK_ENABLE_INT8) && defined(CK_ENABLE_BF16)
-        if constexpr(is_same_v<ADataType, ck::bhalf_t> && is_same_v<BDataType, int8_t> &&
+#if defined(CK_ENABLE_BF16)
+// TODO:
+// here for WMMA, currently BDataType and ADataType must be the same
+        if constexpr(is_same_v<ADataType, ck::bhalf_t> && is_same_v<BDataType, bhalf_t> &&
                      is_same_v<D0DataType, ck::bhalf_t> && is_same_v<EDataType, ck::bhalf_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_wmma_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instances(op_ptrs);
+                add_device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances(op_ptrs);
             }
         }
 #endif
