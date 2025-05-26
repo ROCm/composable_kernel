@@ -22,6 +22,7 @@ namespace tensor_operation {
 namespace device {
 
 template <typename GridwiseGemm,
+          typename ComputePtrOffsetOfStridedBatch,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
@@ -30,7 +31,13 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-        kernel_batched_gemm_wmma_cshuffle_v3(typename GridwiseGemm::Argument karg)
+        kernel_batched_gemm_wmma_cshuffle_v3(
+            typename GridwiseGemm::Argument
+                karg, // TODO Kiefer: This works for now but it actually
+                      // receives a DeviceBatchedGemm_Wmma_CShuffleV3::Argument argument through
+                      // implicit conversion to base class!
+            const index_t batch,
+            const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 #if defined(__gfx11__)
@@ -41,14 +48,36 @@ __global__ void
                     std::is_same_v<c_data_type, ck::bhalf_t>)))
     {
 #endif
+        // The normal approach to batching would be to increase the grid size by just stretching out
+        // the grid Z dimension (which is the outermost dimension), but this depends on lower level
+        // functions not directly using the Z dimension for other calculations. As it turns out, k
+        // batching does rely directly on blockIdx.Z through SplitKBatchOffset. Therefore, for now
+        // we will use the grid Y dimension for batching. This may be a bit fragile.
+
+        // const index_t num_blocks_per_batch =
+        //     amd_wave_read_first_lane((gridDim.x * gridDim.y * gridDim.z) / batch);
+        // const index_t g_idx = amd_wave_read_first_lane(
+        //     (blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y) /
+        //     num_blocks_per_batch);
+
+        (void)batch;
+        const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
+
+        const long_index_t a_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+        const long_index_t b_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
+        const long_index_t c_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
+
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-            karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset + a_batch_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset + b_batch_offset,
+            karg.p_c_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
             p_shared,
             karg);
 #if defined(__gfx11__)
@@ -56,6 +85,8 @@ __global__ void
 #endif
 #else
     ignore = karg;
+    ignore = batch;
+    ignore = compute_ptr_offset_of_batch;
 #endif
 }
 
@@ -372,6 +403,14 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N, arg.KBatch);
 
+            // The normal approach to batching would be to increase the grid size by just stretching
+            // out the grid Z dimension (which is the outermost dimension), but this depends on
+            // lower level functions not directly using the Z dimension for other calculations. As
+            // it turns out, k batching does rely directly on blockIdx.Z through SplitKBatchOffset.
+            // Therefore, for now we will use the grid Y dimension for batching. This may be a bit
+            // fragile.
+            gdy *= arg.batch;
+
             float ave_time = 0;
 
             index_t k_grain = arg.KBatch * KPerBlock;
@@ -418,7 +457,9 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                         dim3(gdx, gdy, gdz),
                         dim3(BlockSize),
                         0,
-                        arg_);
+                        arg_,
+                        arg_.batch,
+                        arg_.compute_ptr_offset_of_batch);
                 }
                 else
                 {
@@ -428,8 +469,14 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                                                        arg.M * arg.N * sizeof(CDataType),
                                                        stream_config.stream_id_));
 
-                    ave_time = launch_and_time_kernel(
-                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    ave_time = launch_and_time_kernel(stream_config,
+                                                      kernel,
+                                                      dim3(gdx, gdy, gdz),
+                                                      dim3(BlockSize),
+                                                      0,
+                                                      arg,
+                                                      arg.batch,
+                                                      arg.compute_ptr_offset_of_batch);
                 }
             };
 
@@ -457,6 +504,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                     {
                         const auto kernel = kernel_batched_gemm_wmma_cshuffle_v3<
                             GridwiseGemm,
+                            ComputePtrOffsetOfStridedBatch,
                             true,
                             InMemoryDataOperationEnum::AtomicAdd,
                             minimum_occupancy>;
@@ -464,11 +512,12 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                     }
                     else
                     {
-                        const auto kernel =
-                            kernel_batched_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                                 true,
-                                                                 InMemoryDataOperationEnum::Set,
-                                                                 minimum_occupancy>;
+                        const auto kernel = kernel_batched_gemm_wmma_cshuffle_v3<
+                            GridwiseGemm,
+                            remove_reference_t<ComputePtrOffsetOfStridedBatch>,
+                            true,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy>;
                         Run(kernel);
                     }
                 }
