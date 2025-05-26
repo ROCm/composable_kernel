@@ -5,6 +5,16 @@
 
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_base.hpp"
 
+#define DS_READ_A_PREFETCH_STAGES 2
+
+template <typename T>
+constexpr auto compute_stage_loads(T total_loads, T stages)
+{
+    return std::make_pair((total_loads + stages - 1) / stages, // ceil
+                          total_loads / stages                 // floor
+    );
+}
+
 namespace ck {
 
 // Compute optimized pipeline
@@ -140,10 +150,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
     using Base::GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4;
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
-
-    using Base::AMmaKStride;
-    using Base::BMmaKStride;
-
     using Base::MWaves;
 
     static constexpr index_t PrefetchStages        = 2;
@@ -187,101 +193,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
 
     __device__ static constexpr auto HotLoopScheduler()
     {
-#if 0
-        // A/B split schedule
-        // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
-        constexpr auto num_ds_read_inst_a =
-            HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16
-                ? HotLoopInstList::A_LDS_Read_Inst_Num
-                : HotLoopInstList::A_LDS_Read_Inst_Num / 2;
-
-        constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
-
-        constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
-
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
-        constexpr auto mfma_cycle    = HotLoopInstList::C_MFMA_Inst_Cycle;
-
-        constexpr auto ds_read_a_issue_cycle =
-            HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
-        constexpr auto ds_read_a_mfma_rate =
-            math::integer_divide_ceil(mfma_cycle - 4, 2 * ds_read_a_issue_cycle);
-
-        // constexpr auto num_dsread_a_mfma =
-        //     (num_ds_read_inst_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
-
-        constexpr auto num_stages = MRepeat;
-
-        // Group num_mfma_perstage num_ds_read_a_perstage
-        // since we want to reuse a local register buffer
-        constexpr auto num_mfma_perstage      = num_mfma_inst / num_stages;
-        constexpr auto num_ds_read_a_perstage = num_ds_read_inst_a / num_stages;
-
-        constexpr auto num_ds_read_a_mfma_perstage =
-            math::integer_divide_ceil(num_ds_read_a_perstage, ds_read_a_mfma_rate);
-
-        constexpr auto num_mfma_per_issue_more = math::integer_divide_ceil(
-            num_mfma_inst, num_buffer_load_inst_a + num_buffer_load_inst_b);
-        constexpr auto num_mfma_per_issue_less = math::integer_divide_floor(
-            num_mfma_inst, num_buffer_load_inst_a + num_buffer_load_inst_b);
-        // Insert more mfmas between bufferloads
-        constexpr auto num_stage1_bufferloads =
-            num_mfma_inst -
-            (num_buffer_load_inst_a + num_buffer_load_inst_b) * num_mfma_per_issue_less;
-        constexpr auto num_stage1_mfma = num_mfma_per_issue_more * num_stage1_bufferloads;
-        // Insert less mfmas between bufferloads
-        // constexpr auto num_stage2_mfma = num_mfma_inst - num_stage1_mfma;
-
-        constexpr auto buffer_load_issue_point     = 0;
-        constexpr auto ds_write_issue_point_stage1 = num_mfma_per_issue_more >= 3 ? 1 : 0;
-        constexpr auto ds_write_issue_point_stage2 = num_mfma_per_issue_less >= 3 ? 1 : 0;
-
-        static_for<0, num_mfma_inst, 1>{}([&](auto i) {
-            constexpr auto current_buffer_load_issue =
-                i < num_stage1_mfma
-                    ? (i / num_mfma_per_issue_more)
-                    : (num_stage1_bufferloads + (i - num_stage1_mfma) / num_mfma_per_issue_less);
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-
-            // Group num_mfma_perstage num_ds_read_a_perstage
-            // Hide A lds rd issue latency at begining of each stage
-            if constexpr((i % num_mfma_perstage) >=
-                         (num_mfma_perstage - num_ds_read_a_mfma_perstage))
-            {
-                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
-            }
-
-            // Schedule VMEM access instruction distributed evenly in the loop
-            // Hide B/A global rd issue latency
-            if constexpr(((i < num_stage1_mfma) &&
-                          (i % num_mfma_per_issue_more == buffer_load_issue_point)) ||
-                         ((i >= num_stage1_mfma) &&
-                          ((i - num_stage1_mfma) % num_mfma_per_issue_less ==
-                           buffer_load_issue_point)))
-            {
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            }
-
-            // Hide A lds wr issue latency
-            if constexpr((current_buffer_load_issue >= num_buffer_load_inst_b) &&
-                         ((((i < num_stage1_mfma) &&
-                            (i % num_mfma_per_issue_more == ds_write_issue_point_stage1)) ||
-                           ((i >= num_stage1_mfma) &&
-                            ((i - num_stage1_mfma) % num_mfma_per_issue_less ==
-                             ds_write_issue_point_stage2))) &&
-                          (((i < num_stage1_mfma) &&
-                            ((i / num_mfma_per_issue_more - num_buffer_load_inst_b) < num_ds_write_inst_a)) ||
-                           ((i >= num_stage1_mfma) &&
-                            ((i - num_stage1_mfma) / num_mfma_per_issue_less +
-                             num_stage1_bufferloads - num_buffer_load_inst_b) < num_ds_write_inst_a))))
-            {
-                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-            }
-        });
-#elif 1
-        // A/B split schedule
-        // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
         constexpr auto num_ds_read_inst_a =
             HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16
                 ? HotLoopInstList::A_LDS_Read_Inst_Num
@@ -302,68 +213,66 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         constexpr auto ds_read_a_mfma_rate =
             math::integer_divide_ceil(mfma_cycle - 4, 2 * ds_read_a_issue_cycle);
 
-        // constexpr auto num_dsread_a_mfma =
-        //     (num_ds_read_inst_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
-
         constexpr auto num_total_stages = MRepeat;
 
         // Group num_mfma_perstage num_ds_read_a_perstage
         // since we want to reuse a local register buffer
-        constexpr auto num_mfma_perstage      = num_mfma_inst / num_total_stages;
-        constexpr auto num_ds_read_a_perstage = num_ds_read_inst_a / num_total_stages;
+        constexpr auto num_mfma_perstage      = num_mfma_inst / MRepeat;
+        constexpr auto num_ds_read_a_perstage = num_ds_read_inst_a / MRepeat;
 
         constexpr auto num_ds_read_a_mfma_perstage =
             math::integer_divide_ceil(num_ds_read_a_perstage, ds_read_a_mfma_rate);
 
-        constexpr auto num_ds_read_a_prefetch_stages = 2;
+        constexpr auto total_buffer_loads = num_buffer_load_inst_a + num_buffer_load_inst_b;
+        constexpr auto stages_available   = MRepeat - DS_READ_A_PREFETCH_STAGES;
 
-        constexpr auto buffer_load_perstage_more = math::integer_divide_ceil(
-            (num_buffer_load_inst_a + num_buffer_load_inst_b), (num_total_stages - 2));
-        constexpr auto buffer_load_perstage_less = math::integer_divide_floor(
-            (num_buffer_load_inst_a + num_buffer_load_inst_b), (num_total_stages - 2));
+        constexpr auto stage_loads = compute_stage_loads(total_buffer_loads, stages_available);
 
-        constexpr auto buffer_load_stages_more =
-            (num_buffer_load_inst_a + num_buffer_load_inst_b) -
-            math::integer_divide_floor((num_buffer_load_inst_a + num_buffer_load_inst_b),
-                                       (num_total_stages - 2)) *
-                ((num_total_stages - 2));
+        constexpr auto buffer_load_perstage_more = stage_loads.first;
+        constexpr auto buffer_load_perstage_less = stage_loads.second;
+
+        constexpr auto buffer_load_stages_more = total_buffer_loads % stages_available;
+
+        constexpr auto buffer_b_heavy_loads = buffer_load_perstage_more * buffer_load_stages_more;
+        constexpr auto buffer_b_remaining =
+            num_buffer_load_inst_b - buffer_load_perstage_more * buffer_load_stages_more;
 
         constexpr auto buffer_load_b_stages =
-            buffer_load_perstage_more * buffer_load_stages_more > num_buffer_load_inst_b
+            buffer_b_heavy_loads > num_buffer_load_inst_b
                 ? num_buffer_load_inst_b / buffer_load_perstage_more
-                : (buffer_load_stages_more +
-                   (num_buffer_load_inst_b - buffer_load_perstage_more * buffer_load_stages_more) /
-                       buffer_load_perstage_less);
+                : (buffer_load_stages_more + buffer_b_remaining / buffer_load_perstage_less);
 
         constexpr auto buffer_load_a_stages =
-            num_total_stages - num_ds_read_a_prefetch_stages - buffer_load_b_stages;
+            num_total_stages - DS_READ_A_PREFETCH_STAGES - buffer_load_b_stages;
 
-        constexpr auto buffer_load_issue_point_b = 0;
+        static_assert(buffer_load_a_stages > 0,
+                      "The buffer load a stages should always have a value over 0.");
+
         constexpr auto buffer_load_issue_point_interval_more =
-            num_mfma_perstage / buffer_load_perstage_more;
+            math::integer_divide_ceil(num_mfma_perstage, buffer_load_perstage_more);
         constexpr auto buffer_load_issue_point_interval_less =
-            num_mfma_perstage / buffer_load_perstage_less;
-        constexpr auto ds_write_issue_point      = 0;
+            buffer_load_perstage_less == 0
+                ? INT32_MAX
+                : math::integer_divide_ceil(num_mfma_perstage, buffer_load_perstage_less);
         constexpr auto buffer_load_issue_point_a = num_mfma_perstage >= 3 ? 1 : 0;
 
         // B global read
         static_for<0, buffer_load_b_stages, 1>{}([&](auto i) {
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
 
                 if constexpr(((i < buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_more ==
-                               buffer_load_issue_point_b)) ||
+                              (imfma % buffer_load_issue_point_interval_more == 0)) ||
                              ((i >= buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_less ==
-                               buffer_load_issue_point_b)))
+                              (imfma % buffer_load_issue_point_interval_less == 0)))
                 {
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
                 }
 
                 if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                 {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(
+                        SCHED_GROUP_LDS_READ, ds_read_a_mfma_rate, 0);
                 }
             });
         });
@@ -371,15 +280,13 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         // A global read + A local write
         static_for<0, buffer_load_a_stages, 1>{}([&](auto i) {
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
                 if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_more ==
-                               ds_write_issue_point)) ||
+                              (imfma % buffer_load_issue_point_interval_more == 0)) ||
                              (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_less ==
-                               ds_write_issue_point)))
+                              (imfma % buffer_load_issue_point_interval_less == 0)))
                 {
-                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_LDS_WRITE, 1, 0);
                 }
                 if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
                               (imfma % buffer_load_issue_point_interval_more ==
@@ -388,27 +295,28 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                               (imfma % buffer_load_issue_point_interval_less ==
                                buffer_load_issue_point_a)))
                 {
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                    __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_VMEM, 1, 0);
                 }
                 if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                 {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(
+                        SCHED_GROUP_LDS_READ, ds_read_a_mfma_rate, 0);
                 }
             });
         });
 
         // lds synchronization, prefetch next loop local A
-        static_for<0, num_ds_read_a_prefetch_stages, 1>{}([&](auto i) {
+        static_for<0, DS_READ_A_PREFETCH_STAGES, 1>{}([&](auto i) {
             ignore = i;
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(SCHED_GROUP_MFMA, 1, 0);
                 if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                 {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                    __builtin_amdgcn_sched_group_barrier(
+                        SCHED_GROUP_LDS_READ, ds_read_a_mfma_rate, 0);
                 }
             });
         });
-#endif
     }
 
     template <bool HasMainLoop,
@@ -461,20 +369,20 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         __builtin_amdgcn_sched_barrier(0);
 
-        // // Local prefill A1
+        // Local prefill A1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I0));
 
-        // // Global prefetch A2
+        // Global prefetch A2
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
         // Local prefetch A1
         block_sync_lds();
-        static_for<0, 2, 1>{}([&](auto m0) {
+        static_for<0, DS_READ_A_PREFETCH_STAGES, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
                     a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                       make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                        a_block_buf.At(I0),
                                        a_thread_desc_,
                                        make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
@@ -550,10 +458,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 static_for<0, KGroup, 1>{}([&](auto kg0) {
                                     a_thread_copy_.Run(
                                         a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                        make_tuple(Number<0>{},
                                                    I0,
                                                    I0,
-                                                   Number<k0 * 2 + kg0>{},
+                                                   Number<k0 * KGroup + kg0>{},
                                                    I0,
                                                    I0),
                                         a_block_buf.At(local_read_buf),
@@ -579,7 +487,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                         make_tuple(Number<(m0 + 2) % MRepeat>{},
                                                    I0,
                                                    I0,
-                                                   Number<k0 * 2 + kg0>{},
+                                                   Number<k0 * KGroup + kg0>{},
                                                    I0,
                                                    I0),
                                         a_block_buf.At(local_read_buf),
@@ -605,7 +513,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                         make_tuple(Number<(m0 + 2) % MRepeat>{},
                                                    I0,
                                                    I0,
-                                                   Number<k0 * 2 + kg0>{},
+                                                   Number<k0 * KGroup + kg0>{},
                                                    I0,
                                                    I0),
                                         a_block_buf.At(mfma_reg_buf),
@@ -677,12 +585,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                         static_for<0, KGroup, 1>{}([&](auto kg0) {
                             a_thread_copy_.Run(
                                 a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * 2 + kg0>{},
-                                           I0,
-                                           I0),
+                                make_tuple(
+                                    Number<0>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                 a_block_buf.At(I1),
                                 a_thread_desc_,
                                 make_tuple(
@@ -700,7 +604,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 make_tuple(Number<(m0 + 2) % MRepeat>{},
                                            I0,
                                            I0,
-                                           Number<k0 * 2 + kg0>{},
+                                           Number<k0 * KGroup + kg0>{},
                                            I0,
                                            I0),
                                 a_block_buf.At(I1),
@@ -720,7 +624,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                                 make_tuple(Number<(m0 + 2) % MRepeat>{},
                                            I0,
                                            I0,
-                                           Number<k0 * 2 + kg0>{},
+                                           Number<k0 * KGroup + kg0>{},
                                            I0,
                                            I0),
                                 a_block_buf.At(I0),
@@ -769,7 +673,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                             a_thread_copy_.Run(
                                 a_block_desc_m0_m1_m2_k0_k1_k2,
                                 make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                 a_block_buf.At(I1),
                                 a_thread_desc_,
                                 make_tuple(Number<(m0 + 2 + HotloopLocalBufSwitch) % 2>{},
@@ -785,8 +689,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
             });
 
             HotLoopScheduler();
-            // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
-            // latency
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {
@@ -824,7 +726,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3<BlockGemmPipelineScheduler::I
                             a_thread_copy_.Run(
                                 a_block_desc_m0_m1_m2_k0_k1_k2,
                                 make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * 2 + kg0>{}, I0, I0),
+                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
                                 a_block_buf.At(I0),
                                 a_thread_desc_,
                                 make_tuple(

@@ -114,6 +114,16 @@ struct ReferenceMXGemm : public device::BaseOperator
                                    a_m_k_scaled(m, k + 1));
                         }
                     }
+                    else if constexpr(is_same_v<ADataType, f6x16_pk_t> ||
+                                      is_same_v<ADataType, bf6x16_pk_t> ||
+                                      is_same_v<ADataType, f6x32_pk_t> ||
+                                      is_same_v<ADataType, bf6x32_pk_t>)
+                    {
+                        a_m_k_scaled(m, k) =
+                            type_convert<ComputeTypeA>(
+                                arg.a_m_k_(m, k).unpack(k % ADataType::packed_size)) *
+                            type_convert<ComputeTypeA>(arg.a_m_kblock_scales_(m, k / SCALE_BLOCK));
+                    }
                     else
                     {
                         a_m_k_scaled(m, k) =
@@ -154,6 +164,16 @@ struct ReferenceMXGemm : public device::BaseOperator
                             //        b_k_n_scaled(k+1, n)
                             //        );
                         }
+                    }
+                    else if constexpr(is_same_v<BDataType, f6x16_pk_t> ||
+                                      is_same_v<BDataType, bf6x16_pk_t> ||
+                                      is_same_v<BDataType, f6x32_pk_t> ||
+                                      is_same_v<BDataType, bf6x32_pk_t>)
+                    {
+                        b_k_n_scaled(k, n) =
+                            type_convert<ComputeTypeB>(
+                                arg.b_k_n_(k, n).unpack(k % BDataType::packed_size)) *
+                            type_convert<ComputeTypeB>(arg.b_kblock_n_scales_(k / SCALE_BLOCK, n));
                     }
                     else
                     {
