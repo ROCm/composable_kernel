@@ -169,8 +169,10 @@ int run_flatmm_example_with_layouts(int argc,
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
     // TODO: add different init types
-    ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+    ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
     ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
+    // ck_tile::FillUniformDistribution<ADataType>{1.0f, 1.0f}(a_host);
+    // ck_tile::FillUniformDistribution<BDataType>{1.0f, 1.0f}(b_origin_host);
 
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_dev_buf(c_rslt_host.get_element_space_size_in_bytes());
@@ -201,6 +203,12 @@ int run_flatmm_example_with_layouts(int argc,
 
     c_dev_buf.FromDevice(c_rslt_host.data());
     bool pass = true;
+    // for(int i=0;i<static_cast<int>(c_rslt_host.mData.size());i++){
+    //     printf("dteng---a[%d][%d]=%f\n",i/256,i%256,ck_tile::type_convert<float>(a_host.mData[i]));
+    // }
+    // for(int i=0;i<static_cast<int>(c_rslt_host.mData.size());i++){
+    //     printf("dteng---c[%d][%d]=%f\n",i/256,i%256,ck_tile::type_convert<float>(c_rslt_host.mData[i]));
+    // }
 
     if(arg_parser.get_int("v") == 1)
     {
