@@ -287,9 +287,12 @@ class TestCkTileGroupedGemm : public ::testing::Test
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
+                                                 DsDataType,
                                                  AccDataType,
                                                  CDataType,
+                                                 DsLayout,
                                                  CLayout,
+                                                 ck_tile::element_wise::PassThrough,
                                                  GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
@@ -473,16 +476,18 @@ class TestCkTileGroupedGemm : public ::testing::Test
             const bool splitk = gemm_descs[0].k_batch > 1;
             for(const auto& arg : gemm_descs)
             {
-                kargs.emplace_back(ck_tile::GemmKernelArgs{arg.a_ptr,
-                                                           arg.b_ptr,
-                                                           arg.c_ptr,
-                                                           arg.M,
-                                                           arg.N,
-                                                           arg.K,
-                                                           arg.stride_A,
-                                                           arg.stride_B,
-                                                           arg.stride_C,
-                                                           arg.k_batch});
+                kargs.emplace_back(ck_tile::GemmKernelArgs<>{arg.a_ptr,
+                                                             arg.b_ptr,
+                                                             {},
+                                                             arg.e_ptr,
+                                                             arg.M,
+                                                             arg.N,
+                                                             arg.K,
+                                                             arg.stride_A,
+                                                             arg.stride_B,
+                                                             {},
+                                                             arg.stride_E,
+                                                             arg.k_batch});
             }
             const auto stream = ck_tile::stream_config{nullptr, false, 1};
             ck_tile::hip_check_error(

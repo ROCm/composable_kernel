@@ -232,6 +232,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     CK_TILE_DEVICE static void
     RunGemmWithPipelineSelection(const ADataType* a_ptr,
                                  const BDataType* b_ptr,
+                                 const tuple<> ds_ptr,
                                  CDataType* c_ptr,
                                  void* smem_ptr_0,
                                  const GemmKernelArgs<>& kargs,
@@ -242,13 +243,14 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+                a_ptr, b_ptr, ds_ptr, c_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
             Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
         const auto& a_block_window = gemm_tile_windows.at(Base::I0);
         const auto& b_block_window = gemm_tile_windows.at(Base::I1);
+        const auto& d_block_window = gemm_tile_windows.at(Base::I2);
 
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
@@ -258,10 +260,10 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
         const auto RunEpilogue = [&](auto& c_block_tile) {
             // Run Epilogue Pipeline
-            auto& c_block_window = gemm_tile_windows.at(Base::I2);
-            EpiloguePipeline{}
-                .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-                    c_block_window, c_block_tile, smem_ptr_0);
+            auto& c_block_window = gemm_tile_windows.at(Base::I3);
+            EpiloguePipeline{}.template
+            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
+                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
         };
 
         if constexpr(is_specialization_of<GemmPipeline, GemmPipelineAgBgCrCompV3>::value)
