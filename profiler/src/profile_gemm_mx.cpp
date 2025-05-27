@@ -67,10 +67,10 @@ int profile_gemm_mx(int argc, char* argv[])
         StrideC = std::stoi(argv[arg_index++]);
     }
 
+    int KBatch        = 1;
     int n_warmup      = 1;
     int n_iter        = 10;
     uint64_t rotating = 0;
-    int KBatch        = 1;
     if(argc > arg_index)
     {
         KBatch   = std::stoi(argv[arg_index++]);

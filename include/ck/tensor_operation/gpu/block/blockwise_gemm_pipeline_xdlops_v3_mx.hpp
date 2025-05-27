@@ -203,9 +203,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                 ? HotLoopInstList::B_LDS_Read_Inst_Num
                 : HotLoopInstList::B_LDS_Read_Inst_Num / 2;
 
-        // constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
-        // constexpr auto num_ds_write_inst_b = HotLoopInstList::B_LDS_Write_Inst_Num;
-
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
 
@@ -242,9 +239,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
         constexpr auto mfma_stages_more =
             num_mfma_stage1 - mfma_perstage_less * num_buffer_load_total;
-
-        // constexpr auto num_dswrite_per_issue_a = num_ds_write_inst_a / num_buffer_load_inst_a;
-        // constexpr auto num_dswrite_per_issue_b = num_ds_write_inst_b / num_buffer_load_inst_b;
 
         static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
             if constexpr(i < mfma_stages_more)

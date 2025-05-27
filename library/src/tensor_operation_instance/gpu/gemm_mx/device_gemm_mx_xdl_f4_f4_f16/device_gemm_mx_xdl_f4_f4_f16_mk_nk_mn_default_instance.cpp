@@ -23,7 +23,7 @@ void add_device_gemm_mx_xdl_f4_f4_f16_mk_nk_mn_default_instances(
                                              PassThrough>>>& instances)
 {
     add_device_operation_instances(
-        instances, device_gemm_mx_xdl_f4_f4_f16_mk_nk_mn_instances<Intrawave, GemmDefault>{});
+        instances, device_gemm_mx_xdl_f4_f4_f16_mk_nk_mn_instances<Intrawave, GemmMPadding>{});
 }
 
 } // namespace instance

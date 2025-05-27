@@ -253,8 +253,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             b_scale_thread_desc.GetElementSpaceSize());
 
         // Global prefetch 1
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+        a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
+        b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
@@ -303,8 +303,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
         // Local prefill 1
-        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
-        b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+        __builtin_amdgcn_s_waitcnt(3952);
+        block_sync_lds();
 
         // Initialize C
         c_thread_buf.Clear();
@@ -317,13 +317,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             do
             {
                 // -------------------------------------------------------------------------------------------
-                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
 
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-
-                block_sync_lds();
+                // wait previous blockwise copy to finish
 
                 // k indexes mapping to threads for 32x32x64:
                 // t0 : |0  --> 15 32 --> 47 | 64 --> 79 96  --> 111 | etc.
@@ -386,6 +381,13 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                             });
                     });
                 });
+
+                // load for next k loop
+                block_sync_lds();
+                a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
+                b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                 static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                     static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
@@ -507,9 +509,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     b_scale_grid_desc,
                     make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
+                __builtin_amdgcn_s_waitcnt(3952);
                 block_sync_lds();
-                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
-                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
                 i += 1;
             } while(i < (num_loop - 1));
@@ -518,7 +519,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         // tail
         if constexpr(TailNum == TailNumber::Full)
         {
-            block_sync_lds();
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step =
                     k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;

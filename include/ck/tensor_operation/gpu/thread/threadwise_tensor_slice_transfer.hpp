@@ -1260,7 +1260,7 @@ struct ThreadwiseTensorSliceTransfer_v4
             }
         });
     }
-
+#if 0
     // Fuse scale
     template <typename SrcRefToOriginDisplacement,
               typename DstOriginIdx,
@@ -1460,7 +1460,7 @@ struct ThreadwiseTensorSliceTransfer_v4
             }
         });
     }
-
+#endif
     template <typename SrcSliceMoveStepIdx>
     __device__ void MoveSrcSliceWindow(const SrcDesc&,
                                        const SrcSliceMoveStepIdx& src_slice_move_step_idx)
