@@ -1,16 +1,18 @@
-# Grouped Gemm API Higlights
+# Grouped Gemm
 
-This folder contains example for Grouped GEMM using ck_tile tile-programming implementation.
+Grouped GEMM (Grouped General Matrix-Matrix Multiplication) is a technique used in GPU computing and high-performance computing to batch together multiple independent GEMM operations (matrix multiplications) into a single kernel launch, in order to improve performance and efficiency. This folder contains example for Grouped GEMM using ck_tile tile-programming implementation. 
 
-# Quick Tour for New Users
+## Quick Tour for New Users
 
-The Grouped GEMM routines are batched versions of GEMM, executing multiple GEMM operations within a single call. Each GEMM operation performs a matrix-matrix multiplication with general matrices. Unlike regular batched GEMM, Grouped GEMM allows each matrix pair to have different sizes and configurations, making it more flexible for diverse workloads.
+The `Grouped GEMM` operator are versions of GEMM, executing multiple GEMM operations within a single kernel call. Each GEMM operation performs a matrix-matrix multiplication. Unlike regular `batched GEMM`, `Grouped GEMM` allows each matrix pair to have different sizes and configurations, making it more flexible for diverse workloads.
+
+ Let's now break the example into parts and explain its function.
 
 ### Parsing Arguments
 At the beginning, we parse the arguments `group_count`, `repeat`, and `warmup`, which are responsible for the following: 
 - `group_count`: number of GEMM operations in the grouped execution, 
-- `repeat` – Number of times to repeat the computation for benchmarking,
-- `warmup` – Number of iterations before the actual benchmarking (used for cache optimization).
+- `repeat` – Number of times to repeat the kernel for benchmarking,
+- `warmup` – Number of iterations before the actual kernel execution time measure.
 
 ```cpp
 // Example
@@ -18,7 +20,7 @@ const int group_count = arg_parser.get_int("group_count");
 const int repeat      = arg_parser.get_int("repeat");
 const int warmup      = arg_parser.get_int("warmup");
 ```
-In the next step, the input parameters `Ms`, `Ns`, `Ks`, as well as the corresponding `stride_As`, `stride_Bs`, and `stride_Cs` are provided. We use std::vector for this because the input size is based on `group_count`.
+In the next step, the input parameters `Ms`, `Ns`, `Ks`, as well as the corresponding `stride_As`, `stride_Bs`, and `stride_Cs` are provided. We use `std::vector` for this because the input size is based on `group_count`.
 
 ```cpp
 // Example
@@ -30,21 +32,21 @@ std::vector<ck_tile::index_t> stride_Bs = arg_parser.get_int_vec("stride_Bs");
 std::vector<ck_tile::index_t> stride_Cs = arg_parser.get_int_vec("stride_Cs");
 ```
 Where:
-- `Ms` – Row dimensions for each GEMM.
-- `Ns` – Column dimensions for each GEMM.
-- `Ks` – Inner dimensions for each GEMM (shared between A and B).
-- `stride_As` – Stride values for matrix A (how elements are laid out in memory).
+- `Ms` – M dimension of each GEMM.
+- `Ns` – N dimension of each GEMM.
+- `Ks` – K dimension of each GEMM.
+- `stride_As` – Stride values for matrix A.
 - `stride_Bs` – Stride values for matrix B.
-- `stride_Cs` – Stride values for matrix C (output matrix).
+- `stride_Cs` – Stride values for matrix C.
 
 ### HostTensor and Device Memory Buffers (for CPU and GPU) 
-Each vector contains one value per GEMM operation, meaning different matrix sizes and strides can be used for different grouped GEMM computations.
-The next step is to properly load the input values, for each input matrix `A`, `B`, and `C`, you need to create both `HostTensor` and `DeviceMemory`. Where: 
-- HostTensor – Represents the matrix data on the host (CPU). This will store the input matrices before they are transferred to the device for computation.
-- DeviceMemory – Represents the matrix data on the device (GPU). This will store the data on the GPU for computation during the Grouped GEMM operation.
+Each parameter `Ms`, `Ns`, `Ks`, `stride_As`, `stride_Bs` and `stride_Cs` contains values per GEMM operation, meaning different matrix sizes and strides can be used for different grouped GEMM computations.
+The next step is to properly load the input values, for each input matrix `A`, `B`, and output `C`, you need to create both `HostTensor` and `DeviceMemory`. Where: 
+- `HostTensor` – Represents the matrix data on the host (CPU). It stores the data before they are transferred to the device for computation.
+- `DeviceMemory` – Represents the matrix data on the device (GPU). This will store the data on the GPU for computation during the Grouped GEMM operation.
 
 #### HostTensor Buffers (for CPU)
-In the first step, let's start by creating `HostTensor` for `A`, `B`, `C`. HostTensor allocates memory on the host (CPU) to store the matrices and initializes them with the appropriate dimensions and values. Below is an example code showing how to create HostTensors for those tensors:
+In the first step, let's start by creating `HostTensor` for `A`, `B`, `C`. `HostTensor` allocates memory on the host (CPU) to store the matrices and initializes them with the appropriate dimensions and values. Below is an example code showing how to create HostTensors for those tensors:
 ```cpp
 // Example
 std::vector<ck_tile::HostTensor<ADataType>> a_m_k_tensors;
@@ -52,14 +54,14 @@ std::vector<ck_tile::HostTensor<BDataType>> b_k_n_tensors;
 std::vector<ck_tile::HostTensor<CDataType>> c_m_n_tensors;
 ```
 Where:
-- `a_m_k_tensors`: Vector of `HostTensor` objects for matrix `A` (with dimensions `M × K`). Each tensor will store the data of one grouped GEMM operation.
+- `a_m_k_tensors`: Vector of `HostTensor` objects for matrix `A` (with dimensions `M × K`). Each tensor stores the data for single GEMM operation.
 - `b_k_n_tensors`: Vector of `HostTensor` objects for matrix `B` (with dimensions `K × N`).
 - `c_m_n_tensors`: Vector of `HostTensor` objects for matrix `C` (the output matrix with dimensions `M × N`).
 
-Notice that the std::vector container is used for this purpose throughout. As mentioned above, the number of HostTensors is equal to `group_count`.
+Notice that the `std::vector` container is used for this purpose throughout. As mentioned above, the number of HostTensors is equal to `group_count`.
 
 #### Device Memory Buffers (for GPU)
-`DeviceMemory for A, B, C`: Allocate memory on the device (GPU)  memory management system and transfer the matrices from HostTensor to DeviceMemory for actual computation.
+Now it's time to allocate memory on the device (GPU) and transfer the data from `HostTensor` to `DeviceMemory` for actual computation..
 ```cpp
 // Example
 std::vector<std::unique_ptr<ck_tile::DeviceMem>> a_m_k_dev_buf;
@@ -72,9 +74,9 @@ Where:
 - `c_m_n_dev_buf`: For storing the result matrix C on the GPU.
 
 ## Prepare data
-In the next step, you need to fill the input tensors with pseudo-random values in the range of -5 to 5 (to this goal we use FillUniformDistribution) and apply the stride for each tensor. Additionally, you will need to create descriptors for each input tensor.
+In the next step, you need to fill the input tensors. For this purpose, you can use a pseudorandom number generator, use an existing one (e.g., `FillUniformDistribution`), or fill it in with your own data. Additionally, you will need to create descriptors for each input tensor.
 
-To get stride A, B, and C, `get_default_stride` function can be applied. This is template function that calculates the default stride for a 2D array layout based on whether it is row-major or column-major. Template parameter that determines whether the storage order is row-major (true) or column-major (false). The function takes four params `row`, `col`, `stride` and `bool_constant<is_row_major>`. If stride is explicitly provided (`stride != 0`), it is returned as-is. Otherwise, if `stride == 0` (i.e., not provided), the function computes the default stride. The Row-major order (`is_row_major == true`), the stride is set to the number of columns (col). The column-major order (`is_row_major == false`), the stride is set to the number of rows (row). This function is useful when working with dynamically allocated 2D arrays, where the user may not specify the stride explicitly. It ensures a natural default stride based on the chosen storage order.
+To get stride A, B, and C, `get_default_stride` function can be used. This is template function that calculates the default stride for a 2D array based on whether it is row-major or column-major. Template parameter determines whether the storage order is row-major (true) or column-major (false). The function takes four params `row`, `col`, `stride` and `bool_constant<is_row_major>`. If stride is explicitly provided (`stride != 0`), it is returned as-is. Otherwise, if `stride == 0` (i.e., not provided), the function computes the default stride. For the Row-major order (`is_row_major == true`), the stride is set to the number of columns (col). For the column-major order (`is_row_major == false`), the stride is set to the number of rows (row). This function is useful when working with dynamically allocated 2D arrays, where the user may not specify the stride explicitly. It ensures a natural default stride based on the chosen storage order.
 
 ```cpp
 // Example, API
@@ -83,6 +85,7 @@ auto get_default_stride(std::size_t row, std::size_t col, std::size_t stride, bo
   // code
 }
 ```
+
 Where: 
 - `is_row_major`: A bool template parameter that determines whether the storage order is row-major (true) or column-major (false).
 - `row`: The number of rows in the matrix.
@@ -99,7 +102,7 @@ ck_tile::HostTensor<ADataType>(f_host_tensor_descriptor(M, K, stride_As[i], a_la
 
 After creating the host_tensors, it's time to create deviceMem for each tensor `A`, `B`, and `C`, and then transfer the data to the device. To create a DeviceMem object, we need to provide the buffer size in bytes. For this purpose, we use the `get_element_space_size_in_bytes()` function. The tensors created this way are suitable for storing data. To transfer data from the host to the device, we use the `ToDevice()` function, passing as a parameter the data we previously generated, e.g., `a_m_k_tensors[i].data()`.
 
-"In the final step of data preparation before execution, we need to retrieve pointers to the buffers of `A`, `B`, and `C` stored on the device using `->GetDeviceBuffer()` and pack them into a shared container, for example: `gemm_descs.push_back({p_a, p_b, p_c, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]})`, where `gemm_descs` is `std::vector<grouped_gemm_kargs> gemm_descs`. The container should include values such as:
+"In the final step of data preparation before execution, we need to retrieve pointers to the buffers of `A`, `B`, and `C` stored on the device using `->GetDeviceBuffer()` and pack them into a shared container, for example: `gemm_descs.push_back({p_a, p_b, p_c, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]})`, where `gemm_descs` is `std::vector<grouped_gemm_kargs> gemm_descs` ([Code](https://github.com/ROCm/composable_kernel/blob/develop/example/ck_tile/17_grouped_gemm/run_grouped_gemm_example.inc#L221)). The container should include values such as:
 ```cpp
 struct GroupedGemmHostArgs
 {
@@ -114,17 +117,17 @@ struct GroupedGemmHostArgs
     index_t stride_C;
 };
 ```
-The prepared data—warmup, repeat, group_count, and gemm_descs—can be passed to the invoke_gemm function. This is a templated function that additionally takes three template parameters: ALayout, BLayout, and CLayout. The API of this function is as follows:
+The data prepared in this way can be passed to the `invoke_gemm` function. This is a templated function that additionally takes three template parameters: ALayout, BLayout, and CLayout. Please have a look at the API of this function:
 
 ```cpp
 // Example, API
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ALayout, typename BLayout, typename CLayout, bool Persistent>
 float invoke_gemm(int n_warmup,
                   int n_repeat,
                   int group_count,
                   const std::vector<grouped_gemm_kargs>& args)
 ```
-This function returns the execution time in milliseconds. In this function, we allocate the workspace size required for computation, as follows:
+This function returns the execution time in milliseconds. In this function, we allocate the workspace required for computation. Workspace memory on the GPU refers to temporary memory buffers allocated during the execution of certain operations, this extra space is needed to hold the gemm descriptions.. To allocate the workspace you can use the structure as follows:
 ```cpp
 // Example
 ck_tile::DeviceMem gemm_workspace;
@@ -136,8 +139,10 @@ In the final step, we pass the arguments to group_gemm and launch the kernel, us
 template <typename ALayout, typename BLayout, typename CLayout>
 float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
-                   void* p_workspace_)
+                   void* kargs_ptr)
 ```
+In this function, all parameters necessary to launch the kernel are set, such as GEMM dimensions; the tiling is computed, the GEMM pipeline and epilogue are prepared, and the GroupedGemmKernel is launched.
+
 ## Build
 ```
 # in the root of ck_tile
