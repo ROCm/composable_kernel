@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <hip/hip_runtime.h>
+#pragma once
 
 #include <cstring>
-#include <iostream>
-#include <sstream>
 #include <string>
 #include <tuple>
-#include "ck_tile/ops/gemm.hpp"
 
-#pragma once
+#include "ck_tile/host.hpp"
+#include "gemm_dispatcher.hpp"
+#include "gemm_common.hpp"
 
 template <typename T>
 struct DataTypeTraits;
@@ -57,24 +56,6 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
     static constexpr const char* name = "pk_int4_t";
 };
 
-/// @brief Defines the configuration parameters for a GEMM operation, enabling the selection of a
-/// specific kernel instance based on the provided settings.
-struct KernelTraits
-{
-    /// @brief The name of the pipeline.
-    std::string pipeline;
-    /// @brief The name of the scheduler (e.g., "intrawave", "interwave").
-    std::string scheduler;
-    /// @brief The name of the epilogue (e.g., "cshuffle", "default").
-    std::string epilogue;
-    /// @brief Indicates whether padding is applied to the M dimension.
-    bool kPadM;
-    /// @brief Indicates whether padding is applied to the N dimension.
-    bool kPadN;
-    /// @brief Indicates whether padding is applied to the K dimension.
-    bool kPadK;
-};
-
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -82,49 +63,71 @@ static constexpr inline auto is_row_major(Layout layout_)
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-auto calculate_rtol_atol(const ck_tile::index_t K,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
-{
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-    // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-    // Calculate error due to split_k accumulation
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
-        max_accumulated_value, kbatch);
-    // Use higher threshold
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
-}
-
 inline auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "3840", "m dimension")
-        .insert("n", "4096", "n dimension")
-        .insert("k", "2048", "k dimension")
-        .insert("stride_a", "0", "Tensor A stride")
-        .insert("stride_b", "0", "Tensor B stride")
-        .insert("stride_c", "0", "Tensor C stride")
-        .insert("split_k", "1", "splitK value")
-        .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("warmup", "50", "number of iterations before benchmark the kernel")
-        .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("structured_sparsity", "0", "0:false, 1:true")
-        .insert("pipeline", "compv3", "compv3, compv4, mem")
-        .insert("scheduler", "intrawave", "intrawave, interwave")
-        .insert("epilogue", "cshuffle", "cshuffle, default")
-        .insert("pad_m", "false", "true, false")
-        .insert("pad_n", "false", "true, false")
-        .insert("pad_k", "false", "true, false");
+    arg_parser.insert("m", "3840", "The value for m dimension. Default is 3840.")
+        .insert("n", "4096", "The value for n dimension. Default is 4096.")
+        .insert("k", "2048", "The value for k dimension. Default is 2048.")
+        .insert("stride_a", "0", "The stride value for tensor A. Default is 0.")
+        .insert("stride_b", "0", "The stride value for tensor B. Default is 0.")
+        .insert("stride_c", "0", "The stride value for tensor C  Default is 0.")
+        .insert("split_k", "1", "The split value for k dimension. Default is 1.")
+        .insert("verify",
+                "2",
+                "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
+                "for validation on GPU. Default is 2, validation on GPU.")
+        .insert("log",
+                "false",
+                "Wether output kernel instance information or not. Possible values are true or "
+                "false. Default is false")
+        .insert(
+            "warmup", "50", "The number of iterations before benchmark the kernel. Default is 50.")
+        .insert(
+            "repeat", "100", "The number of iterations to benchmark the kernel. Default is 100.")
+        .insert("timer",
+                "true",
+                "Whether if the timer is gpu timer or not. Possible values are false or true. "
+                "Default is true.")
+        .insert("init",
+                "0",
+                "The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 "
+                "for constant(1). Default is 0, random.")
+        .insert("metric",
+                "0",
+                "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "
+                "tflops, or 2 for bandwidth. Default is 0, latency.")
+        .insert("csv_filename",
+                "gemm_kernel",
+                "The filename of benchmark result. Default is gemm_kernel.")
+        .insert("structured_sparsity",
+                "false",
+                "Whether use sparsity kernel or not. Possible values are true or false. Default is "
+                "false")
+        .insert(
+            "pipeline",
+            "compv3",
+            "The type of pipeline. Possible values are compv3, compv4 or mem. Default is compv3.")
+        .insert("scheduler",
+                "intrawave",
+                "The type of pipeline. Possible values are compv3, compv4 or mem. Default is "
+                "compv3.")
+        .insert(
+            "epilogue",
+            "cshuffle",
+            "The type of epilogue. Possible values are cshuffle or default. Default is csshuffle.")
+        .insert("pad_m",
+                "false",
+                "Whether pad or not in m direction. Possible values are true or false. Default is "
+                "false.")
+        .insert("pad_n",
+                "false",
+                "Whether pad or not in n direction. Possible values are true or false. Default is "
+                "false.")
+        .insert("pad_k",
+                "false",
+                "Whether pad or not in k direction. Possible values are true or false. Default is "
+                "false.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -185,79 +188,17 @@ void permute_vectors_i4x4_b(Tensor& tensor)
     }
 }
 
-/// @brief Function to compare the results of the device and host computations
-void compare(ck_tile::index_t K,
-             ck_tile::index_t kbatch,
-             ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-             ck_tile::HostTensor<CDataType>& c_m_n_host_result)
+auto get_kernel_func_by_trait(const ck_tile::ArgParser& arg_parser)
 {
-    const float max_accumulated_value =
-        *std::max_element(c_m_n_host_result.mData.begin(), c_m_n_host_result.mData.end());
-    const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-        K, kbatch, max_accumulated_value);
-    bool pass = ck_tile::check_err(c_m_n_dev_result,
-                                   c_m_n_host_result,
-                                   "Error: Incorrect results!",
-                                   rtol_atol.at(ck_tile::number<0>{}),
-                                   rtol_atol.at(ck_tile::number<1>{}));
+    KernelTraits trait;
+    trait.pipeline  = arg_parser.get_str("pipeline");
+    trait.scheduler = arg_parser.get_str("scheduler");
+    trait.epilogue  = arg_parser.get_str("epilogue");
+    trait.pad_m     = arg_parser.get_bool("pad_m");
+    trait.pad_n     = arg_parser.get_bool("pad_n");
+    trait.pad_k     = arg_parser.get_bool("pad_k");
 
-    std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
-    std::cout << "The verification result is:" << (pass ? "correct" : "fail") << std::endl;
-}
+    bool structured_sparsity = arg_parser.get_bool("structured_sparsity");
 
-/// @brief Function to get the kernel output with reference implementation on CPU/GPU
-template <typename ADataType,
-          typename BDataType,
-          typename AccDataType,
-          typename CDataType,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout>
-void gemm_host_reference(int verify,
-                         ck_tile::HostTensor<ADataType>& a_m_k,
-                         ck_tile::HostTensor<BDataType>& b_k_n,
-                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
-                         ck_tile::DeviceMem& a_m_k_dev_buf,
-                         ck_tile::DeviceMem& b_k_n_dev_buf,
-                         ck_tile::index_t M,
-                         ck_tile::index_t N,
-                         ck_tile::index_t K,
-                         ck_tile::index_t stride_A,
-                         ck_tile::index_t stride_B,
-                         ck_tile::index_t stride_C)
-{
-    if(verify == 1)
-    {
-        c_m_n_host_result.SetZero();
-
-        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_k_n, c_m_n_host_result);
-    }
-    else if(verify == 2)
-    {
-        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
-        {
-            // Restore input for B for gpu reference
-            b_k_n_dev_buf.ToDevice(b_k_n.data());
-        }
-
-        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_host_result.get_element_space_size_in_bytes());
-        c_m_n_host_result.SetZero();
-        c_m_n_gpu_buf_ref.SetZero();
-
-        ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
-        BDataType* d_B = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
-        CDataType* d_C = static_cast<CDataType*>(c_m_n_gpu_buf_ref.GetDeviceBuffer());
-
-        ck_tile::reference_gemm_gpu<ADataType,
-                                    BDataType,
-                                    AccDataType,
-                                    CDataType,
-                                    ALayout,
-                                    BLayout,
-                                    CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
-
-        c_m_n_gpu_buf_ref.FromDevice(c_m_n_host_result.data());
-    }
+    return GemmDispatcher::dispatch(structured_sparsity, trait);
 }
