@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx_bpreshuffle.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 #include "ck/utility/data_type.hpp"
@@ -154,6 +155,37 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
         }
     }
 }
+
+void preShuffleBuffer(const ck::f4x2_pk_t* src, ck::f4x2_pk_t* dst, int N, int K, int NXdl)
+{
+    int KPack = 16;
+    int NLane = NXdl;
+    int KLane = 64 / NLane;
+    int K_pk  = K / 2;
+    int K0    = K_pk / (KLane * KPack);
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> N0 K0 KLane NLane KPack
+    int tempk;
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K_pk; ++k)
+        {
+            int n0 = n / NLane;
+            int n1 = n % NLane;
+
+            int k0 = k / (KLane * KPack);
+            tempk  = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
+
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
+
+            dst[outputIndex] = src[n * K_pk + k];
+        }
+    }
+}
 #endif
 
 template <typename DeviceOpInstance,
@@ -170,7 +202,8 @@ template <typename DeviceOpInstance,
           typename CElementOp,
           typename AccDataType,
           typename CShuffleDataType,
-          ck::index_t ScaleBlockSize>
+          ck::index_t ScaleBlockSize,
+          bool BPreShuffle>
 bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& config)
 {
 
@@ -221,7 +254,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-    Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    auto b_k_n =
+        std::make_shared<Tensor<BDataType>>(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    auto b_input = b_k_n;
+    if constexpr(BPreShuffle)
+        b_input = std::make_shared<Tensor<BDataType>>(
+            f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
 
     // scales for A and B
     Tensor<XDataType> a_m_k_scale(
@@ -244,7 +282,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     {
         std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
         std::cout << "a_m_k_scale: " << a_m_k_scale.mDesc << std::endl;
-        std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+        std::cout << "b_k_n: " << b_k_n->mDesc << std::endl;
         std::cout << "b_k_n_scale: " << b_k_n_scale.mDesc << std::endl;
         std::cout << "c_m_n_device_result: " << c_m_n_device_result.mDesc << std::endl;
     }
@@ -267,7 +305,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     case 0: // Initializations for development and debugging
         ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{b_data_element(2.0f)}(b_k_n);
+        ck::utils::FillConstant<BDataType>{b_data_element(2.0f)}(*b_k_n);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
         if(config.verbosity > 0)
         {
@@ -281,8 +319,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     case 1:
 
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6});  // Z[-5,5]
+        b_k_n->GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
         static_assert(ck::is_same_v<XDataType, ck::e8m0_bexp_t>);
         a_m_k_scale.GenerateTensorValue(
             GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
@@ -294,7 +332,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
         a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
 
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
+        b_k_n->GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
         b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
         break;
 
@@ -310,6 +348,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         a_m_k_scale.mData.data(), a_shuffled_scale.mData.data(), M, K / ScaleBlockSize);
     preShuffleScaleBuffer<ck::is_same_v<BLayout, Col>>(
         b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+    if constexpr(BPreShuffle)
+    {
+        int NPerXdl = 16; // Fixed 16
+        preShuffleBuffer(b_k_n->mData.data(), b_input->mData.data(), N, K, NPerXdl);
+    }
 #endif
     // printf("a_scale:\n");
     // for(ck::index_t i = 0; i < M; i++)
@@ -357,7 +400,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         std::cout << "Device memory allocation..." << std::endl;
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.GetElementSpaceSize());
     DeviceMem a_scale_device_buf(sizeof(XDataType) * a_m_k_scale.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n->GetElementSpaceSize());
     DeviceMem b_scale_device_buf(sizeof(XDataType) * b_k_n_scale.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.GetElementSpaceSize());
 
@@ -365,7 +408,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         std::cout << "Upload data to device..." << std::endl;
     a_device_buf.ToDevice(a_m_k.mData.data());
     a_scale_device_buf.ToDevice(a_shuffled_scale.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
+    b_device_buf.ToDevice(b_input->mData.data());
     b_scale_device_buf.ToDevice(b_shuffled_scale.mData.data());
 
     if(config.verbosity > 0)
@@ -405,7 +448,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     }
 
     std::size_t total_size =
-        a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes() +
+        a_m_k.GetElementSpaceSizeInBytes() + b_k_n->GetElementSpaceSizeInBytes() +
         a_m_k_scale.GetElementSpaceSizeInBytes() + b_k_n_scale.GetElementSpaceSizeInBytes() +
         a_shuffled_scale.GetElementSpaceSizeInBytes() +
         b_shuffled_scale.GetElementSpaceSizeInBytes();
@@ -450,7 +493,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         auto ref_argument = ref_gemm.MakeArgument(a_m_k,
                                                   a_m_k_scale,
-                                                  b_k_n,
+                                                  *b_k_n,
                                                   b_k_n_scale,
                                                   c_m_n_host_result,
                                                   PassThrough{},
@@ -525,7 +568,8 @@ template <typename DeviceOpInstance,
           typename CElementOp,
           typename AccDataType,
           typename CShuffleDataType,
-          ck::index_t MXVectorSize>
+          ck::index_t MXVectorSize,
+          bool BPreShuffle = false>
 bool run_mx_gemm_example(int argc, char* argv[])
 {
     ProblemSizeSplitK problem_size;
@@ -546,5 +590,6 @@ bool run_mx_gemm_example(int argc, char* argv[])
                        CElementOp,
                        AccDataType,
                        CShuffleDataType,
-                       MXVectorSize>(problem_size, config);
+                       MXVectorSize,
+                       BPreShuffle>(problem_size, config);
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "gemm_mx_bpreshuffle_common.hpp"
+#include "gemm_mx_common.hpp"
 
 using ADataType = ck::f4x2_pk_t;
 using BDataType = ck::f4x2_pk_t;
@@ -99,7 +99,8 @@ int main(int argc, char* argv[])
                                CElementOp,
                                AccDataType,
                                CShuffleDataType,
-                               ScaleBlockSize>(argc, argv)
+                               ScaleBlockSize,
+                               true>(argc, argv)
                ? 0
                : -1;
 }
