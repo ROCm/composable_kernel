@@ -1815,7 +1815,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT1>(
             p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -1825,7 +1825,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
             p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
 
         // B Scale buffer
-        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT1>(
             p_b_scale_grid, b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
         const CElementwiseOperation c_element_op{};
