@@ -135,32 +135,32 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                                            has_hot_loop_v,
                                                                            tail_number_v>;
 
-            using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 DsLayout,
-                                                 CLayout,
-                                                 CDEElementWise,
-                                                 GemmPipelineProblem::kBlockSize,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
-            using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKargs(gemm_descs);
-            if(!Kernel::IsSupportedArgument(kargs))
-            {
-                throw std::runtime_error("Kernel arguments not supported!");
-            }
+        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             DsLayout,
+                                             CLayout,
+                                             CDEElementWise,
+                                             GemmPipelineProblem::kBlockSize,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC,
+                                             memory_operation>>;
+        using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKargs(gemm_descs);
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            throw std::runtime_error("Kernel arguments not supported!");
+        }
 
         constexpr dim3 blocks = Kernel::BlockSize();
         const dim3 grids      = Kernel::GridSize(gemm_descs);
