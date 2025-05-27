@@ -30,7 +30,8 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename Tensor,
+template <typename GemmConfig,
+          typename Tensor,
           typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -63,11 +64,29 @@ void permute_tensor_b(Tensor& tensor)
                                                                        AccDataType,
                                                                        GemmShape,
                                                                        GemmUniversalTraits,
-                                                                       GEMM_PIPELINE_SCHEDULER,
+                                                                       GemmConfig::Scheduler,
                                                                        true,
                                                                        ck_tile::TailNumber::Full>;
 
-    using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+    constexpr auto GetGemmPipeline = [&]() {
+        if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_MEMORY)
+        {
+            return ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>{};
+        }
+        else if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
+        {
+            return ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>{};
+        }
+        else if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_COMPUTE_V4)
+        {
+            return ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>{};
+        }
+        else
+        {
+            static_assert(0, "Invalid pipeline version");
+        }
+    };
+    using GemmPipeline = decltype(GetGemmPipeline());
 
     const ck_tile::index_t K  = tensor.get_length(0);
     const ck_tile::index_t N  = tensor.get_length(1);
@@ -144,7 +163,8 @@ void permute_vectors_i4x4_b(Tensor& tensor)
     }
 }
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
           typename DsDataType,
           typename AccDataType,
@@ -184,7 +204,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float ave_time;
     if(persistent)
     {
-        ave_time = gemm<ADataType,
+        ave_time = gemm<GemmConfig,
+                        ADataType,
                         BDataType,
                         DsDataType,
                         AccDataType,
@@ -199,7 +220,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     }
     else
     {
-        ave_time = gemm<ADataType,
+        ave_time = gemm<GemmConfig,
+                        ADataType,
                         BDataType,
                         DsDataType,
                         AccDataType,
@@ -232,7 +254,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType = ADataType,
           typename CDataType = ADataType,
           typename ALayout,
@@ -312,7 +335,8 @@ int run_gemm_example_with_layouts(int argc,
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
         if constexpr(GemmConfig::PermuteB)
         {
-            permute_tensor_b<decltype(b_k_n_dev),
+            permute_tensor_b<GemmConfig,
+                             decltype(b_k_n_dev),
                              ADataType,
                              BDataType,
                              AccDataType,
@@ -338,7 +362,8 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ADataType,
+    invoke_gemm<GemmConfig,
+                ADataType,
                 BDataType,
                 ck_tile::tuple<>,
                 AccDataType,
