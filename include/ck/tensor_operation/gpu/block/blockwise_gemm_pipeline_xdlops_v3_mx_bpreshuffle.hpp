@@ -209,7 +209,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
         constexpr auto num_buffer_load_total = num_buffer_load_inst_a + num_buffer_load_inst_b +
                                                num_buffer_load_a_scale + num_buffer_load_b_scale;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num * APackedSize;
         constexpr auto mfma_cycle    = HotLoopInstList::C_MFMA_Inst_Cycle;
 
         constexpr auto ds_read_a_issue_cycle =
@@ -723,8 +723,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
 
                     });
 
-                    // HotLoopScheduler();
-                    // __builtin_amdgcn_sched_barrier(0);
+                    HotLoopScheduler();
+                    __builtin_amdgcn_sched_barrier(0);
                 };
 
                 LoopFunc(I0, I1);
