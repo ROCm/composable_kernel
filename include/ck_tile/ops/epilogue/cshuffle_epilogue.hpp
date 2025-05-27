@@ -101,17 +101,19 @@ struct CShuffleEpilogue
             constexpr index_t num_xdl_shuffles = GetVectorSizeC() / vecPerThread;
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
-                static_assert(kMPerBlock % (kMPerXdl * kMWave) == 0,
-                              "kMPerBlock must be divisible by kMPerXdl*kMWave for CShuffleEpilogue");
-                return std::make_tuple(min(num_xdl_shuffles, kMPerBlock / (kMPerXdl * kMWave)),
-                                       1);
+                static_assert((kMPerBlock % (kMPerXdl * kMWave) == 0) &&
+                                  (kMPerBlock % num_xdl_shuffles == 0),
+                              "kMPerBlock must be divisible by kMPerXdl*kMWave and "
+                              "num_xdl_shuffles for CShuffleEpilogue");
+                return std::make_tuple(min(num_xdl_shuffles, kMPerBlock / (kMPerXdl * kMWave)), 1);
             }
             else
             {
-                static_assert(kNPerBlock % (kNPerXdl * kNWave) == 0,
-                              "kNPerBlock must be divisible by kNPerXdl*kNWave for CShuffleEpilogue");
-                return std::make_tuple(1,
-                                       min(num_xdl_shuffles, kNPerBlock / (kNPerXdl * kNWave)));
+                static_assert((kNPerBlock % (kNPerXdl * kNWave) == 0) &&
+                                  (kNPerBlock % num_xdl_shuffles == 0),
+                              "kNPerBlock must be divisible by kNPerXdl*kNWave and "
+                              "num_xdl_shuffles for CShuffleEpilogue");
+                return std::make_tuple(1, min(num_xdl_shuffles, kNPerBlock / (kNPerXdl * kNWave)));
             }
         }
     }();
