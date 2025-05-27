@@ -11,17 +11,16 @@ num_head=4
 window_size=5
 target=20
 
-add_target() 
+add_comma()
 {
    x=$*
 
    y=""
    for len in $x; do
-       new_len=$(($len + $target));
        if test -z $y; then
-          y="$new_len"
+          y="$len"
        else
-          y="$y,$new_len"
+          y="$y,$len"
        fi; 
    done   
 
@@ -35,12 +34,12 @@ sl8192="4571 3202 270 1540 8169 3365 6055 7181 2942 4213 2717 3593 7748 4646 550
 sl16384="6956 7177 338 13755 10382 13392 10150 15592 15929 5256 6825 3804 5197 13415 14099 12418 13772 13659 5998 3715 9862 9183 11826 12964 6041 6712 12846 475 4672 7690 12280 10175"
 sl32768="28810 1574 80 24581 32298 19576 8028 25764 16544 14321 22771 7622 21090 27370 15921 5841 5458 23228 23619 17897 11996 31636 23183 20444 26332 7742 3418 9181 4750 18744 5201 2019"
 
-s_sl1024=`add_target $sl1024`
-s_sl2048=`add_target $sl2048`
-s_sl4096=`add_target $sl4096`
-s_sl8192=`add_target $sl8192`
-s_sl16384=`add_target $sl16384`
-s_sl32768=`add_target $sl32768`
+s_sl1024=`add_comma $sl1024`
+s_sl2048=`add_comma $sl2048`
+s_sl4096=`add_comma $sl4096`
+s_sl8192=`add_comma $sl8192`
+s_sl16384=`add_comma $sl16384`
+s_sl32768=`add_comma $sl32768`
 
 set -x 
 
