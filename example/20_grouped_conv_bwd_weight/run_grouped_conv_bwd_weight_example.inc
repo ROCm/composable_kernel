@@ -6,7 +6,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
     // Dl and WMMA ops don't support split_k > 1
-    constexpr ck::index_t split_k = 1;
+    const ck::index_t split_k = config.split_k;
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
@@ -96,15 +96,19 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                       OutElementOp{},
                                       split_k);
 
+    DeviceMem gemm_workspace_dev(conv.GetWorkSpaceSize(&argument));
+    conv.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
+
     if(!conv.IsSupportedArgument(argument))
     {
+        invoker.ShowInfo(argument);
         std::cerr << "wrong! device_conv with the specified compilation parameters does "
                      "not support this Conv problem"
                   << std::endl;
         return true;
     }
 
-    invoker.Run(argument, StreamConfig{nullptr, false});
+    invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
     if(config.do_verification)
     {

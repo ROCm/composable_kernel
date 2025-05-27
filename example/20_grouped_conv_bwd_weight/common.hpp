@@ -74,12 +74,13 @@ struct ExecutionConfig final
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
+    int split_k          = 1;
 };
 
-#define DefaultConvParam                                                                         \
-    ck::utils::conv::ConvParam                                                                   \
-    {                                                                                            \
-        3, 4, 1, 128, 256, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, { 1, 1, 1 } \
+#define DefaultConvParam                                                                       \
+    ck::utils::conv::ConvParam                                                                 \
+    {                                                                                          \
+        3, 4, 1, 128, 256, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1} \
     }
 
 inline void print_help_msg()
@@ -87,6 +88,7 @@ inline void print_help_msg()
     std::cerr << "arg1: verification (0=no, 1=yes)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
+              << "arg4: k split\n"
               << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
 }
 
@@ -96,7 +98,7 @@ inline bool parse_cmd_args(int argc,
                            ck::utils::conv::ConvParam& conv_param)
 {
     constexpr int num_execution_config_args =
-        3; // arguments for do_verification, init_method, time_kernel
+        4; // arguments for do_verification, init_method, time_kernel
     constexpr int num_conv_param_leading_args = 5; // arguments for num_dim_spatial_, G_, N_, K_, C_
 
     constexpr int threshold_to_catch_partial_args = 1 + num_execution_config_args;
@@ -113,6 +115,7 @@ inline bool parse_cmd_args(int argc,
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
+        config.split_k         = std::stoi(argv[4]);
     }
     // catch both ExecutionConfig & ConvParam arguments
     else if(threshold_to_catch_all_args < argc && ((argc - threshold_to_catch_all_args) % 3 == 0))
@@ -120,10 +123,11 @@ inline bool parse_cmd_args(int argc,
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);
         config.time_kernel     = std::stoi(argv[3]);
+        config.split_k         = std::stoi(argv[4]);
 
-        const ck::index_t num_dim_spatial = std::stoi(argv[4]);
+        const ck::index_t num_dim_spatial = std::stoi(argv[5]);
         conv_param                        = ck::utils::conv::parse_conv_param(
-            num_dim_spatial, threshold_to_catch_partial_args, argv);
+            num_dim_spatial, threshold_to_catch_partial_args + 1, argv);
     }
     else
     {
