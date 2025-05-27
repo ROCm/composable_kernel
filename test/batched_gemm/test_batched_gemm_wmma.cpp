@@ -65,71 +65,68 @@ class TestBatchedGemm : public ::testing::Test
                                                                                   PassThrough>>(
                             true, 1, false, 1, M, N, K, K, N, N, M * K, K * N, M * N, BatchCount);
 
-            // pass =
-            //     pass && ck::profiler::profile_batched_gemm_impl<DataType,
-            //                                                     DataType,
-            //                                                     DataType,
-            //                                                     Row,
-            //                                                     Col,
-            //                                                     Row,
-            //                                                     PassThrough,
-            //                                                     PassThrough,
-            //                                                     PassThrough,
-            //                                                     DeviceBatchedGemm<Row,
-            //                                                                       Col,
-            //                                                                       Row,
-            //                                                                       DataType,
-            //                                                                       DataType,
-            //                                                                       DataType,
-            //                                                                       PassThrough,
-            //                                                                       PassThrough,
-            //                                                                       PassThrough>>(
-            //                 true, 1, false, 1, M, N, K, K, K, N, M * K, K * N, M * N,
-            //                 BatchCount);
+            pass =
+                pass && ck::profiler::profile_batched_gemm_impl<DataType,
+                                                                DataType,
+                                                                DataType,
+                                                                Row,
+                                                                Col,
+                                                                Row,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                DeviceBatchedGemm<Row,
+                                                                                  Col,
+                                                                                  Row,
+                                                                                  DataType,
+                                                                                  DataType,
+                                                                                  DataType,
+                                                                                  PassThrough,
+                                                                                  PassThrough,
+                                                                                  PassThrough>>(
+                            true, 1, false, 1, M, N, K, K, K, N, M * K, K * N, M * N, BatchCount);
 
-            // pass =
-            //     pass && ck::profiler::profile_batched_gemm_impl<DataType,
-            //                                                     DataType,
-            //                                                     DataType,
-            //                                                     Col,
-            //                                                     Row,
-            //                                                     Row,
-            //                                                     PassThrough,
-            //                                                     PassThrough,
-            //                                                     PassThrough,
-            //                                                     DeviceBatchedGemm<Col,
-            //                                                                       Row,
-            //                                                                       Row,
-            //                                                                       DataType,
-            //                                                                       DataType,
-            //                                                                       DataType,
-            //                                                                       PassThrough,
-            //                                                                       PassThrough,
-            //                                                                       PassThrough>>(
-            //                 true, 1, false, 1, M, N, K, M, N, N, M * K, K * N, M * N,
-            //                 BatchCount);
+            pass =
+                pass && ck::profiler::profile_batched_gemm_impl<DataType,
+                                                                DataType,
+                                                                DataType,
+                                                                Col,
+                                                                Row,
+                                                                Row,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                DeviceBatchedGemm<Col,
+                                                                                  Row,
+                                                                                  Row,
+                                                                                  DataType,
+                                                                                  DataType,
+                                                                                  DataType,
+                                                                                  PassThrough,
+                                                                                  PassThrough,
+                                                                                  PassThrough>>(
+                            true, 1, false, 1, M, N, K, M, N, N, M * K, K * N, M * N, BatchCount);
 
-            // pass =
-            //     pass && ck::profiler::profile_batched_gemm_impl<DataType,
-            //                                                     DataType,
-            //                                                     DataType,
-            //                                                     Col,
-            //                                                     Col,
-            //                                                     Row,
-            //                                                     PassThrough,
-            //                                                     PassThrough,
-            //                                                     PassThrough,
-            //                                                     DeviceBatchedGemm<Col,
-            //                                                                       Col,
-            //                                                                       Row,
-            //                                                                       DataType,
-            //                                                                       DataType,
-            //                                                                       DataType,
-            //                                                                       PassThrough,
-            //                                                                       PassThrough,
-            //                                                                       PassThrough>>(
-            //                 true, 1, false, 1, M, N, K, M, K, N, M * K, K * N, M * N,
-            //                 BatchCount);
+            pass =
+                pass && ck::profiler::profile_batched_gemm_impl<DataType,
+                                                                DataType,
+                                                                DataType,
+                                                                Col,
+                                                                Col,
+                                                                Row,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                DeviceBatchedGemm<Col,
+                                                                                  Col,
+                                                                                  Row,
+                                                                                  DataType,
+                                                                                  DataType,
+                                                                                  DataType,
+                                                                                  PassThrough,
+                                                                                  PassThrough,
+                                                                                  PassThrough>>(
+                            true, 1, false, 1, M, N, K, M, K, N, M * K, K * N, M * N, BatchCount);
         }
         EXPECT_TRUE(pass);
     }
