@@ -4,6 +4,10 @@ list(APPEND BATCHED_GEMM_INSTANCES device_batched_gemm_wmma_universal_f16_f16_f1
                                    device_batched_gemm_wmma_universal_f16_f16_f16_gkm_gnk_gmn_instance.cpp
                                    device_batched_gemm_wmma_universal_f16_f16_f16_gmk_gkn_gmn_instance.cpp
                                    device_batched_gemm_wmma_universal_f16_f16_f16_gmk_gnk_gmn_instance.cpp
+                                   device_batched_gemm_wmma_universal_bf16_bf16_bf16_gkm_gkn_gmn_instance.cpp
+                                   device_batched_gemm_wmma_universal_bf16_bf16_bf16_gkm_gnk_gmn_instance.cpp
+                                   device_batched_gemm_wmma_universal_bf16_bf16_bf16_gmk_gkn_gmn_instance.cpp
+                                   device_batched_gemm_wmma_universal_bf16_bf16_bf16_gmk_gnk_gmn_instance.cpp
                                    device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instance.cpp
                                    device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_instance.cpp
                                    device_batched_gemm_xdl_f16_f16_f16_gkm_gkn_gmn_instance.cpp

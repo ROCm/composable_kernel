@@ -145,18 +145,22 @@ class TestBatchedGemm : public ::testing::Test
 // }
 // #endif
 
-// #ifdef CK_ENABLE_BF16
-// TEST_F(TestBatchedGemm, bf16)
-// {
-//     this->params.push_back({64, 64, 64, 2});
-//     this->params.push_back({64, 64, 64, 1});
-//     this->params.push_back({60, 60, 60, 2});
-//     this->params.push_back({68, 68, 68, 2});
-//     this->params.push_back({40, 40, 40, 2});
-//     this->params.push_back({256, 256, 128, 3});
-//     this->template Run<ck::bhalf_t>();
-// }
-// #endif
+#ifdef CK_ENABLE_BF16
+TEST_F(TestBatchedGemm, bf16)
+{
+    // this->params.push_back({64, 64, 64, 2});
+    // this->params.push_back({64, 64, 64, 1});
+    // this->params.push_back({60, 60, 60, 2});
+    // this->params.push_back({68, 68, 68, 2});
+    // this->params.push_back({40, 40, 40, 2});
+    // this->params.push_back({256, 256, 128, 3});
+
+    // Temporary tests with large MNK
+    this->params.push_back({512, 256, 128, 1});
+    this->params.push_back({512, 256, 128, 3});
+    this->template Run<ck::bhalf_t>();
+}
+#endif
 
 #ifdef CK_ENABLE_FP16
 TEST_F(TestBatchedGemm, fp16)
