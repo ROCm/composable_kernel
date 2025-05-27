@@ -22,18 +22,18 @@ class GemmProfiler
         return instance;
     }
 
-    bool is_problem_record_cache(const GemmProblem& gemm_problem)
+    bool if_should_profile(const GemmProblem& gemm_problem)
     {
         if(setting_.enable_profile_cache_)
         {
             if(!cache_db_->check_if_record_problem(
                    get_rocm_version(), ck_tile::get_device_name(), gemm_problem))
             {
-                return false;
+                return true;
             }
             else
             {
-                auto [name, perf_result] = cache_db_->query_cache(
+                const auto& [name, perf_result] = cache_db_->query_cache(
                     get_rocm_version(), ck_tile::get_device_name(), gemm_problem);
                 KernelInstance kernel_instance;
                 kernel_instance.problem_                = gemm_problem;
@@ -41,16 +41,16 @@ class GemmProfiler
                 kernel_instance.perf_result_.latency_   = perf_result.latency_;
                 kernel_instance.perf_result_.tflops_    = perf_result.tflops_;
                 kernel_instance.perf_result_.bandwidth_ = perf_result.bandwidth_;
-                std::cout << "Skip this problem for " << gemm_problem
+                std::cout << "Skip this instance for " << kernel_instance
                           << ", Because it has already been recorded in the cache database"
                           << std::endl;
                 kernel_instances_.emplace_back(kernel_instance);
-                return true;
+                return false;
             }
         }
         else
         {
-            return false;
+            return true;
         }
     }
 
@@ -69,7 +69,7 @@ class GemmProfiler
         gemm_problem.stride_c_ = ck_tile::get_default_stride(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c));
 
-        if(is_problem_record_cache(gemm_problem))
+        if(!if_should_profile(gemm_problem))
             return;
 
         ck_tile::HostTensor<ADataType> a_m_k(ck_tile::host_tensor_descriptor(
@@ -157,7 +157,7 @@ class GemmProfiler
                                 gemm_problem.stride_c_);
         }
 
-        for(auto callable : callables)
+        for(auto& callable : callables)
         {
             auto kernel_run_result = callable(gemm_args,
                                               ck_tile::stream_config{nullptr,
@@ -186,7 +186,7 @@ class GemmProfiler
                         ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                         const std::tuple<std::string, float>& kernel_run_result)
     {
-        auto [name, avg_time] = kernel_run_result;
+        const auto& [name, avg_time] = kernel_run_result;
 
         KernelInstance kernel_instance{name, gemm_problem, {-1.0f, -1.0f, -1.0f}};
 
@@ -290,7 +290,7 @@ class GemmProfiler
         return kernel_instance;
     }
 
-    GemmProfiler(const GemmProfiler&)            = delete;
+    GemmProfiler(const GemmProfiler&) = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     private:

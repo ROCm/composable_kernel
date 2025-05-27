@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 
 #include "gemm_host_api.hpp"
@@ -38,6 +39,13 @@ struct GemmProblem
     std::string layout_a_, layout_b_, layout_c_;
 
     bool structured_sparsity_;
+
+    std::string to_json() const
+    {
+        std::ostringstream oss;
+        oss << *this;
+        return oss.str();
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const GemmProblem& problem)
     {

@@ -6,7 +6,7 @@ CK Tile Engine GEMM is used to generate and run GEMM kernels with different comb
 
 User can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file with limited values. For reference please see `./configs/user_provided_config.json`. 
 
-The Tile engine also has a default kernel configuration for providing range of configuration parameter values, which helps users who lack kernel development experience to benchmark  For reference please see in `./configs/default_config.json`
+The Tile engine also has a default kernel configuration for providing range of configuration parameter values, which helps users who lack kernel development experience to benchmark. For reference please see in `./configs/default_config.json`
 
 If user does not provide kernel configuration, the tile engine uses default kernel configuration to generate kernel instances and benchmark. 
 

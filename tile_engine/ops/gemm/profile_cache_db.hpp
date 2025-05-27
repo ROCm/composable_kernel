@@ -3,7 +3,6 @@
 
 #include <sqlite3.h>
 #include <tuple>
-#include <sstream>
 
 #include "benchmark_gemm.hpp"
 
@@ -72,9 +71,9 @@ class ProfileCacheDB
 
         try
         {
-            exec_direct("PRAGMA journal_mode = WAL");
-            exec_direct("PRAGMA synchronous = NORMAL");
-            exec_direct("PRAGMA foreign_keys = ON");
+            execute("PRAGMA journal_mode = WAL");
+            execute("PRAGMA synchronous = NORMAL");
+            execute("PRAGMA foreign_keys = ON");
 
             constexpr const char* schema = R"sql(
                 CREATE TABLE IF NOT EXISTS gemm (
@@ -87,12 +86,9 @@ class ProfileCacheDB
                     tflops REAL CHECK(tflops > 0),
                     bandwidth REAL CHECK(bandwidth > 0)
                 );
-                CREATE INDEX IF NOT EXISTS idx_latency ON gemm(latency);
-                CREATE INDEX IF NOT EXISTS idx_tflops_desc ON gemm(tflops DESC);
-                CREATE INDEX IF NOT EXISTS idx_bandwidth_desc ON gemm(bandwidth DESC);
             )sql";
 
-            exec_direct(schema);
+            execute(schema);
         }
         catch(...)
         {
@@ -105,12 +101,12 @@ class ProfileCacheDB
                                  const GemmProblem& gemm_problem)
     {
         constexpr const char* sql = R"sql(
-                SELECT 1 FROM gemm
-                WHERE rocm_version=? 
-                AND device_name=?
-                AND problem=?
-                LIMIT 1
-                )sql";
+            SELECT 1 FROM gemm
+            WHERE rocm_version=? 
+            AND device_name=?
+            AND problem=?
+            LIMIT 1
+        )sql";
 
         StmtWrapper stmt(db_ptr_.get(), sql);
         sqlite3_stmt* raw_stmt = stmt;
@@ -120,22 +116,14 @@ class ProfileCacheDB
             db_ptr_.get());
         CHECK_SQLITE3(sqlite3_bind_text(raw_stmt, idx++, device_name.c_str(), -1, SQLITE_TRANSIENT),
                       db_ptr_.get());
-        std::ostringstream oss;
-        oss << gemm_problem;
-        auto problem_json = oss.str();
-        CHECK_SQLITE3(
-            sqlite3_bind_text(raw_stmt, idx++, problem_json.c_str(), -1, SQLITE_TRANSIENT),
-            db_ptr_.get());
+        CHECK_SQLITE3(sqlite3_bind_text(
+                          raw_stmt, idx++, gemm_problem.to_json().c_str(), -1, SQLITE_TRANSIENT),
+                      db_ptr_.get());
 
         int rc;
         CHECK_SQLITE3_RC(sqlite3_step(raw_stmt), db_ptr_.get(), rc);
         CHECK_SQLITE3(sqlite3_reset(raw_stmt), db_ptr_.get());
         CHECK_SQLITE3(sqlite3_clear_bindings(raw_stmt), db_ptr_.get());
-
-        std::cout << "Query params:\n"
-                  << "rocm_version: " << rocm_version << "\n"
-                  << "device_name: " << device_name << "\n"
-                  << "problem_json: " << problem_json << std::endl;
 
         if(rc == SQLITE_DONE)
         {
@@ -149,8 +137,9 @@ class ProfileCacheDB
                                                            const GemmProblem& gemm_problem)
     {
         constexpr const char* sql = R"sql(
-            SELECT latency, tflops, bandwidth FROM gemm 
-            WHERE rocm_version=? AND device_name=?
+            SELECT instance_name, latency, tflops, bandwidth FROM gemm 
+            WHERE rocm_version=? 
+            AND device_name=?
             AND problem=?
             LIMIT 1
         )sql";
@@ -164,12 +153,9 @@ class ProfileCacheDB
             db_ptr_.get());
         CHECK_SQLITE3(sqlite3_bind_text(raw_stmt, idx++, device_name.c_str(), -1, SQLITE_TRANSIENT),
                       db_ptr_.get());
-        std::ostringstream oss;
-        oss << gemm_problem;
-        auto problem_json = oss.str();
-        CHECK_SQLITE3(sqlite3_bind_text(
-                          stmt, idx++, problem_json.c_str(), problem_json.size(), SQLITE_TRANSIENT),
-                      db_ptr_.get());
+        CHECK_SQLITE3(
+            sqlite3_bind_text(stmt, idx++, gemm_problem.to_json().c_str(), -1, SQLITE_TRANSIENT),
+            db_ptr_.get());
 
         int rc;
         CHECK_SQLITE3_RC(sqlite3_step(raw_stmt), db_ptr_.get(), rc);
@@ -195,15 +181,25 @@ class ProfileCacheDB
                       const std::string& device_name,
                       const std::vector<KernelInstance>& kernen_instnaces)
     {
-        exec_direct("BEGIN TRANSACTION");
+        execute("BEGIN TRANSACTION");
         try
         {
             constexpr const char* sql = R"sql(
                 INSERT INTO gemm
-                    (rocm_version, device_name, 
-                    problem, instance_name, 
-                    latency, tflops, bandwidth)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                    (rocm_version, 
+                     device_name, 
+                     problem, 
+                     instance_name, 
+                     latency, 
+                     tflops, 
+                     bandwidth)
+                VALUES (?1, 
+                        ?2, 
+                        ?3, 
+                        ?4, 
+                        ?5, 
+                        ?6, 
+                        ?7)
             )sql";
 
             StmtWrapper stmt(db_ptr_.get(), sql);
@@ -218,15 +214,10 @@ class ProfileCacheDB
                 CHECK_SQLITE3(
                     sqlite3_bind_text(raw_stmt, idx++, device_name.c_str(), -1, SQLITE_TRANSIENT),
                     db_ptr_.get());
-                std::ostringstream oss;
-                oss << item.problem_;
-                auto problem_json = oss.str();
-                CHECK_SQLITE3(sqlite3_bind_text(raw_stmt,
-                                                idx++,
-                                                problem_json.c_str(),
-                                                problem_json.size(),
-                                                SQLITE_TRANSIENT),
-                              db_ptr_.get());
+                CHECK_SQLITE3(
+                    sqlite3_bind_text(
+                        raw_stmt, idx++, item.problem_.to_json().c_str(), -1, SQLITE_TRANSIENT),
+                    db_ptr_.get());
                 CHECK_SQLITE3(
                     sqlite3_bind_text(raw_stmt, idx++, item.name_.c_str(), -1, SQLITE_TRANSIENT),
                     db_ptr_.get());
@@ -242,17 +233,17 @@ class ProfileCacheDB
                 CHECK_SQLITE3(sqlite3_reset(raw_stmt), db_ptr_.get());
                 CHECK_SQLITE3(sqlite3_clear_bindings(raw_stmt), db_ptr_.get());
             }
-            exec_direct("COMMIT");
+            execute("COMMIT");
         }
         catch(...)
         {
-            exec_direct("ROLLBACK");
+            execute("ROLLBACK");
             throw;
         }
     }
 
     private:
-    void exec_direct(const char* sql)
+    void execute(const char* sql)
     {
         CHECK_SQLITE3(sqlite3_exec(db_ptr_.get(), sql, nullptr, nullptr, nullptr), db_ptr_.get());
     }
