@@ -3,6 +3,7 @@
 
 #include <sqlite3.h>
 #include <tuple>
+#include <memory>
 
 #include "benchmark_gemm.hpp"
 
