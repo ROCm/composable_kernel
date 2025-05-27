@@ -1520,7 +1520,7 @@ struct ElementWiseAdd
 /**
  * @brief Struct defining element-wise multiplication operations
  */
-struct ElementWiseMul
+struct MultiplyMultiply
 {
     /**
      * @brief Function call operator for element-wise multiplication with 3 inputs
