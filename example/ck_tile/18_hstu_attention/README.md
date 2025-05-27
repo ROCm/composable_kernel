@@ -44,7 +44,7 @@
         .insert("nhead", "4", "number of heads")
         .insert("hdim_qk", "64", "headdim size of Q/K")
         .insert("hdim_v", "64", "headdim size of V/O")
-        .insert("seqlen", "400", "seqlen of single or all batches for query and key/value tensor")
+        .insert("seqlen", "400", "seqlen of single or all batches for query and key/value tensor, actually allocated seqlen will include the target of each batch and context_len")
         .insert("targets", "16", "sequence length at the end of query/key token sequence that should be excluded from attention")
         .insert("causal", "1", "enable causal mask or not")
         .insert("local_len", "5", "length of the diagonal window for enabling masking, value 0 to disable")
