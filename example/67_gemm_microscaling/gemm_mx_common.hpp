@@ -203,7 +203,7 @@ template <typename DeviceOpInstance,
           typename AccDataType,
           typename CShuffleDataType,
           ck::index_t ScaleBlockSize,
-          bool BPreShuffle = false>
+          bool BPreShuffle>
 bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& config)
 {
 
@@ -590,5 +590,6 @@ bool run_mx_gemm_example(int argc, char* argv[])
                        CElementOp,
                        AccDataType,
                        CShuffleDataType,
-                       MXVectorSize>(problem_size, config);
+                       MXVectorSize,
+                       BPreShuffle>(problem_size, config);
 }
