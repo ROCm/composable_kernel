@@ -126,7 +126,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                           << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
                           << "}" << std::endl;
             }
-            if(s.flush_cache)
+            if(s.flush_cache_)
             {
                 std::cout << "Flushing cache..." << std::endl;
                 static constexpr ck_tile::index_t APackedSize =
@@ -143,7 +143,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                 auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
 
                 ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                    kargs.a_ptr, kargs.b_ptr, s.rotating_count, size_a_buffer, size_b_buffer);
+                    kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
                 rotating_mem.Print();
 
                 auto run_flush_cache = [&]() {

@@ -117,7 +117,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
         }
 
         float ave_time{0};
-        if(s.flush_cache)
+        if(s.flush_cache_)
         {
             std::cout << "Flushing cache..." << std::endl;
             static constexpr ck_tile::index_t APackedSize =
@@ -134,7 +134,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
             auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
 
             ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                kargs.a_ptr, kargs.b_shuffle_ptr, s.rotating_count, size_a_buffer, size_b_buffer);
+                kargs.a_ptr, kargs.b_shuffle_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
             rotating_mem.Print();
 
             auto run_flush_cache = [&]() {

@@ -30,7 +30,7 @@ struct stream_config
     int cold_niters_       = 3;
     int nrepeat_           = 10;
     bool is_gpu_timer_     = true; // keep compatible
-    bool flush_cache       = false;
-    int rotating_count     = 1;
+    bool flush_cache_       = false;
+    int rotating_count_     = 1;
 };
 } // namespace ck_tile
