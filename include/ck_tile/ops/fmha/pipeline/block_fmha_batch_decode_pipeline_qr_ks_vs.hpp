@@ -490,6 +490,18 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
 #endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
+            /// TODO: only check in first/last iteration without increasing code size
+            if constexpr(kHasUnevenSplits)
+            {
+                const auto k_origin = k_dram_block_window.get_window_origin();
+                set_tile_if(s_acc,
+                            -numeric<SMPLComputeDataType>::infinity(),
+                            [&, seqlen_k_end_ = seqlen_k_end](auto tile_idx) {
+                                const auto col =
+                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                return seqlen_k_end_ <= col;
+                            });
+            }
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto k_origin      = k_dram_block_window.get_window_origin();
