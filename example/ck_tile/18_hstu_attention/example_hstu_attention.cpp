@@ -77,8 +77,10 @@ auto create_args(int argc, char* argv[])
         .insert("nhead", "4", "number of heads")
         .insert("hdim_qk", "64", "headdim size of Q/K")
         .insert("hdim_v", "64", "headdim size of V/O")
-        .insert("seqlen", "400", "uih seqlen of single or all batches for query and key/value tensor, actually allocated seqlen will include the target of each batch and context_len")
+        .insert("seqlens", "400", "uih seqlen of single or all batches for query and key/value tensor, actually allocated seqlen will include the target of each batch and context_len")
+        .insert("max_seqlen", "0", "max uih_seqlen, can be ignored, or else must be equal or bigger than the maximum of all uih seqlens")
         .insert("targets", "", "sequence length at the end of query/key token sequence that should be excluded from attention") 
+        .insert("max_target", "0", "max target, can be ignored, or else must be equal of bigger than the maximum of all targets")
         .insert("causal", "1", "enable causal mask or not")
         .insert("local_len", "5", "length of the diagonal window for enabling masking, value 0 to disable") 
         .insert("context_len", "6", "sequence length at the begin of the query sequence the should be included for attention")
@@ -203,8 +205,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::string str_of_targets   = arg_parser.get_str("targets");
     std::vector<int> num_targets = get_integers_from_string(str_of_targets);
 
-    std::string str_of_lengths   = arg_parser.get_str("seqlen");
+    std::string str_of_lengths   = arg_parser.get_str("seqlens");
     std::vector<int> seq_lengths = get_integers_from_string(str_of_lengths);
+
+    int input_max_uih_seqlen = arg_parser.get_int("max_seqlen");
+    int input_max_target     = arg_parser.get_int("max_target");
 
     int uih_seqlen     = 0; // means total seq lengths for jagged
     int max_uih_seqlen = 0;
@@ -257,6 +262,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         assert(uih_seqlen >= min_full_attn_seqlen);
     };
+
+    // the user input of max_uih_seqlen can either be ignored or be bigger than all uih_seqlens
+    // the user input of max_target can either be ignored or be bigger than all targets
+    assert(input_max_uih_seqlen <= 0 || input_max_uih_seqlen >= max_uih_seqlen);
+    assert(input_max_target <= 0 || input_max_target >= max_target);
+
+    max_uih_seqlen = (input_max_uih_seqlen > 0) ? input_max_uih_seqlen : max_uih_seqlen;
+    max_target     = (input_max_target > 0) ? input_max_target : max_target;
 
     int phy_seqlen = 0;
     int max_seqlen = max_uih_seqlen + max_target + contextual_seqlen;

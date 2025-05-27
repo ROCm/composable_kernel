@@ -43,17 +43,17 @@ s_sl32768=`add_comma $sl32768`
 
 set -x 
 
-$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlen=$s_sl1024 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
+$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlens=$s_sl1024 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
 echo -e ""
-$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlen=$s_sl2048 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
+$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlens=$s_sl2048 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
 echo -e ""
-$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlen=$s_sl4096 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
+$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlens=$s_sl4096 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
 echo -e ""
-$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlen=$s_sl8192 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
+$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlens=$s_sl8192 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
 echo -e ""
-$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlen=$s_sl16384 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
+$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlens=$s_sl16384 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
 echo -e ""
-$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlen=$s_sl32768 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
+$EXE -v=0 -prec=$dtype -b=$num_batch -jagged=1 -nhead=$num_head -hdim_qk=$hdim -hdim_v=$hdim -seqlens=$s_sl32768 -causal=1 -local_len=$window_size -context_len=0 -minfull_len=0 -targets=$target -perf=1
 
 set +x
 
