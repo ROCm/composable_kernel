@@ -3,6 +3,11 @@
 
 #pragma once
 
+#include "ck_tile/ops/elementwise/kernel/elementwise.hpp"
+#include "ck_tile/ops/elementwise/pipeline/elementwise_operators.hpp"
+#include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_default_policy.hpp"
+#include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_problem.hpp"
+#include "ck_tile/ops/elementwise/pipeline/elementwise_traits.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"

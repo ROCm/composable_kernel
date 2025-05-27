@@ -1,9 +1,5 @@
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_problem.hpp"
-#include "ck_tile/ops/elementwise/pipeline/elementwise_traits.hpp"
-#include "ck_tile/ops/elementwise/pipeline/elementwise_operators.hpp"
-#include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_default_policy.hpp"
-#include "ck_tile/ops/elementwise/kernel/elementwise.hpp"
+#include "ck_tile/ops/elementwise.hpp"
 #include "reference_square.hpp"
 
 auto create_args(int argc, char* argv[])
@@ -14,8 +10,8 @@ auto create_args(int argc, char* argv[])
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
-        .insert("warmup", "1", "cold iter")
-        .insert("repeat", "1", "hot iter");
+        .insert("warmup", "10", "cold iter")
+        .insert("repeat", "50", "hot iter");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -37,7 +33,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     assert(stride >= N);
 
     using XDataType             = DataType;
-    using ComputeDataType       = float;
     using YDataType             = DataType;
     using XElementwiseOperation = ck_tile::element_wise::UnarySquare;
 
@@ -58,30 +53,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
     y_buf.ToDevice(y_host.data());
 
     // 3. Create the kernel
-    // using BlockWarps = ck_tile::sequence<16>;
-    // using BlockTile  = ck_tile::sequence<16384>;
-    // using WarpTile   = ck_tile::sequence<1024>;
-    // using Vector     = ck_tile::sequence<16>;
     
     // Dividing the problem into blocktile, warptile, and vector
-    // The blocktile is the size of the tile that will be processed by a single thread block (also
-    // called work group) The warptile is the size of the tile that will be processed by a single
-    // warp (also called wavefront) The vector is the size of the tile that will be processed by a
-    // single thread (also called work item) The problem is divided into blocks of size BlockTile,
-    // each block is further divided into warps of size WarpTile and each warp is composed of 64 or
-    // 32 threads of size Vector each of the thread in a warp will process one vector worth elements
-    // of the data
     using BlockTile = ck_tile::sequence<2048>; // Size of the block tile (Entire problem is divided
-    // into blocks of this size)
+                                               // into blocks of this size)
     using BlockWarps = ck_tile::sequence<8>; // How many concurrent warps are in a block (Each warp
-    // will cover some part of blockTile)
-    using WarpTile = ck_tile::sequence<64>;  // How many elements are covered by a warp
+                                            // will cover some part of blockTile)
+    using WarpTile = ck_tile::sequence<64>; // How many elements are covered by a warp
     using Vector   = ck_tile::sequence<1>; // How many elements are covered by a thread (Each thread
 
 
     using Shape   = ck_tile::ElementWiseTraits<BlockWarps, BlockTile, WarpTile, Vector>;
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
-                                                        ComputeDataType,
+                                                        XDataType, // ComputeDataType is same as XDataType in the unary case
                                                         YDataType,
                                                         Shape,
                                                         XElementwiseOperation>;
