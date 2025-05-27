@@ -1,11 +1,10 @@
-# 1D elementwise target
-# Elementwise target with 2D input
+# Elementwise example targets 2D inputs
 set(TARGET_NAME_2D_INPUT tile_example_elementwise)
 add_executable(${TARGET_NAME_2D_INPUT} elementwise_example.cpp)
 rocm_install(TARGETS ${TARGET_NAME_2D_INPUT} COMPONENT examples)
 target_include_directories(${TARGET_NAME_2D_INPUT} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/)
 
-# Elementwise unary target with 2D input
+# Elementwise unary example targets 2D inputs
 set(TARGET_NAME_2D_INPUT_UNARY tile_example_elementwise_unary)
 add_executable(${TARGET_NAME_2D_INPUT_UNARY} elementwise_example_unary.cpp)
 rocm_install(TARGETS ${TARGET_NAME_2D_INPUT_UNARY} COMPONENT examples)
