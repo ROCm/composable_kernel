@@ -34,7 +34,7 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
+    kernel_gemm_xdl_cshuffle_v3_b_preshuffle(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -65,7 +65,7 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
+    kernel_gemm_xdl_cshuffle_v3_b_preshuffle_2lds(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
@@ -1815,8 +1815,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT1>(
-            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+        const auto b_grid_buf =
+            make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT1>(
+                p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
@@ -1825,8 +1826,9 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
             p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
 
         // B Scale buffer
-        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT1>(
-            p_b_scale_grid, b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+        const auto b_scale_grid_buf =
+            make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT1>(
+                p_b_scale_grid, b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
         const CElementwiseOperation c_element_op{};
 
