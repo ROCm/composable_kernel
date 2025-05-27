@@ -563,11 +563,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         // partial sums(K/ScaleBlockSize)]
         // FLOPS = 2 * M * N * K + 2 * M * N * K / ScaleBlockSize
         std::size_t flop = std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / ScaleBlockSize;
-        std::size_t num_btype = sizeof(ADataType) * M * K / APackedSize+ 
-                                sizeof(BDataType) * K * N / BPackedSize+
-                                sizeof(CDataType) * M * N +
-                                sizeof(XDataType) * M * K / ScaleBlockSize + 
-                                sizeof(XDataType) * N * K / ScaleBlockSize;
+        std::size_t num_btype =
+            sizeof(ADataType) * M * K / APackedSize + sizeof(BDataType) * K * N / BPackedSize +
+            sizeof(CDataType) * M * N + sizeof(XDataType) * M * K / ScaleBlockSize +
+            sizeof(XDataType) * N * K / ScaleBlockSize;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
