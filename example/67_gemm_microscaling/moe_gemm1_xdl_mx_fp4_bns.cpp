@@ -159,7 +159,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
     ScaleBlockSize, BlockSize,   
     MPerBlock,      NPerBlock,    KPerBlock,
-    16,   16,
+    16,   16, 
     16,   16,
     2,     4,
     S<8, 32, 1>, S<1, 0, 2>,     S<1, 0, 2>,    2, 16, 16, 0,
@@ -236,6 +236,12 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({sorted_tile_num + 1}));
     max_token_id.mData[0] = valid_size;
+
+    if(tokens * topk > valid_size)
+    {
+        printf("err config, tokens * topk > valid_size\n");
+        exit(-1);
+    }
 
     for(int i = 0; i < sorted_tile_num; i++)
     {
