@@ -8,7 +8,7 @@
 namespace ck_tile {
 
 template <typename BlockWarps, typename BlockTile, typename WarpTile, typename Vector>
-struct ElementWiseTraits
+struct ElementWiseShape
 {
     static constexpr index_t kBlockM = BlockTile::at(number<0>{});
 

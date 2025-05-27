@@ -98,7 +98,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // such warp operations might be needed to cover the BlockTile, or the BlockTile is
     // distributed differently.
     // The current configuration (BlockTile=2048, BlockWarps=8, WarpTile=64) implies that
-    // each warp processes 64 elements, and 8 warps process 8*64 = 512 elements concurrently.                                             
+    // each warp processes 64 elements, and 8 warps process 8*64 = 512 elements concurrently.
+    // Since 512 is not equal to 2048, it means that warptile(s) will need to iterate over multiple times over different set of elements to cover
+    // the entire BlockTile.                                      
     using WarpTile = ck_tile::sequence<64>;
     
     // Vector: Defines the number of elements processed by a single thread in one operation.
@@ -112,7 +114,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // ElementWiseTraits bundles these tiling parameters.
     // It calculates derived properties like threads per warp, repeats, and total block size.
-    using Shape   = ck_tile::ElementWiseTraits<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Shape   = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, Vector>;
 
     // ElementWisePipelineProblem encapsulates all necessary information for the elementwise kernel:
     // - Data types (input, compute, output).

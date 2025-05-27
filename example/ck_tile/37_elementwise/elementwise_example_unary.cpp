@@ -60,10 +60,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockWarps = ck_tile::sequence<8>; // How many concurrent warps are in a block (Each warp
                                             // will cover some part of blockTile)
     using WarpTile = ck_tile::sequence<64>; // How many elements are covered by a warp
-    using Vector   = ck_tile::sequence<1>; // How many elements are covered by a thread (Each thread
+    using Vector   = ck_tile::sequence<1>; // How many elements are covered by a thread (Each thread will cover some part of WarpTile)
 
 
-    using Shape   = ck_tile::ElementWiseTraits<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Shape   = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, Vector>;
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
                                                         XDataType, // ComputeDataType is same as XDataType in the unary case
                                                         YDataType,
