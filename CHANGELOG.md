@@ -18,10 +18,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for Split K for grouped convolution backward data.
 * Added logit soft-capping support for fMHA forward kernels.
 * Added benchmarking support for tile engine GEMM.
-<<<<<<< HEAD
 * Added profiling cache support for tile engine GEMM.
-=======
->>>>>>> upstream/develop
 
 ### Optimized
 
