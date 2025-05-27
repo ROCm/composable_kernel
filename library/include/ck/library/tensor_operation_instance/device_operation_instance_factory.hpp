@@ -43,8 +43,9 @@ using BF16_Tuple    = ck::Tuple<BF16>;
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
 
 // GEMM layout
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row  = ck::tensor_layout::gemm::RowMajor;
+using Col  = ck::tensor_layout::gemm::ColumnMajor;
+using MFMA = ck::tensor_layout::gemm::MFMA;
 
 using Row_Tuple     = ck::Tuple<Row>;
 using Row_Row_Tuple = ck::Tuple<Row, Row>;

@@ -108,7 +108,8 @@ struct DeviceOperationInstanceFactory<
                                                ScaleBlockSize,
                                                ck::tensor_operation::element_wise::PassThrough,
                                                ck::tensor_operation::element_wise::PassThrough,
-                                               ck::tensor_operation::element_wise::PassThrough>>
+                                               ck::tensor_operation::element_wise::PassThrough>,
+    enable_if_t<!is_same_v<BLayout, MFMA>>> // non-weight-pre-shuffle
 {
     using DeviceOp = DeviceGemmMX<ALayout,
                                   BLayout,

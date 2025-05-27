@@ -149,7 +149,7 @@ template <typename ALayout,
               BDataType // TODO: Hardcode them and remove from the list of template parameters
           >
 struct DeviceGemmMX_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmMX<ALayout,
-                                                                     BLayout,
+                                                                     tensor_layout::gemm::MFMA,
                                                                      CLayout,
                                                                      ADataType,
                                                                      AScaleDataType,
@@ -472,7 +472,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmMX<ALayout,
             return false;
         }
 
-        if(!ck::is_xdl_supported())
+        if(ck::get_device_name() != "gfx950")
         {
             return false;
         }
