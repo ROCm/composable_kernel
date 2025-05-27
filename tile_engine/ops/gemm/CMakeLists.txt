@@ -58,8 +58,12 @@ set(EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS)
 
 list(APPEND EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS
      -Wno-undefined-func-template
-     -Wno-float-equal
-     --offload-compress)
+     -Wno-float-equal)
+
+if(not DISABLE_OFFLOAD_COMPRESS)
+    list(APPEND EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS
+        --offload-compress)
+endif()
 
 target_compile_options(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE ${EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS})
 
