@@ -10,6 +10,7 @@
 
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1_nchw.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1_nchw_2lds.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v4_direct_load.hpp"
 
@@ -19,6 +20,7 @@ enum struct PipelineVersion
 {
     v1,
     v1_nchw,
+    v1_nchw_2lds,
     v2,
     // v3 is only used in the Stream-K implementation.
     v4,
@@ -46,6 +48,10 @@ constexpr auto GridwiseGemmPipeline_Selector()
     else if constexpr(PipelineVer == PipelineVersion::v1_nchw)
     {
         return GridwiseGemmPipeline_v1_nchw<NumPrefetch, true, true>{};
+    }
+    else if constexpr(PipelineVer == PipelineVersion::v1_nchw_2lds)
+    {
+        return GridwiseGemmPipeline_v1_nchw_2lds<NumPrefetch, true, true>{};
     }
     else if constexpr(PipelineVer == PipelineVersion::v2)
     {
@@ -76,6 +82,7 @@ inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
     {
     case ck::PipelineVersion::v1: os << "PipelineVersion::v1"; break;
     case ck::PipelineVersion::v1_nchw: os << "PipelineVersion::v1_nchw"; break; 
+    case ck::PipelineVersion::v1_nchw_2lds: os << "PipelineVersion::v1_nchw_2lds"; break; 
     case ck::PipelineVersion::v2: os << "PipelineVersion::v2"; break;
     case ck::PipelineVersion::v4: os << "PipelineVersion::v4"; break;
     case ck::PipelineVersion::weight_only: os << "PipelineVersion::weight_only"; break;

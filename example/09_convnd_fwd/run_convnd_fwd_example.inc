@@ -12,7 +12,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
     bool time_kernel     = false;
 
     ck::utils::conv::ConvParam conv_param{
-        2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
+        2, 1, 64, 64, 64, {3, 3}, {64, 64}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
 
     if(argc == 1)
     {
@@ -80,18 +80,18 @@ bool run_convnd_fwd_example(int argc, char* argv[])
 
     namespace ctc = ck::tensor_layout::convolution;
 
-    if(conv_param.num_dim_spatial_ == 1)
-    {
-        return run(ck::Number<1>{}, ctc::GNWC{}, ctc::GKXC{}, ctc::GNWK{});
-    }
-    else if(conv_param.num_dim_spatial_ == 2)
-    {
-        return run(ck::Number<2>{}, ctc::GNHWC{}, ctc::GKYXC{}, ctc::GNHWK{});
-    }
-    else if(conv_param.num_dim_spatial_ == 3)
-    {
-        return run(ck::Number<3>{}, ctc::GNDHWC{}, ctc::GKZYXC{}, ctc::GNDHWK{});
-    }
+    // if(conv_param.num_dim_spatial_ == 1)
+    // {
+    //     return run(ck::Number<1>{}, ctc::GNWC{}, ctc::GKXC{}, ctc::GNWK{});
+    // }
+    // else if(conv_param.num_dim_spatial_ == 2)
+    // {
+        return run(ck::Number<2>{}, ctc::NGCHW{}, ctc::GKCYX{}, ctc::NGKHW{});
+    // }
+    // else if(conv_param.num_dim_spatial_ == 3)
+    // {
+    //     return run(ck::Number<3>{}, ctc::GNDHWC{}, ctc::GKZYXC{}, ctc::GNDHWK{});
+    // }
 
     return true;
 }
