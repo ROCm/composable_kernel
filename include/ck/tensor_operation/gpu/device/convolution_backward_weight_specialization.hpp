@@ -13,6 +13,7 @@ enum struct ConvolutionBackwardWeightSpecialization
     Filter1x1Stride1Pad0,
     Filter1x1Pad0,
     OddC,
+    Filter5x5Dilation1Stride1Pad2,
 };
 
 inline std::string
@@ -25,6 +26,7 @@ getConvBackwardWeightSpecializationString(const ConvolutionBackwardWeightSpecial
         return "Filter1x1Stride1Pad0";
     case ConvolutionBackwardWeightSpecialization::Filter1x1Pad0: return "Filter1x1Pad0";
     case ConvolutionBackwardWeightSpecialization::OddC: return "OddC";
+    case ConvolutionBackwardWeightSpecialization::Filter5x5Dilation1Stride1Pad2: return "Filter5x5Dilation1Stride1Pad2";
     default: return "Unrecognized specialization!";
     }
 }
