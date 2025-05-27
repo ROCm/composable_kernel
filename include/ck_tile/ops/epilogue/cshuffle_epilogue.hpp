@@ -78,8 +78,8 @@ struct CShuffleEpilogue
      */
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
-        constexpr index_t MaxVectorStoreSize = 16;
-        return MaxVectorStoreSize / sizeof(ODataType);
+        constexpr index_t max_vector_store_size = 16;
+        return max_vector_store_size / sizeof(ODataType);
     }
 
     /**
@@ -90,7 +90,7 @@ struct CShuffleEpilogue
      * - NumMXdlPerWavePerShuffle: Number of XDL tiles in M dimension processed per wave
      * - NumNXdlPerWavePerShuffle: Number of XDL tiles in N dimension processed per wave
      */
-    static constexpr auto ShuffleTileTuple = [] {
+    static constexpr auto shuffle_tile_tuple = [] {
         constexpr index_t vecPerThread = kMPerXdl * kNPerXdl / get_warp_size();
         if constexpr(vecPerThread >= GetVectorSizeC())
         {
@@ -98,22 +98,25 @@ struct CShuffleEpilogue
         }
         else
         {
-            constexpr index_t maxElementsPerThread = GetVectorSizeC() / vecPerThread;
+            constexpr index_t num_xdl_shuffles = GetVectorSizeC() / vecPerThread;
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
-
-                return std::make_tuple(min(maxElementsPerThread, kMPerBlock / (kMPerXdl * kMWave)),
+                static_assert(kMPerBlock % (kMPerXdl * kMWave) == 0,
+                              "kMPerBlock must be divisible by kMPerXdl*kMWave for CShuffleEpilogue");
+                return std::make_tuple(min(num_xdl_shuffles, kMPerBlock / (kMPerXdl * kMWave)),
                                        1);
             }
             else
             {
+                static_assert(kNPerBlock % (kNPerXdl * kNWave) == 0,
+                              "kNPerBlock must be divisible by kNPerXdl*kNWave for CShuffleEpilogue");
                 return std::make_tuple(1,
-                                       min(maxElementsPerThread, kNPerBlock / (kNPerXdl * kNWave)));
+                                       min(num_xdl_shuffles, kNPerBlock / (kNPerXdl * kNWave)));
             }
         }
     }();
-    static constexpr index_t NumMXdlPerWavePerShuffle = std::get<0>(ShuffleTileTuple);
-    static constexpr index_t NumNXdlPerWavePerShuffle = std::get<1>(ShuffleTileTuple);
+    static constexpr index_t NumMXdlPerWavePerShuffle = std::get<0>(shuffle_tile_tuple);
+    static constexpr index_t NumNXdlPerWavePerShuffle = std::get<1>(shuffle_tile_tuple);
 
     static constexpr index_t kMPerIteration = kMPerXdl * kMWave * NumMXdlPerWavePerShuffle;
     static constexpr index_t kNPerIteration = kNPerXdl * kNWave * NumNXdlPerWavePerShuffle;
