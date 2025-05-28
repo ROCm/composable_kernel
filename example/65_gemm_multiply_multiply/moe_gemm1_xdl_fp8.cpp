@@ -158,24 +158,24 @@ using BElementOp = PassThrough;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t NPerBlock   = 256;
-static constexpr ck::index_t MNPerXDL    = 16;
-static constexpr ck::index_t MXDLPerWave = MPerBlock / (MNPerXDL * 1);
-static constexpr ck::index_t NXDLPerWave = NPerBlock / (MNPerXDL * 4);
+static constexpr ck::index_t NPerBlock = 256;
+static constexpr ck::index_t MNPerXDL  = 16;
+static constexpr ck::index_t MXDLPerWave         = MPerBlock / (MNPerXDL * 1);
+static constexpr ck::index_t NXDLPerWave         = NPerBlock / (MNPerXDL * 4);
 static constexpr ck::index_t CShuffleMXDLPerWave = MXDLPerWave;
 static constexpr ck::index_t CShuffleNXDLPerWave = NXDLPerWave;
-static constexpr ck::index_t BLOCKSIZE   = 256;
+static constexpr ck::index_t BLOCKSIZE           = 256;
 
-static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
-static constexpr ck::index_t Nswizzle    = false;
-static constexpr ck::index_t AK1         = 16 / sizeof(A0DataType);
-static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
-static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
-static constexpr ck::index_t D0Vec       = 1;
-static constexpr ck::index_t D1Vec       = 1;
-static constexpr ck::index_t ActOP       = 1; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr bool MulRoutedWeight    = false;
-using DeviceOpInstance                   = ck::tensor_operation::device::DeviceMoeGemm
+static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
+static constexpr ck::index_t Nswizzle  = false;
+static constexpr ck::index_t AK1       = 16 / sizeof(A0DataType);
+static constexpr ck::index_t BK1       = 16 / sizeof(B0DataType);
+static constexpr ck::index_t EVec      = 16 / sizeof(EDataType);
+static constexpr ck::index_t D0Vec     = 1;
+static constexpr ck::index_t D1Vec     = 1;
+static constexpr ck::index_t ActOP     = 1; // 0: gelu_and_mul, 1: silu_and_mul
+static constexpr bool MulRoutedWeight  = false;
+using DeviceOpInstance                 = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   

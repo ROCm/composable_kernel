@@ -637,7 +637,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v3_mx<BlockGemmPipelineScheduler
                         });
                     });
 
-                     HotLoopScheduler();
+                    HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
                 }; // LoopFunc
 

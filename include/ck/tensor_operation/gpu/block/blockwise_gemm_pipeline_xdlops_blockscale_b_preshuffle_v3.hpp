@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -205,7 +205,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
 
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num  * MWaves;
+        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves;
 
         static_assert(num_buffer_load_inst_a == num_ds_write_inst_a);
 
@@ -230,10 +230,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         constexpr auto num_ds_read_a_mfma_perstage =
             math::integer_divide_ceil(num_ds_read_a_perstage, ds_read_a_mfma_rate);
 
-        constexpr auto buffer_load_perstage_more = math::integer_divide_ceil(
-            (num_buffer_load_inst_a + num_buffer_load_inst_b), (num_total_stages - (LocalPrefetchStages - 1)));
-        constexpr auto buffer_load_perstage_less = math::integer_divide_floor(
-            (num_buffer_load_inst_a + num_buffer_load_inst_b), (num_total_stages - (LocalPrefetchStages - 1)));
+        constexpr auto buffer_load_perstage_more =
+            math::integer_divide_ceil((num_buffer_load_inst_a + num_buffer_load_inst_b),
+                                      (num_total_stages - (LocalPrefetchStages - 1)));
+        constexpr auto buffer_load_perstage_less =
+            math::integer_divide_floor((num_buffer_load_inst_a + num_buffer_load_inst_b),
+                                       (num_total_stages - (LocalPrefetchStages - 1)));
 
         constexpr auto buffer_load_stages_more =
             (num_buffer_load_inst_a + num_buffer_load_inst_b) -
@@ -587,7 +589,6 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                          b_thread_bufs(local_read_buf));
                     b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
-                    
                     b_scale_thread_copy.Run(b_scale_grid_desc,
                                             b_scale_grid_buf,
                                             b_scale_thread_desc,
@@ -596,7 +597,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
 
                     b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc,
                                                            b_scale_thread_copy_step);
-                                                           
+
                     a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(local_read_buf));
                     a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
@@ -670,89 +671,161 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                                 make_tuple(b_local_buf_offset, I0, k0, ik))>{}];
                                 });
 #if defined(__gfx950__) && 0
-                                if constexpr(m0.value == 2 && n0.value == 1){
+                                if constexpr(m0.value == 2 && n0.value == 1)
+                                {
                                     printf(
-                                        "Tid: %03d, A(0-7):   %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                        "Tid: %03d, A(8-15):  %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                        "Tid: %03d, A(16-23): %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                        "Tid: %03d, A(24-31): %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                        "Tid: %03d, B(0-7):   %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                        "Tid: %03d, B(8-15):  %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                        "Tid: %03d, B(16-23): %02x %02x %02x %02x %02x %02x %02x %02x\n"
-                                        "Tid: %03d, B(24-31): %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                                        "Tid: %03d, A(0-7):   %02x %02x %02x %02x %02x %02x %02x "
+                                        "%02x\n"
+                                        "Tid: %03d, A(8-15):  %02x %02x %02x %02x %02x %02x %02x "
+                                        "%02x\n"
+                                        "Tid: %03d, A(16-23): %02x %02x %02x %02x %02x %02x %02x "
+                                        "%02x\n"
+                                        "Tid: %03d, A(24-31): %02x %02x %02x %02x %02x %02x %02x "
+                                        "%02x\n"
+                                        "Tid: %03d, B(0-7):   %02x %02x %02x %02x %02x %02x %02x "
+                                        "%02x\n"
+                                        "Tid: %03d, B(8-15):  %02x %02x %02x %02x %02x %02x %02x "
+                                        "%02x\n"
+                                        "Tid: %03d, B(16-23): %02x %02x %02x %02x %02x %02x %02x "
+                                        "%02x\n"
+                                        "Tid: %03d, B(24-31): %02x %02x %02x %02x %02x %02x %02x "
+                                        "%02x\n",
                                         get_thread_local_1d_id(),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<0>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<1>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<2>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<3>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<4>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<5>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<6>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<7>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<0>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<1>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<2>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<3>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<4>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<5>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<6>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<7>{}])),
                                         get_thread_local_1d_id(),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+0>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+1>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+2>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+3>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+4>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+5>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+6>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<8+7>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<8 + 0>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<8 + 1>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<8 + 2>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<8 + 3>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<8 + 4>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<8 + 5>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<8 + 6>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<8 + 7>{}])),
                                         get_thread_local_1d_id(),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+0>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+1>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+2>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+3>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+4>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+5>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+6>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+7>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 0>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 1>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 2>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 3>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 4>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 5>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 6>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 7>{}])),
                                         get_thread_local_1d_id(),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+8+0>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+8+1>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+8+2>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+8+3>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+8+4>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+8+5>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+8+6>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(a_thread_buf[Number<16+8+7>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 8 + 0>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 8 + 1>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 8 + 2>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 8 + 3>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 8 + 4>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 8 + 5>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 8 + 6>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(a_thread_buf[Number<16 + 8 + 7>{}])),
                                         get_thread_local_1d_id(),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<0>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<1>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<2>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<3>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<4>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<5>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<6>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<7>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<0>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<1>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<2>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<3>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<4>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<5>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<6>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<7>{}])),
                                         get_thread_local_1d_id(),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<8+0>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<8+1>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<8+2>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<8+3>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<8+4>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<8+5>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<8+6>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<8+7>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<8 + 0>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<8 + 1>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<8 + 2>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<8 + 3>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<8 + 4>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<8 + 5>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<8 + 6>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<8 + 7>{}])),
                                         get_thread_local_1d_id(),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+0>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+1>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+2>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+3>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+4>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+5>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+6>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+7>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 0>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 1>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 2>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 3>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 4>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 5>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 6>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 7>{}])),
                                         get_thread_local_1d_id(),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+8+0>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+8+1>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+8+2>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+8+3>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+8+4>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+8+5>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+8+6>{}])),
-                                        *reinterpret_cast<const uint8_t*>(&(b_thread_bufs[b_local_buf_id][Number<16+8+7>{}]))                                        
-                                        );
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 8 + 0>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 8 + 1>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 8 + 2>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 8 + 3>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 8 + 4>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 8 + 5>{}])),
+                                        *reinterpret_cast<const uint8_t*>(
+                                            &(b_thread_bufs[b_local_buf_id][Number<16 + 8 + 6>{}])),
+                                        *reinterpret_cast<const uint8_t*>(&(
+                                            b_thread_bufs[b_local_buf_id][Number<16 + 8 + 7>{}])));
                                 }
 #endif
                                 using mfma_input_type =
@@ -783,14 +856,16 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             });
                         });
 
-                        // We have to 1 stage early sync the lds for workaround the compiler limitation
+                        // We have to 1 stage early sync the lds for workaround the compiler
+                        // limitation
                         if constexpr(m0.value == (MRepeat - LocalPrefetchStages - 1))
                         {
                             block_sync_lds();
                         }
 
-                        constexpr auto lds_buf =
-                            m0.value >= (MRepeat - LocalPrefetchStages) ? local_read_buf : mfma_reg_buf;
+                        constexpr auto lds_buf = m0.value >= (MRepeat - LocalPrefetchStages)
+                                                     ? local_read_buf
+                                                     : mfma_reg_buf;
 
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
                             static_for<0, KGroup, 1>{}([&](auto kg0) {
@@ -804,14 +879,14 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                                I0),
                                     a_block_buf.At(Number<lds_buf>{}),
                                     a_thread_desc_,
-                                    make_tuple(
-                                        Number<(m0 + LocalPrefetchStages + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                               2>{},
-                                        I0,
-                                        I0,
-                                        k0,
-                                        I0,
-                                        Number<kg0 * KPack / KGroup>{}),
+                                    make_tuple(Number<(m0 + LocalPrefetchStages +
+                                                       HotloopLocalBufSwitch * mfma_reg_buf) %
+                                                      2>{},
+                                               I0,
+                                               I0,
+                                               k0,
+                                               I0,
+                                               Number<kg0 * KPack / KGroup>{}),
                                     a_thread_buf);
                             });
                         });
@@ -927,13 +1002,12 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                                        I0),
                             a_block_buf.At(Number<lds_buf>{}),
                             a_thread_desc_,
-                            make_tuple(
-                                Number<(m0 + LocalPrefetchStages) % 2>{},
-                                I0,
-                                I0,
-                                k0,
-                                I0,
-                                Number<kg0 * KPack / KGroup>{}),
+                            make_tuple(Number<(m0 + LocalPrefetchStages) % 2>{},
+                                       I0,
+                                       I0,
+                                       k0,
+                                       I0,
+                                       Number<kg0 * KPack / KGroup>{}),
                             a_thread_buf);
                     });
                 });
@@ -1022,16 +1096,22 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                         static_for<0, KGroup, 1>{}([&](auto kg0) {
                             a_thread_copy_.Run(
                                 a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(
-                                    Number<m0 + LocalPrefetchStages>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                                make_tuple(Number<m0 + LocalPrefetchStages>{},
+                                           I0,
+                                           I0,
+                                           Number<k0 * KGroup + kg0>{},
+                                           I0,
+                                           I0),
                                 a_block_buf.At(I1),
                                 a_thread_desc_,
-                                make_tuple(Number<(m0 + LocalPrefetchStages + HotloopLocalBufSwitch) % 2>{},
-                                           I0,
-                                           I0,
-                                           k0,
-                                           I0,
-                                           Number<kg0 * KPack / KGroup>{}),
+                                make_tuple(
+                                    Number<(m0 + LocalPrefetchStages + HotloopLocalBufSwitch) %
+                                           2>{},
+                                    I0,
+                                    I0,
+                                    k0,
+                                    I0,
+                                    Number<kg0 * KPack / KGroup>{}),
                                 a_thread_buf);
                         });
                     });

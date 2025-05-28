@@ -30,12 +30,12 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_b_preshuffle(typename GridwiseGemm::Argument karg)
 {
-#if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
@@ -61,12 +61,12 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_b_preshuffle_2lds(typename GridwiseGemm::Argument karg)
 {
-#if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -168,14 +168,14 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
     // Should be a multiple of k_per_blk.
     // TODO: Move this to blockwise pipeline base
     using mfma_selector            = MfmaSelector<ComputeTypeA,
-                                                  MPerXdl,
-                                                  NPerXdl,
-                                                  ComputeTypeB,
-                                                  is_single_rate_mfma,
-                                                  is_scale_mfma>;
+                                       MPerXdl,
+                                       NPerXdl,
+                                       ComputeTypeB,
+                                       is_single_rate_mfma,
+                                       is_scale_mfma>;
     static constexpr index_t KPack = math::max(lcm_AK1_BK1, mfma_selector::selected_mfma.k_per_blk);
 
-    static constexpr index_t KGroup = 1;//mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
+    static constexpr index_t KGroup = 1; // mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
     static constexpr index_t KLane =
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
     static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
@@ -1323,7 +1323,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
+            static_cast<ADataType*>(p_shared),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);
@@ -1704,7 +1705,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
             p_b_scale_grid, b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
         const AElementwiseOperation a_element_op{};
-        //const BElementwiseOperation b_element_op{};
+        // const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
@@ -1790,7 +1791,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
                                    0,
                                    KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
-
         // LDS allocation for A and B: be careful of alignment
         constexpr auto max_lds_align = AK1Number;
 
@@ -1798,10 +1798,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
             a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize, max_lds_align);
 
         auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
-            
+            static_cast<ADataType*>(p_shared_0),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
+
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
+            static_cast<ADataType*>(p_shared_1),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
 
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
 
@@ -1873,12 +1875,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle
                                                                          c_thread_buf,
                                                                          a_scale_grid_desc_am_ak,
                                                                          a_scale_thread_copy,
-                                                                         a_scale_grid_buf,                                                                         
+                                                                         a_scale_grid_buf,
                                                                          b_scale_grid_desc_bn_ak,
                                                                          b_scale_thread_copy,
                                                                          b_scale_grid_buf,
                                                                          num_k_block_main_loop);
-                                                                         
+
         // shuffle C and write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&

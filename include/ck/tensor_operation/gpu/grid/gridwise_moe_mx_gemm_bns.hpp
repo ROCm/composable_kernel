@@ -1104,9 +1104,10 @@ struct GridwiseMoeGemmMXBNS
 
         if constexpr(IsInputGemm)
         {
-        return math::max((a_block_space_size_aligned * sizeof(ADataType) +
-                          b_block_space_size_aligned * sizeof(BDataType)) * 2,
-                         c_block_size * sizeof(CShuffleDataType));
+            return math::max((a_block_space_size_aligned * sizeof(ADataType) +
+                              b_block_space_size_aligned * sizeof(BDataType)) *
+                                 2,
+                             c_block_size * sizeof(CShuffleDataType));
         }
         else
         {
@@ -1647,7 +1648,7 @@ struct GridwiseMoeGemmMXBNS
                 b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
             auto b_block_buf_up = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                 reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) +
-                                             a_block_space_size_aligned * sizeof(ADataType) +                                          
+                                             a_block_space_size_aligned * sizeof(ADataType) +
                                              b_block_space_size_aligned * sizeof(BDataType)),
                 b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
@@ -1686,8 +1687,9 @@ struct GridwiseMoeGemmMXBNS
                     make_multi_index(0, 0, 0),
                     ck::tensor_operation::element_wise::PassThrough{});
 
-            const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2 / sizeof(BScaleDataType);
-            const auto b_scale_grid_buf_up          = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            const BScaleDataType* p_b_scale_grid_up =
+                p_b_scale_grid + expert_scale_stride / 2 / sizeof(BScaleDataType);
+            const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_b_scale_grid_up + expert_id * expert_scale_stride / sizeof(BScaleDataType),
                 b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
@@ -1764,7 +1766,7 @@ struct GridwiseMoeGemmMXBNS
                 b_scale_grid_buf,
                 num_k_block_main_loop);
         }
-        
+
         // shuffle C and write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
