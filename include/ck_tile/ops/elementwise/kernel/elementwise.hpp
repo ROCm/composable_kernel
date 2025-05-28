@@ -36,10 +36,10 @@ struct ElementWiseKernel
     using YDataType            = ck_tile::remove_cvref_t<typename Problem::YDataType>;
     using ElementWiseOperation = ck_tile::remove_cvref_t<typename Problem::ElementWiseOperation>;
 
-    template <typename... InputTensorType, typename Dims>
+    template <typename... XDataType, typename Dims>
     CK_TILE_DEVICE void operator()(Dims lens,
                                    Dims strides,
-                                   const tuple<InputTensorType...>& input_tensors,
+                                   const tuple<XDataType...>& input_tensors,
                                    YDataType* p_y) const
     {
         using S = typename Problem::BlockShape;
@@ -69,7 +69,7 @@ struct ElementWiseKernel
                                             {iM_},
                                             Policy::template MakeXBlockTileDistribution<Problem>());
                 },
-                number<sizeof...(InputTensorType)>{}); // Generate for all input tensors
+                number<sizeof...(XDataType)>{}); // Generate for all input tensors
         };
 
         auto x_windows = make_tile_windows(input_tensors, iM);
