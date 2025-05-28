@@ -47,7 +47,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
-    static constexpr bool kIsPagedKV        = FmhaPipeline::Problem::kIsPagedKV;
+    static constexpr auto kKVCacheEnum      = FmhaPipeline::Problem::kKVCacheEnum;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ =
         FmhaPipeline::Problem::kMergeNumHeadGroupsSeqLenQ;
 
@@ -100,7 +100,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) + (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) +
-            (kDoFp8StaticQuant ? "_squant" : "_nsquant") + (kIsPagedKV ? "_pagedkv" : "_npagedkv" );
+            (kDoFp8StaticQuant ? "_squant" : "_nsquant") + (kKVCacheEnum == KVCacheEnum::SGLANG ? "_pagedkv" : (kKVCacheEnum == KVCacheEnum::VLLM ? "_pagedkv_vllm" : "_npagedkv") );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -219,6 +219,13 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
 #endif
     };
 
+    struct VllmPageBlockTableKargs
+    {
+        int32_t num_page_blocks;
+        const int32_t* block_table_ptr;
+        ck_tile::index_t page_block_size;
+    };
+
     struct BatchModeKargs
         : CommonKargs,
           std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS,
@@ -228,7 +235,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
                                                 EmptyKargs<0>>>,
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>,
-          std::conditional_t<kIsPagedKV, CommonPageBlockTableKargs, EmptyKargs<3>>,
+          std::conditional_t<kKVCacheEnum == KVCacheEnum::SGLANG, CommonPageBlockTableKargs, std::conditional_t<kKVCacheEnum == KVCacheEnum::VLLM, VllmPageBlockTableKargs, EmptyKargs<3>>>,
           std::conditional_t<kHasLogitsSoftCap, LogitsSoftCapKargs, EmptyKargs<4>>
     {
         ck_tile::index_t batch_stride_q;
@@ -249,7 +256,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
                                                 EmptyKargs<0>>>,
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>,
-          std::conditional_t<kIsPagedKV, CommonPageBlockTableKargs, EmptyKargs<3>>,
+          std::conditional_t<kKVCacheEnum == KVCacheEnum::SGLANG, CommonPageBlockTableKargs, std::conditional_t<kKVCacheEnum == KVCacheEnum::VLLM, VllmPageBlockTableKargs, EmptyKargs<3>>>,
           std::conditional_t<kHasLogitsSoftCap, LogitsSoftCapKargs, EmptyKargs<4>>
     {
         const int32_t* seqstart_q_ptr;
@@ -261,6 +268,247 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, GroupModeKargs, BatchModeKargs>;
+
+    template <bool Cond = !kIsGroupMode>
+    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              void* lse_acc_ptr, /* workspace for lse accumulation when num_splits > 1, otherwise
+                                    final lse */
+              void* o_acc_ptr, /* workspace for o accumulation when num_splits > 1, otherwise final
+                                  o */
+              ck_tile::index_t batch,
+              ck_tile::index_t seqlen_q,
+              ck_tile::index_t seqlen_k, // only used if 'seqlen_k_ptr' is not specified
+              ck_tile::index_t hdim_q,
+              ck_tile::index_t hdim_v,
+              ck_tile::index_t num_head_q,
+              ck_tile::index_t nhead_ratio_qk,
+              ck_tile::index_t num_splits,
+              int32_t num_page_blocks,
+              const void* block_table_ptr,
+              ck_tile::index_t page_block_size,
+              float scale_s,
+              float scale_p,
+              float logits_soft_cap,
+              ck_tile::index_t stride_q,
+              ck_tile::index_t stride_k,
+              ck_tile::index_t stride_v,
+              ck_tile::index_t stride_bias,
+              ck_tile::index_t stride_o_acc,
+              ck_tile::index_t nhead_stride_q,
+              ck_tile::index_t nhead_stride_k,
+              ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_bias,
+              ck_tile::index_t nhead_stride_lse_acc,
+              ck_tile::index_t nhead_stride_o_acc,
+              ck_tile::index_t batch_stride_q,
+              ck_tile::index_t batch_stride_k,
+              ck_tile::index_t batch_stride_v,
+              ck_tile::index_t batch_stride_bias,
+              ck_tile::index_t batch_stride_lse_acc,
+              ck_tile::index_t batch_stride_o_acc,
+              ck_tile::index_t split_stride_lse_acc,
+              ck_tile::index_t split_stride_o_acc,
+              ck_tile::index_t window_size_left,
+              ck_tile::index_t window_size_right,
+              ck_tile::index_t mask_type)
+    {
+        Kargs kargs{{q_ptr,
+                     k_ptr,
+                     v_ptr,
+                     lse_acc_ptr,
+                     o_acc_ptr,
+                     batch,
+                     seqlen_q,
+                     seqlen_k,
+                     hdim_q,
+                     hdim_v,
+                     num_head_q,
+                     nhead_ratio_qk,
+                     num_splits,
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
+#else
+                     scale_s,
+#endif
+                     stride_q,
+                     stride_k,
+                     stride_v,
+                     stride_o_acc,
+                     nhead_stride_q,
+                     nhead_stride_k,
+                     nhead_stride_v,
+                     nhead_stride_lse_acc,
+                     nhead_stride_o_acc,
+                     split_stride_lse_acc,
+                     split_stride_o_acc}, // args for common karg
+                    {},                   // placeholder for bias
+                    {},                   // placeholder for mask
+                    {},                   // placeholder for fp8_static_quant args
+                    {},                   // placeholder for paged-block table
+                    {},                   // placeholder for logits_soft_cap
+                    batch_stride_q,
+                    batch_stride_k,
+                    batch_stride_v,
+                    batch_stride_lse_acc,
+                    batch_stride_o_acc};
+
+        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+        {
+            kargs.bias_ptr          = bias_ptr;
+            kargs.stride_bias       = stride_bias;
+            kargs.nhead_stride_bias = nhead_stride_bias;
+            kargs.batch_stride_bias = batch_stride_bias;
+        }
+        else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
+        {
+            kargs.alibi_slope_ptr    = bias_ptr;
+            kargs.alibi_slope_stride = stride_bias;
+        }
+        if constexpr(kHasMask)
+        {
+            kargs.window_size_left  = window_size_left;
+            kargs.window_size_right = window_size_right;
+            kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
+        }
+        if constexpr(kDoFp8StaticQuant)
+        {
+            kargs.scale_p = scale_p;
+        }
+        if constexpr(kKVCacheEnum == KVCacheEnum::VLLM)
+        {
+            kargs.num_page_blocks = num_page_blocks;
+            kargs.block_table_ptr     = reinterpret_cast<const int32_t*>(block_table_ptr);
+            kargs.page_block_size   = page_block_size;
+        }
+        if constexpr(kHasLogitsSoftCap)
+        {
+            kargs.init_logits_soft_cap(logits_soft_cap);
+        }
+
+        return kargs;
+    }
+
+
+template <bool Cond = kIsGroupMode>
+    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              void* lse_acc_ptr, /* workspace for lse accumulation when num_splits > 1, otherwise
+                                    final lse */
+              void* o_acc_ptr, /* workspace for o accumulation when num_splits > 1, otherwise final
+                                  o */
+              ck_tile::index_t batch,
+              const void* seqstart_q_ptr,
+              ck_tile::index_t hdim_q,
+              ck_tile::index_t hdim_v,
+              ck_tile::index_t num_head_q,
+              ck_tile::index_t nhead_ratio_qk,
+              ck_tile::index_t num_splits,
+              int32_t num_page_blocks,
+              const void* block_table_ptr,
+              ck_tile::index_t page_block_size,
+              float scale_s,
+              float scale_p,
+              float logits_soft_cap,
+              ck_tile::index_t stride_q,
+              ck_tile::index_t stride_k,
+              ck_tile::index_t stride_v,
+              ck_tile::index_t stride_bias,
+              ck_tile::index_t stride_o_acc,
+              ck_tile::index_t nhead_stride_q,
+              ck_tile::index_t nhead_stride_k,
+              ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_bias,
+              ck_tile::index_t nhead_stride_lse_acc,
+              ck_tile::index_t nhead_stride_o_acc,
+              ck_tile::index_t batch_stride_k, // only used for paged-kvcache
+              ck_tile::index_t batch_stride_v, // only used for paged-kvcache
+              ck_tile::index_t split_stride_lse_acc,
+              ck_tile::index_t split_stride_o_acc,
+              ck_tile::index_t window_size_left,
+              ck_tile::index_t window_size_right,
+              ck_tile::index_t mask_type)
+    {
+        Kargs kargs{{q_ptr,
+                     k_ptr,
+                     v_ptr,
+                     lse_acc_ptr,
+                     o_acc_ptr,
+                     batch,
+                     -1, // seqlen_q will be updated by another pointer
+                     -1, // seqlen_k will be updated by another pointer
+                     hdim_q,
+                     hdim_v,
+                     num_head_q,
+                     nhead_ratio_qk,
+                     num_splits,
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
+#else
+                     scale_s,
+#endif
+                     stride_q,
+                     stride_k,
+                     stride_v,
+                     stride_o_acc,
+                     nhead_stride_q,
+                     nhead_stride_k,
+                     nhead_stride_v,
+                     nhead_stride_lse_acc,
+                     nhead_stride_o_acc,
+                     split_stride_lse_acc,
+                     split_stride_o_acc}, // args for common karg
+                    {},                   // placeholder for bias
+                    {},                   // placeholder for mask
+                    {},                   // placeholder for fp8_static_quant args
+                    {},                   // placeholder for paged-block table
+                    {},                   // placeholder for logits_soft_cap
+                    reinterpret_cast<const int32_t*>(seqstart_q_ptr),
+                    batch_stride_k,
+                    batch_stride_v};
+
+        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+        {
+            kargs.bias_ptr          = bias_ptr;
+            kargs.stride_bias       = stride_bias;
+            kargs.nhead_stride_bias = nhead_stride_bias;
+        }
+        else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
+        {
+            kargs.alibi_slope_ptr    = bias_ptr;
+            kargs.alibi_slope_stride = stride_bias;
+        }
+        if constexpr(kHasMask)
+        {
+            kargs.window_size_left  = window_size_left;
+            kargs.window_size_right = window_size_right;
+            kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
+        }
+        if constexpr(kDoFp8StaticQuant)
+        {
+            kargs.scale_p = scale_p;
+        }
+        if constexpr(kKVCacheEnum == KVCacheEnum::VLLM)
+        {
+            kargs.num_page_blocks = num_page_blocks;
+            kargs.block_table_ptr = reinterpret_cast<const int32_t*>(block_table_ptr);
+            kargs.page_block_size = page_block_size;
+
+        }
+        if constexpr(kHasLogitsSoftCap)
+        {
+            kargs.init_logits_soft_cap(logits_soft_cap);
+        }
+
+        return kargs;
+    }
+
 
     template <bool Cond = !kIsGroupMode>
     __host__ static constexpr std::enable_if_t<Cond, Kargs>
@@ -375,7 +623,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
         {
             kargs.scale_p = scale_p;
         }
-        if constexpr(kIsPagedKV)
+        if constexpr(kKVCacheEnum == KVCacheEnum::SGLANG)
         {
             kargs.num_total_pages = num_total_pages;
             kargs.kv_indptr       = reinterpret_cast<const int32_t*>(kv_indptr);
@@ -498,7 +746,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
         {
             kargs.scale_p = scale_p;
         }
-        if constexpr(kIsPagedKV)
+        if constexpr(kKVCacheEnum == KVCacheEnum::SGLANG)
         {
             kargs.num_total_pages = num_total_pages;
             kargs.kv_indptr       = reinterpret_cast<const int32_t*>(kv_indptr);
@@ -574,11 +822,15 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
         long_index_t batch_offset_bias    = 0;
         long_index_t batch_offset_lse_acc = 0;
         long_index_t batch_offset_o_acc   = 0;
-
-        const int32_t num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
-#if 0 // we assume page_block_size=1 for now
-        const int32_t last_page_len   = kargs.kv_last_page_lens[i_batch];
-#endif
+        int32_t num_page_blocks = 0;
+        if constexpr(kKVCacheEnum == KVCacheEnum::SGLANG){
+            num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
+    #if 0 // we assume page_block_size=1 for now
+            const int32_t last_page_len   = kargs.kv_last_page_lens[i_batch];
+    #endif
+        }else if constexpr(kKVCacheEnum == KVCacheEnum::VLLM){
+            num_page_blocks = kargs.num_page_blocks;
+        }
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
@@ -609,7 +861,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
 #if 0 // we assume page_block_size=1 for now
             kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
 #else
-            kargs.seqlen_k = num_page_blocks;
+            kargs.seqlen_k = num_page_blocks * kargs.page_block_size;
 #endif
         }
         else
@@ -628,7 +880,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
 #if 0 // we assume page_block_size=1 for now
             kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
 #else
-            kargs.seqlen_k = num_page_blocks;
+            kargs.seqlen_k = num_page_blocks * kargs.page_block_size;
 #endif
         }
 

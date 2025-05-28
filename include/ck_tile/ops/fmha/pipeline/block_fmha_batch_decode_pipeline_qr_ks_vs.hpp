@@ -58,7 +58,7 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
     static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
-    static constexpr bool kIsPagedKV        = Problem::kIsPagedKV;
+    static constexpr auto kKVCacheEnum      = Problem::kKVCacheEnum;
     static constexpr bool kHasUnevenSplits  = Problem::kHasUnevenSplits;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&

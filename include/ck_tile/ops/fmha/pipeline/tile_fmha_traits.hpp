@@ -17,7 +17,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
           bool kStoreLSE_,
-          bool kHasDropout_,
+          KVCacheEnum kKVCacheEnum_,
           bool kDoFp8StaticQuant_,
           index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct TileFmhaTraits
@@ -30,7 +30,7 @@ struct TileFmhaTraits
     static constexpr auto BiasEnum          = BiasEnum_;
     static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
     static constexpr bool kStoreLSE         = kStoreLSE_;
-    static constexpr bool kHasDropout       = kHasDropout_;
+    static constexpr auto kKVCacheEnum      = kKVCacheEnum_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
 };
@@ -44,7 +44,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kHasBiasGrad_,
           bool kStoreLSE_, /* set to true if either num_splits > 1 or fwd training is running */
           bool kDoFp8StaticQuant_,
-          bool kIsPagedKV_,
+          KVCacheEnum kKVCacheEnum_,
           bool kHasUnevenSplits_,
           bool kMergeNumHeadGroupsSeqLenQ_ = false,
           index_t kBlockPerCu_             = -1 /* overwrite occupancy if not -1 */>
@@ -59,7 +59,7 @@ struct TileFmhaFwdSplitKVTraits
     static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
     static constexpr bool kStoreLSE         = kStoreLSE_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
-    static constexpr bool kIsPagedKV        = kIsPagedKV_;
+    static constexpr auto kKVCacheEnum      = kKVCacheEnum_;
     // determine if some split (length) is not divisible by tile size
     static constexpr bool kHasUnevenSplits           = kHasUnevenSplits_;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = kMergeNumHeadGroupsSeqLenQ_;
@@ -153,7 +153,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kHasBiasGrad_,
           bool kStoreLSE_, /* set to true if either num_splits > 1 or fwd training is running */
           bool kDoFp8StaticQuant_,
-          bool kIsPagedKV_,
+          KVCacheEnum kKVCacheEnum_,
           bool kHasUnevenSplits_,
           bool kMergeNumHeadGroupsSeqLenQ_ = false,
           index_t kBlockPerCu_             = -1 /* overwrite occupancy if not -1 */>
@@ -168,7 +168,7 @@ struct TileFmhaBatchDecodeTraits
     static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
     static constexpr bool kStoreLSE         = kStoreLSE_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
-    static constexpr bool kIsPagedKV        = kIsPagedKV_;
+    static constexpr auto kKVCacheEnum      = kKVCacheEnum_;
     // determine if some split (length) is not divisible by tile size
     static constexpr bool kHasUnevenSplits           = kHasUnevenSplits_;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = kMergeNumHeadGroupsSeqLenQ_;

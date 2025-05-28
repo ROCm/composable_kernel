@@ -7,6 +7,14 @@
 
 namespace ck_tile {
 
+enum class KVCacheEnum
+{
+    NONE         = 0,
+    VLLM  = 1, // VLLM style
+    SGLANG = 2, // SGLang style
+};
+
+
 template <typename QDataType_,
           typename KDataType_,
           typename VDataType_,
@@ -103,7 +111,7 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     static constexpr auto BiasEnum                   = Traits::BiasEnum;
     static constexpr bool kStoreLSE                  = Traits::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant          = Traits::kDoFp8StaticQuant;
-    static constexpr bool kIsPagedKV                 = Traits::kIsPagedKV;
+    static constexpr auto KVCacheEnum                = Traits::KVCacheEnum;
     static constexpr bool kHasUnevenSplits           = kIsGroupMode || Traits::kHasUnevenSplits;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
     static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
@@ -299,7 +307,7 @@ struct BlockFmhaBatchDecodePipelineProblem
     static constexpr auto BiasEnum                   = Traits::BiasEnum;
     static constexpr bool kStoreLSE                  = Traits::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant          = Traits::kDoFp8StaticQuant;
-    static constexpr bool kIsPagedKV                 = Traits::kIsPagedKV;
+    static constexpr auto KVCacheEnum                = Traits::KVCacheEnum;
     static constexpr bool kHasUnevenSplits           = kIsGroupMode || Traits::kHasUnevenSplits;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
     static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
