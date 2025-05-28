@@ -52,8 +52,10 @@
         .insert("local_len", "5", "length of the diagonal window for enabling masking, value 0 to disable")
         .insert("context_len", "6", "sequence length at the begin of the query sequence the should be included for attention")
         .insert("minfull_len", "6", "sequence length at the end of the query sequence that should be included for attention")
+        .insert("init_qkv", "0", "initialize q, k, v tensor from local files q.dat, k.dat and v.data")
         .insert("seed", "13579", "seed by the uniform or normal distribution generator")
         .insert("save_mask", "1", "save the mask tensor to disk by the CPU validation codes")
         .insert("perf", "0", "weather measure execution time or not");
+        .insert("dump_output", "0", "dump both device and reference hstu attention outputs to files, only used when validation is true");
   ```
 
