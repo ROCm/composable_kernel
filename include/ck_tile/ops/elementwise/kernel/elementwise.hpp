@@ -124,7 +124,7 @@ struct ElementWiseKernel
 
             auto y = y_tile(tile_idx);
 
-            apply_operation(ElementWiseOperation{}, y, x_values);
+            apply([&](auto&&... vals) { ElementWiseOperation{}(y, vals...); }, x_values);
 
             y_tile(tile_idx) =
                 y; // to avoid temporary object to be use when calling n_ary_operation

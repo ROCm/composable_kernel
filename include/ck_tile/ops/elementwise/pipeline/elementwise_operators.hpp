@@ -90,29 +90,5 @@ struct Add
     };
 };
 
-template <typename Op, typename OutputType, typename InputType, typename... InputTypes>
-__host__ __device__ void
-apply_operation(Op operation, OutputType& output, const tuple<InputType, InputTypes...>& xs)
-{
-    // TODO: If we need to account for nullary operations then this needs a separate overload of
-    // apply_operation, due to typing issues with xs.
-    // NOTE: If generality is needed we could rely on polymorphism (e.g. using struct)
-
-    if constexpr(sizeof...(InputTypes) == 0)
-    {
-        // If there is only one input, we can just apply the operation directly
-        operation(output, xs.template get<0>());
-    }
-    else
-    {
-        // If there are multiple inputs, we need to apply the operation iteratively
-        InputType accumulator = xs.template get<0>();
-
-        static_for<0, sizeof...(InputTypes), 1>{}(
-            [&](auto i) { operation(accumulator, accumulator, xs.get(i)); });
-        output = accumulator;
-    }
-}
-
 } // namespace element_wise
 } // namespace ck_tile
