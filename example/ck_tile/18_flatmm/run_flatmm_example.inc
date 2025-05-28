@@ -122,7 +122,7 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
 
     float ave_time =
         flatmm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
