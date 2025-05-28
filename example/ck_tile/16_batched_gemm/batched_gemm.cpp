@@ -320,4 +320,15 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
 
 #include "run_batched_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_batched_gemm_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    try
+    {
+        return !run_batched_gemm_example(argc, argv);
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Runtime error: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    }
+}
