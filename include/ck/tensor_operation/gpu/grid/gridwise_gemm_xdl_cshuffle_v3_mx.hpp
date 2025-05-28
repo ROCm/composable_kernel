@@ -178,19 +178,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     // KPack in packed data types for pk A/B
 
     static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
-            return 2;
-        else
-            return 1;
+        return packed_size_v<remove_cvref_t<ADataType>>;
     }();
 
     static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<BDataType>, f4x2_pk_t>)
-            return 2;
-        else
-            return 1;
+        return packed_size_v<remove_cvref_t<BDataType>>;
     }();
 
     static constexpr index_t KPack =
@@ -427,6 +419,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                         (GemmSpec != GemmSpecialization::Default &&
                          GemmSpec != GemmSpecialization::MPadding)),
                       "f4x2_pk_t does not support K padding");
+        static_assert(!((is_same_v<remove_cvref_t<ADataType>, f6x16_pk_t> ||
+                         is_same_v<remove_cvref_t<ADataType>, bf6x16_pk_t> ||
+                         is_same_v<remove_cvref_t<ADataType>, f6x32_pk_t> ||
+                         is_same_v<remove_cvref_t<ADataType>, bf6x32_pk_t>)&&GemmSpec !=
+                        GemmSpecialization::Default),
+                      "Packed F6 types do not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
