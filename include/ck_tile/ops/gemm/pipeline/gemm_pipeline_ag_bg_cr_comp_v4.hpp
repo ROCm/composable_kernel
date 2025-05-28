@@ -37,7 +37,7 @@ struct BaseGemmPipelineAgBgCrCompV4
 
     template <typename RunFunction>
     CK_TILE_HOST_DEVICE static auto
-    TailHandler(RunFunction run_func, bool has_hot_loop, TailNumber tail_number)
+    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
     {
         // Handle all the valid cases.
         if(has_hot_loop)

@@ -12,19 +12,6 @@
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 
-template <typename Pipeline, ck_tile::TailNumber TN>
-void try_run(ck_tile::TailNumber tn)
-{
-    if constexpr(Pipeline::PrefetchStages > static_cast<int>(TN))
-    {
-        if(tn == TN)
-        {
-            RunSplitk(ck_tile::bool_constant<true>{},
-                      ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
-        }
-    }
-}
-
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,

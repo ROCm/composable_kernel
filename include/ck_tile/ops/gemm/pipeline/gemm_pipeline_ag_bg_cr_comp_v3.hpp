@@ -53,7 +53,7 @@ struct BaseGemmPipelineAgBgCrCompV3
 
     template <typename RunFunction>
     CK_TILE_HOST_DEVICE static auto
-    TailHandler(RunFunction run_func, bool has_hot_loop, TailNumber tail_number)
+    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
     {
         // Handle all the valid cases.
         if(has_hot_loop)
@@ -78,7 +78,7 @@ struct BaseGemmPipelineAgBgCrCompV3
             }
         }
 #if defined(__HIP_DEVICE_COMPILE__)
-        // This path should be unreachable in device code if tail_number is always valid.
+        // This path should be unreachable in device code if tail_number is valid.
         __builtin_unreachable();
 #else
         // If execution reaches here, it's an invalid combination of arguments.
