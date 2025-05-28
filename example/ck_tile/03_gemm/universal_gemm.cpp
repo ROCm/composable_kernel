@@ -33,7 +33,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          bool Persistent = false>
+          bool Persistent>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     using GemmShape = ck_tile::TileGemmShape<

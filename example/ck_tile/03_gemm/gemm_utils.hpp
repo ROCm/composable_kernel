@@ -227,5 +227,6 @@ template <typename ADataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          bool Persistent = false>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
