@@ -1843,8 +1843,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         // A/B shuffled scale for better 8-bit scale access pattern
         // MNRepeat -> KRepeat -> KThreadPerXdl -> MNThreadPerXdl -> KXdlPack -> MNXdlPack
+        const auto Padded_Scale_M =
+            math::integer_divide_ceil(problem.M, ScaleBlockSize) * ScaleBlockSize;
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
-            make_tuple(problem.M / (MXdlPack * MPerXdl),
+            make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
                            (KXdlPack * 64 / MPerXdl),
                        64 * KXdlPack * MXdlPack / scale_pack_size_a));
@@ -2353,8 +2355,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         // A/B shuffled scale for better 8-bit scale access pattern
         // MNRepeat -> KRepeat -> KThreadPerXdl -> MNThreadPerXdl -> KXdlPack -> MNXdlPack
+        const auto Padded_Scale_M =
+            math::integer_divide_ceil(problem.M, ScaleBlockSize) * ScaleBlockSize;
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
-            make_tuple(problem.M / (MXdlPack * MPerXdl),
+            make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
                            (KXdlPack * 64 / MPerXdl),
                        64 * KXdlPack * MXdlPack / scale_pack_size_a));

@@ -2266,7 +2266,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
         // A/B shuffled scale for better 8-bit scale access pattern
         // MNRepeat -> KRepeat -> KThreadPerXdl -> MNThreadPerXdl -> KXdlPack -> MNXdlPack
         // We pad the M unconditionaly for Scale
-        const auto Padded_Scale_M = (problem.M+32-1)/32*32;
+        const auto Padded_Scale_M =
+            math::integer_divide_ceil(problem.M, ScaleBlockSize) * ScaleBlockSize;
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
             make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /

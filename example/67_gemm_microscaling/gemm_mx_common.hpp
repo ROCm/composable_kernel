@@ -250,8 +250,9 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     using AScaleLayout = Row;
     using BScaleLayout = Col;
 
-    auto Scale_Padded_M  = (M+32-1)/32*32;
-    auto Scale_Stride_AM = f_get_default_stride(Scale_Padded_M, K / ScaleBlockSize, -1, AScaleLayout{});
+    auto Scale_Padded_M = (M + 32 - 1) / 32 * 32;
+    auto Scale_Stride_AM =
+        f_get_default_stride(Scale_Padded_M, K / ScaleBlockSize, -1, AScaleLayout{});
     auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
@@ -263,14 +264,14 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
 
     // scales for A and B
-    Tensor<XDataType> a_m_k_scale(
-        f_host_tensor_descriptor(Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
+    Tensor<XDataType> a_m_k_scale(f_host_tensor_descriptor(
+        Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
     Tensor<XDataType> b_k_n_scale(
         f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
 
     // shuffled scales for A and B
-    Tensor<XDataType> a_shuffled_scale(
-        f_host_tensor_descriptor(Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
+    Tensor<XDataType> a_shuffled_scale(f_host_tensor_descriptor(
+        Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
     Tensor<XDataType> b_shuffled_scale(
         f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
 
@@ -345,8 +346,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     }
 
 #if 1
-    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(
-        a_m_k_scale.mData.data(), a_shuffled_scale.mData.data(), Scale_Padded_M, K / ScaleBlockSize);
+    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(a_m_k_scale.mData.data(),
+                                                       a_shuffled_scale.mData.data(),
+                                                       Scale_Padded_M,
+                                                       K / ScaleBlockSize);
     preShuffleScaleBuffer<ck::is_same_v<BLayout, Col>>(
         b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
     if constexpr(BPreShuffle)
