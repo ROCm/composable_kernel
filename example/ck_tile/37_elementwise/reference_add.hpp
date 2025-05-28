@@ -10,9 +10,7 @@
 namespace ck_tile {
 
 template <typename XDataType, typename YDataType, typename... Args>
-CK_TILE_HOST void reference_add(HostTensor<YDataType>& y,
-                                Args&&... rest_args
-                                )
+CK_TILE_HOST void reference_add(HostTensor<YDataType>& y, Args&&... rest_args)
 {
     // Lambda function implementing a binary operation: addition
     constexpr auto operation = [](auto& accumulator, auto& arg, auto idx) {
@@ -21,7 +19,9 @@ CK_TILE_HOST void reference_add(HostTensor<YDataType>& y,
 
     y.ForEach([&](auto& self, auto i) {
         YDataType accumulator = static_cast<YDataType>(0);
-        YDataType dummy[] = {static_cast<YDataType>(0), ( (void)(operation(accumulator, rest_args, i)), static_cast<YDataType>(0))... };
+        YDataType dummy[]     = {
+            static_cast<YDataType>(0),
+            ((void)(operation(accumulator, rest_args, i)), static_cast<YDataType>(0))...};
         (void)dummy; // Suppress unused variable warning for dummy array
         self(i) = accumulator;
     });

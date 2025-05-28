@@ -10,13 +10,9 @@
 namespace ck_tile {
 
 template <typename XDataType, typename YDataType>
-    CK_TILE_HOST void reference_square(HostTensor<YDataType>& y,
-                                    HostTensor<YDataType>& x
-                                    )
-    {
-        y.ForEach([&](auto& self, auto i) {
-            self(i) = static_cast<YDataType>(x(i) * x(i));
-        });
-    }
+CK_TILE_HOST void reference_square(HostTensor<YDataType>& y, HostTensor<YDataType>& x)
+{
+    y.ForEach([&](auto& self, auto i) { self(i) = static_cast<YDataType>(x(i) * x(i)); });
+}
 
 } // namespace ck_tile

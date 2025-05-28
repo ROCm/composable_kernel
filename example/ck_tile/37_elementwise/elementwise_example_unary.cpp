@@ -42,7 +42,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YDataType> y_validation({M, N}, {stride, 1});
 
     std::vector<ck_tile::index_t> shape = {M, N};
-    ck_tile::index_t ndims = static_cast<ck_tile::index_t>(shape.size());
+    ck_tile::index_t ndims              = static_cast<ck_tile::index_t>(shape.size());
 
     ck_tile::FillUniformDistribution<XDataType>{0.f, 5.f}(x_host_a);
 
@@ -53,19 +53,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
     y_buf.ToDevice(y_host.data());
 
     // 3. Create the kernel
-    
+
     // Dividing the problem into blocktile, warptile, and vector
     using BlockTile = ck_tile::sequence<2048>; // Size of the block tile (Entire problem is divided
                                                // into blocks of this size)
     using BlockWarps = ck_tile::sequence<8>; // How many concurrent warps are in a block (Each warp
-                                            // will cover some part of blockTile)
-    using WarpTile = ck_tile::sequence<64>; // How many elements are covered by a warp
-    using Vector   = ck_tile::sequence<1>; // How many elements are covered by a thread (Each thread will cover some part of WarpTile)
-
+                                             // will cover some part of blockTile)
+    using WarpTile = ck_tile::sequence<64>;  // How many elements are covered by a warp
+    using Vector   = ck_tile::sequence<1>; // How many elements are covered by a thread (Each thread
+                                           // will cover some part of WarpTile)
 
     using Shape   = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, Vector>;
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
-                                                        XDataType, // ComputeDataType is same as XDataType in the unary case
+                                                        XDataType, // ComputeDataType is same as
+                                                                   // XDataType in the unary case
                                                         YDataType,
                                                         Shape,
                                                         XElementwiseOperation>;
@@ -74,34 +75,33 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // Compute flattened size
     ck_tile::index_t total_elements = 1;
-    for(auto d : shape) total_elements *= d;
-    
-    
+    for(auto d : shape)
+        total_elements *= d;
+
     constexpr ck_tile::index_t kBlockSize  = 512;
     constexpr ck_tile::index_t kBlockPerCu = 1;
-    
+
     ck_tile::index_t kGridSize = (total_elements / BlockTile::at(ck_tile::number<0>{}));
-    
+
     std::cout << "grid size = " << kGridSize << std::endl;
     std::cout << "Total elements = " << total_elements << std::endl;
-    
+
     auto input_tensors = ck_tile::make_tuple(static_cast<XDataType*>(x_buf_a.GetDeviceBuffer()));
 
     // 4. Run the kernel
     float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-                  ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                      Kernel{},
-                      kGridSize,
-                      kBlockSize,
-                      0,
-                      ck_tile::make_tuple(M, N),
-                      ck_tile::make_tuple(N, 1),
-                      input_tensors,
-                      static_cast<YDataType*>(y_buf.GetDeviceBuffer())
-                    ));
+                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+                                       Kernel{},
+                                       kGridSize,
+                                       kBlockSize,
+                                       0,
+                                       ck_tile::make_tuple(M, N),
+                                       ck_tile::make_tuple(N, 1),
+                                       input_tensors,
+                                       static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
 
     std::cout << "Average time: " << ave_time << " ms" << std::endl;
-    
+
     // 5. Verify the output
     bool pass = true;
     if(do_validation)
