@@ -201,18 +201,18 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
         constexpr auto num_ds_read_inst_b =
             HotLoopInstList::B_LDS_Read_Width * sizeof(BDataType) == 16
                 ? HotLoopInstList::B_LDS_Read_Inst_Num
-                : HotLoopInstList::B_LDS_Read_Inst_Num / 2;
+                : HotLoopInstList::B_LDS_Read_Inst_Num / 2 * 2;
 
         constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
-        constexpr auto num_ds_write_inst_b = HotLoopInstList::B_LDS_Write_Inst_Num;
+        constexpr auto num_ds_write_inst_b = HotLoopInstList::B_LDS_Write_Inst_Num * 2;
 
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
+        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * 2;
 
         constexpr auto num_buffer_load_a_scale = MRepeat / MXdlPack * KRepeat / KXdlPack;
-        constexpr auto num_buffer_load_b_scale = NRepeat / NXdlPack * KRepeat / KXdlPack;
+        constexpr auto num_buffer_load_b_scale = NRepeat / NXdlPack * KRepeat / KXdlPack * 2;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num * APackedSize;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num * APackedSize * 2;
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =
