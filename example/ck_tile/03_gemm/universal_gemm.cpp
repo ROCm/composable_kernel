@@ -62,26 +62,8 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
-    constexpr auto GetBaseGemmPipeline = [&]() {
-        if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_MEMORY)
-        {
-            return ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>{};
-        }
-        else if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
-        {
-            return ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>{};
-        }
-        else if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_COMPUTE_V4)
-        {
-            return ck_tile::BaseGemmPipelineAgBgCrCompV4<GemmPipelineProblem>{};
-        }
-        else
-        {
-            static_assert(0, "Invalid pipeline version");
-        }
-    };
-
-    using BaseGemmPipeline = decltype(GetBaseGemmPipeline());
+    using BaseGemmPipeline = typename PipelineTypeTraits<
+        GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
 
     const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
     const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
@@ -107,25 +89,9 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                                                                scheduler,
                                                                                has_hot_loop_v,
                                                                                tail_number_v>;
-        constexpr auto GetGemmPipeline = [&]() {
-            if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_MEMORY)
-            {
-                return ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>{};
-            }
-            else if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
-            {
-                return ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>{};
-            }
-            else if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_COMPUTE_V4)
-            {
-                return ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>{};
-            }
-            else
-            {
-                static_assert(0, "Invalid pipeline version");
-            }
-        };
-        using GemmPipeline = decltype(GetGemmPipeline());
+
+        using GemmPipeline = typename PipelineTypeTraits<
+            GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -358,13 +324,13 @@ int main(int argc, char* argv[])
 {
     try
     {
-        //run_gemm_example<GemmConfig_Memory>(argc, argv);
-        //run_gemm_example<GemmConfig_Memory_Interwave>(argc, argv);
-        return !run_gemm_example<GemmConfig_V3>(argc, argv);
-        //run_gemm_example<GemmConfig_V3_1>(argc, argv);
-        //run_gemm_example<GemmConfig_V3_2>(argc, argv);
-        //run_gemm_example<GemmConfig_V4>(argc, argv);
-        //run_gemm_example<GemmConfig_V4_1>(argc, argv);
+        //run_gemm_example<GemmConfigMemoryInterwave>(argc, argv);
+        //run_gemm_example<GemmConfigMemoryIntrawave>(argc, argv);
+        return !run_gemm_example<GemmConfigComputeV3>(argc, argv);
+        //run_gemm_example<GemmConfigComputeV3_1>(argc, argv);
+        //run_gemm_example<GemmConfigComputeV3_2>(argc, argv);
+        //run_gemm_example<GemmConfigComputeV4>(argc, argv);
+        //run_gemm_example<GemmConfigComputeV4_1>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {

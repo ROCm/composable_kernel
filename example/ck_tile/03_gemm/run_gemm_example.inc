@@ -68,25 +68,8 @@ void permute_tensor_b(Tensor& tensor)
                                                                        true,
                                                                        ck_tile::TailNumber::Full>;
 
-    constexpr auto GetGemmPipeline = [&]() {
-        if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_MEMORY)
-        {
-            return ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>{};
-        }
-        else if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
-        {
-            return ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>{};
-        }
-        else if constexpr(GemmConfig::Pipeline == CK_TILE_PIPELINE_COMPUTE_V4)
-        {
-            return ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>{};
-        }
-        else
-        {
-            static_assert(0, "Invalid pipeline version");
-        }
-    };
-    using GemmPipeline = decltype(GetGemmPipeline());
+    using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
+        UniversalGemmProblem>;
 
     const ck_tile::index_t K  = tensor.get_length(0);
     const ck_tile::index_t N  = tensor.get_length(1);
@@ -162,6 +145,19 @@ void permute_vectors_i4x4_b(Tensor& tensor)
         }
     }
 }
+
+template <typename GemmConfig,
+          typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
 
 template <typename GemmConfig,
           typename ADataType,

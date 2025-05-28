@@ -36,27 +36,7 @@ struct GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfig_Memory : public GemmConfigBase
-{
-    // Memory friendly for Interwave scheduler
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 32;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
-
-    static constexpr ck_tile::index_t M_Warp = 4;
-    static constexpr ck_tile::index_t N_Warp = 1;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
-
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
-};
-
-template <typename PrecType>
-struct GemmConfig_Memory_Interwave : public GemmConfigBase
+struct GemmConfigMemoryInterwave : public GemmConfigBase
 {
     // Memory friendly for Interwave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
@@ -77,9 +57,28 @@ struct GemmConfig_Memory_Interwave : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfig_V3 : public GemmConfigBase
+struct GemmConfigMemoryIntrawave : public GemmConfigBase
 {
-    // Compute friendly for Intrawave scheduler
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
+};
+
+template <typename PrecType>
+struct GemmConfigComputeV3 : public GemmConfigBase
+{
+    // Compute V3 only support Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
     static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
@@ -97,9 +96,8 @@ struct GemmConfig_V3 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfig_V3_1 : public GemmConfigBase
+struct GemmConfigComputeV3_1 : public GemmConfigBase
 {
-    // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
     static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
@@ -117,9 +115,8 @@ struct GemmConfig_V3_1 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfig_V3_2 : public GemmConfigBase
+struct GemmConfigComputeV3_2 : public GemmConfigBase
 {
-    // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
@@ -139,9 +136,9 @@ struct GemmConfig_V3_2 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfig_V4 : public GemmConfigBase
+struct GemmConfigComputeV4 : public GemmConfigBase
 {
-    // Compute friendly for Intrawave scheduler
+    // Compute V4 friendly for Intrawave scheduler
     // Using the ping pong reader in the lds level
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
@@ -160,10 +157,8 @@ struct GemmConfig_V4 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfig_V4_1 : public GemmConfigBase
+struct GemmConfigComputeV4_1 : public GemmConfigBase
 {
-    // Compute friendly for Intrawave scheduler
-    // Using the ping pong reader in the lds level
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
     static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
@@ -272,6 +267,36 @@ template <>
 struct DataTypeTraits<ck_tile::pk_int4_t>
 {
     static constexpr const char* name = "pk_int4_t";
+};
+
+template <ck_tile::index_t PipelineId>
+struct PipelineTypeTraits;
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV4<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
 };
 
 auto create_args(int argc, char* argv[])
