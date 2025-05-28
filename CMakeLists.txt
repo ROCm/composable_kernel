@@ -26,6 +26,10 @@ set(version 1.1.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
 
+option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
+option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
+
 # Usage: for customized Python location cmake -DCK_USE_ALTERNATIVE_PYTHON="/opt/Python-3.8.13/bin/python3.8"
 # CK Codegen requires dataclass which is added in Python 3.7
 # Python version 3.8 is required for general good practice as it is default for Ubuntu 20.04
@@ -390,146 +394,152 @@ else()
     add_compile_definitions(__HIP_PLATFORM_HCC__=1)
 endif()
 
-## tidy
 include(EnableCompilerWarnings)
+## tidy
 set(CK_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
-    set(CK_TIDY_CHECKS -modernize-use-override -readability-non-const-parameter)
+set(CK_TIDY_CHECKS -modernize-use-override -readability-non-const-parameter)
 # Enable tidy on hip
 elseif(CK_BACKEND STREQUAL "HIP" OR CK_BACKEND STREQUAL "HIPNOGPU")
-    set(CK_TIDY_ERRORS ALL)
+set(CK_TIDY_ERRORS ALL)
 endif()
 
 
-include(ClangTidy)
-enable_clang_tidy(
-    CHECKS
-        *
-        -abseil-*
-        -android-cloexec-fopen
-        # Yea we shouldn't be using rand()
-        -cert-msc30-c
-        -bugprone-exception-escape
-        -bugprone-macro-parentheses
-        -cert-env33-c
-        -cert-msc32-c
-        -cert-msc50-cpp
-        -cert-msc51-cpp
-        -cert-dcl37-c
-        -cert-dcl51-cpp
-        -clang-analyzer-alpha.core.CastToStruct
-        -clang-analyzer-optin.performance.Padding
-        -clang-diagnostic-deprecated-declarations
-        -clang-diagnostic-extern-c-compat
-        -clang-diagnostic-unused-command-line-argument
-        -cppcoreguidelines-avoid-c-arrays
-        -cppcoreguidelines-avoid-magic-numbers
-        -cppcoreguidelines-explicit-virtual-functions
-        -cppcoreguidelines-init-variables
-        -cppcoreguidelines-macro-usage
-        -cppcoreguidelines-non-private-member-variables-in-classes
-        -cppcoreguidelines-pro-bounds-array-to-pointer-decay
-        -cppcoreguidelines-pro-bounds-constant-array-index
-        -cppcoreguidelines-pro-bounds-pointer-arithmetic
-        -cppcoreguidelines-pro-type-member-init
-        -cppcoreguidelines-pro-type-reinterpret-cast
-        -cppcoreguidelines-pro-type-union-access
-        -cppcoreguidelines-pro-type-vararg
-        -cppcoreguidelines-special-member-functions
-        -fuchsia-*
-        -google-explicit-constructor
-        -google-readability-braces-around-statements
-        -google-readability-todo
-        -google-runtime-int
-        -google-runtime-references
-        -hicpp-vararg
-        -hicpp-braces-around-statements
-        -hicpp-explicit-conversions
-        -hicpp-named-parameter
-        -hicpp-no-array-decay
-        # We really shouldn't use bitwise operators with signed integers, but
-        # opencl leaves us no choice
-        -hicpp-avoid-c-arrays
-        -hicpp-signed-bitwise
-        -hicpp-special-member-functions
-        -hicpp-uppercase-literal-suffix
-        -hicpp-use-auto
-        -hicpp-use-equals-default
-        -hicpp-use-override
-        -llvm-header-guard
-        -llvm-include-order
-        #-llvmlibc-*
-        -llvmlibc-restrict-system-libc-headers
-        -llvmlibc-callee-namespace
-        -llvmlibc-implementation-in-namespace
-        -llvm-else-after-return
-        -llvm-qualified-auto
-        -misc-misplaced-const
-        -misc-non-private-member-variables-in-classes
-        -misc-no-recursion
-        -modernize-avoid-bind
-        -modernize-avoid-c-arrays
-        -modernize-pass-by-value
-        -modernize-use-auto
-        -modernize-use-default-member-init
-        -modernize-use-equals-default
-        -modernize-use-trailing-return-type
-        -modernize-use-transparent-functors
-        -performance-unnecessary-value-param
-        -readability-braces-around-statements
-        -readability-else-after-return
-        # we are not ready to use it, but very useful
-        -readability-function-cognitive-complexity
-        -readability-isolate-declaration
-        -readability-magic-numbers
-        -readability-named-parameter
-        -readability-uppercase-literal-suffix
-        -readability-convert-member-functions-to-static
-        -readability-qualified-auto
-        -readability-redundant-string-init
-        # too many narrowing conversions in our code
-        -bugprone-narrowing-conversions
-        -cppcoreguidelines-narrowing-conversions
-        -altera-struct-pack-align
-        -cppcoreguidelines-prefer-member-initializer
-        ${CK_TIDY_CHECKS}
-        ${CK_TIDY_ERRORS}
-    HEADER_FILTER
-        "\.hpp$"
-    EXTRA_ARGS
-        -DCK_USE_CLANG_TIDY
-)
+if(ENABLE_CLANG_CPP_CHECKS)
+    include(ClangTidy)
+    enable_clang_tidy(
+        CHECKS
+            *
+            -abseil-*
+            -android-cloexec-fopen
+            # Yea we shouldn't be using rand()
+            -cert-msc30-c
+            -bugprone-exception-escape
+            -bugprone-macro-parentheses
+            -cert-env33-c
+            -cert-msc32-c
+            -cert-msc50-cpp
+            -cert-msc51-cpp
+            -cert-dcl37-c
+            -cert-dcl51-cpp
+            -clang-analyzer-alpha.core.CastToStruct
+            -clang-analyzer-optin.performance.Padding
+            -clang-diagnostic-deprecated-declarations
+            -clang-diagnostic-extern-c-compat
+            -clang-diagnostic-unused-command-line-argument
+            -cppcoreguidelines-avoid-c-arrays
+            -cppcoreguidelines-avoid-magic-numbers
+            -cppcoreguidelines-explicit-virtual-functions
+            -cppcoreguidelines-init-variables
+            -cppcoreguidelines-macro-usage
+            -cppcoreguidelines-non-private-member-variables-in-classes
+            -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+            -cppcoreguidelines-pro-bounds-constant-array-index
+            -cppcoreguidelines-pro-bounds-pointer-arithmetic
+            -cppcoreguidelines-pro-type-member-init
+            -cppcoreguidelines-pro-type-reinterpret-cast
+            -cppcoreguidelines-pro-type-union-access
+            -cppcoreguidelines-pro-type-vararg
+            -cppcoreguidelines-special-member-functions
+            -fuchsia-*
+            -google-explicit-constructor
+            -google-readability-braces-around-statements
+            -google-readability-todo
+            -google-runtime-int
+            -google-runtime-references
+            -hicpp-vararg
+            -hicpp-braces-around-statements
+            -hicpp-explicit-conversions
+            -hicpp-named-parameter
+            -hicpp-no-array-decay
+            # We really shouldn't use bitwise operators with signed integers, but
+            # opencl leaves us no choice
+            -hicpp-avoid-c-arrays
+            -hicpp-signed-bitwise
+            -hicpp-special-member-functions
+            -hicpp-uppercase-literal-suffix
+            -hicpp-use-auto
+            -hicpp-use-equals-default
+            -hicpp-use-override
+            -llvm-header-guard
+            -llvm-include-order
+            #-llvmlibc-*
+            -llvmlibc-restrict-system-libc-headers
+            -llvmlibc-callee-namespace
+            -llvmlibc-implementation-in-namespace
+            -llvm-else-after-return
+            -llvm-qualified-auto
+            -misc-misplaced-const
+            -misc-non-private-member-variables-in-classes
+            -misc-no-recursion
+            -modernize-avoid-bind
+            -modernize-avoid-c-arrays
+            -modernize-pass-by-value
+            -modernize-use-auto
+            -modernize-use-default-member-init
+            -modernize-use-equals-default
+            -modernize-use-trailing-return-type
+            -modernize-use-transparent-functors
+            -performance-unnecessary-value-param
+            -readability-braces-around-statements
+            -readability-else-after-return
+            # we are not ready to use it, but very useful
+            -readability-function-cognitive-complexity
+            -readability-isolate-declaration
+            -readability-magic-numbers
+            -readability-named-parameter
+            -readability-uppercase-literal-suffix
+            -readability-convert-member-functions-to-static
+            -readability-qualified-auto
+            -readability-redundant-string-init
+            # too many narrowing conversions in our code
+            -bugprone-narrowing-conversions
+            -cppcoreguidelines-narrowing-conversions
+            -altera-struct-pack-align
+            -cppcoreguidelines-prefer-member-initializer
+            ${CK_TIDY_CHECKS}
+            ${CK_TIDY_ERRORS}
+        HEADER_FILTER
+            "\.hpp$"
+        EXTRA_ARGS
+            -DCK_USE_CLANG_TIDY
+    )
 
-include(CppCheck)
-enable_cppcheck(
-    CHECKS
-        warning
-        style
-        performance
-        portability
-    SUPPRESS
-        ConfigurationNotChecked
-        constStatement
-        duplicateCondition
-        noExplicitConstructor
-        passedByValue
-        preprocessorErrorDirective
-        shadowVariable
-        unusedFunction
-        unusedPrivateFunction
-        unusedStructMember
-        unmatchedSuppression
-    FORCE
-    SOURCES
-        library/src
-    INCLUDE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/library/include
-    DEFINE
-        CPPCHECK=1
-        __linux__=1
-)
+    include(CppCheck)
+    enable_cppcheck(
+        CHECKS
+            warning
+            style
+            performance
+            portability
+        SUPPRESS
+            ConfigurationNotChecked
+            constStatement
+            duplicateCondition
+            noExplicitConstructor
+            passedByValue
+            preprocessorErrorDirective
+            shadowVariable
+            unusedFunction
+            unusedPrivateFunction
+            unusedStructMember
+            unmatchedSuppression
+        FORCE
+        SOURCES
+            library/src
+        INCLUDE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/library/include
+        DEFINE
+            CPPCHECK=1
+            __linux__=1
+    )
+else()
+    function(clang_tidy_check TARGET)
+        # stub out empty function if clang tidy is not enabled
+    endfunction()
+endif()
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -557,12 +567,15 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERS
     add_compile_options(-fdiagnostics-color=always)
 endif()
 
-# make check runs the entire set of examples and tests
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
-# make smoke runs the tests and examples that runs within 30 seconds on gfx90a
-add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST")
-# make regression runs the tests and examples that runs for more 30 seconds on gfx90a
-add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST")
+if(NOT MIOPEN_REQ_LIBS_ONLY)
+    # make check runs the entire set of examples and tests
+    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+    # make smoke runs the tests and examples that runs within 30 seconds on gfx90a
+    add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST")
+    # make regression runs the tests and examples that runs for more 30 seconds on gfx90a
+    add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST")
+endif()
+
 
 
 file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
