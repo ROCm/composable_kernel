@@ -76,7 +76,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
     CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
     {
-        #if 0
+        #if 1
         static_for<0, 7, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
