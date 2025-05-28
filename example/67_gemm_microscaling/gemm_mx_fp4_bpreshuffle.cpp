@@ -16,7 +16,7 @@ using AccDataType      = float;
 using CShuffleDataType = CDataType;
 
 using ALayout = Row;
-using BLayout = Col;
+using BLayout = MFMA;
 using CLayout = Row;
 
 using AElementOp = PassThrough; // elementwise transformation for A matrix
@@ -33,7 +33,7 @@ constexpr auto BlkGemmPVer   = ck::BlockGemmPipelineVersion::v3;
 
 // AB DataType: f4x2_pk_t
 // Mathmatically, all numbers are represented as f4x2.
-using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3_BPreshuffle<
+using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffleV3<
     ALayout,          // ALayout
     BLayout,          // BLayout
     CLayout,          // CLayout
@@ -99,8 +99,7 @@ int main(int argc, char* argv[])
                                CElementOp,
                                AccDataType,
                                CShuffleDataType,
-                               ScaleBlockSize,
-                               true>(argc, argv)
+                               ScaleBlockSize>(argc, argv)
                ? 0
                : -1;
 }

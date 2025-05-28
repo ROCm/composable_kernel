@@ -259,8 +259,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
 
         // Stage 1
         // global read more
-        static_for<0, buffer_load_stages_more, 1>{}([&](auto i) {
-            ignore = i;
+        static_for<0, buffer_load_stages_more, 1>{}([&](auto /*i*/) {
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
 
@@ -277,8 +276,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
         });
 
         // global read less
-        static_for<0, (num_total_stages - 2 - buffer_load_stages_more), 1>{}([&](auto i) {
-            ignore = i;
+        static_for<0, (num_total_stages - 2 - buffer_load_stages_more), 1>{}([&](auto /*i*/) {
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 if constexpr(imfma % buffer_load_issue_point_interval_less == 0)
@@ -294,8 +292,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
 
         // Stage 2, Sync
         // lds synchronization, prefetch next loop local A
-        static_for<0, num_ds_read_a_prefetch_stages, 1>{}([&](auto i) {
-            ignore = i;
+        static_for<0, num_ds_read_a_prefetch_stages, 1>{}([&](auto /*i*/) {
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 if constexpr(imfma % buffer_load_issue_point_interval_stage2 == 0)
@@ -357,7 +354,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
         const BScaleGridBuffer& b_scale_grid_buf,
         index_t num_loop) const
     {
-        // ignore = b_block_desc;
         ignore            = b_block_bufs;
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
             a_thread_desc_.GetElementSpaceSize());

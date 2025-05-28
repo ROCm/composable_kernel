@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_mx.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_mx_bpreshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_mx_b_preshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -148,21 +148,22 @@ template <typename ALayout,
           typename ComputeTypeB =
               BDataType // TODO: Hardcode them and remove from the list of template parameters
           >
-struct DeviceGemmMX_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmMX<ALayout,
-                                                                     BLayout,
-                                                                     CLayout,
-                                                                     ADataType,
-                                                                     AScaleDataType,
-                                                                     BDataType,
-                                                                     BScaleDataType,
-                                                                     CDataType,
-                                                                     ScaleBlockSize,
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     CElementwiseOperation>
+struct DeviceGemmMX_Xdl_CShuffleV3_BPreShuffle
+    : public DeviceGemmMX_BPreshuffle<ALayout,
+                                      BLayout,
+                                      CLayout,
+                                      ADataType,
+                                      AScaleDataType,
+                                      BDataType,
+                                      BScaleDataType,
+                                      CDataType,
+                                      ScaleBlockSize,
+                                      AElementwiseOperation,
+                                      BElementwiseOperation,
+                                      CElementwiseOperation>
 {
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle<
+    using GridwiseGemm = GridwiseGemmMX_xdl_cshuffle_v3_b_preshuffle<
         ALayout,
         BLayout,
         CLayout,
@@ -214,6 +215,8 @@ struct DeviceGemmMX_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmMX<ALayout,
         ComputeTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
+
+    int GetPreShuffleParameters() override { return NPerXDL; }
 
     // Invoker
     struct Invoker : public BaseInvoker
@@ -309,13 +312,14 @@ struct DeviceGemmMX_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmMX<ALayout,
                 // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    if(arg.KBatch > 1)
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_b_preshuffle<
-                            GridwiseGemm,
-                            true,
-                            InMemoryDataOperationEnum::AtomicAdd,
-                            minimum_occupancy>;
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
+                                                                     true,
+                                                                     InMemoryDataOperationEnum::Set,
+                                                                     minimum_occupancy,
+                                                                     TailNumber::Odd>;
                         Run(kernel);
                     }
                     else
@@ -324,72 +328,33 @@ struct DeviceGemmMX_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmMX<ALayout,
                             kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
                                                                      true,
                                                                      InMemoryDataOperationEnum::Set,
-                                                                     minimum_occupancy>;
+                                                                     minimum_occupancy,
+                                                                     TailNumber::Even>;
                         Run(kernel);
                     }
                 }
-                // Tail number could be Odd or Even
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-#if 0
-                    if(arg.KBatch > 1)
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::AtomicAdd,
-                                                            minimum_occupancy,
-                                                            TailNumber::Odd>;
-                            Run(kernel);
-                        }
-                        else
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::AtomicAdd,
-                                                            minimum_occupancy,
-                                                            TailNumber::Even>;
-                            Run(kernel);
-                        }
+                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_b_preshuffle_2lds<
+                            GridwiseGemm,
+                            true,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy,
+                            TailNumber::Odd>;
+                        Run(kernel);
                     }
                     else
                     {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Odd>;
-                            Run(kernel);
-                        }
-                        else
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy,
-                                                            TailNumber::Even>;
-                            Run(kernel);
-                        }
+                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_b_preshuffle_2lds<
+                            GridwiseGemm,
+                            true,
+                            InMemoryDataOperationEnum::Set,
+                            minimum_occupancy,
+                            TailNumber::Even>;
+                        Run(kernel);
                     }
-#endif
-                    const auto kernel = kernel_gemm_xdl_cshuffle_v3_b_preshuffle_2lds<
-                        GridwiseGemm,
-                        true,
-                        InMemoryDataOperationEnum::Set,
-                        minimum_occupancy,
-                        TailNumber::Even>;
-                    Run(kernel);
-                }
-                else
-                {
-                    throw std::runtime_error("wrong! BlkGemmPipelineVer");
                 }
             }
             else
@@ -397,13 +362,14 @@ struct DeviceGemmMX_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmMX<ALayout,
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    if(arg.KBatch > 1)
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_b_preshuffle<
-                            GridwiseGemm,
-                            false,
-                            InMemoryDataOperationEnum::AtomicAdd,
-                            minimum_occupancy>;
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
+                                                                     false,
+                                                                     InMemoryDataOperationEnum::Set,
+                                                                     minimum_occupancy,
+                                                                     TailNumber::Odd>;
                         Run(kernel);
                     }
                     else
@@ -412,7 +378,8 @@ struct DeviceGemmMX_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmMX<ALayout,
                             kernel_gemm_xdl_cshuffle_v3_b_preshuffle<GridwiseGemm,
                                                                      false,
                                                                      InMemoryDataOperationEnum::Set,
-                                                                     minimum_occupancy>;
+                                                                     minimum_occupancy,
+                                                                     TailNumber::Even>;
                         Run(kernel);
                     }
                 }

@@ -523,7 +523,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             do
             {
                 auto LoopFunc = [&](auto scale_comp_buf, auto scale_mem_buf) {
-                    // __builtin_amdgcn_s_waitcnt(3952);
+                    __builtin_amdgcn_s_waitcnt(3952);
                     block_sync_lds();
 
                     a_blockwise_copy.Run(

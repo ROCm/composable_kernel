@@ -71,6 +71,37 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
         }
     }
 }
+
+void preShuffleBuffer(const ck::f4x2_pk_t* src, ck::f4x2_pk_t* dst, int N, int K, int NXdl)
+{
+    int KPack = 16;
+    int NLane = NXdl;
+    int KLane = 64 / NLane;
+    int K_pk  = K / 2;
+    int K0    = K_pk / (KLane * KPack);
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> N0 K0 KLane NLane KPack
+    int tempk;
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K_pk; ++k)
+        {
+            int n0 = n / NLane;
+            int n1 = n % NLane;
+
+            int k0 = k / (KLane * KPack);
+            tempk  = k % (KLane * KPack);
+            int k1 = tempk / KPack;
+            int k2 = tempk % KPack;
+
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
+
+            dst[outputIndex] = src[n * K_pk + k];
+        }
+    }
+}
 #endif
 
 template <typename ADataType,
@@ -95,8 +126,12 @@ bool profile_gemm_mx_impl(int do_verification,
                           int n_iter,
                           uint64_t rotating = 0)
 {
-    using Row = ck::tensor_layout::gemm::RowMajor;
-    using Col = ck::tensor_layout::gemm::ColumnMajor;
+    using Row  = ck::tensor_layout::gemm::RowMajor;
+    using Col  = ck::tensor_layout::gemm::ColumnMajor;
+    using MFMA = ck::tensor_layout::gemm::MFMA;
+
+    constexpr bool BPreShuffle = is_same_v<BLayout, MFMA>;
+    using BRefLayout           = conditional_t<BPreShuffle, Col, BLayout>;
 
     if(K % ScaleBlockSize != 0)
     {
@@ -132,21 +167,28 @@ bool profile_gemm_mx_impl(int do_verification,
                 return static_cast<ck::index_t>(stride);
         };
 
-    auto Scale_Stride_AM = f_get_default_stride(M, K / ScaleBlockSize, -1, AScaleLayout{});
+    auto Scale_Padded_M = (M + 32 - 1) / 32 * 32;
+    auto Scale_Stride_AM =
+        f_get_default_stride(Scale_Padded_M, K / ScaleBlockSize, -1, AScaleLayout{});
     auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-    Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+    auto b_k_n =
+        std::make_shared<Tensor<BDataType>>(f_host_tensor_descriptor(K, N, StrideB, BRefLayout{}));
+    auto b_input = b_k_n;
+    if constexpr(BPreShuffle)
+        b_input = std::make_shared<Tensor<BDataType>>(
+            f_host_tensor_descriptor(K, N, StrideB, BRefLayout{})); // use layout only for size
 
     // scales for A and B
-    Tensor<XDataType> a_m_k_scale(
-        f_host_tensor_descriptor(M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
+    Tensor<XDataType> a_m_k_scale(f_host_tensor_descriptor(
+        Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
     Tensor<XDataType> b_k_n_scale(
         f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
 
     // shuffled scales for A and B
-    Tensor<XDataType> a_shuffled_scale(
-        f_host_tensor_descriptor(M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
+    Tensor<XDataType> a_shuffled_scale(f_host_tensor_descriptor(
+        Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
     Tensor<XDataType> b_shuffled_scale(
         f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
 
@@ -154,7 +196,7 @@ bool profile_gemm_mx_impl(int do_verification,
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::size_t total_gemm_needed =
-        a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes() +
+        a_m_k.GetElementSpaceSizeInBytes() + b_k_n->GetElementSpaceSizeInBytes() +
         a_m_k_scale.GetElementSpaceSizeInBytes() + b_k_n_scale.GetElementSpaceSizeInBytes() +
         a_shuffled_scale.GetElementSpaceSizeInBytes() +
         b_shuffled_scale.GetElementSpaceSizeInBytes();
@@ -165,7 +207,7 @@ bool profile_gemm_mx_impl(int do_verification,
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "a_m_k_scale: " << a_m_k_scale.mDesc << std::endl;
-    std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
+    std::cout << "b_k_n: " << b_k_n->mDesc << std::endl;
     std::cout << "b_k_n_scale: " << b_k_n_scale.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
     std::cout << "rotating count: " << rotating_count << std::endl;
@@ -183,12 +225,13 @@ bool profile_gemm_mx_impl(int do_verification,
             return ck::type_convert<BDataType>(x);
     };
 
+    constexpr auto nthreads = 16;
     switch(init_method)
     {
     case 0: // Initializations for development and debugging
         ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{b_data_element(0.5f)}(b_k_n);
+        ck::utils::FillConstant<BDataType>{b_data_element(0.5f)}(*b_k_n);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
         if(do_log)
         {
@@ -202,29 +245,38 @@ bool profile_gemm_mx_impl(int do_verification,
 
     case 1:
 
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-4, 5}); // Z[-4,4]
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-4, 5}); // Z[-4,4]
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-4, 5}, nthreads);  // Z[-4,4]
+        b_k_n->GenerateTensorValue(GeneratorTensor_2<BDataType>{-4, 5}, nthreads); // Z[-4,4]
 
-        a_m_k_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
-        b_k_n_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        a_m_k_scale.GenerateTensorValue(GeneratorTensor_2<XDataType>{125, 129},
+                                        nthreads); // scales: {0.25, 0.5, 1, 2}
+        b_k_n_scale.GenerateTensorValue(GeneratorTensor_2<XDataType>{125, 129},
+                                        nthreads); // scales: {0.25, 0.5, 1, 2}
         break;
 
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0}, nthreads);
+        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f},
+                                        nthreads);
 
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
-        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
+        b_k_n->GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0}, nthreads);
+        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f},
+                                        nthreads);
         break;
     }
 
 #if 1
-    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(
-        a_m_k_scale.mData.data(), a_shuffled_scale.mData.data(), M, K / ScaleBlockSize);
-    preShuffleScaleBuffer<ck::is_same_v<BLayout, Col>>(
+    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(a_m_k_scale.mData.data(),
+                                                       a_shuffled_scale.mData.data(),
+                                                       Scale_Padded_M,
+                                                       K / ScaleBlockSize);
+    preShuffleScaleBuffer<ck::is_same_v<BRefLayout, Col>>(
         b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+    if constexpr(BPreShuffle)
+    {
+        int NPerXdl = 16; // Fixed 16
+        preShuffleBuffer(b_k_n->mData.data(), b_input->mData.data(), N, K, NPerXdl);
+    }
 #endif
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -239,7 +291,7 @@ bool profile_gemm_mx_impl(int do_verification,
         std::cout << "Device memory allocation..." << std::endl;
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.GetElementSpaceSize());
     DeviceMem a_scale_device_buf(sizeof(XDataType) * a_m_k_scale.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n->GetElementSpaceSize());
     DeviceMem b_scale_device_buf(sizeof(XDataType) * b_k_n_scale.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.GetElementSpaceSize());
 
@@ -247,7 +299,7 @@ bool profile_gemm_mx_impl(int do_verification,
         std::cout << "Upload data to device..." << std::endl;
     a_device_buf.ToDevice(a_m_k.mData.data());
     a_scale_device_buf.ToDevice(a_shuffled_scale.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data());
+    b_device_buf.ToDevice(b_input->mData.data());
     b_scale_device_buf.ToDevice(b_shuffled_scale.mData.data());
 
     if(do_log > 0)
@@ -293,7 +345,7 @@ bool profile_gemm_mx_impl(int do_verification,
 
         auto ref_argument = ref_gemm.MakeArgument(a_m_k,
                                                   a_m_k_scale,
-                                                  b_k_n,
+                                                  *b_k_n,
                                                   b_k_n_scale,
                                                   c_m_n_host_result,
                                                   a_element_op,
@@ -385,7 +437,7 @@ bool profile_gemm_mx_impl(int do_verification,
                                 << "\n";
                             if constexpr(is_same_v<BDataType, ck::f8_t> ||
                                          is_same_v<BDataType, ck::bf8_t>)
-                                LogRangeAsType<float>(std::cout << "b : ", b_k_n.mData, ",")
+                                LogRangeAsType<float>(std::cout << "b : ", b_k_n->mData, ",")
                                     << "\n";
                             else
                                 std::cout << "B: WIP PRINT PACKED TYPE\n";
@@ -465,24 +517,9 @@ bool profile_gemm_mx_impl(int do_verification,
     {
         std::cout << "Best Perf for datatype = bf16";
     }
-
-    if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value)
-    {
-        std::cout << " ALayout =  RowMajor";
-    }
-    else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value)
-    {
-        std::cout << " ALayout =  ColumnMajor";
-    }
-
-    if constexpr(is_same<BLayout, tensor_layout::gemm::RowMajor>::value)
-    {
-        std::cout << " BLayout =  RowMajor";
-    }
-    else if constexpr(is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value)
-    {
-        std::cout << " BLayout =  ColumnMajor";
-    }
+    std::cout << " ALayout = " << ALayout::name;
+    std::cout << " BLayout = " << BLayout::name;
+    std::cout << " CLayout = " << CLayout::name;
 
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
               << " StrideB = " << StrideB << " StrideC = " << StrideC << " KBatch = " << best_kbatch

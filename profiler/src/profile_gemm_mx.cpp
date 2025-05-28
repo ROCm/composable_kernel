@@ -11,10 +11,9 @@
 
 enum struct GemmMatrixLayout
 {
-    MK_KN_MN, // 0
-    MK_NK_MN, // 1
-    KM_KN_MN, // 2
-    KM_NK_MN, // 3
+    MK_KN_MN,   // 0
+    MK_NK_MN,   // 1
+    MK_MFMA_MN, // 2
 };
 
 enum struct GemmDataType
@@ -33,8 +32,7 @@ int profile_gemm_mx(int argc, char* argv[])
         printf("arg2: data type (0: f4->f16)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
-        printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
-        printf("                     3: A[k, m] * B[n, k] = C[m, n])\n");
+        printf("                     2: A[k, m] * BPreShuff = C[m, n];\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg6: print tensor value (0: no; 1: yes)\n");
@@ -82,28 +80,30 @@ int profile_gemm_mx(int argc, char* argv[])
     using F16 = ck::half_t;
     using F4  = ck::f4x2_pk_t;
 
-    using Row = ck::tensor_layout::gemm::RowMajor;
-    using Col = ck::tensor_layout::gemm::ColumnMajor;
+    using Row  = ck::tensor_layout::gemm::RowMajor;
+    using Col  = ck::tensor_layout::gemm::ColumnMajor;
+    using MFMA = ck::tensor_layout::gemm::MFMA;
 
-    auto profile = [&](auto a_type,
-                       auto b_type,
-                       auto c_type,
-                       auto a_layout,
-                       auto b_layout,
-                       auto c_layout) {
-        using ADataType = decltype(a_type);
-        using BDataType = decltype(b_type);
-        using CDataType = decltype(c_type);
-        using ALayout   = decltype(a_layout);
-        using BLayout   = decltype(b_layout);
-        using CLayout   = decltype(c_layout);
+    auto profile =
+        [&](auto a_type, auto b_type, auto c_type, auto a_layout, auto b_layout, auto c_layout) {
+            using ADataType = decltype(a_type);
+            using BDataType = decltype(b_type);
+            using CDataType = decltype(c_type);
+            using ALayout   = decltype(a_layout);
+            using BLayout   = decltype(b_layout);
+            using CLayout   = decltype(c_layout);
 
-        const int DefaultStrideA = ck::is_same_v<ALayout, Row> ? K : M;
-        const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
-        const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
+            const int DefaultStrideA = ck::is_same_v<ALayout, Row> ? K : M;
+            const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
+            const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
-        bool pass = ck::profiler::
-            profile_gemm_mx_impl<ADataType, BDataType, CDataType, ALayout, BLayout, CLayout, 32>(
+            bool pass = ck::profiler::profile_gemm_mx_impl<ADataType,
+                                                           BDataType,
+                                                           CDataType,
+                                                           ALayout,
+                                                           BLayout,
+                                                           CLayout,
+                                                           32>( //
                 do_verification,
                 init_method,
                 do_log,
@@ -119,12 +119,16 @@ int profile_gemm_mx(int argc, char* argv[])
                 n_iter,
                 rotating);
 
-        return pass ? 0 : 1;
-    };
+            return pass ? 0 : 1;
+        };
 
     if(data_type == GemmDataType::F4_F4_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(F4{}, F4{}, F16{}, Row{}, Col{}, Row{});
+    }
+    if(data_type == GemmDataType::F4_F4_F16 && layout == GemmMatrixLayout::MK_MFMA_MN)
+    {
+        return profile(F4{}, F4{}, F16{}, Row{}, MFMA{}, Row{});
     }
     else
     {
