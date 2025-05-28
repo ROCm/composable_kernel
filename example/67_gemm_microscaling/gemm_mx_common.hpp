@@ -110,7 +110,7 @@ bool parse_cmd_args(int argc,
 
 #if 1
 template <bool KLast>
-void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int MN_dst, int K)
+void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
 {
     int MNXdlPack = 2;
     int KXdlPack  = 2;
@@ -128,40 +128,32 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
     // To XdlKThread-> XdlMNThread -> KXdlPack -> MNXdlPack
     // Then, MNRepeat->KRepeat
 
-    const auto fn = [&](auto IS_PADDED, int n, int k) {
-        constexpr auto IS_PADDED_V = decltype(IS_PADDED)::value;
-
-        int n0    = n / (XdlMNThread * MNXdlPack); // i MNRepeat
-        int tempn = n % (XdlMNThread * MNXdlPack);
-        int n1    = tempn % XdlMNThread; // i XdlMNThread
-        int n2    = tempn / XdlMNThread; // i MNXdlPack
-
-        int k0    = k / (XdlKThread * KXdlPack); // i KRepeat
-        int tempk = k % (XdlKThread * KXdlPack);
-        int k1    = tempk % XdlKThread; // i XdlKThread
-        int k2    = tempk / XdlKThread; // i KXdlPack
-
-        int outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
-                          k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
-                          k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
-                          k2 * MNXdlPack + n2;
-        // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f, n2 +
-        // k2 * MNXdlPack)));
-        if constexpr(IS_PADDED_V)
-            dst[outputIndex] = 0;
-        else if constexpr(KLast)
-            dst[outputIndex] = src[n * K + k];
-        else
-            dst[outputIndex] = src[k * MN + n];
-    };
-
-    int n = 0;
-    for(; n < MN; ++n)
+    for(int n = 0; n < MN; ++n)
+    {
         for(int k = 0; k < K; ++k)
-            fn(ck::false_type{}, n, k);
-    for(; n < MN_dst; ++n)
-        for(int k = 0; k < K; ++k)
-            fn(ck::true_type{}, n, k);
+        {
+            int n0    = n / (XdlMNThread * MNXdlPack); // i MNRepeat
+            int tempn = n % (XdlMNThread * MNXdlPack);
+            int n1    = tempn % XdlMNThread; // i XdlMNThread
+            int n2    = tempn / XdlMNThread; // i MNXdlPack
+
+            int k0    = k / (XdlKThread * KXdlPack); // i KRepeat
+            int tempk = k % (XdlKThread * KXdlPack);
+            int k1    = tempk % XdlKThread; // i XdlKThread
+            int k2    = tempk / XdlKThread; // i KXdlPack
+
+            int outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
+                              k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
+                              k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
+                              k2 * MNXdlPack + n2;
+            // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f, n2 +
+            // k2 * MNXdlPack)));
+            if constexpr(KLast)
+                dst[outputIndex] = src[n * K + k];
+            else
+                dst[outputIndex] = src[k * MN + n];
+        }
+    }
 }
 
 void preShuffleBuffer(const ck::f4x2_pk_t* src, ck::f4x2_pk_t* dst, int N, int K, int NXdl)
@@ -258,11 +250,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     using AScaleLayout = Row;
     using BScaleLayout = Col;
 
-    auto Scale_Stride_AM = f_get_default_stride(M, K / ScaleBlockSize, -1, AScaleLayout{});
-    auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
-    auto Scale_Padded_M  = (M + 32 - 1) / 32 * 32;
-    auto Scale_Padded_Stride_AM =
+    auto Scale_Padded_M = (M + 32 - 1) / 32 * 32;
+    auto Scale_Stride_AM =
         f_get_default_stride(Scale_Padded_M, K / ScaleBlockSize, -1, AScaleLayout{});
+    auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     auto b_k_n =
@@ -273,14 +264,14 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
 
     // scales for A and B
-    Tensor<XDataType> a_m_k_scale(
-        f_host_tensor_descriptor(M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
+    Tensor<XDataType> a_m_k_scale(f_host_tensor_descriptor(
+        Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
     Tensor<XDataType> b_k_n_scale(
         f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
 
     // shuffled scales for A and B
     Tensor<XDataType> a_shuffled_scale(f_host_tensor_descriptor(
-        Scale_Padded_M, K / ScaleBlockSize, Scale_Padded_Stride_AM, AScaleLayout{}));
+        Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
     Tensor<XDataType> b_shuffled_scale(
         f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
 
@@ -355,14 +346,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     }
 
 #if 1
-    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>( //
-        a_m_k_scale.mData.data(),
-        a_shuffled_scale.mData.data(),
-        M,
-        Scale_Padded_M,
-        K / ScaleBlockSize);
+    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(a_m_k_scale.mData.data(),
+                                                       a_shuffled_scale.mData.data(),
+                                                       Scale_Padded_M,
+                                                       K / ScaleBlockSize);
     preShuffleScaleBuffer<ck::is_same_v<BLayout, Col>>(
-        b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, N, K / ScaleBlockSize);
+        b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
     if constexpr(BPreShuffle)
     {
         int NPerXdl = 16; // Fixed 16
