@@ -117,8 +117,50 @@ float fmha_batch_prefill_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_b
 
 FMHA_FWD_API_FILENAME="fmha_batch_prefill_api.cpp"
 FMHA_FWD_API="""
-float fmha_batch_prefill(fmha_batch_prefill_traits t, fmha_batch_prefill_args a, const ck_tile::stream_config& s){{
+#include <cstdio>
+
+namespace {{
+bool get_num_cus(unsigned& num_cu) {{
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess) {{
+        fprintf(stderr, "failed to get device");
+        return false;
+    }}
+
+    hipDeviceProp_t props{{}};
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess) {{
+        fprintf(stderr, "failed to get device properties");
+        return false;
+    }}
+
+    num_cu = props.multiProcessorCount;
+    return true;
+}}
+
+unsigned get_num_thread_blocks(unsigned batch, unsigned nheads, unsigned max_seqlen_q, unsigned kM0) {{
+    const unsigned num_m_blocks = (max_seqlen_q + kM0 - 1) / kM0;
+    const unsigned num_n_blocks = 1; // we assume that num_n_blocks is always 1
+
+    return batch * nheads * num_m_blocks * num_n_blocks;
+}}
+}} // namespace
+
+float fmha_batch_prefill(fmha_batch_prefill_traits t, fmha_batch_prefill_args a, const ck_tile::stream_config& s) {{
     float r = -1;
+
+    const float min_cu_util_rate = 0.8; // minimum CU utilization rate
+
+    unsigned num_cus;
+    if (!get_num_cus(num_cus)) {{
+        return r;
+    }}
+
+    auto get_num_blocks = [&](unsigned kM0) {{
+        return get_num_thread_blocks(a.batch, a.nhead_q, a.max_seqlen_q, kM0);
+    }};
+
 {F_dispatch}
     return r;
 }}
@@ -476,8 +518,8 @@ class CustomFactory(KernelComponentFactory):
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                '128' : [FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('a.max_seqlen_q < 8192')),
-                         FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1, CppConstraint('8192 <= a.max_seqlen_q')),]
+                '128' : [FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')),
+                         FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),]
             }
         else:
             return None
