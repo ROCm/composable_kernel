@@ -40,7 +40,7 @@ using B1DataType = F32;
 using EDataType  = F16;
 // using EDataType        = BF16;
 using AccDataType      = F32;
-using CShuffleDataType = F32; // todo: change to EDataType
+using CShuffleDataType = EDataType;
 using D2DataType       = F32;
 using DsDataType       = ck::Tuple<D2DataType>;
 
@@ -64,23 +64,25 @@ struct MulABScaleExpertWeight
     __host__ __device__ constexpr void
     operator()<EDataType, EDataType, float>(EDataType& e, const EDataType& c, const float& d2) const
     {
-        // (void) d2;
-        e = ck::type_convert<EDataType>(c * d2);
+        // for real kernel use
+        (void)d2;
+        e = ck::type_convert<EDataType>(c);
     }
     template <>
     __host__ __device__ constexpr void
     operator()<EDataType, float, float>(EDataType& e, const float& c, const float& d2) const
     {
+        // for real kernel use
+        (void)d2;
+        e = ck::type_convert<EDataType>(c);
+    }
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float, float, float>(float& e, const float& c, const float& d2) const
+    {
         // for reference cpu
         e = ck::type_convert<EDataType>(c * d2);
     }
-    //     template <>
-    // __host__ __device__ constexpr void
-    // operator()<float, float, float>(float& e, const float& c, const float& d2) const
-    // {
-    // // for reference cpu
-    //     e = ck::type_convert<EDataType>(c * d2);
-    // }
 };
 
 void preShuffleBuffer(const B0DataType* src, B0DataType* dst, int N, int K, int NXdl)
@@ -213,7 +215,7 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    else if(argc == 3)
+    else if(argc == 4)
     {
         // use default case
         do_verification = std::stoi(argv[1]);
@@ -317,9 +319,9 @@ int main(int argc, char* argv[])
     {
     case 0: break;
     case 1:
-        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-1.0, 1.0});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-1.0, 1.0});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0, 1.0});
         break;
@@ -467,7 +469,7 @@ int main(int argc, char* argv[])
 
         Tensor<float> a_t_k_k({tokens, topk, K});
         Tensor<float> b_e_n_k({experts, K, N});
-        Tensor<EDataType> c_t_n({tokens, N});
+        Tensor<float> c_t_n({tokens, N});
 
         for(int t = 0; t < tokens; ++t)
         {
@@ -496,7 +498,7 @@ int main(int argc, char* argv[])
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeGemm2BlockScale<float,
                                                                     float,
-                                                                    EDataType,
+                                                                    float,
                                                                     D2DataType,
                                                                     AccDataType,
                                                                     PassThrough,

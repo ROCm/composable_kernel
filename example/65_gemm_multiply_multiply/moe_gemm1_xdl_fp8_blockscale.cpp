@@ -40,7 +40,7 @@ using B1DataType = F32;
 // using EDataType        = F16;
 using EDataType        = BF16;
 using AccDataType      = F32;
-using CShuffleDataType = F32;
+using CShuffleDataType = EDataType;
 using D2DataType       = F32;
 using DsDataType       = ck::Tuple<D2DataType>;
 
@@ -126,7 +126,7 @@ static constexpr ck::index_t Scale_Block_K = 128;
 
 static constexpr ck::index_t Nswizzle = false;
 static constexpr ck::index_t ActOP    = 0; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr bool MulRoutedWeight = false;
+static constexpr bool MulRoutedWeight = true;
 
 #if 0
 static constexpr ck::index_t MPerBlock = 32;
@@ -466,7 +466,7 @@ int main(int argc, char* argv[])
         Tensor<float> b_e_n_k({experts, K, N * 2});
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-        Tensor<EDataType> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
+        Tensor<float> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
 
         // handle scale before ref.
         for(int t = 0; t < tokens; ++t)
@@ -491,7 +491,7 @@ int main(int argc, char* argv[])
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeGemm1BlockScale<float,
                                                                     float,
-                                                                    EDataType,
+                                                                    float,
                                                                     D2DataType,
                                                                     AccDataType,
                                                                     PassThrough,
