@@ -15,6 +15,7 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_mx.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_mx.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_mx_bpreshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -162,56 +163,108 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                                                          CElementwiseOperation>
 {
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMX_xdl_cshuffle_v3<
-        ALayout,
-        BLayout,
-        CLayout,
-        ADataType,
-        AScaleDataType,
-        BDataType,
-        BScaleDataType,
-        GemmAccDataType,
-        CShuffleDataType,
-        CDataType,
-        AElementwiseOperation,
-        BElementwiseOperation,
-        CElementwiseOperation,
-        GemmSpec,
-        ScaleBlockSize,
-        BlockSize,
-        MPerBlock,
-        NPerBlock,
-        KPerBlock,
-        AK1,
-        BK1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave,
-        ABlockTransferThreadClusterLengths_AK0_M_AK1,
-        ABlockTransferThreadClusterArrangeOrder,
-        ABlockTransferSrcAccessOrder,
-        ABlockTransferSrcVectorDim,
-        ABlockTransferSrcScalarPerVector,
-        ABlockTransferDstScalarPerVector_AK1,
-        false,
-        ABlockLdsExtraM,
-        BBlockTransferThreadClusterLengths_BK0_N_BK1,
-        BBlockTransferThreadClusterArrangeOrder,
-        BBlockTransferSrcAccessOrder,
-        BBlockTransferSrcVectorDim,
-        BBlockTransferSrcScalarPerVector,
-        BBlockTransferDstScalarPerVector_BK1,
-        false,
-        BBlockLdsExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
-        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock,
-        BlkGemmPipeSched,
-        BlkGemmPipelineVer,
-        ComputeTypeA,
-        ComputeTypeB>;
+    using GridwiseGemm = conditional_t< //
+        !is_same_v<BLayout, tensor_layout::gemm::MFMA>,
+        GridwiseGemmMX_xdl_cshuffle_v3<
+            ALayout,
+            BLayout,
+            CLayout,
+            ADataType,
+            AScaleDataType,
+            BDataType,
+            BScaleDataType,
+            GemmAccDataType,
+            CShuffleDataType,
+            CDataType,
+            AElementwiseOperation,
+            BElementwiseOperation,
+            CElementwiseOperation,
+            GemmSpec,
+            ScaleBlockSize,
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            KPerBlock,
+            AK1,
+            BK1,
+            MPerXDL,
+            NPerXDL,
+            MXdlPerWave,
+            NXdlPerWave,
+            ABlockTransferThreadClusterLengths_AK0_M_AK1,
+            ABlockTransferThreadClusterArrangeOrder,
+            ABlockTransferSrcAccessOrder,
+            ABlockTransferSrcVectorDim,
+            ABlockTransferSrcScalarPerVector,
+            ABlockTransferDstScalarPerVector_AK1,
+            false,
+            ABlockLdsExtraM,
+            BBlockTransferThreadClusterLengths_BK0_N_BK1,
+            BBlockTransferThreadClusterArrangeOrder,
+            BBlockTransferSrcAccessOrder,
+            BBlockTransferSrcVectorDim,
+            BBlockTransferSrcScalarPerVector,
+            BBlockTransferDstScalarPerVector_BK1,
+            false,
+            BBlockLdsExtraN,
+            CShuffleMXdlPerWavePerShuffle,
+            CShuffleNXdlPerWavePerShuffle,
+            CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+            CShuffleBlockTransferScalarPerVector_NPerBlock,
+            BlkGemmPipeSched,
+            BlkGemmPipelineVer,
+            ComputeTypeA,
+            ComputeTypeB>,
+        GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle<
+            ALayout,
+            BLayout,
+            CLayout,
+            ADataType,
+            AScaleDataType,
+            BDataType,
+            BScaleDataType,
+            GemmAccDataType,
+            CShuffleDataType,
+            CDataType,
+            AElementwiseOperation,
+            BElementwiseOperation,
+            CElementwiseOperation,
+            GemmSpec,
+            ScaleBlockSize,
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            KPerBlock,
+            AK1,
+            BK1,
+            MPerXDL,
+            NPerXDL,
+            MXdlPerWave,
+            NXdlPerWave,
+            ABlockTransferThreadClusterLengths_AK0_M_AK1,
+            ABlockTransferThreadClusterArrangeOrder,
+            ABlockTransferSrcAccessOrder,
+            ABlockTransferSrcVectorDim,
+            ABlockTransferSrcScalarPerVector,
+            ABlockTransferDstScalarPerVector_AK1,
+            false,
+            ABlockLdsExtraM,
+            BBlockTransferThreadClusterLengths_BK0_N_BK1,
+            BBlockTransferThreadClusterArrangeOrder,
+            BBlockTransferSrcAccessOrder,
+            BBlockTransferSrcVectorDim,
+            BBlockTransferSrcScalarPerVector,
+            BBlockTransferDstScalarPerVector_BK1,
+            false,
+            BBlockLdsExtraN,
+            CShuffleMXdlPerWavePerShuffle,
+            CShuffleNXdlPerWavePerShuffle,
+            CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+            CShuffleBlockTransferScalarPerVector_NPerBlock,
+            BlkGemmPipeSched,
+            BlkGemmPipelineVer,
+            ComputeTypeA,
+            ComputeTypeB>>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -310,9 +363,15 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                     return Tuple<constant<TailNumber::Even>, constant<TailNumber::Odd>>{};
                 else
-                {
                     static_assert(false, "Unexpected BlkGemmPipelineVer!");
-                }
+            }();
+            constexpr bool Use2LDS = []() {
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                    return false;
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                    return true;
+                else
+                    static_assert(false, "Unexpected BlkGemmPipelineVer!");
             }();
             const TailNumber tail_num = GridwiseGemm::CalculateKBlockLoopTailNum(K_split);
             using BoolChoices         = Tuple<ck::true_type, ck::false_type>;
@@ -327,31 +386,14 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                        KBatch_cond_choice.value == (arg.KBatch > 1) &&
                        tail_num_choice.value == tail_num)
                     {
-                        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-                        {
-                            const auto kernel = kernel_gemm_xdl_cshuffle_v3< //
-                                GridwiseGemm,
-                                mainloop_choice.value,
-                                CGlobalMemoryDataOperation,
-                                minimum_occupancy,
-                                tail_num_choice.value>;
-                            Run(kernel);
-                        }
-                        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-                        {
-
-                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds< //
-                                GridwiseGemm,
-                                mainloop_choice.value,
-                                CGlobalMemoryDataOperation,
-                                minimum_occupancy,
-                                tail_num_choice.value>;
-                            Run(kernel);
-                        }
-                        else
-                        {
-                            static_assert(false, "Unexpected BlkGemmPipelineVer!");
-                        }
+                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_mx< //
+                            Use2LDS,
+                            GridwiseGemm,
+                            mainloop_choice.value,
+                            CGlobalMemoryDataOperation,
+                            minimum_occupancy,
+                            tail_num_choice.value>;
+                        Run(kernel);
                     }
                 });
             return ave_time;

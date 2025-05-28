@@ -10,7 +10,6 @@
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx_bpreshuffle.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 #include "ck/utility/data_type.hpp"
@@ -24,8 +23,9 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row  = ck::tensor_layout::gemm::RowMajor;
+using Col  = ck::tensor_layout::gemm::ColumnMajor;
+using MFMA = ck::tensor_layout::gemm::MFMA;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -202,10 +202,11 @@ template <typename DeviceOpInstance,
           typename CElementOp,
           typename AccDataType,
           typename CShuffleDataType,
-          ck::index_t ScaleBlockSize,
-          bool BPreShuffle>
+          ck::index_t ScaleBlockSize>
 bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& config)
 {
+    constexpr bool BPreShuffle = ck::is_same_v<BLayout, MFMA>;
+    using BRefLayout           = ck::conditional_t<BPreShuffle, Col, BLayout>;
 
     auto M       = problem_size.M;
     auto N       = problem_size.N;
@@ -257,11 +258,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     auto b_k_n =
-        std::make_shared<Tensor<BDataType>>(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+        std::make_shared<Tensor<BDataType>>(f_host_tensor_descriptor(K, N, StrideB, BRefLayout{}));
     auto b_input = b_k_n;
     if constexpr(BPreShuffle)
         b_input = std::make_shared<Tensor<BDataType>>(
-            f_host_tensor_descriptor(K, N, StrideB, BLayout{})); // use layout only for size
+            f_host_tensor_descriptor(K, N, StrideB, BRefLayout{})); // use layout only for size
 
     // scales for A and B
     Tensor<XDataType> a_m_k_scale(f_host_tensor_descriptor(
@@ -350,7 +351,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                                                        a_shuffled_scale.mData.data(),
                                                        Scale_Padded_M,
                                                        K / ScaleBlockSize);
-    preShuffleScaleBuffer<ck::is_same_v<BLayout, Col>>(
+    preShuffleScaleBuffer<ck::is_same_v<BRefLayout, Col>>(
         b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
     if constexpr(BPreShuffle)
     {
@@ -572,8 +573,7 @@ template <typename DeviceOpInstance,
           typename CElementOp,
           typename AccDataType,
           typename CShuffleDataType,
-          ck::index_t MXVectorSize,
-          bool BPreShuffle = false>
+          ck::index_t MXVectorSize>
 bool run_mx_gemm_example(int argc, char* argv[])
 {
     ProblemSizeSplitK problem_size;
@@ -594,6 +594,5 @@ bool run_mx_gemm_example(int argc, char* argv[])
                        CElementOp,
                        AccDataType,
                        CShuffleDataType,
-                       MXVectorSize,
-                       BPreShuffle>(problem_size, config);
+                       MXVectorSize>(problem_size, config);
 }

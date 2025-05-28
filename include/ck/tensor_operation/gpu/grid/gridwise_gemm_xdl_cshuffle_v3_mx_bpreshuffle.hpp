@@ -18,25 +18,28 @@
 
 namespace ck {
 
+#ifndef KERNEL_GEMM_XDL_CSHUFFLE_V3_MX
+#define KERNEL_GEMM_XDL_CSHUFFLE_V3_MX
 // Currently we do not have a elegant way to put single lds buffer & double lds buffer pipe in same
 // kernel function Blockers:
 // 1. Two separted declaration of __shared__ pointer is the key to make sure data access operate on
 // two lds chunks.
 // 2. Occupied __shared__ won't release until whole shader end, a.k.a AB and C may not use same lds
 // buffer when we declare __shared__ inside blkgemmpipe
-template <typename GridwiseGemm,
+template <bool Use2LDS,
+          typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           TailNumber TailNum       = TailNumber::Full>
-__global__ void
+__global__ enable_if_t<!Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3_b_preshuffle(typename GridwiseGemm::Argument karg)
+    kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx950__) && __HIP_DEVICE_COMPILE__
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
@@ -55,23 +58,25 @@ __global__ void
 #endif // end of if (defined(__gfx9__))
 }
 
-template <typename GridwiseGemm,
+template <bool Use2LDS,
+          typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
           TailNumber TailNum       = TailNumber::Full>
-__global__ void
+__global__ enable_if_t<Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3_b_preshuffle_2lds(typename GridwiseGemm::Argument karg)
+    kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx950__) && __HIP_DEVICE_COMPILE__
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -88,6 +93,7 @@ __global__ void
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
 }
+#endif
 
 template <typename ALayout,
           typename BLayout,
@@ -434,7 +440,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
             {
                 return make_naive_tensor_descriptor(make_tuple(N, K), make_tuple(I1, StrideB));
             }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+            else if constexpr(is_same<tensor_layout::gemm::MFMA, BLayout>::value)
             {
                 return make_naive_tensor_descriptor(make_tuple(N, K), make_tuple(StrideB, I1));
             }
@@ -796,7 +802,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
             {
                 b_k_split_offset = k_id * karg.KRead * karg.StrideB;
             }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+            else if constexpr(is_same_v<tensor_layout::gemm::MFMA, BLayout>)
             {
                 if constexpr(!PermuteB)
                 {
@@ -826,7 +832,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                 b_scale_k_split_offset =
                     k_id * (karg.KRead / (ScaleBlockSize / BPackedSize)) * karg.StrideScaleB;
             }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+            else if constexpr(is_same_v<tensor_layout::gemm::MFMA, BLayout>)
             {
                 b_scale_k_split_offset = k_id * karg.KRead / (ScaleBlockSize / BPackedSize);
             }
