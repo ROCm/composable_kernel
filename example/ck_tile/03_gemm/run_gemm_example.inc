@@ -180,27 +180,27 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     float ave_time;
     if(persistent)
     {
-        ave_time =
-            gemm_calc<ADataType,
-                      BDataType,
-                      AccDataType,
-                      CDataType,
-                      ALayout,
-                      BLayout,
-                      CLayout,
-                      true>(args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+        ave_time = gemm_calc<ADataType,
+                             BDataType,
+                             AccDataType,
+                             CDataType,
+                             ALayout,
+                             BLayout,
+                             CLayout,
+                             true>(
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
     }
     else
     {
-        ave_time =
-            gemm_calc<ADataType,
-                      BDataType,
-                      AccDataType,
-                      CDataType,
-                      ALayout,
-                      BLayout,
-                      CLayout,
-                      false>(args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+        ave_time = gemm_calc<ADataType,
+                             BDataType,
+                             AccDataType,
+                             CDataType,
+                             ALayout,
+                             BLayout,
+                             CLayout,
+                             false>(
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
     }
 
     std::size_t flop = std::size_t(2) * M * N * K;
