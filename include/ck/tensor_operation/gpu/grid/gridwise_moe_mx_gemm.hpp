@@ -8,7 +8,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_selector.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_mx_moe_selector.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1_gather.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
@@ -43,7 +43,7 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_moe_gemm(typename GridwiseGemm::Argument karg)
+    kernel_moe_mxgemm(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -55,7 +55,9 @@ __global__ void
         karg.p_sorted_expert_ids,
         karg.p_max_token_id,
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+        karg.p_a_scale_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+        karg.p_b_scale_grid + splitk_batch_offset.b_k_split_offset,
         karg.p_ds_grid,
         karg.p_c_grid,
         p_shared,
@@ -78,20 +80,22 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_moe_gemm_2lds(typename GridwiseGemm::Argument karg)
+    kernel_moe_mxgemm_2lds(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
+    // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_sorted_token_ids,
         karg.p_sorted_expert_ids,
         karg.p_max_token_id,
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+        karg.p_a_grid,
+        karg.p_a_scale_grid,
+        karg.p_b_grid,
+        karg.p_b_scale_grid,
         karg.p_ds_grid,
         karg.p_c_grid,
         p_shared,
@@ -110,7 +114,9 @@ template <typename ALayout,
           typename DsLayout,
           typename CLayout,
           typename ADataType,
+          typename AScaleDataType,
           typename BDataType,
+          typename BScaleDataType,
           typename AccDataType,
           typename CShuffleDataType,
           typename DsDataType,
@@ -119,6 +125,7 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           tensor_operation::device::GemmSpecialization GemmSpec,
+          index_t ScaleBlockSize,
           index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
@@ -155,14 +162,14 @@ template <typename ALayout,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
           bool MulRoutedWeight                        = true,
-          bool PerTokenQuant                          = false,
           typename IndexType                          = index_t,
-          typename ComputeTypeA                       = CDataType,
-          typename ComputeTypeB                       = ComputeTypeA,
-          typename LDSTypeA                           = ADataType,
-          typename LDSTypeB                           = BDataType>
-struct GridwiseMoeGemm
+          typename ComputeTypeA                       = ADataType,
+          typename ComputeTypeB                       = BDataType>
+struct GridwiseMoeGemmMX
 {
+    using LDSTypeA = ADataType;
+    using LDSTypeB = BDataType;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -183,27 +190,46 @@ struct GridwiseMoeGemm
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    static constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
-    static constexpr bool is_single_rate_mfma =
-        (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
-          lcm_AK1_BK1 <= 4) ||
-         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
-         ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
-          lcm_AK1_BK1 < 32))
-            ? true
-            : false;
-    static constexpr auto is_scale_mfma = false;
-    static constexpr auto mfma          = MfmaSelector<ComputeTypeA,
-                                              MPerXdl,
-                                              NPerXdl,
-                                              ComputeTypeA,
-                                              is_single_rate_mfma,
-                                              is_scale_mfma>{};
-    static constexpr index_t KPack      = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
-    static constexpr index_t KLane      = mfma.GetKPerXdlops() / mfma.GetK1PerXdlops();
-    static constexpr index_t KRepeat    = KPerBlock / KLane / KPack;
-    static constexpr index_t NLane      = NPerXdl;
-    static constexpr index_t NWave      = NPerBlock / NPerXdl / NXdlPerWave;
+    static constexpr auto MXdlPack = 2;
+    static constexpr auto NXdlPack = 2;
+    static constexpr auto KXdlPack = 2;
+
+    static constexpr index_t APackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t> ||
+                     is_same_v<remove_cvref_t<BDataType>, f4x2_pk_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    static constexpr bool is_single_rate_mfma = false;
+    static constexpr auto is_scale_mfma       = true;
+    using mfma_selector                       = MfmaSelector<ComputeTypeA,
+                                       MPerXdl,
+                                       NPerXdl,
+                                       ComputeTypeB,
+                                       is_single_rate_mfma,
+                                       is_scale_mfma>;
+    static constexpr index_t KPack            = math::max(
+        math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk / APackedSize);
+    static constexpr index_t KLane =
+        mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
+
+    static constexpr index_t KGroup = 1; // mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
+    // static_assert(KGroup == 2, "");
+    static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
+    static constexpr index_t NLane   = NPerXdl;
+    static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
+    static constexpr index_t MWave   = MPerBlock / MPerXdl / MXdlPerWave;
+
     // static constexpr index_t NumTokens = 1;
     static constexpr index_t SortedTileSize = MPerBlock;
 
@@ -221,20 +247,6 @@ struct GridwiseMoeGemm
     using DsGridPointer = decltype(MakeDsGridPointer());
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
-
-    static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
-
-    static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
 
     __host__ static auto CalculateGridSize(index_t M, index_t N)
     {
@@ -305,7 +317,11 @@ struct GridwiseMoeGemm
         return math::integer_divide_ceil(N, NPerBlock);
     }
 
-    template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
+    template <index_t MNXdlPerWave,
+              index_t MNWaves,
+              index_t MNXdlPack,
+              index_t MNPerXdl,
+              typename TileDesc_K0_MN_K1>
     __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
     {
         constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
@@ -314,10 +330,12 @@ struct GridwiseMoeGemm
         return transform_tensor_descriptor(
             TileDesc_K0_MN_K1{},
             make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
-                       make_unmerge_transform(make_tuple(
-                           Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
+                       make_unmerge_transform(make_tuple(Number<MNXdlPerWave / MNXdlPack>{},
+                                                         Number<MNWaves>{},
+                                                         Number<MNXdlPack>{},
+                                                         Number<MNPerXdl>{}))),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+            make_tuple(Sequence<4>{}, Sequence<0, 1, 2, 3>{}));
     }
 
     __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
@@ -406,8 +424,12 @@ struct GridwiseMoeGemm
     {
         constexpr index_t NkSwizzleNumber = Number<warpSize * KPack / KGroup>{};
         return make_naive_tensor_descriptor(
-            make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
-            make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
+            make_tuple(N0 / NWave / NXdlPack, NWave, NXdlPack, K0, NkSwizzleNumber),
+            make_tuple(NWave * NXdlPack * K0 * NkSwizzleNumber,
+                       NXdlPack * K0 * NkSwizzleNumber,
+                       K0 * NkSwizzleNumber,
+                       NkSwizzleNumber,
+                       I1));
     }
 
     __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
@@ -429,6 +451,9 @@ struct GridwiseMoeGemm
         static_assert(!(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> &&
                         GemmSpec != GemmSpecialization::Default),
                       "pk_i4_t does not support padding");
+        static_assert(!(is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t> &&
+                        GemmSpec != GemmSpecialization::Default),
+                      "f4x2_pk_t does not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -498,18 +523,18 @@ struct GridwiseMoeGemm
 
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
-    MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
+    MakeAMmaTileDescriptor_M0_M1_M2_M3_K(const ABlockDesc_AK0_M_AK1&)
     {
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-
-        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWaves, MPerXdl>(ABlockDesc_AK0_M_AK1{});
+        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWave, MXdlPack, MPerXdl>(
+            ABlockDesc_AK0_M_AK1{});
     }
 
     template <typename BBlockDesc_BK0_N_BK1>
     __host__ __device__ static constexpr auto
-    MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
+    MakeBMmaTileDescriptor_N0_N1_N2_N3_K(const BBlockDesc_BK0_N_BK1&)
     {
-        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWave, NPerXdl>(BBlockDesc_BK0_N_BK1{});
+        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWave, NXdlPack, NPerXdl>(
+            BBlockDesc_BK0_N_BK1{});
     }
 
     template <typename ELayout>
@@ -589,7 +614,9 @@ struct GridwiseMoeGemm
                                     index_t N_,
                                     index_t K_,
                                     index_t StrideA_,
+                                    index_t StrideScaleA_,
                                     index_t StrideB_,
+                                    index_t StrideScaleB_,
                                     std::array<index_t, NumDTensor> StrideDs_,
                                     index_t StrideC_,
                                     index_t KBatch_)
@@ -599,7 +626,9 @@ struct GridwiseMoeGemm
               N{N_},
               K{K_},
               StrideA{StrideA_},
+              StrideScaleA{StrideScaleA_},
               StrideB{StrideB_},
+              StrideScaleB{StrideScaleB_},
               StrideDs{StrideDs_},
               StrideC{StrideC_},
               KBatch{KBatch_},
@@ -625,7 +654,9 @@ struct GridwiseMoeGemm
                       << "N:" << N << ", "
                       << "K:" << K << ", "
                       << "SA:" << StrideA << ", "
+                      << "SSCaleA:" << StrideScaleA << ", "
                       << "SB:" << StrideB << ", "
+                      << "SScaleB:" << StrideScaleB << ", "
                       << "SC:" << StrideC << ", "
                       << "MP:" << MPadded << ", "
                       << "NP:" << NPadded << ", "
@@ -643,7 +674,9 @@ struct GridwiseMoeGemm
         index_t N;
         index_t K;
         index_t StrideA;
+        index_t StrideScaleA;
         index_t StrideB;
+        index_t StrideScaleB;
         std::array<index_t, NumDTensor> StrideDs;
         index_t StrideC;
         index_t KBatch;
@@ -667,7 +700,9 @@ struct GridwiseMoeGemm
                           const index_t* p_sorted_expert_ids_,
                           const index_t* p_max_token_id_,
                           const ADataType* p_a_grid_,
+                          const AScaleDataType* p_a_scale_grid_,
                           const BDataType* p_b_grid_,
+                          const BScaleDataType* p_b_scale_grid_,
                           std::array<const void*, NumDTensor> p_ds_grid_,
                           CDataType* p_c_grid_,
                           index_t NumTokens_,
@@ -676,7 +711,9 @@ struct GridwiseMoeGemm
                           index_t N_,
                           index_t K_,
                           index_t StrideA_,
+                          index_t StrideScaleA_,
                           index_t StrideB_,
+                          index_t StrideScaleB_,
                           std::array<index_t, NumDTensor> StrideDs_,
                           index_t StrideC_,
                           index_t k_batch_,
@@ -687,9 +724,11 @@ struct GridwiseMoeGemm
                       TopK_,
                       M_,
                       N_,
-                      K_,
-                      StrideA_,
-                      StrideB_,
+                      K_ / APackedSize,
+                      StrideA_ / APackedSize,
+                      StrideScaleA_,
+                      StrideB_ / APackedSize,
+                      StrideScaleB_,
                       StrideDs_,
                       StrideC_,
                       k_batch_},
@@ -697,7 +736,9 @@ struct GridwiseMoeGemm
               p_sorted_expert_ids{p_sorted_expert_ids_},
               p_max_token_id{p_max_token_id_},
               p_a_grid{p_a_grid_},
+              p_a_scale_grid{p_a_scale_grid_},
               p_b_grid{p_b_grid_},
+              p_b_scale_grid{p_b_scale_grid_},
               p_ds_grid{},
               p_c_grid{p_c_grid_},
               a_element_op{a_element_op_},
@@ -718,7 +759,9 @@ struct GridwiseMoeGemm
         const index_t* p_sorted_expert_ids;
         const index_t* p_max_token_id;
         const ADataType* p_a_grid;
+        const AScaleDataType* p_a_scale_grid;
         const BDataType* p_b_grid;
+        const BScaleDataType* p_b_scale_grid;
         DsGridPointer p_ds_grid;
         CDataType* p_c_grid;
 
@@ -733,7 +776,7 @@ struct GridwiseMoeGemm
         {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = k_id * karg.KRead / APackedSize;
+                a_k_split_offset = k_id * karg.KRead;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
@@ -747,7 +790,29 @@ struct GridwiseMoeGemm
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
                 // KPack * NLane * KLane * K0 * N0
-                b_k_split_offset = k_id * karg.KRead * NLane / BPackedSize;
+                b_k_split_offset = k_id * karg.KRead;
+            }
+
+            // Calculate A scale offset
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
+            {
+                a_scale_k_split_offset = k_id * karg.KRead / (ScaleBlockSize / APackedSize);
+            }
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+            {
+                a_scale_k_split_offset =
+                    k_id * karg.KRead / (ScaleBlockSize / APackedSize) * karg.StrideScaleA;
+            }
+
+            // Calculate B scale offset
+            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+            {
+                b_scale_k_split_offset =
+                    k_id * (karg.KRead / (ScaleBlockSize / BPackedSize)) * karg.StrideScaleB;
+            }
+            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+            {
+                b_scale_k_split_offset = k_id * karg.KRead / (ScaleBlockSize / BPackedSize);
             }
 
             if(k_id < karg.KBatch - 1)
@@ -762,6 +827,8 @@ struct GridwiseMoeGemm
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
+        index_t a_scale_k_split_offset;
+        index_t b_scale_k_split_offset;
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -883,14 +950,15 @@ struct GridwiseMoeGemm
     __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
-        return make_naive_tensor_descriptor_packed(
-            make_tuple(Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}));
+        return make_naive_tensor_descriptor_packed(make_tuple(Number<NXdlPerWave / NXdlPack>{},
+                                                              I1,
+                                                              Number<NXdlPack>{},
+                                                              Number<KRepeat>{},
+                                                              Number<BK1Value>{}));
     }
 
     __device__ static constexpr auto GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
-        constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
             make_naive_tensor_descriptor_packed(
                 make_tuple(I1,
@@ -902,19 +970,22 @@ struct GridwiseMoeGemm
     }
 
     using BlockwiseGemmPipe =
-        remove_cvref_t<decltype(BlockGemmBPreshufflePipeline_Selector<
+        remove_cvref_t<decltype(BlockGemmMXBPreshufflePipeline_Selector<
                                 BlkGemmPipelineVer,
                                 BlkGemmPipeSched,
                                 BlockSize,
+                                ScaleBlockSize,
                                 ADataType,
+                                AScaleDataType,
                                 BDataType,
+                                BScaleDataType,
                                 ComputeTypeA,
                                 AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
                                 decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
-                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
+                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_M3_K(
                                     GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
-                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
+                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_N3_K(
                                     GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
                                 ABlockTransferSrcScalarPerVector,
                                 BBlockTransferSrcScalarPerVector,
@@ -945,7 +1016,7 @@ struct GridwiseMoeGemm
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max(a_block_space_size_aligned * sizeof(LDSTypeA) / APackedSize,
+        return math::max(a_block_space_size_aligned * sizeof(LDSTypeA),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
@@ -955,6 +1026,9 @@ struct GridwiseMoeGemm
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
+
+        static_assert(KPerBlock % (ScaleBlockSize / BPackedSize) == 0,
+                      "KPerBlock should be multiple of ScaleBlockSize");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
@@ -1111,7 +1185,7 @@ struct GridwiseMoeGemm
         }
 
         // check gridwise gemm pipeline
-#if 1
+#if 0
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
         if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
@@ -1156,6 +1230,14 @@ struct GridwiseMoeGemm
     // using Block2CTileMapDefault = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock,
     // NPerBlock>;
 
+    using mx_scale_t                           = e8m0_bexp_t;
+    static constexpr index_t scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
+    static constexpr index_t scale_pack_size_b = sizeof(BScaleDataType) / sizeof(mx_scale_t);
+    static_assert(KXdlPack * MXdlPack % scale_pack_size_a == 0,
+                  "A scale pack data type too large!");
+    static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
+                  "B scale pack data type too large!");
+
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
@@ -1163,7 +1245,9 @@ struct GridwiseMoeGemm
                                const index_t* p_sorted_expert_ids,
                                const index_t* p_max_token_id,
                                const ADataType* p_a_grid,
+                               const AScaleDataType* p_a_scale_grid,
                                const BDataType* p_b_grid,
+                               const BScaleDataType* p_b_scale_grid,
                                DsGridPointer& p_ds_grid,
                                CDataType* p_c_grid,
                                void* p_shared,
@@ -1188,6 +1272,19 @@ struct GridwiseMoeGemm
             problem.N,
             problem.NPadded,
             problem.StrideC);
+
+        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
+            make_tuple((IsInputGemm ? problem.NumTokens : problem.M) / (MXdlPack * MPerBlock),
+                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
+                           (KXdlPack * 64 / MPerXdl),
+                       64 * KXdlPack * MXdlPack / scale_pack_size_a));
+
+        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor_packed(
+            make_tuple(problem.N / (NXdlPack * NPerXdl),
+                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / BPackedSize)) /
+                           (KXdlPack * 64 / NPerXdl),
+                       64 * KXdlPack * NXdlPack / scale_pack_size_b));
+
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
@@ -1198,6 +1295,7 @@ struct GridwiseMoeGemm
             return;
         const index_t expert_id =
             __builtin_amdgcn_readfirstlane(p_sorted_expert_ids[expert_block_id]);
+
         const auto block_mn = [&]() -> std::pair<int, int> {
             if constexpr(NSwizzle)
             {
@@ -1242,10 +1340,13 @@ struct GridwiseMoeGemm
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
+            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K / APackedSize;
         });
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
+        const index_t expert_scale_stride =
+            __builtin_amdgcn_readfirstlane(problem.N * (IsInputGemm ? 2 : 1) *
+                                           math::integer_divide_ceil(problem.K, ScaleBlockSize));
 
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
@@ -1256,6 +1357,14 @@ struct GridwiseMoeGemm
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
             b_grid_desc_bpreshuffled.GetElementSpaceSize());
+
+        // A, B scale buffer
+        const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
+        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_scale_grid + expert_id * expert_scale_stride,
+            b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
@@ -1300,26 +1409,32 @@ struct GridwiseMoeGemm
         auto b_block_buf = make_static_buffer<AddressSpaceEnum::Vgpr, BDataType>(
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        auto b_blockwise_copy = ThreadwiseTensorSliceTransfer_v2<
-            BDataType,
-            BDataType,
-            decltype(b_grid_desc_bpreshuffled),
-            decltype(b_block_desc_bk0_n_bk1),
-            Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
-            Sequence<1, 2, 0, 3>,
-            3,
-            BBlockTransferSrcScalarPerVector,
-            BThreadTransferSrcResetCoordinateAfterRun,
-            true>(b_grid_desc_bpreshuffled,
-                  make_multi_index(n_block_data_idx_on_grid,
-                                   get_warp_local_1d_id() % NWave,
-                                   0,
-                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+        auto b_blockwise_copy =
+            ThreadwiseTensorSliceTransfer_v2<BDataType,
+                                             BDataType,
+                                             decltype(b_grid_desc_bpreshuffled),
+                                             decltype(b_block_desc_bk0_n_bk1),
+                                             Sequence<Number<NXdlPerWave / NXdlPack>{},
+                                                      I1,
+                                                      Number<NXdlPack>{},
+                                                      Number<KRepeat>{},
+                                                      Number<BK1Value>{}>,
+                                             Sequence<1, 2, 0, 3>,
+                                             4,
+                                             BBlockTransferSrcScalarPerVector,
+                                             BThreadTransferSrcResetCoordinateAfterRun,
+                                             true>(
+                b_grid_desc_bpreshuffled,
+                make_multi_index(n_block_data_idx_on_grid,
+                                 get_warp_local_1d_id() % NWave,
+                                 0,
+                                 KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<LDSTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<LDSTypeA*>(p_shared),
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);
@@ -1340,6 +1455,52 @@ struct GridwiseMoeGemm
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
+
+        // a and b scale processing
+        const auto wave_idx = BlockwiseGemmPipe::GetWaveIdx();
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        static constexpr auto mfma = BlockwiseGemmPipe::xdlops_gemm.mfma;
+
+        auto thread_offset_shuffled =
+            get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack;
+
+        auto a_thread_offset_m = waveId_m;
+
+        auto a_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
+            AScaleDataType,
+            AScaleDataType,
+            decltype(a_scale_grid_desc_am_ak),
+            decltype(BlockwiseGemmPipe::a_scale_thread_desc),
+            Sequence<1, 1, KXdlPack * MXdlPack / scale_pack_size_a>, // SliceLengths
+            Sequence<0, 1, 2>,                                       // DimAccessOrder
+            2,                                                       // SrcVectorDim
+            KXdlPack * MXdlPack / scale_pack_size_a,                 // SrcScalarPerVector
+            1,                                                       // SrcScalarStrideInVector
+            true>(a_scale_grid_desc_am_ak,
+                  make_multi_index(block_m_id * MPerBlock / MPerXdl / MXdlPack + a_thread_offset_m,
+                                   0,
+                                   thread_offset_shuffled / scale_pack_size_a));
+
+        // B scale load
+        auto b_thread_offset_n = waveId_n;
+
+        auto b_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
+            BScaleDataType,
+            BScaleDataType,
+            decltype(b_scale_grid_desc_bn_ak),
+            decltype(BlockwiseGemmPipe::b_scale_thread_desc),
+            Sequence<1, 1, KXdlPack * NXdlPack / scale_pack_size_b>, // SliceLengths
+            Sequence<0, 1, 2>,                                       // DimAccessOrder
+            2,                                                       // SrcVectorDim
+            KXdlPack * MXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
+            1,                                                       // SrcScalarStrideInVector
+            true>(b_scale_grid_desc_bn_ak,
+                  make_multi_index(block_n_id * NPerBlock / NPerXdl / NXdlPack + b_thread_offset_n,
+                                   0,
+                                   thread_offset_shuffled / scale_pack_size_b));
+
         if constexpr(IsInputGemm)
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
@@ -1361,6 +1522,26 @@ struct GridwiseMoeGemm
                                        get_warp_local_1d_id() % NWave,
                                        0,
                                        KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+            const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2;
+            const auto b_scale_grid_buf_up          = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                p_b_scale_grid_up + expert_id * expert_scale_stride,
+                b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+            auto b_scale_thread_copy_up = ThreadwiseTensorSliceTransfer_v2<
+                BScaleDataType,
+                BScaleDataType,
+                decltype(b_scale_grid_desc_bn_ak),
+                decltype(BlockwiseGemmPipe::b_scale_thread_desc),
+                Sequence<1, 1, KXdlPack * NXdlPack / scale_pack_size_b>, // SliceLengths
+                Sequence<0, 1, 2>,                                       // DimAccessOrder
+                2,                                                       // SrcVectorDim
+                KXdlPack * MXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
+                1,                                                       // SrcScalarStrideInVector
+                true>(
+                b_scale_grid_desc_bn_ak,
+                make_multi_index(block_n_id * NPerBlock / NPerXdl / NXdlPack + b_thread_offset_n,
+                                 0,
+                                 thread_offset_shuffled / scale_pack_size_b));
+
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
@@ -1369,6 +1550,7 @@ struct GridwiseMoeGemm
                 a_block_buf,
                 a_block_slice_copy_step,
                 b_grid_desc_bpreshuffled,
+                b_block_desc_bk0_n_bk1,
                 b_blockwise_copy,
                 b_blockwise_copy_up,
                 b_grid_buf,
@@ -1377,6 +1559,14 @@ struct GridwiseMoeGemm
                 b_block_slice_copy_step,
                 c_thread_buf,
                 c_thread_buf_up,
+                a_scale_grid_desc_am_ak,
+                a_scale_thread_copy,
+                a_scale_grid_buf,
+                b_scale_grid_desc_bn_ak,
+                b_scale_thread_copy,
+                b_scale_thread_copy_up,
+                b_scale_grid_buf,
+                b_scale_grid_buf_up,
                 num_k_block_main_loop);
         }
         else
@@ -1389,11 +1579,18 @@ struct GridwiseMoeGemm
                 a_block_buf,
                 a_block_slice_copy_step,
                 b_grid_desc_bpreshuffled,
+                b_block_desc_bk0_n_bk1,
                 b_blockwise_copy,
                 b_grid_buf,
                 b_block_buf,
                 b_block_slice_copy_step,
                 c_thread_buf,
+                a_scale_grid_desc_am_ak,
+                a_scale_thread_copy,
+                a_scale_grid_buf,
+                b_scale_grid_desc_bn_ak,
+                b_scale_thread_copy,
+                b_scale_grid_buf,
                 num_k_block_main_loop);
         }
 
@@ -1402,8 +1599,6 @@ struct GridwiseMoeGemm
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
-
-            constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
@@ -1424,183 +1619,68 @@ struct GridwiseMoeGemm
             constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
 
             // mul scales
-            const float* p_sorted_weights_0 = p_ds_grid[I0];
-            const float* p_scale_b          = p_ds_grid[I1];
-
             static_assert(M0 * M1 * M2 * M3 * M4 == MPerBlock);
             static_assert(M4 == 4);
             const index_t m1 = get_warp_local_1d_id() / NWave;
             const index_t m3 = threadIdx.x % get_warp_size() / MPerXdl;
 
-            if(p_sorted_weights_0 != nullptr && p_scale_b != nullptr)
-            {
-                if constexpr(PerTokenQuant)
-                {
-                    constexpr index_t scale_stride = (IsInputGemm ? 2 : 1);
-                    p_scale_b += expert_id * problem.N * scale_stride + block_n_id * NPerBlock +
-                                 get_warp_local_1d_id() % NWave * NPerXdl + threadIdx.x % NPerXdl;
-                }
-                else
-                {
-                    p_scale_b += expert_id;
-                }
+            vector_type<float, 4> topk_weights; // for gemm2 only
+            static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
+                static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
+                    static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
+                        const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
+                                              m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
+                        if constexpr(MulRoutedWeight)
+                        {
+                            topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
+                                p_ds_grid[I2] + m_pos);
+                        }
+                        static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
+                            constexpr index_t c_offset =
+                                blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
+                                    make_tuple(m0, n0, m2 * M4 + m4));
+                            constexpr auto cidx = Number<c_offset>{};
 
-                vector_type<int32_t, 4> scale_token_ids;
-                vector_type<float, 4> topk_weights;
-                static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
-                    const float scale_b = p_scale_b[n0 * NWave * NPerXdl * PerTokenQuant];
-                    static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
-                        static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
-                            const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
-                                                  m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
-                            if constexpr(PerTokenQuant)
+                            if constexpr(IsInputGemm) // gu fusion
                             {
-                                scale_token_ids =
-                                    *c_style_pointer_cast<const vector_type<int32_t, M4>*>(
-                                        p_sorted_token_ids + m_pos);
-                            }
-                            if constexpr(MulRoutedWeight)
-                            {
-                                topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
-                                    p_ds_grid[I2] + m_pos);
-                            }
-                            static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
-                                float scale_a = [&]() {
-                                    if constexpr(PerTokenQuant)
-                                    {
-                                        index_t fused_token = scale_token_ids.AsType<index_t>()[m4];
-                                        const index_t token_offset = fused_token & 0xffffff;
-                                        return token_offset < problem.NumTokens
-                                                   ? p_sorted_weights_0[token_offset]
-                                                   : 0.0;
-                                    }
-                                    else
-                                    {
-                                        return p_sorted_weights_0[0];
-                                    }
-                                }();
-                                constexpr index_t c_offset =
-                                    blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
-                                        make_tuple(m0, n0, m2 * M4 + m4));
-                                constexpr auto cidx = Number<c_offset>{};
-                                if constexpr(IsInputGemm) // gu fusion
+                                if constexpr(ActivationOperation == Activation::silu_and_mul)
                                 {
-                                    if constexpr(ActivationOperation == Activation::silu_and_mul)
+                                    float gate = c_thread_buf[cidx];
+                                    float up   = c_thread_buf_up[cidx];
+                                    if constexpr(MulRoutedWeight)
                                     {
-                                        const float scale_up =
-                                            p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
-                                                      PerTokenQuant];
-                                        float gate = scale_a * scale_b * c_thread_buf[cidx];
-                                        float up   = scale_a * scale_up * c_thread_buf_up[cidx];
-                                        if constexpr(MulRoutedWeight)
-                                        {
-                                            gate = gate * topk_weights.AsType<float>()[m4];
-                                            up   = up * topk_weights.AsType<float>()[m4];
-                                        }
-                                        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-                                        {
-                                            gate *= 16;
-                                            up *= 16;
-                                        }
-                                        tensor_operation::element_wise::Silu{}(gate, gate);
-                                        c_thread_buf_fp32(cidx) = gate * up;
+                                        gate = gate * topk_weights.AsType<float>()[m4];
+                                        up   = up * topk_weights.AsType<float>()[m4];
                                     }
-                                    else if(ActivationOperation == Activation::gelu_and_mul)
-                                    {
-                                        const float scale_up =
-                                            p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
-                                                      PerTokenQuant];
-                                        float gate = scale_a * scale_b * c_thread_buf[cidx];
-                                        float up   = scale_a * scale_up * c_thread_buf_up[cidx];
-                                        if constexpr(MulRoutedWeight)
-                                        {
-                                            gate = gate * topk_weights.AsType<float>()[m4];
-                                            up   = up * topk_weights.AsType<float>()[m4];
-                                        }
-                                        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-                                        {
-                                            gate *= 16;
-                                            up *= 16;
-                                        }
-                                        tensor_operation::element_wise::Gelu{}(gate, gate);
-                                        c_thread_buf_fp32(cidx) = gate * up;
-                                    }
+                                    tensor_operation::element_wise::Silu{}(gate, gate);
+                                    c_thread_buf_fp32(cidx) = gate * up;
                                 }
-                                else
+                                else if(ActivationOperation == Activation::gelu_and_mul)
+                                {
+                                    float gate = c_thread_buf[cidx];
+                                    float up   = c_thread_buf_up[cidx];
+                                    if constexpr(MulRoutedWeight)
+                                    {
+                                        gate = gate * topk_weights.AsType<float>()[m4];
+                                        up   = up * topk_weights.AsType<float>()[m4];
+                                    }
+                                    tensor_operation::element_wise::Gelu{}(gate, gate);
+                                    c_thread_buf_fp32(cidx) = gate * up;
+                                }
+                            }
+                            else
+                            {
+                                c_thread_buf_fp32(cidx) = c_thread_buf[cidx];
+                                if constexpr(MulRoutedWeight)
                                 {
                                     c_thread_buf_fp32(cidx) =
-                                        scale_a * scale_b * c_thread_buf[cidx];
-                                    if constexpr(MulRoutedWeight)
-                                    {
-                                        c_thread_buf_fp32(cidx) = c_thread_buf_fp32(cidx) *
-                                                                  topk_weights.AsType<float>()[m4];
-                                    }
+                                        topk_weights.AsType<float>()[m4] * c_thread_buf_fp32[cidx];
                                 }
-                            });
-                        });
-                    });
-                });
-            }
-            else
-            {
-                vector_type<float, 4> topk_weights; // for gemm2 only
-                static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
-                    static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
-                        static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
-                            const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
-                                                  m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
-                            if constexpr(MulRoutedWeight)
-                            {
-                                topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
-                                    p_ds_grid[I2] + m_pos);
                             }
-                            static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
-                                constexpr index_t c_offset =
-                                    blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
-                                        make_tuple(m0, n0, m2 * M4 + m4));
-                                constexpr auto cidx = Number<c_offset>{};
-
-                                if constexpr(IsInputGemm) // gu fusion
-                                {
-                                    if constexpr(ActivationOperation == Activation::silu_and_mul)
-                                    {
-                                        float gate = c_thread_buf[cidx];
-                                        float up   = c_thread_buf_up[cidx];
-                                        if constexpr(MulRoutedWeight)
-                                        {
-                                            gate = gate * topk_weights.AsType<float>()[m4];
-                                            up   = up * topk_weights.AsType<float>()[m4];
-                                        }
-                                        tensor_operation::element_wise::Silu{}(gate, gate);
-                                        c_thread_buf_fp32(cidx) = gate * up;
-                                    }
-                                    else if(ActivationOperation == Activation::gelu_and_mul)
-                                    {
-                                        float gate = c_thread_buf[cidx];
-                                        float up   = c_thread_buf_up[cidx];
-                                        if constexpr(MulRoutedWeight)
-                                        {
-                                            gate = gate * topk_weights.AsType<float>()[m4];
-                                            up   = up * topk_weights.AsType<float>()[m4];
-                                        }
-                                        tensor_operation::element_wise::Gelu{}(gate, gate);
-                                        c_thread_buf_fp32(cidx) = gate * up;
-                                    }
-                                }
-                                else
-                                {
-                                    c_thread_buf_fp32(cidx) = c_thread_buf[cidx];
-                                    if constexpr(MulRoutedWeight)
-                                    {
-                                        c_thread_buf_fp32(cidx) = topk_weights.AsType<float>()[m4] *
-                                                                  c_thread_buf_fp32[cidx];
-                                    }
-                                }
-                            });
                         });
                     });
                 });
-            }
+            });
 
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
@@ -1737,7 +1817,7 @@ struct GridwiseMoeGemm
             using CDEBlockTransferCluster =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
-            constexpr index_t scatter_weight_idx  = 3; // hack fix felix
+            constexpr index_t scatter_weight_idx  = 1; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
@@ -1870,7 +1950,9 @@ struct GridwiseMoeGemm
                                     const index_t* p_sorted_expert_ids,
                                     const index_t* p_max_token_id,
                                     const ADataType* p_a_grid,
+                                    const AScaleDataType* p_a_scale_grid,
                                     const BDataType* p_b_grid,
+                                    const BScaleDataType* p_b_scale_grid,
                                     DsGridPointer& p_ds_grid,
                                     CDataType* p_c_grid,
                                     void* p_shared,
@@ -1896,6 +1978,19 @@ struct GridwiseMoeGemm
             problem.N,
             problem.NPadded,
             problem.StrideC);
+
+        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
+            make_tuple((IsInputGemm ? problem.NumTokens : problem.M) / (MXdlPack * MPerXdl),
+                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
+                           (KXdlPack * 64 / MPerXdl),
+                       64 * KXdlPack * MXdlPack / scale_pack_size_a));
+
+        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor_packed(
+            make_tuple(problem.N / (NXdlPack * NPerXdl),
+                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / BPackedSize)) /
+                           (KXdlPack * 64 / NPerXdl),
+                       64 * KXdlPack * NXdlPack / scale_pack_size_b));
+
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
@@ -1952,8 +2047,23 @@ struct GridwiseMoeGemm
             }
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
+
+#if 0
+        printf("blkx: %u, blky: %u, tidx: %u, token_pos: %d, gather_offsets:<%d, %d, %d, %d>\n",
+               blockIdx.x,
+               blockIdx.y,
+               threadIdx.x,
+               token_pos,
+               gather_offsets[Number<0>{}],
+               gather_offsets[Number<1>{}],
+               gather_offsets[Number<2>{}],
+               gather_offsets[Number<3>{}]);
+#endif
+
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
+        const index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
+            problem.N * math::integer_divide_ceil(problem.K, ScaleBlockSize / BPackedSize));
 
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
@@ -1961,9 +2071,25 @@ struct GridwiseMoeGemm
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+
+#if 1
+        printf("blkx: %u, blky: %u, tidx: %u, a_grid_size: %ld\n",
+               blockIdx.x,
+               blockIdx.y,
+               threadIdx.x,
+               a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+
+#endif
+
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid + expert_id * expert_stride / BPackedSize,
-            b_grid_desc_bpreshuffled.GetElementSpaceSize());
+            p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+
+        const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
+        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
+            b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
@@ -1995,13 +2121,13 @@ struct GridwiseMoeGemm
             true,
             IndexType,
             1,
-            2>(a_grid_desc_ak0_m_ak1,
-               make_multi_index(0, 0, 0),
-               a_element_op,
-               a_block_desc_ak0_m_ak1,
-               make_multi_index(0, 0, 0),
-               ck::tensor_operation::element_wise::PassThrough{},
-               gather_offsets);
+            BlockwiseGemmPipe::GlobalBufferNum>(a_grid_desc_ak0_m_ak1,
+                                                make_multi_index(0, 0, 0),
+                                                a_element_op,
+                                                a_block_desc_ak0_m_ak1,
+                                                make_multi_index(0, 0, 0),
+                                                ck::tensor_operation::element_wise::PassThrough{},
+                                                gather_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack
@@ -2011,21 +2137,27 @@ struct GridwiseMoeGemm
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
         auto b_block_bufs = make_tuple(b_block_buf_ping, b_block_buf_pong);
 
-        auto b_blockwise_copy = ThreadwiseTensorSliceTransfer_v2<
-            BDataType,
-            BDataType,
-            decltype(b_grid_desc_bpreshuffled),
-            decltype(b_block_desc_bk0_n_bk1),
-            Sequence<Number<NXdlPerWave>{}, I1, Number<KRepeat>{}, Number<BK1Value>{}>,
-            Sequence<1, 2, 0, 3>,
-            3,
-            BBlockTransferSrcScalarPerVector,
-            BThreadTransferSrcResetCoordinateAfterRun,
-            true>(b_grid_desc_bpreshuffled,
-                  make_multi_index(n_block_data_idx_on_grid,
-                                   get_warp_local_1d_id() % NWave,
-                                   0,
-                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+        auto b_blockwise_copy =
+            ThreadwiseTensorSliceTransfer_v2<BDataType,
+                                             BDataType,
+                                             decltype(b_grid_desc_bpreshuffled),
+                                             decltype(b_block_desc_bk0_n_bk1),
+                                             Sequence<Number<NXdlPerWave / NXdlPack>{},
+                                                      I1,
+                                                      Number<NXdlPack>{},
+                                                      Number<KRepeat>{},
+                                                      Number<BK1Value>{}>,
+                                             Sequence<1, 2, 0, 3, 4>,
+                                             4,
+                                             BBlockTransferSrcScalarPerVector,
+                                             BThreadTransferSrcResetCoordinateAfterRun,
+                                             true>(
+                b_grid_desc_bpreshuffled,
+                make_multi_index(n_block_data_idx_on_grid,
+                                 get_warp_local_1d_id() % NWave,
+                                 0,
+                                 0,
+                                 KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -2036,7 +2168,7 @@ struct GridwiseMoeGemm
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, KRepeat, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, 0, KRepeat, 0);
 
         // Blockwise GEMM pipeline
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
@@ -2054,6 +2186,54 @@ struct GridwiseMoeGemm
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
+
+        // a and b scale processing
+        const auto wave_idx = BlockwiseGemmPipe::GetWaveIdx();
+        const auto waveId_m = wave_idx[I0];
+        const auto waveId_n = wave_idx[I1];
+
+        auto thread_offset_shuffled =
+            get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack;
+
+        auto a_thread_offset_m = waveId_m;
+
+        // get each thread's offset int the scale tensor
+        const index_t token_scale_pos = block_m_id * MPerBlock;
+        if(token_scale_pos >= max_token_id || token0 >= problem.NumTokens)
+            return;
+
+        auto a_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
+            AScaleDataType,
+            AScaleDataType,
+            decltype(a_scale_grid_desc_am_ak),
+            decltype(BlockwiseGemmPipe::a_scale_thread_desc),
+            Sequence<1, 1, KXdlPack * MXdlPack / scale_pack_size_a>, // SliceLengths
+            Sequence<0, 1, 2>,                                       // DimAccessOrder
+            2,                                                       // SrcVectorDim
+            KXdlPack * MXdlPack / scale_pack_size_a,                 // SrcScalarPerVector
+            1,                                                       // SrcScalarStrideInVector
+            true>(a_scale_grid_desc_am_ak,
+                  make_multi_index(block_m_id * MPerBlock / MPerXdl / MXdlPack + a_thread_offset_m,
+                                   0,
+                                   thread_offset_shuffled / scale_pack_size_a));
+
+        // B scale load
+        auto b_thread_offset_n = waveId_n;
+
+        auto b_scale_thread_copy = ThreadwiseTensorSliceTransfer_v2<
+            BScaleDataType,
+            BScaleDataType,
+            decltype(b_scale_grid_desc_bn_ak),
+            decltype(BlockwiseGemmPipe::b_scale_thread_desc),
+            Sequence<1, 1, KXdlPack * NXdlPack / scale_pack_size_b>, // SliceLengths
+            Sequence<0, 1, 2>,                                       // DimAccessOrder
+            2,                                                       // SrcVectorDim
+            KXdlPack * NXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
+            1,                                                       // SrcScalarStrideInVector
+            true>(b_scale_grid_desc_bn_ak,
+                  make_multi_index(block_n_id * NPerBlock / NPerXdl / NXdlPack + b_thread_offset_n,
+                                   0,
+                                   thread_offset_shuffled / scale_pack_size_b));
 
         if constexpr(IsInputGemm)
         {
@@ -2076,6 +2256,26 @@ struct GridwiseMoeGemm
                                        get_warp_local_1d_id() % NWave,
                                        0,
                                        KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+            const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2;
+            const auto b_scale_grid_buf_up          = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                p_b_scale_grid_up + expert_id * expert_scale_stride,
+                b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+            auto b_scale_thread_copy_up = ThreadwiseTensorSliceTransfer_v2<
+                BScaleDataType,
+                BScaleDataType,
+                decltype(b_scale_grid_desc_bn_ak),
+                decltype(BlockwiseGemmPipe::b_scale_thread_desc),
+                Sequence<1, 1, KXdlPack * NXdlPack / scale_pack_size_b>, // SliceLengths
+                Sequence<0, 1, 2>,                                       // DimAccessOrder
+                2,                                                       // SrcVectorDim
+                KXdlPack * MXdlPack / scale_pack_size_b,                 // SrcScalarPerVector
+                1,                                                       // SrcScalarStrideInVector
+                true>(
+                b_scale_grid_desc_bn_ak,
+                make_multi_index(block_n_id * NPerBlock / NPerXdl / NXdlPack + b_thread_offset_n,
+                                 0,
+                                 thread_offset_shuffled / scale_pack_size_b));
+
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
@@ -2084,6 +2284,7 @@ struct GridwiseMoeGemm
                 a_block_bufs,
                 a_block_slice_copy_step,
                 b_grid_desc_bpreshuffled,
+                b_block_desc_bk0_n_bk1,
                 b_blockwise_copy,
                 b_blockwise_copy_up,
                 b_grid_buf,
@@ -2092,11 +2293,18 @@ struct GridwiseMoeGemm
                 b_block_slice_copy_step,
                 c_thread_buf,
                 c_thread_buf_up,
+                a_scale_grid_desc_am_ak,
+                a_scale_thread_copy,
+                a_scale_grid_buf,
+                b_scale_grid_desc_bn_ak,
+                b_scale_thread_copy,
+                b_scale_thread_copy_up,
+                b_scale_grid_buf,
+                b_scale_grid_buf_up,
                 num_k_block_main_loop);
         }
         else
         {
-
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
@@ -2105,11 +2313,18 @@ struct GridwiseMoeGemm
                 a_block_bufs,
                 a_block_slice_copy_step,
                 b_grid_desc_bpreshuffled,
+                b_block_desc_bk0_n_bk1,
                 b_blockwise_copy,
                 b_grid_buf,
                 b_block_bufs,
                 b_block_slice_copy_step,
                 c_thread_buf,
+                a_scale_grid_desc_am_ak,
+                a_scale_thread_copy,
+                a_scale_grid_buf,
+                b_scale_grid_desc_bn_ak,
+                b_scale_thread_copy,
+                b_scale_grid_buf,
                 num_k_block_main_loop);
         }
 
@@ -2118,8 +2333,6 @@ struct GridwiseMoeGemm
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
                               NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
-
-            constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
@@ -2140,183 +2353,73 @@ struct GridwiseMoeGemm
             constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
 
             // mul scales
-            const float* p_sorted_weights_0 = p_ds_grid[I0];
-            const float* p_scale_b          = p_ds_grid[I1];
 
             static_assert(M0 * M1 * M2 * M3 * M4 == MPerBlock);
             static_assert(M4 == 4);
             const index_t m1 = get_warp_local_1d_id() / NWave;
             const index_t m3 = threadIdx.x % get_warp_size() / MPerXdl;
 
-            if(p_sorted_weights_0 != nullptr && p_scale_b != nullptr)
-            {
-                if constexpr(PerTokenQuant)
-                {
-                    constexpr index_t scale_stride = (IsInputGemm ? 2 : 1);
-                    p_scale_b += expert_id * problem.N * scale_stride + block_n_id * NPerBlock +
-                                 get_warp_local_1d_id() % NWave * NPerXdl + threadIdx.x % NPerXdl;
-                }
-                else
-                {
-                    p_scale_b += expert_id;
-                }
+            vector_type<float, 4> topk_weights; // for gemm2 only
+            static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
+                static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
+                    static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
+                        const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
+                                              m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
+                        if constexpr(MulRoutedWeight)
+                        {
+                            topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
+                                p_ds_grid[I2] + m_pos);
+                        }
+                        static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
+                            constexpr index_t c_offset =
+                                blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
+                                    make_tuple(m0 / MXdlPack,
+                                               n0 / NXdlPack,
+                                               m0 % MXdlPack,
+                                               n0 % NXdlPack,
+                                               m2 * M4 + m4));
+                            constexpr auto cidx = Number<c_offset>{};
 
-                vector_type<int32_t, 4> scale_token_ids;
-                vector_type<float, 4> topk_weights;
-                static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
-                    const float scale_b = p_scale_b[n0 * NWave * NPerXdl * PerTokenQuant];
-                    static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
-                        static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
-                            const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
-                                                  m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
-                            if constexpr(PerTokenQuant)
+                            if constexpr(IsInputGemm) // gu fusion
                             {
-                                scale_token_ids =
-                                    *c_style_pointer_cast<const vector_type<int32_t, M4>*>(
-                                        p_sorted_token_ids + m_pos);
-                            }
-                            if constexpr(MulRoutedWeight)
-                            {
-                                topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
-                                    p_ds_grid[I2] + m_pos);
-                            }
-                            static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
-                                float scale_a = [&]() {
-                                    if constexpr(PerTokenQuant)
-                                    {
-                                        index_t fused_token = scale_token_ids.AsType<index_t>()[m4];
-                                        const index_t token_offset = fused_token & 0xffffff;
-                                        return token_offset < problem.NumTokens
-                                                   ? p_sorted_weights_0[token_offset]
-                                                   : 0.0;
-                                    }
-                                    else
-                                    {
-                                        return p_sorted_weights_0[0];
-                                    }
-                                }();
-                                constexpr index_t c_offset =
-                                    blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
-                                        make_tuple(m0, n0, m2 * M4 + m4));
-                                constexpr auto cidx = Number<c_offset>{};
-                                if constexpr(IsInputGemm) // gu fusion
+                                if constexpr(ActivationOperation == Activation::silu_and_mul)
                                 {
-                                    if constexpr(ActivationOperation == Activation::silu_and_mul)
+                                    float gate = c_thread_buf[cidx];
+                                    float up   = c_thread_buf_up[cidx];
+                                    if constexpr(MulRoutedWeight)
                                     {
-                                        const float scale_up =
-                                            p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
-                                                      PerTokenQuant];
-                                        float gate = scale_a * scale_b * c_thread_buf[cidx];
-                                        float up   = scale_a * scale_up * c_thread_buf_up[cidx];
-                                        if constexpr(MulRoutedWeight)
-                                        {
-                                            gate = gate * topk_weights.AsType<float>()[m4];
-                                            up   = up * topk_weights.AsType<float>()[m4];
-                                        }
-                                        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-                                        {
-                                            gate *= 16;
-                                            up *= 16;
-                                        }
-                                        tensor_operation::element_wise::Silu{}(gate, gate);
-                                        c_thread_buf_fp32(cidx) = gate * up;
+                                        gate = gate * topk_weights.AsType<float>()[m4];
+                                        up   = up * topk_weights.AsType<float>()[m4];
                                     }
-                                    else if(ActivationOperation == Activation::gelu_and_mul)
-                                    {
-                                        const float scale_up =
-                                            p_scale_b[(n0 * NWave * NPerXdl + problem.N) *
-                                                      PerTokenQuant];
-                                        float gate = scale_a * scale_b * c_thread_buf[cidx];
-                                        float up   = scale_a * scale_up * c_thread_buf_up[cidx];
-                                        if constexpr(MulRoutedWeight)
-                                        {
-                                            gate = gate * topk_weights.AsType<float>()[m4];
-                                            up   = up * topk_weights.AsType<float>()[m4];
-                                        }
-                                        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-                                        {
-                                            gate *= 16;
-                                            up *= 16;
-                                        }
-                                        tensor_operation::element_wise::Gelu{}(gate, gate);
-                                        c_thread_buf_fp32(cidx) = gate * up;
-                                    }
+                                    tensor_operation::element_wise::Silu{}(gate, gate);
+                                    c_thread_buf_fp32(cidx) = gate * up;
                                 }
-                                else
+                                else if(ActivationOperation == Activation::gelu_and_mul)
+                                {
+                                    float gate = c_thread_buf[cidx];
+                                    float up   = c_thread_buf_up[cidx];
+                                    if constexpr(MulRoutedWeight)
+                                    {
+                                        gate = gate * topk_weights.AsType<float>()[m4];
+                                        up   = up * topk_weights.AsType<float>()[m4];
+                                    }
+                                    tensor_operation::element_wise::Gelu{}(gate, gate);
+                                    c_thread_buf_fp32(cidx) = gate * up;
+                                }
+                            }
+                            else
+                            {
+                                c_thread_buf_fp32(cidx) = c_thread_buf[cidx];
+                                if constexpr(MulRoutedWeight)
                                 {
                                     c_thread_buf_fp32(cidx) =
-                                        scale_a * scale_b * c_thread_buf[cidx];
-                                    if constexpr(MulRoutedWeight)
-                                    {
-                                        c_thread_buf_fp32(cidx) = c_thread_buf_fp32(cidx) *
-                                                                  topk_weights.AsType<float>()[m4];
-                                    }
+                                        topk_weights.AsType<float>()[m4] * c_thread_buf_fp32[cidx];
                                 }
-                            });
-                        });
-                    });
-                });
-            }
-            else
-            {
-                vector_type<float, 4> topk_weights; // for gemm2 only
-                static_for<0, NXdlPerWave, 1>{}([&](auto n0) {
-                    static_for<0, MXdlPerWave, 1>{}([&](auto m0) { // MXDLPerWave
-                        static_for<0, M2, 1>{}([&](auto m2) {      // m_inst_num_groups_per_blk
-                            const index_t m_pos = block_m_id * MPerBlock + m0 * M1 * M2 * M3 * M4 +
-                                                  m1 * M2 * M3 * M4 + m2 * M3 * M4 + m3 * M4;
-                            if constexpr(MulRoutedWeight)
-                            {
-                                topk_weights = *c_style_pointer_cast<const vector_type<float, M4>*>(
-                                    p_ds_grid[I2] + m_pos);
                             }
-                            static_for<0, M4, 1>{}([&](auto m4) { // m_inst_group_size
-                                constexpr index_t c_offset =
-                                    blockwise_gemm_pipeline.GetCThreadDesc().CalculateOffset(
-                                        make_tuple(m0, n0, m2 * M4 + m4));
-                                constexpr auto cidx = Number<c_offset>{};
-
-                                if constexpr(IsInputGemm) // gu fusion
-                                {
-                                    if constexpr(ActivationOperation == Activation::silu_and_mul)
-                                    {
-                                        float gate = c_thread_buf[cidx];
-                                        float up   = c_thread_buf_up[cidx];
-                                        if constexpr(MulRoutedWeight)
-                                        {
-                                            gate = gate * topk_weights.AsType<float>()[m4];
-                                            up   = up * topk_weights.AsType<float>()[m4];
-                                        }
-                                        tensor_operation::element_wise::Silu{}(gate, gate);
-                                        c_thread_buf_fp32(cidx) = gate * up;
-                                    }
-                                    else if(ActivationOperation == Activation::gelu_and_mul)
-                                    {
-                                        float gate = c_thread_buf[cidx];
-                                        float up   = c_thread_buf_up[cidx];
-                                        if constexpr(MulRoutedWeight)
-                                        {
-                                            gate = gate * topk_weights.AsType<float>()[m4];
-                                            up   = up * topk_weights.AsType<float>()[m4];
-                                        }
-                                        tensor_operation::element_wise::Gelu{}(gate, gate);
-                                        c_thread_buf_fp32(cidx) = gate * up;
-                                    }
-                                }
-                                else
-                                {
-                                    c_thread_buf_fp32(cidx) = c_thread_buf[cidx];
-                                    if constexpr(MulRoutedWeight)
-                                    {
-                                        c_thread_buf_fp32(cidx) = topk_weights.AsType<float>()[m4] *
-                                                                  c_thread_buf_fp32[cidx];
-                                    }
-                                }
-                            });
                         });
                     });
                 });
-            }
+            });
 
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
