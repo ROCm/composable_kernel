@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
@@ -28,11 +28,11 @@ using device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_generic_inst
         //################################|       |       |          |       |      |      |         |         |           |      |    Operation|   Operation|   Operation|               |         |      |      |      |      |    |     |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
         //################################|       |       |          |       |      |      |         |         |           |      |             |            |            |               |         |      |      |      |      |    |     |     |        |        |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
         // TODO: these template variables need to be adjusted
-        DeviceGemmMultipleD_Wmma_CShuffle<     Row,    Row, Row_Tuple,    Row,  BF16,  BF16,      I32,      F32, BF16_Tuple,  BF16,  PassThrough, PassThrough,         Add, GemmMNKPadding,        1,   256,    64,   128,    32,   8,   16,   16,       1,       2,     S<4, 64, 1>,     S<0, 2, 1>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              8,         1,           1,           1,               S<1, 32, 1, 8>,              1>
+        DeviceGemmMultipleD_Wmma_CShuffle<     Row,    Row, Row_Tuple,    Row,  BF16,  BF16,      F32,      F32, BF16_Tuple,  BF16,  PassThrough, PassThrough,         Add, GemmMNKPadding,         1,   256,   128,   128,    64,   8,   16,   16,       4,       2,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,           1,           2,               S<1, 32, 1, 8>,               8>
     // clang-format on
     >;
 
-using device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances = std::tuple<
+using add_device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances = std::tuple<
     // clang-format off
         // M/N/K padding
         //################################|      A|      B|        Ds|      E| AData| BData|  AccData| CShuffle|     DsData| EData|            A|           B|         CDE|           GEMM| Prefetch| Block|  MPer|  NPer| K0Per|  K1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
@@ -40,13 +40,13 @@ using device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances = 
         //################################|       |       |          |       |      |      |         |         |           |      |    Operation|   Operation|   Operation|               |         |      |      |      |      |    |     |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
         //################################|       |       |          |       |      |      |         |         |           |      |             |            |            |               |         |      |      |      |      |    |     |     |        |        |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
         // TODO: these template variables need to be adjusted
-        DeviceGemmMultipleD_Wmma_CShuffle<     Row,    Row, Row_Tuple,    Row,  BF16,  BF16,      F32,      F32, BF16_Tuple,  BF16,  PassThrough, PassThrough,         Add, GemmMNKPadding,        1,   256,    16,   128,    32,   8,   16,   16,       1,       2,     S<4, 16, 4>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,         1,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1,           1,           1,               S<1, 16, 1, 4>,               1, LoopScheduler::Default,        PipelineVersion::v1>,
-        DeviceGemmMultipleD_Wmma_CShuffle<     Row,    Row, Row_Tuple,    Row,  BF16,  BF16,      F32,      F32, BF16_Tuple,  BF16,  PassThrough, PassThrough,         Add, GemmMNKPadding,        1,    64,    16,    16,    32,   8,   16,   16,       1,       1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              1,         1,           1,           1,               S<1, 16, 1, 4>,               1, LoopScheduler::Default,        PipelineVersion::v1>,
-        DeviceGemmMultipleD_Wmma_CShuffle<     Row,    Row, Row_Tuple,    Row,  BF16,  BF16,      F32,      F32, BF16_Tuple,  BF16,  PassThrough, PassThrough,         Add, GemmMNKPadding,        1,    64,    16,    16,    64,   8,   16,   16,       1,       1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              1,              1,         1,           1,           1,               S<1, 16, 1, 4>,               1, LoopScheduler::Default,        PipelineVersion::v1>
+        DeviceGemmMultipleD_Wmma_CShuffle<     Row,    Row, Row_Tuple,    Row,  BF16,  BF16,      F32,      F32, BF16_Tuple,  BF16,  PassThrough, PassThrough,         Add, GemmMNKPadding,        1,   256,   128,   128,    64,   8,   16,   16,       4,       2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1,           1,           2,               S<1, 32, 1, 8>,               8, LoopScheduler::Default,        PipelineVersion::v1>,
+        DeviceGemmMultipleD_Wmma_CShuffle<     Row,    Row, Row_Tuple,    Row,  BF16,  BF16,      F32,      F32, BF16_Tuple,  BF16,  PassThrough, PassThrough,         Add, GemmMNKPadding,     1,   128,    64,    64,    64,   8,   16,   16,       2,       2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1,           1,           2,               S<1, 32, 1, 4>,               8, LoopScheduler::Default,        PipelineVersion::v1>,
+        DeviceGemmMultipleD_Wmma_CShuffle<     Row,    Row, Row_Tuple,    Row,  BF16,  BF16,      F32,      F32, BF16_Tuple,  BF16,  PassThrough, PassThrough,         Add, GemmMNKPadding,     1,   128,    64,    64,    64,   8,   16,   16,       2,       2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1,           1,           2,               S<1, 32, 1, 4>,               8, LoopScheduler::Default,        PipelineVersion::v1>
     // clang-format on
     >;
 
-void add_device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances(
+void device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
                                                     Row_Tuple,
@@ -63,7 +63,7 @@ void add_device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances
         instances,
         device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_generic_instances{});
     add_device_operation_instances(
-        instances, device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances{});
+        instances, add_device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances{});
 }
 
 } // namespace instance
