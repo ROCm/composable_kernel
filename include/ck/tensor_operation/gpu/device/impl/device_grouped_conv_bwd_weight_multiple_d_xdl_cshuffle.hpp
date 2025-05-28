@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -393,8 +393,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+                    const auto PadGemmM =
+                        GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN =
+                        GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -432,8 +434,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X * Y;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+                    const auto PadGemmM =
+                        GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN =
+                        GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -472,8 +476,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X * Y * Z;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+                    const auto PadGemmM =
+                        GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN =
+                        GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,

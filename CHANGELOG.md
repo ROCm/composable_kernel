@@ -17,6 +17,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for FP16 2:4 structured sparsity to universal GEMM.
 * Added support for Split K for grouped convolution backward data.
 * Added logit soft-capping support for fMHA forward kernels.
+* Added benchmarking support for tile engine GEMM.
 
 ### Optimized
 
