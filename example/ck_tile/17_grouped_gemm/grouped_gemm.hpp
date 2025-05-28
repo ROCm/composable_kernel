@@ -70,14 +70,25 @@ auto create_args(int argc, char* argv[])
         .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
         .insert("warmup", "10", "number of iterations before benchmark the kernel.")
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
-        .insert("group_count", "8", "group count.");
+        .insert("group_count", "8", "group count.")
+        .insert("kbatch", "1", "kbatch for SplitK");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
-std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs);
+inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
+{
+    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
+}
 
+template <typename ALayout, typename BLayout, typename CLayout>
 float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
-                   void* p_workspace_);
+                   void* kargs_ptr);
+
+template <typename ALayout, typename BLayout, typename CLayout>
+float grouped_gemm_tileloop(const ck_tile::stream_config& s,
+                            const ck_tile::index_t num_groups,
+                            void* kargs_ptr,
+                            bool splitk = false);
