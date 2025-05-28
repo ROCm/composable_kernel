@@ -705,34 +705,21 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
 
 
         auto a_block1_desc_nhowo_cyx = GetABlockDescriptor_A_NHoWoCYX();
-//         // constexpr auto a_block_desc_chw_slice = GetABlockDescriptor_CSlice_HSlice_WSlice();
-
-//         // blockwise slice global -> vgpr -> lds(slice)
-
-//         // blockwise broadcast lds -> vgpr -> lds(m,k)
-
-//         // then change blockwise gemm to use TrueKPerBlock
-
-        // a blockwise copy
-        // global -> lds1
-
-        // copy bigger cslice, to a multiply of 8 or sth, so all threads will have same number of elems to copy
 
         auto a_global_into_lds1_blockwise_copy =
             ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                // 1, 8, 4, 64
-                                                Sequence<NSlice, PaddedCSlice, HSlice, WSlice>, // Should be Sequence<NSlice, PaddedCSlice, HSlice, WSlice>
-                                                ACHWSliceTransferThreadClusterLengths_N_C_H_W,//ABlockTransferThreadClusterLengths_AK0_M_AK1, // should be <1, 8, 4, 2>
+                                                Sequence<NSlice, PaddedCSlice, HSlice, WSlice>,
+                                                ACHWSliceTransferThreadClusterLengths_N_C_H_W,
                                                 Sequence<0, 1, 2, 3>,//ABlockTransferThreadClusterArrangeOrder,
                                                 ADataType,
                                                 AComputeDataType,
                                                 decltype(a_grid_desc_nchw),
                                                 decltype(a_block1_desc_cslice_hslice_wslice),
                                                 Sequence<0, 1, 2, 3>,//ABlockTransferSrcAccessOrder,
-                                                Sequence<0, 1, 2, 3>,//Sequence<1, 0, 2>,
+                                                Sequence<0, 1, 2, 3>,
                                                 3,//ABlockTransferSrcVectorDim,
                                                 3,
                                                 ABlockTransferSrcScalarPerVector,
@@ -754,7 +741,6 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                                                 AElementwiseOperation,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 InMemoryDataOperationEnum::Set,
-                                                // 1, 8, 4, 56
                                                 Sequence<AK0PerBlock, MPerBlock, AK1>,
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
@@ -766,7 +752,7 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                                                 Sequence<1, 0, 2>,
                                                 ABlockTransferSrcVectorDim,
                                                 2,
-                                                1,//ABlockTransferSrcScalarPerVector, // probably 1
+                                                1,//ABlockTransferSrcScalarPerVector, 
                                                 ABlockTransferDstScalarPerVector_AK1,//ABlockTransferDstScalarPerVector_AK1,
                                                 1,
                                                 1,
@@ -779,39 +765,6 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                 a_block2_desc_ak0_m_ak1,
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
-
-
-        // change into lds1 -> lds2, lds1 transformation into ak0_m_ak1 is ready now
-        // A matrix blockwise copy
-        // auto a_blockwise_copy =
-        //     ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
-        //                                         AElementwiseOperation,
-        //                                         ck::tensor_operation::element_wise::PassThrough,
-        //                                         InMemoryDataOperationEnum::Set,
-        //                                         Sequence<AK0PerBlock, MPerBlock, AK1>,
-        //                                         ABlockTransferThreadClusterLengths_AK0_M_AK1,
-        //                                         ABlockTransferThreadClusterArrangeOrder,
-        //                                         ADataType,
-        //                                         AComputeDataType,
-        //                                         decltype(a_grid_desc_ak0_m_ak1),
-        //                                         decltype(a_block_desc_ak0_m_ak1),
-        //                                         ABlockTransferSrcAccessOrder,
-        //                                         Sequence<1, 0, 2>,
-        //                                         ABlockTransferSrcVectorDim,
-        //                                         2,
-        //                                         ABlockTransferSrcScalarPerVector,
-        //                                         ABlockTransferDstScalarPerVector_AK1,
-        //                                         1,
-        //                                         1,
-        //                                         AThreadTransferSrcResetCoordinateAfterRun,
-        //                                         true,
-        //                                         NumGemmKPrefetchStage>(
-        //         a_grid_desc_ak0_m_ak1,
-        //         make_multi_index(0, m_block_data_idx_on_grid, 0),
-        //         a_element_op,
-        //         a_block_desc_ak0_m_ak1,
-        //         make_multi_index(0, 0, 0),
-        //         ck::tensor_operation::element_wise::PassThrough{});
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
@@ -916,11 +869,6 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             TrueKPerBlock) + ((a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) %
             TrueKPerBlock != 0); // TrueKPerBlock ?
-
-        // if(threadIdx.x == 0) {
-        //     printf("hasmainkblockloop: %d\n", HasMainKBlockLoop);
-        //     printf("Running %d k block iters", num_k_block_main_loop);
-        // }
 
         gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_nchw, // global
                                                                a_block1_desc_cslice_hslice_wslice, // lds1 write
