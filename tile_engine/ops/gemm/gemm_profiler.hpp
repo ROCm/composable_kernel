@@ -11,7 +11,7 @@
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "benchmark_gemm.hpp"
-#include "profile_cache_db.hpp"
+#include "benchmark_perf_db.hpp"
 
 class GemmProfiler
 {
@@ -24,7 +24,7 @@ class GemmProfiler
 
     bool if_should_profile(const GemmProblem& gemm_problem)
     {
-        if(setting_.enable_profile_cache_)
+        if(setting_.enable_perf_db_)
         {
             if(!cache_db_->check_if_record_problem(
                    get_rocm_version(), ck_tile::get_device_name(), gemm_problem))
@@ -42,7 +42,7 @@ class GemmProfiler
                 kernel_instance.perf_result_.tflops_    = perf_result.tflops_;
                 kernel_instance.perf_result_.bandwidth_ = perf_result.bandwidth_;
                 std::cout << "Skip this instance for " << kernel_instance
-                          << ", Because it has already been recorded in the cache database"
+                          << ", Because it has already been recorded in the cache database. "
                           << std::endl;
                 kernel_instances_.emplace_back(kernel_instance);
                 return false;
@@ -165,7 +165,9 @@ class GemmProfiler
                                                                      setting_.log_,
                                                                      setting_.n_warmup_,
                                                                      setting_.n_repeat_,
-                                                                     setting_.is_gpu_timer_});
+                                                                     setting_.is_gpu_timer_,
+                                                                     setting_.flush_cache_,
+                                                                     setting_.rotating_count_});
             process_result(gemm_problem,
                            c_m_n_dev_buf,
                            c_m_n_host_result,
@@ -173,7 +175,7 @@ class GemmProfiler
                            kernel_run_result);
         }
 
-        if(setting_.enable_profile_cache_)
+        if(setting_.enable_perf_db_)
         {
             cache_db_->insert_cache(
                 get_rocm_version(), ck_tile::get_device_name(), kernel_instances_);
@@ -299,7 +301,7 @@ class GemmProfiler
 
     void initialize_profile_cache()
     {
-        if(setting_.enable_profile_cache_)
+        if(setting_.enable_perf_db_)
         {
             std::filesystem::path cache_db_prefix_path =
                 std::filesystem::current_path() / ".tile_engine";
@@ -347,7 +349,7 @@ class GemmProfiler
 
     void handle_flush_cache(const std::filesystem::path& cache_db_path) const
     {
-        if(setting_.flush_profile_cache_ && std::filesystem::exists(cache_db_path))
+        if(setting_.clear_perf_db_ && std::filesystem::exists(cache_db_path))
         {
             std::error_code ec;
             if(std::filesystem::remove(cache_db_path, ec))
@@ -366,7 +368,7 @@ class GemmProfiler
     {
         try
         {
-            cache_db_ = std::make_unique<ProfileCacheDB>(path);
+            cache_db_ = std::make_unique<BenchmarkPerfDB>(path);
             std::cout << "Loaded profile cache from " << path << std::endl;
         }
         catch(const std::exception& e)
@@ -376,6 +378,6 @@ class GemmProfiler
     }
 
     Setting setting_;
-    std::unique_ptr<ProfileCacheDB> cache_db_;
+    std::unique_ptr<BenchmarkPerfDB> cache_db_;
     std::vector<KernelInstance> kernel_instances_;
 };

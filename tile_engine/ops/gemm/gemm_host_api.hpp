@@ -73,14 +73,14 @@ inline auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "The stride value for tensor B. Default is 0.")
         .insert("stride_c", "0", "The stride value for tensor C  Default is 0.")
         .insert("split_k", "1", "The split value for k dimension. Default is 1.")
-        .insert("enable_profile_cache",
+        .insert("enable_perf_db",
                 "true",
-                "Whether use profile cache or not when benchmark kernel, Possible values are true "
-                "or false. Default is true.")
-        .insert("flush_profile_cache",
+                "Whether enable performance database or not when benchmark kernel. Possible "
+                "values are true or false. Default is true.")
+        .insert("clear_perf_db",
                 "false",
-                "Whether flush profile cache or not when benchmark kernel. Possible values are "
-                "true or false. Default is false.")
+                "Whether clear performance database or not when benchmark kernel. Possible values "
+                "are true or false. Default is false.")
         .insert("verify",
                 "2",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
@@ -95,12 +95,18 @@ inline auto create_args(int argc, char* argv[])
             "repeat", "100", "The number of iterations to benchmark the kernel. Default is 100.")
         .insert("timer",
                 "true",
-                "Whether if the timer is gpu timer or not. Possible values are false or true. "
+                "Whether the timer is gpu timer or not. Possible values are false or true. "
                 "Default is true.")
         .insert("init",
                 "0",
                 "The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 "
                 "for constant(1). Default is 0, random.")
+        .insert("flush_cache",
+                "false",
+                "Whether flush cache or not in between different runs. Possible values are true or "
+                "false. Default is false.")
+        .insert(
+            "rotating_count", "5", "The number of iterations to rotate the cache. Default is 5.")
         .insert("metric",
                 "0",
                 "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "

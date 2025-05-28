@@ -53,10 +53,10 @@ class StmtWrapper
     std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> stmt_;
 };
 
-class ProfileCacheDB
+class BenchmarkPerfDB
 {
     public:
-    explicit ProfileCacheDB(const std::filesystem::path& path)
+    explicit BenchmarkPerfDB(const std::filesystem::path& path)
         : db_ptr_(
               [path] {
                   sqlite3* raw_db_ptr = nullptr;

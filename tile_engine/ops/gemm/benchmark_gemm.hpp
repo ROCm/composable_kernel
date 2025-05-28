@@ -126,8 +126,8 @@ struct KernelInstance
 
 struct Setting
 {
-    bool enable_profile_cache_;
-    bool flush_profile_cache_;
+    bool enable_perf_db_;
+    bool clear_perf_db_;
     int n_warmup_;
     int n_repeat_;
     bool is_gpu_timer_;
@@ -135,6 +135,8 @@ struct Setting
     int init_method_;
     bool log_;
     std::string csv_filename_;
+    bool flush_cache_;
+    int rotating_count_;
 };
 
 inline std::string get_rocm_version()

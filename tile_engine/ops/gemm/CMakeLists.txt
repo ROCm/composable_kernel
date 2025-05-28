@@ -54,7 +54,7 @@ target_link_libraries(gemm_host_api INTERFACE gemm_template_instances)
 
 add_executable(${BENCHMARK_GEMM_EXECUTABLE} EXCLUDE_FROM_ALL benchmark_gemm.cpp)
 target_include_directories(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE benchmark_gemm.hpp gemm_profiler.hpp profile_cache_db.hpp)
+target_sources(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE benchmark_gemm.hpp gemm_profiler.hpp benchmark_perf_db.hpp)
 target_link_libraries(${BENCHMARK_GEMM_EXECUTABLE} PRIVATE gemm_host_api ${SQLite3_LIBRARIES})
 
 set(EXECUTABLE_GEMM_INSTANCE_COMPILE_OPTIONS)

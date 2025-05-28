@@ -36,14 +36,16 @@ rm -rf tile_engine/ && ninja benchmark_gemm  # rebuild
                -stride_b    The stride value for tensor B. Default is 0.
                -stride_c    The stride value for tensor C  Default is 0.
                 -split_k    The split value for k dimension. Default is 1.
-   -enable_profile_cache    Whether flush profile cache or not when benchmark kernel. Possible values are or false. Default is true.
-    -flush_profile_cache    Whether flush profile cache or not when benchmark kernel. Possible values are true or false. Default is false.
+         -enable_perf_db    Whether enable performance database or not when benchmark kernel. Possible values are true or false. Default is true.
+          -clear_perf_db    Whether clear performance database or not when benchmark kernel. Possible values are true or false. Default is false.
                       -v    The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 for validation on GPU. Default is 2, validation on GPU.
                     -log    Wether output kernel instance information or not. Possible values are true or false. Default is false.
                  -warmup    The number of iterations before benchmark the kernel. Default is 50.
                  -repeat    The number of iterations to benchmark the kernel. Default is 100.
-                  -timer    Whether if the timer is gpu timer or not. Possible values are true or false. Default is true.  
+                  -timer    Whether the timer is gpu timer or not. Possible values are true or false. Default is true.  
                    -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
+            -flush_cache    Whether flush cache or not in between different runs. Possible values are true or false. Default is false.
+         -rotating_count    The number of iterations to rotate the cache. Default is 5.     
                  -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
            -csv_filename    The filename of benchmark result. Default is gemm_kernel.
     -structured_sparsity    whether use sparsity kernel or not. Possible values are true or false. Default is false.
