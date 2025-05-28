@@ -37,5 +37,3 @@
 #include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/stream_utils.hpp"
 #include "ck_tile/host/timer.hpp"
-#include "ck_tile/host/flush_icache.hpp"
-#include "ck_tile/host/rotating_buffers.hpp"
