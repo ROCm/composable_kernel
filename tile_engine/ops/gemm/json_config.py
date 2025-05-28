@@ -9,7 +9,7 @@ Handles loading, parsing, and validation of JSON configuration parameters.
 
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional, Union, Tuple, Type
+from typing import List, Optional, Union, Tuple, Type, Dict
 import json
 
 
@@ -63,8 +63,8 @@ class ProblemConfig:
     layouts: Tuple[EnumConfigParam, ...]
 
     @property
-    def datatype_map(self) -> dict[str, str]:
-        """Get current layout selections as a key-value map."""
+    def datatype_map(self) -> Dict[str, str]:
+        """Get datatype as a key-value map."""
         return {
             'matrix_a': self.datatypes[0].values[0],
             'matrix_b': self.datatypes[1].values[0],
@@ -72,8 +72,8 @@ class ProblemConfig:
         }
 
     @property
-    def layout_map(self) -> dict[str, str]:
-        """Get current layout selections as a key-value map."""
+    def layout_map(self) -> Dict[str, str]:
+        """Get layout as a key-value map."""
         return {
             'matrix_a': self.layouts[0].values[0],
             'matrix_b': self.layouts[1].values[0],
@@ -83,7 +83,7 @@ class ProblemConfig:
 
 @dataclass
 class TileConfig:
-    """configuration class for tile parameter."""
+    """Configuration class for tile parameter."""
     tile_m: Union[EnumConfigParam, RangeConfigParam]
     tile_n: Union[EnumConfigParam, RangeConfigParam]
     tile_k: Union[EnumConfigParam, RangeConfigParam]
@@ -99,7 +99,7 @@ class TileConfig:
 
 @dataclass
 class TraitConfig:
-    """configuration class for kernel traits."""
+    """Configuration class for kernel traits."""
     pipeline: EnumConfigParam
     scheduler: EnumConfigParam
     epilogue: EnumConfigParam
