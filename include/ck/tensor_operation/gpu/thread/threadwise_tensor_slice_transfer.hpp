@@ -362,6 +362,99 @@ struct ThreadwiseTensorSliceTransfer_v2
         }
     }
 
+    template <typename SrcBuffer, typename DstBuffer, typename DstSliceOriginIdx>
+    __device__ void RunPrint(const SrcDesc& src_desc,
+                             const SrcBuffer& src_buf,
+                             const DstDesc&,
+                             const DstSliceOriginIdx&,
+                             DstBuffer& dst_buf)
+    {
+        static_assert(DstDesc::IsKnownAtCompileTime(),
+                      "wrong! DstDesc need to known at compile-time");
+
+        static_assert(is_known_at_compile_time<remove_cvref_t<DstSliceOriginIdx>>::value,
+                      "wrong! DstSliceOrigin need to known at compile-time");
+
+        static_assert(
+            is_same<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>::value &&
+            "wrong! inconsistent type");
+
+        // DstDesc and dst_slice_origin_idx are known at compile-time
+        constexpr auto dst_desc             = remove_cvref_t<DstDesc>{};
+        constexpr auto dst_slice_origin_idx = DstSliceOriginIdx{};
+
+        // scalar per access on each dim
+        // TODO: don't use lambda_scalar_per_access
+        constexpr auto src_scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
+
+        constexpr auto src_scalar_step_in_vector =
+            generate_sequence(detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});
+
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(src_scalar_per_access)>>;
+
+        // loop over tensor and copy
+        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
+
+        static_for<0, num_access, 1>{}([&](auto idx_1d) {
+            typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type src_vector;
+
+            using src_vector_t =
+                typename vector_type_maker<SrcData, SrcScalarPerVector / PackedSize>::type::type;
+            constexpr auto src_data_idx = SpaceFillingCurve::GetIndex(idx_1d);
+
+            const bool is_src_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+
+            printf("Tid: %03d, Ascale read gmem src_data_coord.GetOffset() = %d\n",
+                   get_thread_local_1d_id(),
+                   src_coord_.GetOffset());
+            // copy data from src_buf into src_vector
+            src_vector.template AsType<src_vector_t>()(Number<0>{}) =
+                src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize,
+                                                   is_src_valid);
+
+            // copy data from src_vector into dst_buf
+            static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
+                constexpr index_t dst_offset =
+                    dst_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) + src_data_idx +
+                                             i * src_scalar_step_in_vector);
+
+                if constexpr(InvalidElementAsNaN)
+                {
+                    dst_buf(Number<dst_offset>{}) =
+                        is_src_valid
+                            ? type_convert<DstData>(src_vector.template AsType<SrcData>()[i])
+                            : NumericLimits<DstData>::QuietNaN();
+                }
+                else
+                {
+                    dst_buf(Number<dst_offset>{}) =
+                        type_convert<DstData>(src_vector.template AsType<SrcData>()[i]);
+                }
+            });
+
+            if constexpr(idx_1d.value != num_access - 1)
+            {
+                constexpr auto forward_step = SpaceFillingCurve::GetForwardStep(idx_1d);
+
+                move_tensor_coordinate(
+                    src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
+            }
+        });
+
+        // move src coordinate back to slice origin (or not)
+        if constexpr(SrcResetCoordinateAfterRun)
+        {
+            const auto src_reset_step =
+                make_tensor_coordinate_step(src_desc, GetSrcCoordinateResetStep());
+
+            move_tensor_coordinate(src_desc, src_coord_, src_reset_step);
+        }
+    }
+
     __device__ static constexpr auto GetSrcCoordinateResetStep()
     {
         constexpr auto src_scalar_per_access = generate_sequence(
@@ -1417,6 +1510,8 @@ struct ThreadwiseTensorSliceTransfer_v4
             // copy data from src_buf into src_tmp_vector
             if constexpr(SrcBuffer::IsDynamicBuffer())
             {
+                // printf("Tid: %03d, read lds src_data_coord.GetOffset() = %d\n",
+                // get_thread_local_1d_id(),src_data_coord.GetOffset());
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
                                                        is_src_valid);
