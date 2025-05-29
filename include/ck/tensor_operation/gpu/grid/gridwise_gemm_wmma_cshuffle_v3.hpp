@@ -64,8 +64,9 @@ __global__ void
 /// @par Overview
 ///         This GEMM kernel is carrying out following mathematical equation:
 ///         E{M,N} = CDE_op(A_op(A{M,K}) * B_op(B{K,N}), Ds{M,N}...)
-///         Where A, B, Ds are input tensors and E is the output tensor. The A/B/CDE_op are
-///         elementwise operations that could be applied on each tensor respectively.
+///         Where A, B, Ds are input tensors and E is the output tensor. The A/B are elementwise
+//          operations that could be applied on each tensor respectively. The CDE_op is an
+//          elementwise operation applied to the C and all D tensors.
 ///         The \"universal\" gemm comes with multiple pipelines optimized for different usage
 ///         scenarios. That's why it's called \"universal\". It's universal through it's design
 ///         and versatilty.
@@ -77,7 +78,7 @@ __global__ void
 ///
 /// @tparam ALayout     A tensor data layout.
 /// @tparam BLayout     B tensor data layout.
-/// @tparam DsLayout    D tensors data layout.
+/// @tparam DsLayout    D tensors data layouts.
 /// @tparam ELayout     E tensor data layout.
 /// @tparam ADataType   A tensor data type.
 /// @tparam BDataType   B tensor data type.
@@ -85,6 +86,7 @@ __global__ void
 ///                         matrix-multiplication instruction.
 /// @tparam CShuffleDataType The data type used to store matrix-multiplication results into
 ///                          LDS memory during \"CShuffle\" data layout optimization.
+/// @tparam DsDataType  D tensors data types.
 /// @tparam EDataType   E tensor data type.
 /// @tparam AElementwiseOperation   Elementwise operation applied to the A input tensor elements.
 /// @tparam BElementwiseOperation   Elementwise operation applied to the B input tensor elements.
@@ -542,7 +544,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
     }
 
     template <typename DELayout>
-    __device__ static auto
+    __host__ __device__ static auto
     MakeDEGridDescriptor_M_N(index_t M, index_t MPad, index_t N, index_t NPad, index_t StrideDE)
     {
         const auto c_grid_desc_mraw_nraw = [&]() {
@@ -620,7 +622,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
     using DsGridPointer = decltype(MakeDsGridPointer());
 
-    __device__ static auto MakeDsGridDescriptor_M_N(
+    __host__ __device__ static auto MakeDsGridDescriptor_M_N(
         index_t M, index_t MPad, index_t N, index_t NPad, std::array<index_t, NumDTensor> StrideDs)
     {
         return generate_tuple(
@@ -747,9 +749,9 @@ struct GridwiseGemm_wmma_cshuffle_v3
               is_reduce(is_reduce_)
         {
             static_for<0, NumDTensor, 1>{}([&](auto i) {
-                using DDataType_ = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
 
-                p_ds_grid(i) = static_cast<const DDataType_*>(p_ds_grid_[i]);
+                p_ds_grid(i) = static_cast<const DDataType*>(p_ds_grid_[i]);
             });
         }
 

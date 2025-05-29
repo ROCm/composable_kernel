@@ -176,7 +176,6 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                         BElementwiseOperation,
                                                         CElementwiseOperation>
 {
-    // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
         BLayout,
