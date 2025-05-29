@@ -390,9 +390,6 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
             a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
                                                    a_scale_thread_copy_step.At(Number<1>{}));
         }
-        // printf("Tid: %d| a_scale_thread_buf: %f %f\n", get_thread_local_1d_id(),
-        //        a_scale_thread_buf[Number<0>{}],
-        //        a_scale_thread_buf[Number<1>{}]);
 
         b_scale_thread_copy.Run(b_scale_grid_desc,
                                 b_scale_grid_buf,
@@ -770,24 +767,6 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                     });
                 });
             });
-
-#if(defined(__gfx950__) || defined(__gfx942__)) && 0
-            printf(
-                "Tid: %03d, c: %.0f %.0f %.0f %.0f | %.0f %.0f %.0f %.0f | %.0f %.0f %.0f %.0f |\n",
-                get_thread_local_1d_id(),
-                c_thread_buf[Number<0>{}],
-                c_thread_buf[Number<1>{}],
-                c_thread_buf[Number<2>{}],
-                c_thread_buf[Number<3>{}],
-                c_thread_buf[Number<0 + 4>{}],
-                c_thread_buf[Number<1 + 4>{}],
-                c_thread_buf[Number<2 + 4>{}],
-                c_thread_buf[Number<3 + 4>{}],
-                c_thread_buf[Number<8 + 0>{}],
-                c_thread_buf[Number<8 + 1>{}],
-                c_thread_buf[Number<8 + 2>{}],
-                c_thread_buf[Number<8 + 3>{}]);
-#endif
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {
