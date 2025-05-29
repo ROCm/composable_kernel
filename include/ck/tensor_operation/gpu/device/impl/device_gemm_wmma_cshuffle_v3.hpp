@@ -180,11 +180,13 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
         BLayout,
+        Tuple<>, // DsLayout
         CLayout,
         ADataType,
         BDataType,
         AccDataType,
         CShuffleDataType,
+        Tuple<>, // DsDataType
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -219,7 +221,7 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        Sequence<CShuffleBlockTransferScalarPerVector_NPerBlock>,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
@@ -294,7 +296,7 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                         rotating_mem.Next();
                         // clear c mem
                         if(arg_.KBatch > 1)
-                            HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_c_grid,
+                            HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_e_grid,
                                                            0,
                                                            arg_.M * arg_.N * sizeof(CDataType),
                                                            stream_config.stream_id_));
@@ -312,7 +314,7 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                 else
                 {
                     if(arg.KBatch > 1)
-                        HIP_CHECK_ERROR(hipMemsetAsync(arg.p_c_grid,
+                        HIP_CHECK_ERROR(hipMemsetAsync(arg.p_e_grid,
                                                        0,
                                                        arg.M * arg.N * sizeof(CDataType),
                                                        stream_config.stream_id_));
@@ -468,11 +470,25 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                              index_t StrideB,
                              index_t StrideC,
                              index_t KBatch,
-                             AElementwiseOperation,
-                             BElementwiseOperation,
-                             CElementwiseOperation)
+                             AElementwiseOperation a_element_op,
+                             BElementwiseOperation b_element_op,
+                             CElementwiseOperation cde_element_op)
     {
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, KBatch};
+        return Argument{p_a,
+                        p_b,
+                        std::array<const void*, 0>{}, // p_ds_grid_
+                        p_c,
+                        M,
+                        N,
+                        K,
+                        StrideA,
+                        StrideB,
+                        std::array<index_t, 0>{}, // StrideDs_
+                        StrideC,
+                        KBatch,
+                        a_element_op,
+                        b_element_op,
+                        cde_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -488,20 +504,25 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                       index_t StrideB,
                                                       index_t StrideC,
                                                       index_t KBatch,
-                                                      AElementwiseOperation,
-                                                      BElementwiseOperation,
-                                                      CElementwiseOperation) override
+                                                      AElementwiseOperation a_element_op,
+                                                      BElementwiseOperation b_element_op,
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
+                                          std::array<const void*, 0>{}, // p_ds_grid_
                                           static_cast<CDataType*>(p_c),
                                           M,
                                           N,
                                           K,
                                           StrideA,
                                           StrideB,
+                                          std::array<index_t, 0>{}, // StrideDs_
                                           StrideC,
-                                          KBatch);
+                                          KBatch,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op);
     }
 
     // polymorphic
