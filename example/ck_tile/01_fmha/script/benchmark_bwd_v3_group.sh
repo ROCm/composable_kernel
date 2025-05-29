@@ -13,10 +13,10 @@ nhead=$((2048 / $hdim))     # follow fav2 setup
 seqlen=$((16384 / $batch))
 
 set -x
-$EXE -prec="bf16" -b=$batch -h=$nhead -d=$hdim -s=$seqlen -iperm=$perm -operm=$perm -kname=1 -bwd_v3=$v3 -v3_atomic_fp32=1 -mode=1 -v3_bf16_cvt=0 -v=$VALID ;
-$EXE -prec="bf16" -b=$batch -h=$nhead -d=$hdim -s=$seqlen -iperm=$perm -operm=$perm -kname=1 -bwd_v3=$v3 -v3_atomic_fp32=1 -mode=1 -v3_bf16_cvt=1 -v=$VALID ;
-$EXE -prec="bf16" -b=$batch -h=$nhead -d=$hdim -s=$seqlen -iperm=$perm -operm=$perm -kname=1 -bwd_v3=$v3 -v3_atomic_fp32=1 -mode=1 -v3_bf16_cvt=2 -v=$VALID ; 
-$EXE -prec="fp16" -b=$batch -h=$nhead -d=$hdim -s=$seqlen -iperm=$perm -operm=$perm -kname=1 -bwd_v3=$v3 -v3_atomic_fp32=1 -mode=1 -v=$VALID ; 
+$EXE -prec="bf16" -b=$batch -h=$nhead -d=$hdim -s=$seqlen -iperm=$perm -operm=$perm -kname=1 -bwd_v3=$v3 -v3_atomic_fp32=1 -mask=$mask -mode=1 -v3_bf16_cvt=0 -v=$VALID ;
+$EXE -prec="bf16" -b=$batch -h=$nhead -d=$hdim -s=$seqlen -iperm=$perm -operm=$perm -kname=1 -bwd_v3=$v3 -v3_atomic_fp32=1 -mask=$mask -mode=1 -v3_bf16_cvt=1 -v=$VALID ;
+$EXE -prec="bf16" -b=$batch -h=$nhead -d=$hdim -s=$seqlen -iperm=$perm -operm=$perm -kname=1 -bwd_v3=$v3 -v3_atomic_fp32=1 -mask=$mask -mode=1 -v3_bf16_cvt=2 -v=$VALID ; 
+$EXE -prec="fp16" -b=$batch -h=$nhead -d=$hdim -s=$seqlen -iperm=$perm -operm=$perm -kname=1 -bwd_v3=$v3 -v3_atomic_fp32=1 -mask=$mask -mode=1 -v=$VALID ; 
 set +x
 
 done
