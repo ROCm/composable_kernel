@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "ck/library/utility/numeric.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -257,7 +258,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
             bwd_needs_zero_out = k_batch_ > 1 || !image_covered_dilation || !image_covered_strides;
             e_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
-                    e_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                    e_g_n_c_wis_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
                 sizeof(EDataType);
 
             // populate Ds pointer
