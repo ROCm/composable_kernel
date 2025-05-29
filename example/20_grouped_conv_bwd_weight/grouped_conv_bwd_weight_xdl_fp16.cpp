@@ -7,6 +7,7 @@
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_two_stage_xdl_cshuffle.hpp"
 
+
 using InDataType  = F16;
 using WeiDataType = F16;
 using OutDataType = F16;
@@ -20,7 +21,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 static constexpr index_t WaveSize = 64;
-static constexpr index_t W_PACK  = 2; // WaveSize / arg->input_spatial_lengths_[1];
+static constexpr index_t W_PACK  = 2; // WaveSize / arg.input_spatial_lengths_[1];
 static constexpr index_t Tile_H   = 32;
 static constexpr index_t Tile_W   = 32;
 static constexpr index_t N_Pack   = 2;
@@ -30,9 +31,44 @@ static constexpr index_t Filter_X = 5;
 static constexpr index_t Filter_Y = 5;
 
 static constexpr index_t SizeOfType = 2;
-static constexpr index_t ShareMemSize = Tile_H * Tile_W * N_Pack * SizeOfType;
+static constexpr index_t ShareMemSize = Tile_H * (Tile_W + 1)* N_Pack * SizeOfType;
 static constexpr index_t ScratchSize = ShareMemSize / 64 / 4;
 
+
+template <typename T>
+__device__ T warp_shuffle_up(const T& v_local, uint32_t lane_delta)
+{
+#if 0
+    return  __shfl_up(v_local, lane_delta);
+#elif 1
+    static_assert(sizeof(T) == sizeof(int32_t), "wrong!");
+
+    const uint32_t wrap_around_lane_delta = warpSize - lane_delta;
+
+    const int32_t v_remote_tmp = __builtin_amdgcn_ds_bpermute(
+        (__lane_id() << 2) + (wrap_around_lane_delta << 2), bit_cast<int32_t>(v_local));
+
+    return bit_cast<T>(v_remote_tmp);
+#endif
+}
+
+template <typename T>
+__device__ T warp_shuffle_down(const T& v_local, uint32_t lane_delta)
+{
+#if 0
+    return  __shfl_down(v_local, lane_delta);
+#elif 1
+    static_assert(sizeof(T) == sizeof(int32_t), "wrong!");
+
+    const int32_t v_remote_tmp = __builtin_amdgcn_ds_bpermute(
+        (__lane_id() << 2) + (lane_delta << 2), bit_cast<int32_t>(v_local));
+
+    return bit_cast<T>(v_remote_tmp);
+#endif
+}
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
 template <typename DataType>
 void __device__ load_data_from_global(DataType* p,
                                      index_t n_stride,
@@ -40,7 +76,8 @@ void __device__ load_data_from_global(DataType* p,
                                        index_t w,
                                        index_t h_stride,
                                        index_t w_stride,
-                                       uint32_t* p_scratch)
+                                       uint32_t* p_scratch,
+                                     bool log = false)
 {
     ignore = h;
     ignore = w;
@@ -56,13 +93,21 @@ void __device__ load_data_from_global(DataType* p,
         return y_ * h_stride + x_ * w_stride;
     };
 
+   if (threadIdx.x == 0)
+    {
+       // printf(" g_index= %u, p= %lx p 1 = %lx \n", blockIdx.x, (uint64_t)p, (uint64_t)p_1);
+    }
     if(x >= Pad_W && x < w + Pad_W)
     {
         static_for<0, Tile_H / W_PACK, 1>{}([&](auto i) {
             const index_t y = y_base + i * W_PACK;
-            if constexpr (i * W_PACK >= Pad_H && i * W_PACK < Tile_H / W_PACK - Pad_H)
+            if constexpr (i * W_PACK >= Pad_H && i * W_PACK < (Tile_H - Pad_H))
             {
-                const index_t offset = get_offset(y, x);
+                const index_t offset = get_offset(y - Pad_H, x - Pad_W);
+                if (log)
+                {
+                 //   printf("x=%d, y=%d, offset = %d\n", x, y, offset);
+                }
                 half2_t tmp          = {};
                 tmp[0]               = p[offset];
                 tmp[1]               = p_1[offset];
@@ -78,7 +123,7 @@ void __device__ write_data_to_lds(const uint32_t* p_scratch, uint32_t* p_shareme
     const index_t y_base = threadIdx.x / (WaveSize/W_PACK);
     //static_assert(N_Pack * sizeof(InDataType)/ sizeof(uint32_t) == 1);
 
-    auto get_offset = [&](index_t y_, index_t x_) { return (y_ * Tile_W + x_); };
+    auto get_offset = [&](index_t y_, index_t x_) { return (y_ * (Tile_W + 1) + x_); };
     static_for<0, Tile_H / W_PACK, 1>{}([&](auto i) {
         const index_t y      = y_base + i * W_PACK;
         const index_t offset = get_offset(y, x);
@@ -86,22 +131,22 @@ void __device__ write_data_to_lds(const uint32_t* p_scratch, uint32_t* p_shareme
     });
 }
 
-void __device__ run_conv_bwd_weight(index_t x, index_t y, index_t H, index_t W, uint32_t* p_share_in, uint32_t* p_share_out,float& acc)
+void __device__ run_conv_bwd_weight(index_t x, index_t y, index_t H, index_t W, index_t H_base, uint32_t* p_share_in, uint32_t* p_share_out,float& acc)
 {
     ignore = H;
     ignore = W;
     auto get_in = [&](int h_, int w_)
     {
-        return p_share_in[(h_ + y) * Tile_W + w_ + x];
+        return p_share_in[(h_ + y + H_base) * (Tile_W + 1) + w_ + x];
     };
     auto get_out = [&](int h_, int w_)
     {
-        return p_share_out[(h_ + Pad_H) * Tile_W + w_ + Pad_W];
+        return p_share_out[(h_ + Pad_H + H_base) * (Tile_W + 1) + w_ + Pad_W];
     };
     if (x < Filter_X && y < Filter_Y)
     {
         //for (int ho = 0; ho < H; ho++)
-        static_for<0, Tile_H - Pad_H - Pad_H, 1>{}([&](auto ho)
+        static_for<0, (Tile_H - Pad_H - Pad_H) / 2, 1>{}([&](auto ho)
         {
             //for (int wo = 0; wo < W; wo++)
             static_for<0, Tile_W - Pad_W - Pad_W, 1>{}([&](auto wo)
@@ -114,25 +159,26 @@ void __device__ run_conv_bwd_weight(index_t x, index_t y, index_t H, index_t W, 
     }
 }
 template <typename Argument, typename WeiDataType>
-void __device__ write_output(const Argument* arg, int g, int y, int x, WeiDataType acc)
+void __device__ write_output(const Argument& arg, int g, int y, int x, WeiDataType acc)
 {
-    const index_t Wei_G_Stride = arg->wei_g_k_c_xs_strides_[0];
-    const index_t Y_Stride     = arg->wei_g_k_c_xs_strides_[3];
-    const index_t X_Stride     = arg->wei_g_k_c_xs_strides_[4];
+    const index_t Wei_G_Stride = arg.wei_g_k_c_xs_strides_[0];
+    const index_t Y_Stride     = arg.wei_g_k_c_xs_strides_[3];
+    const index_t X_Stride     = arg.wei_g_k_c_xs_strides_[4];
 
     if (y < Filter_Y && x < Filter_X)
     {
-        auto p_wei = arg->p_wei_grid_ + Wei_G_Stride * g + y * Y_Stride + x * X_Stride;
+        auto p_wei = arg.p_wei_grid_ + Wei_G_Stride * g + y * Y_Stride + x * X_Stride;
         *p_wei = acc;
     }
 }
+
 
 template <typename Argument, index_t MinimumOccupancy = 1>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(64, MinimumOccupancy)
 #endif
-        kernel_grouped_conv_bwd_weight_naive(const Argument* arg)
+        kernel_grouped_conv_bwd_weight_naive(Argument arg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.x);
@@ -148,27 +194,32 @@ __global__ void
     uint32_t p_output_0_scratch[ScratchSize];
     uint32_t p_output_1_scratch[ScratchSize];
 
+
     static constexpr index_t spatial_offset = 3;
-    //const index_t G = arg->in_g_n_c_wis_lengths[0];
-    const index_t N = arg->in_g_n_c_wis_lengths_[1];
+    //const index_t G = arg.in_g_n_c_wis_lengths[0];
+    const index_t N = arg.in_g_n_c_wis_lengths_[1];
+    index_t num_loop = N / 2 - 1;
 
+    //if (g_idx < 300 || g_idx > 300)
+     //   return;
+    //return;
     // In
-    const index_t Hi = arg->in_g_n_c_wis_lengths_[spatial_offset + 0];
-    const index_t Wi = arg->in_g_n_c_wis_lengths_[spatial_offset + 1];
+    const index_t Hi = arg.in_g_n_c_wis_lengths_[spatial_offset + 0];
+    const index_t Wi = arg.in_g_n_c_wis_lengths_[spatial_offset + 1];
 
-    const index_t Hi_Stride   = arg->in_g_n_c_wis_strides_[spatial_offset + 0];
-    const index_t Wi_Stride   = arg->in_g_n_c_wis_strides_[spatial_offset + 0];
-    const index_t In_G_Stride = arg->in_g_n_c_wis_strides_[0];
-    const index_t In_N_Stride = arg->in_g_n_c_wis_strides_[1];
+    const index_t Hi_Stride   = arg.in_g_n_c_wis_strides_[spatial_offset + 0];
+    const index_t Wi_Stride   = arg.in_g_n_c_wis_strides_[spatial_offset + 1];
+    const index_t In_G_Stride = arg.in_g_n_c_wis_strides_[0];
+    const index_t In_N_Stride = arg.in_g_n_c_wis_strides_[1];
 
     // Out
-    const index_t Ho = arg->out_g_n_k_wos_lengths_[spatial_offset + 0];
-    const index_t Wo = arg->out_g_n_k_wos_lengths_[spatial_offset + 1];
+    const index_t Ho = arg.out_g_n_k_wos_lengths_[spatial_offset + 0];
+    const index_t Wo = arg.out_g_n_k_wos_lengths_[spatial_offset + 1];
 
-    const index_t Ho_Stride    = arg->out_g_n_k_wos_strides_[spatial_offset + 0];
-    const index_t Wo_Stride    = arg->out_g_n_k_wos_strides_[spatial_offset + 0];
-    const index_t Out_G_Stride = arg->out_g_n_k_wos_strides_[0];
-    const index_t Out_N_Stride = arg->out_g_n_k_wos_strides_[1];
+    const index_t Ho_Stride    = arg.out_g_n_k_wos_strides_[spatial_offset + 0];
+    const index_t Wo_Stride    = arg.out_g_n_k_wos_strides_[spatial_offset + 1];
+    const index_t Out_G_Stride = arg.out_g_n_k_wos_strides_[0];
+    const index_t Out_N_Stride = arg.out_g_n_k_wos_strides_[1];
 
     static_for<0,ScratchSize, 1>{}([&](auto i)
     {
@@ -182,12 +233,15 @@ __global__ void
     //static_assert(sizeof(InDataType) == 2);
     //static_assert(sizeof(OutputDataType) == 2);
     //
-    auto* p_in   = arg->p_in_grid_ + g_idx * In_G_Stride + n_idx * In_N_Stride;
-    auto* p_out = arg->p_out_grid_ + g_idx * Out_G_Stride + n_idx * Out_N_Stride;
-
+    auto* p_in   = arg.p_in_grid_ + g_idx * In_G_Stride + n_idx * In_N_Stride;
+    auto* p_out = arg.p_out_grid_ + g_idx * Out_G_Stride + n_idx * Out_N_Stride;
+    if (threadIdx.x == 0)
+    {
+       // printf("num_loop = %d, N = %d, g_index= %d, %lx %lx \n", num_loop, N, g_idx, (uint64_t)p_in, (uint64_t)p_out);
+    }
     // prefetch 0
-    load_data_from_global(p_in,  In_N_Stride, Hi, Wi, Hi_Stride, Wi_Stride, p_input_0_scratch);
-    load_data_from_global(p_out, In_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_0_scratch);
+    load_data_from_global(p_in,  In_N_Stride, Hi, Wi, Hi_Stride, Wi_Stride, p_input_0_scratch, true);
+    load_data_from_global(p_out, Out_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_0_scratch);
     //load_data_from_global(p_in + In_N_Stride,  Hi, Wi, Hi_Stride, Wi_Stride, p_input_1_scratch);
     //load_data_from_global(p_out + Out_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_1_scratch);
     p_in += 2 * In_N_Stride;
@@ -206,17 +260,19 @@ __global__ void
     // write 0
     write_data_to_lds(p_input_0_scratch, p_input_0);
     write_data_to_lds(p_output_0_scratch, p_output_0);
-
-    index_t x = threadIdx.x % Filter_X;
-    index_t y = threadIdx.x / Filter_Y;
+    index_t H_base = threadIdx.x >=32 ? (Tile_H - Pad_H - Pad_H) /2 : 0;
+    index_t x = (threadIdx.x % 32) % Filter_X;
+    index_t y = (threadIdx.x % 32) / Filter_X;
     float acc = 0;
-
-    index_t num_loop = N / 2 - 1;
+    if (threadIdx.x == 0)
+    {
+      //  printf("g_index= %d before loop\n",  g_idx);
+    }
     while(num_loop > 0)
     {
         // prefetch 0
         load_data_from_global(p_in,  In_N_Stride, Hi, Wi, Hi_Stride, Wi_Stride, p_input_0_scratch);
-        load_data_from_global(p_out, In_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_0_scratch);
+        load_data_from_global(p_out, Out_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_0_scratch);
         //load_data_from_global(p_in + In_N_Stride,  Hi, Wi, Hi_Stride, Wi_Stride, p_input_1_scratch);
         //load_data_from_global(p_out + Out_N_Stride,  Ho, Wo, Ho_Stride, Wo_Stride, p_output_1_scratch);
         p_in += 2 * In_N_Stride;
@@ -229,7 +285,7 @@ __global__ void
         });
         #endif
         // do conv_bwd on 0
-        run_conv_bwd_weight(x, y, Ho, Wo, p_input_0, p_output_0, acc);
+        run_conv_bwd_weight(x, y, Ho, Wo, H_base, p_input_0, p_output_0, acc);
 
         // write 1
         //write_input_to_lds();
@@ -247,18 +303,30 @@ __global__ void
 
         num_loop --;
     };
-
+    if (threadIdx.x == 0)
+    {
+       // printf("g_index= %d exit loop\n",  g_idx);
+    }
     // tail
     {
-        run_conv_bwd_weight(x, y, Ho, Wo, p_input_0, p_output_0, acc);
+        run_conv_bwd_weight(x, y, Ho, Wo, H_base, p_input_0, p_output_0, acc);
     }
-
-    write_output(arg, g_idx, y, x, acc);
+    float acc_2 = warp_shuffle_down(acc, 32);
+    acc += acc_2;
+    if (H_base == 0)
+    {
+        write_output(arg, g_idx, y, x, acc);
+    }
+    if (threadIdx.x == 0)
+    {
+      //  printf("g_index= %d end out\n",  g_idx);
+    }
 
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
 }
+#pragma clang diagnostic pop
 
 template <ck::index_t NDimSpatial,
           typename InLayout,
@@ -390,7 +458,7 @@ struct DeviceGroupedConvBwdWeightNaive
                         dim3(gdx),
                         dim3(BlockSize),
                         0,
-                        &arg);
+                        arg);
 
             return ave_time;
         }
