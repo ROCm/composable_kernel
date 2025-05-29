@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -30,7 +30,5 @@ struct stream_config
     int cold_niters_       = 3;
     int nrepeat_           = 10;
     bool is_gpu_timer_     = true; // keep compatible
-    bool flush_cache_      = false;
-    int rotating_count_    = 1;
 };
 } // namespace ck_tile
