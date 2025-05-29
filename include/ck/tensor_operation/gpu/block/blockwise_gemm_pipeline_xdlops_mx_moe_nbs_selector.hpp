@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v1_mx.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_mx_moe_nbs_v1.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_mx_moe_nbs_v3.hpp"
 // #include
 // "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_mx_moe_nbs_gufusion_v1.hpp"
@@ -79,27 +79,27 @@ constexpr auto BlockGemmMXNBSPipeline_Selector()
         }
         else
         {
-            return BlockwiseGemmXdlops_pipeline_v1_mx<BlkGemmPipeSche,
-                                                      ThreadBlockSize,
-                                                      ScaleBlockSize,
-                                                      ADataType,
-                                                      AScaleDataType,
-                                                      BDataType,
-                                                      BScaleDataType,
-                                                      ATileDesc,
-                                                      BTileDesc,
-                                                      AMmaTileDesc,
-                                                      BMmaTileDesc,
-                                                      ABlockTransferSrcScalarPerVector,
-                                                      BBlockTransferSrcScalarPerVector,
-                                                      MPerBlock,
-                                                      NPerBlock,
-                                                      KPerBlock,
-                                                      MPerXDL,
-                                                      NPerXDL,
-                                                      MRepeat,
-                                                      NRepeat,
-                                                      KPack>{};
+            return BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlkGemmPipeSche,
+                                                              ThreadBlockSize,
+                                                              ScaleBlockSize,
+                                                              ADataType,
+                                                              AScaleDataType,
+                                                              BDataType,
+                                                              BScaleDataType,
+                                                              ATileDesc,
+                                                              BTileDesc,
+                                                              AMmaTileDesc,
+                                                              BMmaTileDesc,
+                                                              ABlockTransferSrcScalarPerVector,
+                                                              BBlockTransferSrcScalarPerVector,
+                                                              MPerBlock,
+                                                              NPerBlock,
+                                                              KPerBlock,
+                                                              MPerXDL,
+                                                              NPerXDL,
+                                                              MRepeat,
+                                                              NRepeat,
+                                                              KPack>{};
         }
     }
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
