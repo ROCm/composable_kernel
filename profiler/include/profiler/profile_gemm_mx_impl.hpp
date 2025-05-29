@@ -126,9 +126,11 @@ bool profile_gemm_mx_impl(int do_verification,
                           int n_iter,
                           uint64_t rotating = 0)
 {
-    using Row  = ck::tensor_layout::gemm::RowMajor;
-    using Col  = ck::tensor_layout::gemm::ColumnMajor;
-    using MFMA = ck::tensor_layout::gemm::MFMA;
+    using tensor_operation::device::instance::Col;
+    using tensor_operation::device::instance::E8M0;
+    using tensor_operation::device::instance::E8M0PK;
+    using tensor_operation::device::instance::MFMA;
+    using tensor_operation::device::instance::Row;
 
     constexpr bool BPreShuffle = is_same_v<BLayout, MFMA>;
     using BRefLayout           = conditional_t<BPreShuffle, Col, BLayout>;
@@ -138,11 +140,10 @@ bool profile_gemm_mx_impl(int do_verification,
         throw std::runtime_error("wrong! K must be multiple of ScaleBlockSize.");
     };
 
-    using XDataType       = e8m0_bexp_t;
+    using XDataType       = E8M0;
+    using XPackedDataType = E8M0PK;
     using AScaleLayout    = Row;
     using BScaleLayout    = Col;
-    using XPackedDataType = // TODO: use int32 for all
-        conditional_t<is_same_v<ADataType, ck::f4x2_pk_t>, int32_t, e8m0_bexp_t>;
 
     auto f_host_tensor_descriptor =
         [](ck::index_t row, ck::index_t col, ck::index_t stride, auto layout) {
@@ -225,7 +226,6 @@ bool profile_gemm_mx_impl(int do_verification,
             return ck::type_convert<BDataType>(x);
     };
 
-    constexpr auto nthreads = 16;
     switch(init_method)
     {
     case 0: // Initializations for development and debugging
@@ -245,23 +245,21 @@ bool profile_gemm_mx_impl(int do_verification,
 
     case 1:
 
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-4, 5}, nthreads);  // Z[-4,4]
-        b_k_n->GenerateTensorValue(GeneratorTensor_2<BDataType>{-4, 5}, nthreads); // Z[-4,4]
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-4, 5});  // Z[-4,4]
+        b_k_n->GenerateTensorValue(GeneratorTensor_2<BDataType>{-4, 5}); // Z[-4,4]
 
-        a_m_k_scale.GenerateTensorValue(GeneratorTensor_2<XDataType>{125, 129},
-                                        nthreads); // scales: {0.25, 0.5, 1, 2}
-        b_k_n_scale.GenerateTensorValue(GeneratorTensor_2<XDataType>{125, 129},
-                                        nthreads); // scales: {0.25, 0.5, 1, 2}
+        a_m_k_scale.GenerateTensorValue(
+            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        b_k_n_scale.GenerateTensorValue(
+            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
         break;
 
     default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0}, nthreads);
-        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f},
-                                        nthreads);
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
+        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
 
-        b_k_n->GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0}, nthreads);
-        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f},
-                                        nthreads);
+        b_k_n->GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
+        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
         break;
     }
 

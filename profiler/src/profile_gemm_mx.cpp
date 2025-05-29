@@ -18,7 +18,9 @@ enum struct GemmMatrixLayout
 
 enum struct GemmDataType
 {
-    F4_F4_F16, // 0
+    F4_F4_F16,  // 0
+    F8_F8_F16,  // 1
+    F8_F8_BF16, // 2
 };
 
 #define OP_NAME "gemm_mx"
@@ -29,10 +31,12 @@ int profile_gemm_mx(int argc, char* argv[])
     if(argc != 11 && argc != 14 && argc != 18)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: f4->f16)\n");
-        printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
-        printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
-        printf("                     2: A[k, m] * BPreShuff = C[m, n];\n");
+        printf("arg2: data type (0: f4->f16   ;\n");
+        printf("                 1: fp8->f16  ;\n");
+        printf("                 2: fp8->bf16 )\n");
+        printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n]  ;\n");
+        printf("                     1: A[m, k] * B[n, k] = C[m, n]  ;\n");
+        printf("                     2: A[k, m] * BPreShuff = C[m, n])\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg6: print tensor value (0: no; 1: yes)\n");
@@ -77,8 +81,10 @@ int profile_gemm_mx(int argc, char* argv[])
         rotating = std::stoull(argv[arg_index++]) * 1024 * 1024;
     }
 
-    using F16 = ck::half_t;
-    using F4  = ck::f4x2_pk_t;
+    using F16  = ck::half_t;
+    using BF16 = ck::bhalf_t;
+    using F4   = ck::f4x2_pk_t;
+    using F8   = ck::f8_t;
 
     using Row  = ck::tensor_layout::gemm::RowMajor;
     using Col  = ck::tensor_layout::gemm::ColumnMajor;
@@ -126,9 +132,17 @@ int profile_gemm_mx(int argc, char* argv[])
     {
         return profile(F4{}, F4{}, F16{}, Row{}, Col{}, Row{});
     }
-    if(data_type == GemmDataType::F4_F4_F16 && layout == GemmMatrixLayout::MK_MFMA_MN)
+    else if(data_type == GemmDataType::F4_F4_F16 && layout == GemmMatrixLayout::MK_MFMA_MN)
     {
         return profile(F4{}, F4{}, F16{}, Row{}, MFMA{}, Row{});
+    }
+    else if(data_type == GemmDataType::F8_F8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(F8{}, F8{}, F16{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(F8{}, F8{}, BF16{}, Row{}, Col{}, Row{});
     }
     else
     {
