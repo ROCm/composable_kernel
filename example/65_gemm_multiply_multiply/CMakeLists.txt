@@ -53,14 +53,3 @@ target_compile_options(example_gemm_multiply_multiply_xdl_fp8_blockscale_bpreshu
 
 target_compile_options(example_moe_gemm2_xdl_fp8_blockscale PRIVATE ${BLOCKSCALE_GEMM_OPTIONS})
 target_compile_options(example_moe_gemm1_xdl_fp8_blockscale PRIVATE ${BLOCKSCALE_GEMM_OPTIONS})
-
-#hacky fix for bs_moe_stage2 with rocm < 6.4
-list(APPEND gpu_list gfx942 gfx950)
-set(target 0)
-foreach(gpu IN LISTS GPU_TARGETS)
-    if(gpu IN_LIST gpu_list AND target EQUAL 0)
-    target_compile_definitions(example_moe_gemm2_xdl_fp8_blockscale PRIVATE MOE_STAGE2_ASM_DIR="${CMAKE_CURRENT_SOURCE_DIR}/hsa/${gpu}/")
-    target_compile_definitions(example_moe_gemm1_xdl_fp8_blockscale PRIVATE MOE_STAGE2_ASM_DIR="${CMAKE_CURRENT_SOURCE_DIR}/hsa/${gpu}/")
-    set(target 1)
-    endif()
-endforeach()
