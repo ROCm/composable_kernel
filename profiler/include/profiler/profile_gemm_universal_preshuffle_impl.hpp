@@ -142,7 +142,7 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
 
     a_device_buf.ToDevice(a_m_k.mData.data());
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGemmV2BPreshuffle<ALayout,
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmV2<ALayout,
                                                                 BLayout,
                                                                 CLayout,
                                                                 ADataType,
@@ -274,14 +274,14 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
         {
             b_k_n_permute = b_k_n;
         }
-        int NPerXdl = op_ptr->GetPreShuffleParameters();
+        //int NPerXdl = op_ptr->GetPreShuffleParameters();
         // (void)NPerXdl; // to avoid unused variable warning
 
-        preShuffleBuffer<BDataType>(
-            b_k_n_permute.mData.data(), b_preshuffled.mData.data(), N, K, NPerXdl);
+        // preShuffleBuffer<BDataType>(
+        //     b_k_n_permute.mData.data(), b_preshuffled.mData.data(), N, K, NPerXdl);
 
-        b_device_buf.ToDevice(b_preshuffled.mData.data());
-        //b_device_buf.ToDevice(b_k_n_permute.mData.data());
+        // b_device_buf.ToDevice(b_preshuffled.mData.data());
+        b_device_buf.ToDevice(b_k_n_permute.mData.data());
 
         std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
 
