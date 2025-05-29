@@ -2,7 +2,7 @@
   "problem": {
     "layout_a": {
       "values": [
-        "r"
+        "c"
       ]
     },
     "layout_b": {
@@ -64,12 +64,12 @@
     },
     "warp_tile_m": {
       "values": [
-        32
+        4
       ]
     },
     "warp_tile_n": {
       "values": [
-        32
+        64
       ]
     },
     "warp_tile_k": {
