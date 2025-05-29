@@ -391,6 +391,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     HstuAttentionFwdParams params;
 
+    float scale_s = 1.0f / std::sqrt(hdim_qk);
+
     if(is_jagged)
     {
         params.is_jagged         = true;
@@ -405,7 +407,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         params.hdim_qk           = hdim_qk;
         params.hdim_v            = hdim_v;
         params.num_head          = num_head;
-        params.scale_s           = 1.0f / std::sqrt(params.hdim_qk);
+        params.scale_s           = scale_s;
         params.seq_stride_q      = q_host.get_strides()[1];
         params.seq_stride_k      = k_host.get_strides()[1];
         params.seq_stride_v      = v_host.get_strides()[1];
@@ -438,7 +440,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         params.hdim_qk           = hdim_qk;
         params.hdim_v            = hdim_v;
         params.num_head          = num_head;
-        params.scale_s           = 1.0f / std::sqrt(params.hdim_qk);
+        params.scale_s           = scale_s;
         params.seq_stride_q      = q_host.get_strides()[1];
         params.seq_stride_k      = k_host.get_strides()[1];
         params.seq_stride_v      = v_host.get_strides()[1];
@@ -507,7 +509,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                               o_host_ref,
                                                               mask_host,
                                                               num_batch,
-                                                              1.0f / std::sqrt(params.hdim_qk),
+                                                              scale_s,
                                                               max_seqlen,
                                                               seq_offsets,
                                                               num_targets,
