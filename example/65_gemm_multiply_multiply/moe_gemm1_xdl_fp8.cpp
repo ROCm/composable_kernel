@@ -158,7 +158,7 @@ using BElementOp = PassThrough;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t NPerBlock   = 128;
+static constexpr ck::index_t NPerBlock   = 256;
 static constexpr ck::index_t MNPerXDL    = 16;
 static constexpr ck::index_t MXDLPerWave = MPerBlock / (MNPerXDL * 1);
 static constexpr ck::index_t NXDLPerWave = NPerBlock / (MNPerXDL * 4);
