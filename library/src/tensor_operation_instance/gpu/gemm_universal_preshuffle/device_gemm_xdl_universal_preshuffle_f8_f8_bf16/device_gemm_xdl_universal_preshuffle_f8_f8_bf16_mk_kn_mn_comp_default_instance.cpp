@@ -11,7 +11,8 @@ namespace instance {
 
 void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
-        DeviceGemmV2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        //DeviceGemmV2BPreshuffle<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        DeviceGemmV2BPreshuffle<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances)
 {
     add_device_operation_instances(
