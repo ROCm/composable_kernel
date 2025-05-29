@@ -508,6 +508,10 @@ def Build_CK(Map conf=[:]){
             image = conf.get("docker_name", "")
             echo "Using legacy docker: ${image}"
         }
+        else if ( params.BUILD_GFX950 && conf.get("docker_name", "") != "" ){
+            image = conf.get("docker_name", "")
+            echo "Using special docker: ${image}"
+        }
         else{
             image = getDockerImageName()
             echo "Using default docker: ${image}"
