@@ -31,9 +31,10 @@ static constexpr index_t Filter_X = 5;
 static constexpr index_t Filter_Y = 5;
 
 static constexpr index_t SizeOfType = 2;
-static constexpr index_t ShareMemSize = Tile_H * (Tile_W + 1)* N_Pack * SizeOfType;
+static constexpr index_t Tile_Align_W = Tile_W + 1;
+static constexpr index_t ShareMemSize = Tile_H * Tile_Align_W * N_Pack * SizeOfType;
 static constexpr index_t ScratchSize = ShareMemSize / 64 / 4;
-
+static constexpr index_t Num_Wave = 1;
 
 template <typename T>
 __device__ T warp_shuffle_up(const T& v_local, uint32_t lane_delta)
@@ -71,13 +72,13 @@ __device__ T warp_shuffle_down(const T& v_local, uint32_t lane_delta)
 #pragma clang diagnostic ignored "-Wold-style-cast"
 template <typename DataType>
 void __device__ load_data_from_global(DataType* p,
+                                      index_t lane_id,
                                      index_t n_stride,
                                        index_t h,
                                        index_t w,
                                        index_t h_stride,
                                        index_t w_stride,
-                                       uint32_t* p_scratch,
-                                     bool log = false)
+                                       uint32_t* p_scratch)
 {
     ignore = h;
     ignore = w;
@@ -85,18 +86,14 @@ void __device__ load_data_from_global(DataType* p,
     static_assert(sizeof(DataType) == 2);
     static_assert(Pad_H % W_PACK == 0);
 
-    const index_t x = threadIdx.x % (WaveSize/W_PACK);
-    const index_t y_base = threadIdx.x / (WaveSize/W_PACK);
+    const index_t x = lane_id % (WaveSize/W_PACK);
+    const index_t y_base = lane_id / (WaveSize/W_PACK);
 
     auto get_offset = [&](index_t y_, index_t x_)
     {
         return y_ * h_stride + x_ * w_stride;
     };
 
-   if (threadIdx.x == 0)
-    {
-       // printf(" g_index= %u, p= %lx p 1 = %lx \n", blockIdx.x, (uint64_t)p, (uint64_t)p_1);
-    }
     if(x >= Pad_W && x < w + Pad_W)
     {
         static_for<0, Tile_H / W_PACK, 1>{}([&](auto i) {
@@ -104,10 +101,6 @@ void __device__ load_data_from_global(DataType* p,
             if constexpr (i * W_PACK >= Pad_H && i * W_PACK < (Tile_H - Pad_H))
             {
                 const index_t offset = get_offset(y - Pad_H, x - Pad_W);
-                if (log)
-                {
-                 //   printf("x=%d, y=%d, offset = %d\n", x, y, offset);
-                }
                 half2_t tmp          = {};
                 tmp[0]               = p[offset];
                 tmp[1]               = p_1[offset];
@@ -117,13 +110,13 @@ void __device__ load_data_from_global(DataType* p,
     }
 }
 
-void __device__ write_data_to_lds(const uint32_t* p_scratch, uint32_t* p_sharemem)
+void __device__ write_data_to_lds(index_t lane_id, const uint32_t* p_scratch, uint32_t* p_sharemem)
 {
-    const index_t x = threadIdx.x % (WaveSize/W_PACK);
-    const index_t y_base = threadIdx.x / (WaveSize/W_PACK);
+    const index_t x = lane_id % (WaveSize/W_PACK);
+    const index_t y_base = lane_id / (WaveSize/W_PACK);
     //static_assert(N_Pack * sizeof(InDataType)/ sizeof(uint32_t) == 1);
 
-    auto get_offset = [&](index_t y_, index_t x_) { return (y_ * (Tile_W + 1) + x_); };
+    auto get_offset = [&](index_t y_, index_t x_) { return (y_ * Tile_Align_W + (x_));}; // + y_ * Filter_X) % Tile_W); };
     static_for<0, Tile_H / W_PACK, 1>{}([&](auto i) {
         const index_t y      = y_base + i * W_PACK;
         const index_t offset = get_offset(y, x);
@@ -137,11 +130,11 @@ void __device__ run_conv_bwd_weight(index_t x, index_t y, index_t H, index_t W, 
     ignore = W;
     auto get_in = [&](int h_, int w_)
     {
-        return p_share_in[(h_ + y + H_base) * (Tile_W + 1) + w_ + x];
+        return p_share_in[(h_ + y + H_base) * Tile_Align_W + (w_ + x)];// + (h_ + y + H_base) * Filter_X) % Tile_W];
     };
     auto get_out = [&](int h_, int w_)
     {
-        return p_share_out[(h_ + Pad_H + H_base) * (Tile_W + 1) + w_ + Pad_W];
+        return p_share_out[(h_ + Pad_H + H_base) * Tile_Align_W + (w_ + Pad_W)];// + (h_ + Pad_H + H_base) * Filter_X) % Tile_W];
     };
     if (x < Filter_X && y < Filter_Y)
     {
@@ -176,17 +169,19 @@ void __device__ write_output(const Argument& arg, int g, int y, int x, WeiDataTy
 template <typename Argument, index_t MinimumOccupancy = 1>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(64, MinimumOccupancy)
+    __launch_bounds__(WaveSize * Num_Wave, MinimumOccupancy)
 #endif
         kernel_grouped_conv_bwd_weight_naive(Argument arg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.x);
-    index_t n_idx = 0;
+    const index_t wave_id = __builtin_amdgcn_readfirstlane(threadIdx.x / WaveSize);
+    const index_t lane_id = __lane_id();
+    //index_t n_idx = 0;
 
-    __shared__ uint32_t p_input_0[ShareMemSize/sizeof(uint32_t)];
+    __shared__ uint32_t p_share_in[ShareMemSize/sizeof(uint32_t)  * Num_Wave];
     //__shared__ char p_input_1[ShareMemSize];
-    __shared__ uint32_t p_output_0[ShareMemSize/sizeof(uint32_t)];
+    __shared__ uint32_t p_share_out[ShareMemSize/sizeof(uint32_t) * Num_Wave];
     //__shared__ char p_output_1[ShareMemSize];
 
     uint32_t p_input_0_scratch[ScratchSize];
@@ -194,15 +189,17 @@ __global__ void
     uint32_t p_output_0_scratch[ScratchSize];
     uint32_t p_output_1_scratch[ScratchSize];
 
-
     static constexpr index_t spatial_offset = 3;
     //const index_t G = arg.in_g_n_c_wis_lengths[0];
     const index_t N = arg.in_g_n_c_wis_lengths_[1];
-    index_t num_loop = N / 2 - 1;
+    index_t num_loop = N / Num_Wave / 2 - 1;
+    index_t n_idx = N / Num_Wave * wave_id;
+    if (wave_id == Num_Wave - 1)
+    {
+        n_idx = N / Num_Wave * (Num_Wave - 1);
+        num_loop = (N - n_idx)/2 -1;
+    }
 
-    //if (g_idx < 300 || g_idx > 300)
-     //   return;
-    //return;
     // In
     const index_t Hi = arg.in_g_n_c_wis_lengths_[spatial_offset + 0];
     const index_t Wi = arg.in_g_n_c_wis_lengths_[spatial_offset + 1];
@@ -235,55 +232,41 @@ __global__ void
     //
     auto* p_in   = arg.p_in_grid_ + g_idx * In_G_Stride + n_idx * In_N_Stride;
     auto* p_out = arg.p_out_grid_ + g_idx * Out_G_Stride + n_idx * Out_N_Stride;
-    if (threadIdx.x == 0)
-    {
-       // printf("num_loop = %d, N = %d, g_index= %d, %lx %lx \n", num_loop, N, g_idx, (uint64_t)p_in, (uint64_t)p_out);
-    }
+
     // prefetch 0
-    load_data_from_global(p_in,  In_N_Stride, Hi, Wi, Hi_Stride, Wi_Stride, p_input_0_scratch, true);
-    load_data_from_global(p_out, Out_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_0_scratch);
+    load_data_from_global(p_in, lane_id, In_N_Stride, Hi, Wi, Hi_Stride, Wi_Stride, p_input_0_scratch);
+    load_data_from_global(p_out, lane_id, Out_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_0_scratch);
     //load_data_from_global(p_in + In_N_Stride,  Hi, Wi, Hi_Stride, Wi_Stride, p_input_1_scratch);
     //load_data_from_global(p_out + Out_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_1_scratch);
     p_in += 2 * In_N_Stride;
     p_out += 2 * Out_N_Stride;
-    #if 0
-    static_for<0,ScratchSize, 1>{}([&](auto i)
-    {
-        p_input_0_scratch[i] = (p_input_0_scratch[i] << 16) | (p_input_1_scratch[i] & 0xffff);
-        p_output_0_scratch[i] =  (p_output_0_scratch[i] << 16) | (p_output_1_scratch[i] & 0xffff);
-    });
-    #endif
+
     // prefetch 1
     //load_input_from_global(arg, p_in, n_idx + 1, p_input_1_scratch);
     //load_output_from_global(arg, p_out, n_idx + 1, p_output_0_scratch);
 
     // write 0
-    write_data_to_lds(p_input_0_scratch, p_input_0);
-    write_data_to_lds(p_output_0_scratch, p_output_0);
-    index_t H_base = threadIdx.x >=32 ? (Tile_H - Pad_H - Pad_H) /2 : 0;
-    index_t x = (threadIdx.x % 32) % Filter_X;
-    index_t y = (threadIdx.x % 32) / Filter_X;
+    auto p_input_0 = p_share_in + ShareMemSize/sizeof(uint32_t)  * wave_id;
+    auto p_output_0 = p_share_out + ShareMemSize/sizeof(uint32_t)  * wave_id;
+
+    write_data_to_lds( lane_id,p_input_0_scratch, p_input_0);
+    write_data_to_lds( lane_id,p_output_0_scratch, p_output_0);
+    index_t H_base = lane_id >=32 ? (Tile_H - Pad_H - Pad_H) /2 : 0;
+    index_t x = (lane_id % 32) % Filter_X;
+    index_t y = (lane_id % 32) / Filter_X;
     float acc = 0;
-    if (threadIdx.x == 0)
-    {
-      //  printf("g_index= %d before loop\n",  g_idx);
-    }
+
+
     while(num_loop > 0)
     {
         // prefetch 0
-        load_data_from_global(p_in,  In_N_Stride, Hi, Wi, Hi_Stride, Wi_Stride, p_input_0_scratch);
-        load_data_from_global(p_out, Out_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_0_scratch);
+        load_data_from_global(p_in,   lane_id,In_N_Stride, Hi, Wi, Hi_Stride, Wi_Stride, p_input_0_scratch);
+        load_data_from_global(p_out, lane_id, Out_N_Stride, Ho, Wo, Ho_Stride, Wo_Stride, p_output_0_scratch);
         //load_data_from_global(p_in + In_N_Stride,  Hi, Wi, Hi_Stride, Wi_Stride, p_input_1_scratch);
         //load_data_from_global(p_out + Out_N_Stride,  Ho, Wo, Ho_Stride, Wo_Stride, p_output_1_scratch);
         p_in += 2 * In_N_Stride;
         p_out += 2 * Out_N_Stride;
-        #if 0
-        static_for<0,ScratchSize, 1>{}([&](auto i)
-        {
-            p_input_0_scratch[i] = (p_input_0_scratch[i] << 16) | (p_input_1_scratch[i] & 0xffff);
-            p_output_0_scratch[i] =  (p_output_0_scratch[i] << 16) | (p_output_1_scratch[i] & 0xffff);
-        });
-        #endif
+ 
         // do conv_bwd on 0
         run_conv_bwd_weight(x, y, Ho, Wo, H_base, p_input_0, p_output_0, acc);
 
@@ -298,28 +281,28 @@ __global__ void
         //run_conv_bwd_weight();
 
         // write 0
-        write_data_to_lds(p_input_0_scratch, p_input_0);
-        write_data_to_lds(p_output_0_scratch, p_output_0);
+        write_data_to_lds( lane_id,p_input_0_scratch, p_input_0);
+        write_data_to_lds( lane_id,p_output_0_scratch, p_output_0);
 
         num_loop --;
     };
-    if (threadIdx.x == 0)
-    {
-       // printf("g_index= %d exit loop\n",  g_idx);
-    }
+
     // tail
     {
         run_conv_bwd_weight(x, y, Ho, Wo, H_base, p_input_0, p_output_0, acc);
     }
     float acc_2 = warp_shuffle_down(acc, 32);
     acc += acc_2;
-    if (H_base == 0)
-    {
+    block_sync_lds();
+    p_share_in[threadIdx.x] = bit_cast<uint32_t>(acc);
+    block_sync_lds();
+    if (H_base == 0 && wave_id == 0)
+    { 
+        for(int i= 1; i < Num_Wave; i++)
+        {
+            acc += bit_cast<float>(p_share_in[i * WaveSize + lane_id]); 
+        }
         write_output(arg, g_idx, y, x, acc);
-    }
-    if (threadIdx.x == 0)
-    {
-      //  printf("g_index= %d end out\n",  g_idx);
     }
 
 #else
@@ -446,9 +429,9 @@ struct DeviceGroupedConvBwdWeightNaive
 
             float ave_time = 0;
 
-           constexpr index_t minimum_occupancy = 2;
+           constexpr index_t minimum_occupancy = 1;
            //     BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
-            constexpr index_t BlockSize = 64;
+            constexpr index_t BlockSize = Num_Wave * WaveSize;
             const auto kernel = kernel_grouped_conv_bwd_weight_naive<
                 Argument, minimum_occupancy>;
 
