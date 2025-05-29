@@ -132,37 +132,66 @@ struct HstuBlockMaskWithLocal
 
     CK_TILE_HOST constexpr bool IsTokenPairInsideMask(int row, int col)
     {
-        // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
-        // max_uih_len
-        int row_id = contextual_seqlen > 0 ? max(row - contextual_seqlen + 1, 0) : row;
-        int col_id = contextual_seqlen > 0 ? max(col - contextual_seqlen + 1, 0) : col;
-
-        row_id = min(row_id, max_id);
-        col_id = min(col_id, max_id);
-
-        if(contextual_seqlen > 0 && row_id == 0 && col_id < max_id)
-            return true;
-
-        // use row_id/col_id to check the dist between two q/k token pair, token pairs on the
-        // diagonal line are always considerred
-        if constexpr(kUseCausal)
+        if(contextual_seqlen > 0)
         {
-            if(((row_id > col_id) && (row_id - col_id <= max_attn_len)) || (row == col))
+            // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
+            // max_uih_len
+            int row_id = max(row - contextual_seqlen + 1, 0);
+            int col_id = max(col - contextual_seqlen + 1, 0);
+
+            row_id = min(row_id, max_id);
+            col_id = min(col_id, max_id);
+
+            if(row_id == 0 && col_id < max_id)
                 return true;
 
-            if((min_full_attn_seqlen > 0) && (row_id >= max_id - min_full_attn_seqlen))
-                return true;
+            // use row_id/col_id to check the dist between two q/k token pair, token pairs on the
+            // diagonal line are always considerred
+            if constexpr(kUseCausal)
+            {
+                if(((row_id > col_id) && (row_id - col_id <= max_attn_len)) || (row == col))
+                    return true;
+
+                if((min_full_attn_seqlen > 0) && (row_id >= max_id - min_full_attn_seqlen))
+                    return true;
+            }
+            else
+            {
+                if(((row_id != col_id && abs(row_id - col_id) <= max_attn_len)) || (row == col))
+                    return true;
+
+                if((min_full_attn_seqlen > 0) && (row >= max_id - min_full_attn_seqlen))
+                    return true;
+            }
+
+            return false;
         }
         else
         {
-            if(((row_id != col_id && abs(row_id - col_id) <= max_attn_len)) || (row == col))
-                return true;
+            int row_id = min(row, max_id);
+            int col_id = min(col, max_id);
 
-            if((min_full_attn_seqlen > 0) && (row >= max_id - min_full_attn_seqlen))
-                return true;
+            // use row_id/col_id to check the dist between two q/k token pair, token pairs on the
+            // diagonal line are always considerred
+            if constexpr(kUseCausal)
+            {
+                if(((row_id > col_id) && (row_id - col_id <= max_attn_len)) || (row == col))
+                    return true;
+
+                if((min_full_attn_seqlen > 0) && (row_id >= max_id - min_full_attn_seqlen))
+                    return true;
+            }
+            else
+            {
+                if(((row_id != col_id && abs(row_id - col_id) <= max_attn_len)) || (row == col))
+                    return true;
+
+                if((min_full_attn_seqlen > 0) && (row >= max_id - min_full_attn_seqlen))
+                    return true;
+            }
+
+            return false;
         }
-
-        return false;
     };
 
     CK_TILE_DEVICE constexpr int IsTokenPairInsideMask(int row, int col)
@@ -303,26 +332,47 @@ struct HstuBlockMaskNoLocal
 
     CK_TILE_HOST constexpr bool IsTokenPairInsideMask(int row, int col)
     {
-        // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
-        // max_uih_len
-        int row_id = contextual_seqlen > 0 ? max(row - contextual_seqlen + 1, 0) : row;
-        int col_id = contextual_seqlen > 0 ? max(col - contextual_seqlen + 1, 0) : col;
-
-        row_id = min(row_id, max_id);
-        col_id = min(col_id, max_id);
-
-        if(contextual_seqlen > 0 && row_id == 0 && col_id < max_id)
-            return true;
-
-        // use row_id/col_id to check the dist between two q/k token pair, token pairs on the
-        // diagonal line are always considerred
-        if constexpr(IsMasking)
+        if(contextual_seqlen > 0)
         {
-            return (row_id > col_id) || (row == col);
+            // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
+            // max_uih_len
+            int row_id = max(row - contextual_seqlen + 1, 0);
+            int col_id = max(col - contextual_seqlen + 1, 0);
+
+            row_id = min(row_id, max_id);
+            col_id = min(col_id, max_id);
+
+            if(row_id == 0 && col_id < max_id)
+                return true;
+
+            // use row_id/col_id to check the dist between two q/k token pair, token pairs on the
+            // diagonal line are always considerred
+            if constexpr(IsMasking)
+            {
+                return (row_id > col_id) || (row == col);
+            }
+            else
+            {
+                return (row_id != col_id) || (row == col);
+            };
         }
         else
         {
-            return (row_id != col_id) || (row == col);
+            // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
+            // max_uih_len
+            int row_id = min(row, max_id);
+            int col_id = min(col, max_id);
+
+            // use row_id/col_id to check the dist between two q/k token pair, token pairs on the
+            // diagonal line are always considerred
+            if constexpr(IsMasking)
+            {
+                return (row_id > col_id) || (row == col);
+            }
+            else
+            {
+                return (row_id != col_id) || (row == col);
+            };
         };
     };
 
