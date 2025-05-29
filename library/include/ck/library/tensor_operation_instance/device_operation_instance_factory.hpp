@@ -25,6 +25,9 @@ using BF8  = ck::bf8_t;
 using I4   = ck::pk_i4_t;
 using F4   = ck::f4x2_pk_t;
 
+using E8M0   = ck::e8m0_bexp_t;
+using E8M0PK = int32_t;
+
 using Empty_Tuple = ck::Tuple<>;
 
 using BF16_Tuple = ck::Tuple<BF16>;
