@@ -35,7 +35,7 @@ static constexpr index_t Tile_Align_W = Tile_W + 1;
 static constexpr index_t ShareMemSize = Tile_H * Tile_Align_W * N_Pack * SizeOfType;
 static constexpr index_t ScratchSize = ShareMemSize / 64 / 4;
 static constexpr index_t Num_Wave = 1;
-
+#define MergeShareMem 1
 template <typename T>
 __device__ T warp_shuffle_up(const T& v_local, uint32_t lane_delta)
 {
@@ -179,11 +179,18 @@ __global__ void
     const index_t lane_id = __lane_id();
     //index_t n_idx = 0;
 
+#if MergeShareMem
+    constexpr index_t ShaderMemSizePerWave =ShareMemSize * 2  - Pad_H * Tile_Align_W * sizeof(uint32_t);
+    __shared__ uint32_t p_share_mem[ShaderMemSizePerWave/sizeof(uint32_t)  * Num_Wave];
+    auto* p_share_in = &p_share_mem[0];
+    //__shared__ char p_input_1[ShareMemSize];
+    auto* p_share_out = &p_share_mem[(ShareMemSize - Pad_H * Tile_Align_W * sizeof(uint32_t))/ sizeof(uint32_t)];
+#else
     __shared__ uint32_t p_share_in[ShareMemSize/sizeof(uint32_t)  * Num_Wave];
     //__shared__ char p_input_1[ShareMemSize];
     __shared__ uint32_t p_share_out[ShareMemSize/sizeof(uint32_t) * Num_Wave];
     //__shared__ char p_output_1[ShareMemSize];
-
+#endif
     uint32_t p_input_0_scratch[ScratchSize];
     uint32_t p_input_1_scratch[ScratchSize];
     uint32_t p_output_0_scratch[ScratchSize];
