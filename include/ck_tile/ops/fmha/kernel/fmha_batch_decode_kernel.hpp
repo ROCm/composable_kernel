@@ -410,7 +410,7 @@ template <bool Cond = kIsGroupMode>
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               ck_tile::index_t num_splits,
-              int32_t num_page_blocks,
+              int32_t max_num_blocks_per_seq,
               const void* block_table_ptr,
               ck_tile::index_t page_block_size,
               float scale_s,
@@ -496,7 +496,7 @@ template <bool Cond = kIsGroupMode>
         }
         if constexpr(kKVCacheEnum == KVCacheEnum::VLLM)
         {
-            kargs.num_page_blocks = num_page_blocks;
+            kargs.max_num_blocks_per_seq = max_num_blocks_per_seq;
             kargs.block_table_ptr = reinterpret_cast<const int32_t*>(block_table_ptr);
             kargs.page_block_size = page_block_size;
 
@@ -528,7 +528,7 @@ template <bool Cond = kIsGroupMode>
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               ck_tile::index_t num_splits,
-              int32_t num_total_pages,
+              int32_t max_num_blocks_per_seq,
               const void* kv_indptr,
               const void* kv_page_indices,
 #if 0 // we assume page_block_size=1 for now
@@ -625,7 +625,7 @@ template <bool Cond = kIsGroupMode>
         }
         if constexpr(kKVCacheEnum == KVCacheEnum::SGLANG)
         {
-            kargs.num_total_pages = num_total_pages;
+            kargs.max_num_blocks_per_seq = max_num_blocks_per_seq;
             kargs.kv_indptr       = reinterpret_cast<const int32_t*>(kv_indptr);
             kargs.kv_page_indices = reinterpret_cast<const int32_t*>(kv_page_indices);
 #if 0 // we assume page_block_size=1 for now
@@ -823,6 +823,8 @@ template <bool Cond = kIsGroupMode>
         long_index_t batch_offset_lse_acc = 0;
         long_index_t batch_offset_o_acc   = 0;
         int32_t num_page_blocks = 0;
+        int32_t* block_table_seq = nullptr;
+        int32_t* kv_page_indices = nullptr;
         if constexpr(kKVCacheEnum == KVCacheEnum::SGLANG){
             num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
     #if 0 // we assume page_block_size=1 for now
@@ -869,9 +871,11 @@ template <bool Cond = kIsGroupMode>
             batch_offset_q       = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
             batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
             batch_offset_o_acc   = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o_acc;
-
-            kargs.kv_page_indices += kargs.kv_indptr[i_batch];
-
+            if constexpr(kKVCacheEnum == KVCacheEnum::SGLANG){
+                kv_page_indices = kargs.kv_page_indices + kargs.kv_indptr[i_batch];
+            }else if constexpr(kKVCacheEnum == KVCacheEnum::VLLM){
+                kv_page_indices = kargs.block_table_ptr + i_batch * kargs.max_num_blocks_per_seq;
+            }
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
@@ -1169,7 +1173,7 @@ template <bool Cond = kIsGroupMode>
                                       kargs.scale_s,
                                       kargs,
                                       smem_ptr,
-                                      kargs.kv_page_indices,
+                                      kv_page_indices,
                                       kargs.stride_k,
                                       kargs.stride_v);
             }
@@ -1187,7 +1191,7 @@ template <bool Cond = kIsGroupMode>
                                       kargs.scale_s,
                                       kargs,
                                       smem_ptr,
-                                      kargs.kv_page_indices,
+                                      kv_page_indices,
                                       kargs.stride_k,
                                       kargs.stride_v);
             }
