@@ -66,9 +66,10 @@ struct f6_pk_t
 {
     using element_type = uint32_t; // element storage fundamental type
 
-    static constexpr index_t packed_size       = pk_size;
-    static constexpr index_t num_bits_elem     = 6;
-    static constexpr index_t num_bits_vec_elem = sizeof(element_type) * CHAR_BIT;
+    static constexpr index_t packed_size   = pk_size;
+    static constexpr index_t num_bits_elem = 6;
+    // XXX: CHAR_BIT is not defined in HIPRTC, so we must use 8
+    static constexpr index_t num_bits_vec_elem = sizeof(element_type) * 8;
     static_assert((packed_size * num_bits_elem) % num_bits_vec_elem == 0,
                   "Packed elements must fit exactly into the element storage.");
     static constexpr index_t vector_size = (packed_size * num_bits_elem) / num_bits_vec_elem;
