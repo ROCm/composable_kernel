@@ -135,6 +135,10 @@ def getDockerImage(Map conf=[:]){
         image = conf.get("docker_name", "")
         echo "Using legacy docker: ${image}"
     }
+    else if ( params.BUILD_GFX950 && conf.get("docker_name", "") != "" ){
+        image = conf.get("docker_name", "")
+        echo "Using special docker: ${image}"
+    }
     else{
         image = getDockerImageName()
         echo "Using default docker: ${image}"
@@ -433,16 +437,6 @@ def buildHipClangJob(Map conf=[:]){
 
         env.HSA_ENABLE_SDMA=0
         checkout scm
-
-        def image
-        if ( params.BUILD_LEGACY_OS  && conf.get("docker_name", "") != "" ){
-            image = conf.get("docker_name", "")
-            echo "Using legacy docker: ${image}"
-        }
-        else{
-            image = getDockerImageName()
-            echo "Using default docker: ${image}"
-        }
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
@@ -466,7 +460,7 @@ def buildHipClangJob(Map conf=[:]){
         echo "Docker flags: ${dockerOpts}"
 
         def variant = env.STAGE_NAME
-
+        def image
         def retimage
         (retimage, image) = getDockerImage(conf)
 
@@ -507,21 +501,6 @@ def Build_CK(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         env.DOCKER_BUILDKIT=1
         checkout scm
-
-        def image
-        if ( params.BUILD_LEGACY_OS  && conf.get("docker_name", "") != "" ){
-            image = conf.get("docker_name", "")
-            echo "Using legacy docker: ${image}"
-        }
-        else if ( params.BUILD_GFX950 && conf.get("docker_name", "") != "" ){
-            image = conf.get("docker_name", "")
-            echo "Using special docker: ${image}"
-        }
-        else{
-            image = getDockerImageName()
-            echo "Using default docker: ${image}"
-        }
-
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
@@ -542,6 +521,7 @@ def Build_CK(Map conf=[:]){
         echo "Docker flags: ${dockerOpts}"
 
         def variant = env.STAGE_NAME
+        def image
         def retimage
 
         gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
