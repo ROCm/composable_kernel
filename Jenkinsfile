@@ -1220,6 +1220,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx942" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1242,6 +1243,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx950" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1262,6 +1264,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx908" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1282,6 +1285,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx90a" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1320,6 +1324,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx1030" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1340,6 +1345,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx1101" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1360,6 +1366,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx1201" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
