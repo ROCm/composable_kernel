@@ -92,7 +92,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                            tail_number_v>;
 
         using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
-
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
