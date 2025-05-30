@@ -33,9 +33,9 @@ __global__ void
 #endif
         kernel_batched_gemm_wmma_cshuffle_v3(
             typename GridwiseGemm::Argument
-                karg, // TODO Kiefer: This works for now but it actually
-                      // receives a DeviceBatchedGemm_Wmma_CShuffleV3::Argument argument through
-                      // implicit conversion to base class!
+                karg, // This works for now but it actually receives a
+                      // DeviceBatchedGemm_Wmma_CShuffleV3::Argument
+                      // argument through implicit conversion to base class!
             const index_t batch,
             const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
@@ -90,7 +90,7 @@ __global__ void
 #endif
 }
 
-/// @brief \"Universal\" GEMM operation with SplitK support.
+/// @brief \"Universal\" Bacthed GEMM operation without SplitK support.
 ///
 /// @par Overview
 ///         This GEMM operation implements the following mathematical equation:
@@ -98,13 +98,13 @@ __global__ void
 ///         Where A, B are input tensors and C is the output tensor. The A/B/C_op are
 ///         elementwise operations applied to the A, B, and C tensors, respectively.
 ///         The \"universal\" gemm comes with multiple pipelines optimized for different usage
-///         scenarios. That's why it's called \"universal\". It's universal through it's design
+///         scenarios. That's why it's called \"universal\". It's universal through its design
 ///         and versatilty.
 ///
-/// @note   This Kernel implementation supports SplitK algorithm. It can be configured
-///         to split the dot product accumulated over the K dimension into multiple working groups.
-///         The partial products of different workgroups are then reduced using the AtomicAdd
-///         operation.
+/// @note   This Kernel implementation does not support the SplitK algorithm. It can not be
+///         configured to split the dot product accumulated over the K dimension into multiple
+///         working groups. The partial products of different workgroups are then reduced using the
+///         AtomicAdd operation.
 ///
 /// @tparam ALayout     A tensor data layout.
 /// @tparam BLayout     B tensor data layout.
@@ -188,7 +188,7 @@ __global__ void
 /// @tparam PermuteA            Whether the A input tensor has gridwise-gemm friendly data layout
 ///                             in global memory. Currently not supported!
 /// @tparam PermuteB            Whether the B input tensor has gridwise-gemm friendly data layout
-///                             in global memory (pre-shuffled).
+///                             in global memory (pre-shuffled). Currently not supported!
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -330,8 +330,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        false,  // PermuteA
-        false>; // PermuteB
+        false,  // PermuteA not supported by DeviceBatchedGemm base class.
+        false>; // PermuteB not supported by DeviceBatchedGemm base class.
 
     // Argument
     struct Argument : public GridwiseGemm::Argument
@@ -591,7 +591,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    // TODO Kiefer: Remove?
+    // TODO: This is not part of the DeviceBatchedGemm base class but it was part of
+    // DeviceBatchedGemmV2. Remove?
     // index_t GetKPerBlock() override { return KPerBlock; }
     // bool GetPermuteA() override { return PermuteA; }
     // bool GetPermuteB() override { return PermuteB; }
