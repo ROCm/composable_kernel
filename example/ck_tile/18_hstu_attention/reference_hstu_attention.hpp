@@ -102,7 +102,7 @@ struct reference_hstu_attention
         auto silu = [&](CompDataType x) {
             const auto one = ck_tile::type_convert<CompDataType>(1.0f);
 
-            return x / (one + std::exp(-x)) / ck_tile::type_convert<CompDataType>(max_seqlen);
+            return x / (one + std::exp(-x));
         };
 
         auto f = [&](auto i_batch, auto i_head) {
@@ -198,6 +198,8 @@ struct reference_hstu_attention
                                         ck_tile::type_convert<GemmAccDataType>(vreg);
                         };
                     };
+
+                    dot_prod = dot_prod / ck_tile::type_convert<GemmAccDataType>(max_seqlen);
 
                     if constexpr(kIsJagged)
                         o_batch_seq_nhead_hdim(0, seq_offsets[i_batch] + sq, i_head, k) =
