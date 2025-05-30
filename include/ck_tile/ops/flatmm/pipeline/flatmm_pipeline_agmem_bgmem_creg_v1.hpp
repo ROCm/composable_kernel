@@ -76,7 +76,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
     CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
     {
-        #if 1
+        #if 0
         static_for<0, 7, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
@@ -107,21 +107,98 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
         __builtin_amdgcn_sched_barrier(0);
         #endif
+        #if 1
+        static_for<0, 2, 1>{}([&](auto j) {
+            ignore = j;
+            static_for<0, 3, 1>{}([&](auto i) {
+                ignore = i;
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            });
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+
+            static_for<0, 3, 1>{}([&](auto i) {
+                ignore = i;
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            });
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        });
+
+        __builtin_amdgcn_sched_barrier(0);
+        #endif
     }
 
 
     CK_TILE_HOST_DEVICE static constexpr auto TailHotLoopScheduler()
     {
-        static_for<0, 8, 1>{}([&](auto i) {
-            ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, 4, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-        });
+        static_for<0, 2, 1>{}([&](auto j) {
+            ignore = j;
+            static_for<0, 3, 1>{}([&](auto i) {
+                ignore = i;
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            });
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
 
-        static_for<0, 24, 1>{}([&](auto i) {
-            ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+            static_for<0, 3, 1>{}([&](auto i) {
+                ignore = i;
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            });
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
         });
+        __builtin_amdgcn_sched_barrier(0);
     }
 
     template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>
@@ -469,23 +546,17 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                             // Prefill A(2i+1)
                             if constexpr((mIter >= (MIterPerWarp - 1 - ACopyLoadNumPerK)) && (mIter < (MIterPerWarp - 1)) && ((nIter % NIterPerWarp)==0))
                             {               
-                                constexpr auto AIter = (mIter + ACopyLoadNumPerK + 1 + kIter * ACopyLoadNumPerK) % MIterPerWarp;
+                                constexpr auto AIter = (mIter + ACopyLoadNumPerK + 1 + kIter * ACopyLoadNumPerK) % ACopyLoadNum;
                                 store_tile(a_copy_lds_window_pong(number<AIter>{}), tile_elementwise_in(a_element_func, a_block_tile(number<AIter>{})));
                             }
                             // Prefetch A(2i+2)
                             if constexpr((mIter >= (MIterPerWarp - 1 - ACopyLoadNumPerK + 1)) && (mIter < (MIterPerWarp - 1 + 1)) && ((nIter % NIterPerWarp)==(NIterPerWarp-2)))
                             {
-                                constexpr auto AIter = (mIter + ACopyLoadNumPerK + kIter * ACopyLoadNumPerK) % MIterPerWarp;
+                                constexpr auto AIter = (mIter + ACopyLoadNumPerK + kIter * ACopyLoadNumPerK) % ACopyLoadNum;
                                 a_block_tile(number<AIter>{}) = load_tile(a_copy_dram_window(number<AIter>{}));
                                 move_tile_window(a_copy_dram_window(number<AIter>{}), {0, kKPerBlock});
                             }
                             #endif
-
-                            //barrier
-                            if constexpr((kIter == KIterPerWarp - 1) && (mIter == (MIterPerWarp - 2)) && (nIter == (NIterPerWarp-2)))
-                            {
-                                block_sync_lds();
-                            }
                             __builtin_amdgcn_sched_barrier(0x7F6);
                         });
                         // preload next A from lds
@@ -494,6 +565,12 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                             constexpr auto AmIter    = (mIter + 2) % MIterPerWarp;
                             constexpr auto AkIter    = (kIter + (mIter + 2) / MIterPerWarp);
                             a_warp_tensor_ping(number<AwarpIter>{}) = load_tile(a_warp_windows_ping(number<AmIter>{})(number<AkIter>{}));
+                        }
+
+                        //barrier
+                        if constexpr((kIter == KIterPerWarp - 1) && (mIter == (MIterPerWarp - 2)))
+                        {
+                            block_sync_lds();
                         }
                     });
                 });
@@ -567,23 +644,17 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                             // Prefill A(2i+1)
                             if constexpr((mIter >= (MIterPerWarp - 1 - ACopyLoadNumPerK)) && (mIter < (MIterPerWarp - 1)) && ((nIter % NIterPerWarp)==0))
                             {               
-                                constexpr auto AIter = (mIter + ACopyLoadNumPerK + 1 + kIter * ACopyLoadNumPerK) % MIterPerWarp;
+                                constexpr auto AIter = (mIter + ACopyLoadNumPerK + 1 + kIter * ACopyLoadNumPerK) % ACopyLoadNum;
                                 store_tile(a_copy_lds_window_ping(number<AIter>{}), tile_elementwise_in(a_element_func, a_block_tile(number<AIter>{})));
                             }
                             // Prefetch A(2i+2)
                             if constexpr((mIter >= (MIterPerWarp - 1 - ACopyLoadNumPerK + 1)) && (mIter < (MIterPerWarp - 1 + 1)) && ((nIter % NIterPerWarp)==(NIterPerWarp-2)))
                             {
-                                constexpr auto AIter = (mIter + ACopyLoadNumPerK + kIter * ACopyLoadNumPerK) % MIterPerWarp;
+                                constexpr auto AIter = (mIter + ACopyLoadNumPerK + kIter * ACopyLoadNumPerK) % ACopyLoadNum;
                                 a_block_tile(number<AIter>{}) = load_tile(a_copy_dram_window(number<AIter>{}));
                                 move_tile_window(a_copy_dram_window(number<AIter>{}), {0, kKPerBlock});
                             }
                             #endif
-
-                            //barrier
-                            if constexpr((kIter == KIterPerWarp - 1) && (mIter == (MIterPerWarp - 2)) && (nIter == (NIterPerWarp-2)))
-                            {
-                                block_sync_lds();
-                            }
                             __builtin_amdgcn_sched_barrier(0x7F6);
                         });
                         // preload next A from lds
@@ -592,6 +663,12 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                             constexpr auto AmIter    = (mIter + 2) % MIterPerWarp;
                             constexpr auto AkIter    = (kIter + (mIter + 2) / MIterPerWarp);
                             a_warp_tensor_pong(number<AwarpIter>{}) = load_tile(a_warp_windows_pong(number<AmIter>{})(number<AkIter>{}));
+                        }
+
+                        //barrier
+                        if constexpr((kIter == KIterPerWarp - 1) && (mIter == (MIterPerWarp - 2)))
+                        {
+                            block_sync_lds();
                         }
                     });
                 });            
@@ -665,16 +742,10 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                         // Prefill A(loopK)
                         if constexpr((mIter >= (MIterPerWarp - 1 - ACopyLoadNumPerK)) && (mIter < (MIterPerWarp - 1)) && ((nIter % NIterPerWarp)==0))
                         {               
-                            constexpr auto AIter = (mIter + ACopyLoadNumPerK + 1 + kIter * ACopyLoadNumPerK) % MIterPerWarp;
+                            constexpr auto AIter = (mIter + ACopyLoadNumPerK + 1 + kIter * ACopyLoadNumPerK) % ACopyLoadNum;
                             store_tile(a_copy_lds_window_pong(number<AIter>{}), tile_elementwise_in(a_element_func, a_block_tile(number<AIter>{})));
                         }
                         #endif
-
-                        //barrier
-                        if constexpr((kIter == KIterPerWarp - 1) && (mIter == (MIterPerWarp - 2)) && (nIter == (NIterPerWarp-2)))
-                        {
-                            block_sync_lds();
-                        }
                         __builtin_amdgcn_sched_barrier(0x7F6);
                     });
                     // preload next A from lds
@@ -684,11 +755,17 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                         constexpr auto AkIter    = (kIter + (mIter + 2) / MIterPerWarp);
                         a_warp_tensor_ping(number<AwarpIter>{}) = load_tile(a_warp_windows_ping(number<AmIter>{})(number<AkIter>{}));
                     }
+
+                    //barrier
+                    if constexpr((kIter == KIterPerWarp - 1) && (mIter == (MIterPerWarp - 2)))
+                    {
+                        block_sync_lds();
+                    }
                 });
             });   
             //block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor_ping);
 
-            // HotLoopScheduler();
+            TailHotLoopScheduler();
 
             static_for<0, 2, 1>{}([&](auto mIter) {
                 a_warp_tensor_pong(mIter) = load_tile(a_warp_windows_pong(mIter)(number<0>{}));
@@ -729,7 +806,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             // block_flatmm(c_block_tile, a_warp_windows, b_warp_tensor_pong);
 
             // TailHotLoopScheduler();
-            __builtin_amdgcn_sched_barrier(0);
+            // __builtin_amdgcn_sched_barrier(0);
         }
 
         return c_block_tile;
