@@ -777,7 +777,7 @@ def process_results(Map conf=[:]){
 
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;RUN_CODEGEN_TESTS=false;BUILD_GFX908=true;BUILD_GFX950=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX950=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
@@ -850,8 +850,8 @@ pipeline {
             description: "Run the grouped conv large cases tests (default: OFF)")
         booleanParam(
             name: "RUN_CODEGEN_TESTS",
-            defaultValue: false,
-            description: "Run codegen tests (default: OFF)")
+            defaultValue: true,
+            description: "Run codegen tests (default: ON)")
         booleanParam(
             name: "RUN_CK_TILE_FMHA_TESTS",
             defaultValue: false,
