@@ -35,7 +35,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int warmup            = arg_parser.get_int("warmup");
     int repeat            = arg_parser.get_int("repeat");
 
-    assert(stride >= N);
+    if(stride < N)
+    {
+        throw std::runtime_error("stride must be >= N");
+    }
 
     // Define type aliases for clarity.
     // XDataType: Data type of the input tensors.
