@@ -31,7 +31,7 @@ struct GemmConfigBase
     static constexpr int kBlockPerCu                         = 1;
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
-    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
 };
 
@@ -138,7 +138,7 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
 template <typename PrecType>
 struct GemmConfigComputeV4 : public GemmConfigBase
 {
-    // Compute V4 friendly for Intrawave scheduler
+    // Compute V4 only support Intrawave scheduler
     // Using the ping pong reader in the lds level
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
