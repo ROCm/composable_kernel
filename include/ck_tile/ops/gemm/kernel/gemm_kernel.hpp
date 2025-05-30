@@ -13,6 +13,15 @@
 
 namespace ck_tile {
 
+/// @brief The GEMM kernel host arguments.
+///
+/// @par Overview
+///      This structure is passed to @ref GemmKernel "GemmKernel" when creating kernel arguments
+///      object. It contain all necessary information required to build proper kernel argument
+///      and launch kernel on GPU.
+///      This structure defines the GEMM problem configuration by stating all required information
+///      like M,N,K sizes and respective strides.
+///      NumDTensor describes the number of D tensors.
 template <index_t NumDTensor = 0>
 struct GemmHostArgs
 {
@@ -175,6 +184,7 @@ struct GemmKernel
     }
 
     using DsGridPointer = decltype(MakeDsGridPointer());
+    using KernelArgs    = GemmKernelArgs<DsGridPointer>;
 
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
@@ -183,7 +193,7 @@ struct GemmKernel
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
-    CK_TILE_HOST static constexpr GemmKernelArgs<DsGridPointer>
+    CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs)
     {
         DsGridPointer p_ds_grid;
@@ -192,18 +202,18 @@ struct GemmKernel
             p_ds_grid(i)     = static_cast<const DDataType_*>(hostArgs.ds_ptr[i]);
         });
 
-        return GemmKernelArgs<DsGridPointer>{hostArgs.a_ptr,
-                                             hostArgs.b_ptr,
-                                             p_ds_grid,
-                                             hostArgs.e_ptr,
-                                             hostArgs.M,
-                                             hostArgs.N,
-                                             hostArgs.K,
-                                             hostArgs.stride_A,
-                                             hostArgs.stride_B,
-                                             hostArgs.stride_Ds,
-                                             hostArgs.stride_E,
-                                             hostArgs.k_batch};
+        return KernelArgs{hostArgs.a_ptr,
+                          hostArgs.b_ptr,
+                          p_ds_grid,
+                          hostArgs.e_ptr,
+                          hostArgs.M,
+                          hostArgs.N,
+                          hostArgs.K,
+                          hostArgs.stride_A,
+                          hostArgs.stride_B,
+                          hostArgs.stride_Ds,
+                          hostArgs.stride_E,
+                          hostArgs.k_batch};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -213,8 +223,7 @@ struct GemmKernel
 
     struct SplitKBatchOffset
     {
-        __device__ SplitKBatchOffset(const GemmKernelArgs<DsGridPointer>& kargs,
-                                     const std::size_t k_id = blockIdx.z)
+        __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
         {
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
             const index_t K_t   = __builtin_amdgcn_readfirstlane(kargs.k_batch * K1);
@@ -253,7 +262,7 @@ struct GemmKernel
         index_t splitted_k;
     };
 
-    CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs<DsGridPointer>& kargs)
+    CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
     {
         if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                      is_any_of<EDataType, fp16_t, bf16_t>::value)
@@ -379,6 +388,7 @@ struct GemmKernel
             {
                 if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
                 {
+                    printf("%d %d\n", kargs.M, TilePartitioner::MPerBlock);
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
                         CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
@@ -388,6 +398,7 @@ struct GemmKernel
                 }
                 if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
                 {
+                    printf("AAAAAA\n");
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
                         CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
@@ -445,7 +456,7 @@ struct GemmKernel
                                                    const BDataType* b_ptr,
                                                    const DsGridPointer ds_ptr,
                                                    EDataType* e_ptr,
-                                                   const GemmKernelArgs<DsGridPointer>& kargs,
+                                                   const KernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
@@ -637,7 +648,7 @@ struct GemmKernel
                     return pad_tensor_view(d_tensor_view[i],
                                            make_tuple(number<TilePartitioner::NPerBlock>{},
                                                       number<TilePartitioner::MPerBlock>{}),
-                                           sequence<GemmPipeline::kPadM, false>{});
+                                           sequence<false, GemmPipeline::kPadM>{});
                 }
             },
             number<NumDTensor>{});
@@ -722,7 +733,7 @@ struct GemmKernel
                     return make_tile_window(ds_pad_view[i],
                                             make_tuple(number<TilePartitioner::NPerBlock>{},
                                                        number<TilePartitioner::MPerBlock>{}),
-                                            {i_m, i_m});
+                                            {i_n, i_m});
                 }
             },
             number<NumDTensor>{});
@@ -754,7 +765,7 @@ struct GemmKernel
                                        const DsGridPointer ds_ptr,
                                        EDataType* e_ptr,
                                        void* smem_ptr_0,
-                                       const GemmKernelArgs<DsGridPointer>& kargs,
+                                       const KernelArgs& kargs,
                                        const SplitKBatchOffset& splitk_batch_offset,
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
@@ -809,7 +820,7 @@ struct GemmKernel
                                            EDataType* e_ptr,
                                            void* __restrict__ smem_ptr_0,
                                            void* __restrict__ smem_ptr_1,
-                                           const GemmKernelArgs<DsGridPointer>& kargs,
+                                           const KernelArgs& kargs,
                                            const SplitKBatchOffset& splitk_batch_offset,
                                            const index_t block_idx_m,
                                            const index_t block_idx_n)
@@ -841,7 +852,7 @@ struct GemmKernel
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-    CK_TILE_DEVICE void operator()(GemmKernelArgs<DsGridPointer> kargs) const
+    CK_TILE_DEVICE void operator()(KernelArgs kargs) const
     {
         const auto blockId  = __builtin_amdgcn_readfirstlane(blockIdx.x);
         const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);

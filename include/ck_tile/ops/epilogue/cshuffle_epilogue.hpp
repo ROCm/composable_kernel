@@ -49,7 +49,7 @@ struct CShuffleEpilogueProblem
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
     static constexpr index_t NumDTensor                    = DsDataType::size();
 
-    static_assert(NumDTensor == DsDataType::size(),
+    static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
 };
 
@@ -83,7 +83,7 @@ struct CShuffleEpilogue
     static constexpr index_t NumDTensor                    = Problem::NumDTensor;
     static constexpr index_t MaxVectorStoreSize            = 16;
 
-    static_assert(NumDTensor == DsDataType::size(),
+    static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
 
     using WG = WarpGemmMfmaDispatcher<ADataType,
@@ -152,10 +152,10 @@ struct CShuffleEpilogue
         return kMWave * kNWave * kMPerXdl * kNPerXdl * sizeof(ODataType);
     }
 
-    template <typename ODramWindow, typename OAccTile, typename DDramWindow>
+    template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
-                                   const DDramWindow& ds_dram_window,
+                                   const DsDramWindows& ds_dram_windows,
                                    void* p_smem)
     {
         const index_t iMWarp = get_warp_id() / kNWave;
@@ -187,7 +187,9 @@ struct CShuffleEpilogue
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
         auto d_dram_windows = generate_tuple(
-            [&](auto idx) { return make_tile_window(ds_dram_window[idx], dram_tile_distribution); },
+            [&](auto idx) {
+                return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
+            },
             number<NumDTensor>{});
 
         constexpr auto c_warp_y_lengths =
@@ -221,7 +223,7 @@ struct CShuffleEpilogue
                 generate_tie(
                     [&](auto idx) -> const auto& { return ds_tensor[idx]; }, number<NumDTensor>{}));
 
-            tile_elementwise_in_out_unpack_tuple(typename Problem::CDElementwise{}, c_ds_tiles);
+            tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
 
             if constexpr(MemoryOperation == memory_operation_enum::set)
             {

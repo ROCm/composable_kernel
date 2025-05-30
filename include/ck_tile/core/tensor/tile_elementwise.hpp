@@ -63,13 +63,14 @@ CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
  * @brief  Template function that "unpacks" a tuple and applies an element-wise operation.
  *
  * @param in_element_func    Function to apply element-wise.
- * @param t                  Tuple containing elements to process.
+ * @param t                  Any container containing elements to process, with known size and
+ * tuple-like semantic.
  * @return Calls tile_elementwise_inout with unpacked tuple elements.
  */
 template <typename InElementFunc, typename Tuple, size_t... I>
-CK_TILE_DEVICE auto tile_elementwise_in_out_unpack_tuple(const InElementFunc& in_element_func,
-                                                         const Tuple& t,
-                                                         std::index_sequence<I...>)
+CK_TILE_DEVICE auto tile_elementwise_inout_unpack(const InElementFunc& in_element_func,
+                                                  const Tuple& t,
+                                                  std::index_sequence<I...>)
 {
     return tile_elementwise_inout(in_element_func, t[number<I>{}]...);
 }
@@ -78,16 +79,16 @@ CK_TILE_DEVICE auto tile_elementwise_in_out_unpack_tuple(const InElementFunc& in
  * @brief  Template function that "unpacks" a tuple and applies an element-wise operation.
  *
  * @param in_element_func   Function to apply element-wise.
- * @param t                 Tuple containing elements to process.
+ * @param t                 Any container containing elements to process, with known size and
+ * tuple-like semantic.
  * @return Calls the overloaded function, passing an index sequence.
  */
 template <typename InElementFunc, typename Tuple>
-CK_TILE_DEVICE auto tile_elementwise_in_out_unpack_tuple(const InElementFunc& in_element_func,
-                                                         const Tuple& t)
+CK_TILE_DEVICE auto tile_elementwise_inout_unpack(const InElementFunc& in_element_func,
+                                                  const Tuple& t)
 {
     static constexpr auto size = Tuple::size();
-    return tile_elementwise_in_out_unpack_tuple(
-        in_element_func, t, std::make_index_sequence<size>{});
+    return tile_elementwise_inout_unpack(in_element_func, t, std::make_index_sequence<size>{});
 }
 
 template <typename DstrTensors, typename T>

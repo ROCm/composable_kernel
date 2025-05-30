@@ -15,7 +15,7 @@
 
 template <typename ADataType,
           typename BDataType,
-          typename AcEDataType,
+          typename AccDataType,
           typename EDataType,
           typename DsDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -29,9 +29,9 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
         std::conditional_t<sizeof(ComputeTypeAB) < sizeof(DsDataType), ComputeTypeAB, DsDataType>;
 
     // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType, AcEDataType>(
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType, AccDataType>(
         ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, EDataType, AcEDataType>(
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, EDataType, AccDataType>(
         max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
     // Calculate error due to split_k accumulation
     const auto rtol_split_k =
@@ -43,36 +43,37 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 }
 
 template <typename Tuple>
-class TestCkTileMultipleDGemm : public ::testing::Test
+class TestCkTileGemmMultiD : public ::testing::Test
 {
     protected:
-    using ALayout     = std::tuple_element_t<0, Tuple>;
-    using BLayout     = std::tuple_element_t<1, Tuple>;
-    using D0Layout    = std::tuple_element_t<2, Tuple>;
-    using D1Layout    = std::tuple_element_t<3, Tuple>;
-    using ELayout     = std::tuple_element_t<4, Tuple>;
-    using ADataType   = std::tuple_element_t<5, Tuple>;
-    using BDataType   = std::tuple_element_t<6, Tuple>;
-    using D0DataType  = std::tuple_element_t<7, Tuple>;
-    using D1DataType  = std::tuple_element_t<8, Tuple>;
-    using AcEDataType = std::tuple_element_t<9, Tuple>;
-    using EDataType   = std::tuple_element_t<10, Tuple>;
-    using DsLayout    = ck_tile::tuple<D0Layout, D1Layout>;
-    using DsDataType  = ck_tile::tuple<D0DataType, D1DataType>;
+    using ALayout          = std::tuple_element_t<0, Tuple>;
+    using BLayout          = std::tuple_element_t<1, Tuple>;
+    using D0Layout         = std::tuple_element_t<2, Tuple>;
+    using D1Layout         = std::tuple_element_t<3, Tuple>;
+    using ELayout          = std::tuple_element_t<4, Tuple>;
+    using ADataType        = std::tuple_element_t<5, Tuple>;
+    using BDataType        = std::tuple_element_t<6, Tuple>;
+    using D0DataType       = std::tuple_element_t<7, Tuple>;
+    using D1DataType       = std::tuple_element_t<8, Tuple>;
+    using AccDataType      = std::tuple_element_t<9, Tuple>;
+    using EDataType        = std::tuple_element_t<10, Tuple>;
+    using CDEElementWiseFn = std::tuple_element_t<11, Tuple>;
+    using DsLayout         = ck_tile::tuple<D0Layout, D1Layout>;
+    using DsDataType       = ck_tile::tuple<D0DataType, D1DataType>;
 
-    using CDEElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
+    // using CDEElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
 
     template <typename ADataType,
               typename BDataType,
               typename DsDataType,
-              typename AcEDataType,
+              typename AccDataType,
               typename EDataType,
               typename ALayout,
               typename BLayout,
               typename DsLayout,
               typename ELayout,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    void invoke_multi_d_gemm(const ck_tile::GemmHostArgs<DsDataType::size()>& args,
+    void invoke_gemm_multi_d(const ck_tile::GemmHostArgs<DsDataType::size()>& args,
                              const ck_tile::stream_config& s)
     {
         constexpr ck_tile::index_t M_Tile = 256;
@@ -116,7 +117,7 @@ class TestCkTileMultipleDGemm : public ::testing::Test
                                                                      ELayout,
                                                                      TransposeC>;
         using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AcEDataType, GemmShape, Traits>;
+            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
         using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
@@ -138,7 +139,7 @@ class TestCkTileMultipleDGemm : public ::testing::Test
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                                BDataType,
-                                                                               AcEDataType,
+                                                                               AccDataType,
                                                                                GemmShape,
                                                                                GemmUniversalTraits,
                                                                                scheduler,
@@ -150,7 +151,7 @@ class TestCkTileMultipleDGemm : public ::testing::Test
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
                                                  DsDataType,
-                                                 AcEDataType,
+                                                 AccDataType,
                                                  EDataType,
                                                  DsLayout,
                                                  ELayout,
@@ -281,7 +282,7 @@ class TestCkTileMultipleDGemm : public ::testing::Test
                     return stride;
             };
 
-        StrideA  = f_get_default_stride(M, N, StrideA, ALayout{});
+        StrideA  = f_get_default_stride(M, K, StrideA, ALayout{});
         StrideB  = f_get_default_stride(K, N, StrideB, BLayout{});
         StrideD0 = f_get_default_stride(M, N, StrideD0, D0Layout{});
         StrideD1 = f_get_default_stride(M, N, StrideD1, D1Layout{});
@@ -334,10 +335,10 @@ class TestCkTileMultipleDGemm : public ::testing::Test
                                                         stridesDs,
                                                         StrideE});
 
-        invoke_multi_d_gemm<ADataType,
+        invoke_gemm_multi_d<ADataType,
                             BDataType,
                             DsDataType,
-                            AcEDataType,
+                            AccDataType,
                             EDataType,
                             ALayout,
                             BLayout,
@@ -356,19 +357,19 @@ class TestCkTileMultipleDGemm : public ::testing::Test
             f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
         e_m_n_host_ref.SetZero();
 
-        ck_tile::reference_gemm_multiple_d<
-            ADataType,
-            BDataType,
-            std::tuple<ck_tile::HostTensor<D0DataType>, ck_tile::HostTensor<D1DataType>>,
-            AcEDataType,
-            EDataType,
-            CDEElementWiseFn>(
-            a_m_k_tesnor, b_k_n_tensors, std::tie(d0_m_n_tensors, d1_m_n_tensors), e_m_n_host_ref);
+        ck_tile::reference_gemm_multiple_d<ADataType,
+                                           BDataType,
+                                           D0DataType,
+                                           D1DataType,
+                                           AccDataType,
+                                           EDataType,
+                                           CDEElementWiseFn>(
+            a_m_k_tesnor, b_k_n_tensors, d0_m_n_tensors, d1_m_n_tensors, e_m_n_host_ref);
 
         const float max_accumulated_value =
             *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());
         const auto rtol_atol =
-            calculate_rtol_atol<ADataType, BDataType, AcEDataType, EDataType, DsDataType>(
+            calculate_rtol_atol<ADataType, BDataType, AccDataType, EDataType, DsDataType>(
                 K, /* kBatch */ 1, max_accumulated_value);
         pass = ck_tile::check_err(e_m_n_device_result,
                                   e_m_n_host_ref,

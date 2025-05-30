@@ -33,7 +33,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename DsLayout,
-          typename CLayout,
+          typename ELayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s)
 
@@ -56,7 +56,7 @@ float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s)
                                            GemmConfig::kPadK,
                                            ALayout,
                                            BLayout,
-                                           CLayout>;
+                                           ELayout>;
 
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
@@ -64,7 +64,7 @@ float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s)
                                                                  GemmConfig::DoubleSmemBuffer,
                                                                  ALayout,
                                                                  BLayout,
-                                                                 CLayout,
+                                                                 ELayout,
                                                                  GemmConfig::TransposeC,
                                                                  GemmConfig::UseStructuredSparsity>;
     using GemmPipelineProblem =
@@ -105,7 +105,7 @@ float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s)
                                              AccDataType,
                                              CDataType,
                                              DsLayout,
-                                             CLayout,
+                                             ELayout,
                                              CDEElementWise,
                                              GemmPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,

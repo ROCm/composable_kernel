@@ -14,7 +14,7 @@ template <typename ADataType,
           typename DsLayout,
           typename ELayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float invoke_multi_d_gemm(const void* a_m_k_dev_buf,
+float invoke_gemm_multi_d(const void* a_m_k_dev_buf,
                           const void* b_k_n_dev_buf,
                           const std::array<const void*, DsDataType::size()>& ds_m_n_dev_buf,
                           void* e_m_n_dev_buf,
@@ -28,32 +28,32 @@ float invoke_multi_d_gemm(const void* a_m_k_dev_buf,
                           int n_warmup,
                           int n_repeat)
 {
-    multiple_d_gemm_kargs gemm_descs({a_m_k_dev_buf,
-                                      b_k_n_dev_buf,
-                                      ds_m_n_dev_buf,
-                                      e_m_n_dev_buf,
-                                      /*kbatch */ 1,
-                                      M,
-                                      N,
-                                      K,
-                                      StrideA,
-                                      StrideB,
-                                      StrideDs,
-                                      StrideE});
+    gemm_multi_d_kargs gemm_descs({a_m_k_dev_buf,
+                                   b_k_n_dev_buf,
+                                   ds_m_n_dev_buf,
+                                   e_m_n_dev_buf,
+                                   /*kbatch */ 1,
+                                   M,
+                                   N,
+                                   K,
+                                   StrideA,
+                                   StrideB,
+                                   StrideDs,
+                                   StrideE});
 
-    float ave_time = multiple_d_gemm<ADataType,
-                                     BDataType,
-                                     DsDataType,
-                                     AccDataType,
-                                     EDataType,
-                                     ALayout,
-                                     BLayout,
-                                     DsLayout,
-                                     ELayout,
-                                     CDEElementWise>(
+    float ave_time = gemm_multi_d<ADataType,
+                                  BDataType,
+                                  DsDataType,
+                                  AccDataType,
+                                  EDataType,
+                                  ALayout,
+                                  BLayout,
+                                  DsLayout,
+                                  ELayout,
+                                  CDEElementWise>(
         gemm_descs, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
-    std::string op_name{"Multiple-D Gemm"};
+    std::string op_name{"Gemm Multiple-D"};
     static constexpr ck_tile::index_t NumDTensor = DsDataType::size();
 
     std::size_t flop = 0, num_btype = 0;
@@ -70,7 +70,7 @@ float invoke_multi_d_gemm(const void* a_m_k_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    std::cout << "Run Multiple-D Gemm kernel with:\n";
+    std::cout << "Run Gemm Multiple-D kernel with:\n";
     std::cout << "M =" << M << " N =" << N << " K =" << K << "\n";
     std::cout << "StrideA = " << StrideA << " StrideB = " << StrideB << " StrideE = " << StrideE
               << "\n";
@@ -116,7 +116,7 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
     const int n_warmup = arg_parser.get_int("warmup");
     const int n_repeat = arg_parser.get_int("repeat");
 
-    StrideA  = get_default_stride(M, N, StrideA, is_row_major(a_layout));
+    StrideA  = get_default_stride(M, K, StrideA, is_row_major(a_layout));
     StrideB  = get_default_stride(K, N, StrideB, is_row_major(b_layout));
     StrideD0 = get_default_stride(M, N, StrideD0, is_row_major(d0_layout));
     StrideD1 = get_default_stride(M, N, StrideD1, is_row_major(d1_layout));
@@ -157,7 +157,7 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
 
     std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
 
-    invoke_multi_d_gemm<ADataType,
+    invoke_gemm_multi_d<ADataType,
                         BDataType,
                         DsDataType,
                         AccDataType,
@@ -186,14 +186,14 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
         host_tensor_descriptor(M, N, StrideE, is_row_major(e_layout)));
     e_m_n_host_ref.SetZero();
 
-    ck_tile::reference_gemm_multiple_d<
-        ADataType,
-        BDataType,
-        std::tuple<ck_tile::HostTensor<D0DataType>, ck_tile::HostTensor<D1DataType>>,
-        AccDataType,
-        EDataType,
-        CDElementWiseFn>(
-        a_m_k_tesnor, b_k_n_tensors, std::tie(d0_m_n_tensors, d1_m_n_tensors), e_m_n_host_ref);
+    ck_tile::reference_gemm_multiple_d<ADataType,
+                                       BDataType,
+                                       D0DataType,
+                                       D1DataType,
+                                       AccDataType,
+                                       EDataType,
+                                       CDElementWiseFn>(
+        a_m_k_tesnor, b_k_n_tensors, d0_m_n_tensors, d1_m_n_tensors, e_m_n_host_ref);
 
     bool pass{true};
     if(arg_parser.get_int("v"))
@@ -245,6 +245,6 @@ int run_multiple_d_gemm_example(int argc, char* argv[])
     }
     else
     {
-        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
+        throw std::runtime_error("Unsupported data layout configuration for provided tensors!");
     }
 }

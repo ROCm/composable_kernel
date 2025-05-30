@@ -14,7 +14,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
-#include "multi_d_gemm.hpp"
+#include "gemm_multi_d_fp16.hpp"
 #include "utils.hpp"
 
 template <typename ADataType,
@@ -27,7 +27,7 @@ template <typename ADataType,
           typename DsLayout,
           typename CLayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-auto multiple_d_gemm(const multiple_d_gemm_kargs& args, const ck_tile::stream_config& s) -> float
+auto gemm_multi_d(const gemm_multi_d_kargs& args, const ck_tile::stream_config& s) -> float
 {
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
     // Memory friendly for Interwave scheduler
@@ -291,6 +291,6 @@ auto multiple_d_gemm(const multiple_d_gemm_kargs& args, const ck_tile::stream_co
     return ave_time;
 }
 
-#include "run_multi_d_gemm_example.inc"
+#include "run_gemm_multi_d_fp16_example.inc"
 
 int main(int argc, char* argv[]) { return !run_multiple_d_gemm_example(argc, argv); }

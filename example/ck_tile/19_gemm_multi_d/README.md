@@ -10,9 +10,9 @@ mkdir build && cd build
     leave it blank
 sh ../script/cmake-ck-dev.sh  ../ <arch>
 #The basic pipeline method on the gemm calculation
-make tile_example_multi_d_gemm -j
+make tile_example_gemm_multi_d -j
 ```
-This will result in an executable `build/bin/tile_example_multi_d_gemm`
+This will result in an executable `build/bin/tile_example_gemm_multi_d`
 
 ## example
 ```
