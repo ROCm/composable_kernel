@@ -51,7 +51,6 @@ struct CShuffleEpilogue
     using BDataType   = remove_cvref_t<typename Problem::BDataType>;
     using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
     using ODataType   = remove_cvref_t<typename Problem::ODataType>;
-   
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;

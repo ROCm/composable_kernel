@@ -93,36 +93,22 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
         using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
 
-        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-                                ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
-                                                                      BDataType,
-                                                                      AccDataType,
-                                                                      CDataType,
-                                                                      CLayout,
-                                                                      GemmConfig::kPadM,
-                                                                      GemmConfig::kPadN,
-                                                                      GemmConfig::M_Warp_Tile,
-                                                                      GemmConfig::N_Warp_Tile,
-                                                                      GemmConfig::K_Warp_Tile,
-                                                                      UniversalGemmProblem::TransposeC,
-                                                                      true,
-                                                                      memory_operation>>;
-        // using GemmEpilogue = ck_tile::CShuffleEpilogue<
-        //     ck_tile::CShuffleEpilogueProblem<ADataType,
-        //                                      BDataType,
-        //                                      AccDataType,
-        //                                      CDataType,
-        //                                      CLayout,
-        //                                      GemmPipelineProblem::kBlockSize,
-        //                                      TilePartitioner::MPerBlock,
-        //                                      TilePartitioner::NPerBlock,
-        //                                      GemmConfig::M_Warp,
-        //                                      GemmConfig::N_Warp,
-        //                                      GemmConfig::M_Warp_Tile,
-        //                                      GemmConfig::N_Warp_Tile,
-        //                                      GemmConfig::K_Warp_Tile,
-        //                                      UniversalGemmProblem::TransposeC,
-        //                                      memory_operation>>;
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             CLayout,
+                                             GemmPipelineProblem::kBlockSize,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             GemmConfig::M_Warp,
+                                             GemmConfig::N_Warp,
+                                             GemmConfig::M_Warp_Tile,
+                                             GemmConfig::N_Warp_Tile,
+                                             GemmConfig::K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC,
+                                             memory_operation>>;
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
@@ -330,29 +316,29 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
-//     else if(data_type == "bf16")
-//     {
-//         return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
-//     }
-//     else if(data_type == "fp8")
-//     {
-//         return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
-//             a_layout, b_layout, argc, argv);
-//     }
-//     else if(data_type == "bf8")
-//     {
-//         return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
-//             a_layout, b_layout, argc, argv);
-//     }
+    else if(data_type == "bf16")
+    {
+        return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "fp8")
+    {
+        return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "bf8")
+    {
+        return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
 
-// #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-//     else if(data_type == "pk_int4_t")
-//     {
-//         // TODO: Add support for bhalf_t ADataType
-//         return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
-//             a_layout, b_layout, argc, argv);
-//     }
-// #endif
+#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+    else if(data_type == "pk_int4_t")
+    {
+        // TODO: Add support for bhalf_t ADataType
+        return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
+            a_layout, b_layout, argc, argv);
+    }
+#endif
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");

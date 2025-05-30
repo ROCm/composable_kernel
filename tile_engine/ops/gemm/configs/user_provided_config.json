@@ -2,7 +2,7 @@
   "problem": {
     "layout_a": {
       "values": [
-        "c"
+        "r"
       ]
     },
     "layout_b": {
@@ -34,17 +34,17 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        256
+        128
       ]
     },
     "tile_n": {
       "values": [
-        160
+        128
       ]
     },
     "tile_k": {
       "values": [
-        64
+        32
       ]
     },
     "warp_m": {
@@ -64,12 +64,12 @@
     },
     "warp_tile_m": {
       "values": [
-        64
+        32
       ]
     },
     "warp_tile_n": {
       "values": [
-        4
+        32
       ]
     },
     "warp_tile_k": {
@@ -81,16 +81,19 @@
   "trait_config": {
     "pipeline": {
       "values": [
-        "compv3"
+        "compv3",
+        "mem"
       ]
     },
     "scheduler": {
       "values": [
-        "intrawave"
+        "intrawave",
+        "interwave"
       ]
     },
     "epilogue": {
       "values": [
+        "default",
         "cshuffle"
       ]
     },
