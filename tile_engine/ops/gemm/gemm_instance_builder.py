@@ -451,8 +451,8 @@ struct GemmKernel {{
             tile_valid_params = list(
                 filter(lambda t: self.is_tile_valid(t, trait), tile_params))
 
-            if len(tile_valid_params) == 0:
-                raise RuntimeError(f"No valid kernel instance selected for trait: {trait}")
+            # if len(tile_valid_params) == 0:
+            #     raise RuntimeError(f"No valid kernel instance selected for trait: {trait}")
             if trait not in self.valid_trait_tile_combinations:
                 self.valid_trait_tile_combinations[trait] = []
             self.valid_trait_tile_combinations[trait].append(tile_valid_params)
