@@ -41,15 +41,13 @@ struct CommonLayoutSetting
     using WeightLayout = WeightLay;
     using OutputLayout = OutputLay;
 };
-using ALayout  = ck::tensor_layout::convolution::NHWGC;
-using BLayout = ck::tensor_layout::convolution::GKYXC;
-using ELayout = ck::tensor_layout::convolution::NHWGK;
+
 namespace ctl = ck::tensor_layout::convolution;
 template <ck::index_t NDimSpatial>
 struct CommonLayoutSettingSelector
     : CommonLayoutSetting<ck::tuple_element_t<NDimSpatial - 1,
                                               ck::Tuple<ck::tensor_layout::convolution::GNWC,
-                                                        ck::tensor_layout::convolution::NHWGC,
+                                                        ck::tensor_layout::convolution::GNHWC,
                                                         ck::tensor_layout::convolution::GNDHWC>>,
                           ck::tuple_element_t<NDimSpatial - 1,
                                               ck::Tuple<ck::tensor_layout::convolution::GKXC,
@@ -57,7 +55,7 @@ struct CommonLayoutSettingSelector
                                                         ck::tensor_layout::convolution::GKZYXC>>,
                           ck::tuple_element_t<NDimSpatial - 1,
                                               ck::Tuple<ck::tensor_layout::convolution::GNWK,
-                                                        ck::tensor_layout::convolution::NHWGK,
+                                                        ck::tensor_layout::convolution::GNHWK,
                                                         ck::tensor_layout::convolution::GNDHWK>>>
 {
 };

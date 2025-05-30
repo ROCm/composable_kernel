@@ -34,7 +34,7 @@ static constexpr index_t SizeOfType = 2;
 static constexpr index_t Tile_Align_W = Tile_W + 1;
 static constexpr index_t ShareMemSize = Tile_H * Tile_Align_W * N_Pack * SizeOfType;
 static constexpr index_t ScratchSize = ShareMemSize / 64 / 4;
-static constexpr index_t Num_Wave = 1;
+static constexpr index_t Num_Wave = 4;
 #define MergeShareMem 1
 template <typename T>
 __device__ T warp_shuffle_up(const T& v_local, uint32_t lane_delta)
@@ -605,9 +605,9 @@ struct DeviceGroupedConvBwdWeightNaive
 }
 }
 
-using ALayout = ck::tensor_layout::convolution::NHWGC;
+using ALayout = ck::tensor_layout::convolution::GNHWC;
 using BLayout = ck::tensor_layout::convolution::GKYXC;
-using ELayout = ck::tensor_layout::convolution::NHWGK;
+using ELayout = ck::tensor_layout::convolution::GNHWK;
 
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
