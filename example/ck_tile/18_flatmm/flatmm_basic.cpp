@@ -177,4 +177,15 @@ int run_flatmm_example(int argc, char* argv[])
     return -1;
 }
 
-int main(int argc, char* argv[]) { return !run_flatmm_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    try
+    {
+        return !run_flatmm_example(argc, argv);
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Runtime error: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    }
+}
