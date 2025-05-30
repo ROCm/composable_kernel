@@ -9,9 +9,6 @@ add_example_dependencies(example_gemm_mx example_gemm_mx_bf8)
 add_example_executable(example_gemm_mx_fp8_bf8 gemm_mx_fp8_bf8.cpp)
 # add_example_dependencies(example_gemm_mx example_gemm_mx_fp8_bf8) TOFO: Fix RRR
 
-add_example_executable(example_gemm_mx_fp8_bpreshuffle gemm_mx_fp8_bpreshuffle.cpp)
-# add_example_dependencies(example_gemm_mx example_gemm_mx_fp8_bpreshuffle) TODO: Fix
-
 add_example_executable(example_gemm_mx_fp4 gemm_mx_fp4.cpp)
 add_example_dependencies(example_gemm_mx example_gemm_mx_fp4)
 
@@ -45,4 +42,3 @@ target_compile_options(example_moe_gemm1_xdl_mx_fp4_bns PRIVATE ${FP4_MXGEMM_OPT
 target_compile_options(example_moe_gemm2_xdl_mx_fp4_bns PRIVATE ${FP4_MXGEMM_OPTIONS})
 
 target_compile_options(example_gemm_mx_fp8 PRIVATE ${FP8_MXGEMM_OPTIONS})
-target_compile_options(example_gemm_mx_fp8_bpreshuffle PRIVATE ${FP8_MXGEMM_OPTIONS})
