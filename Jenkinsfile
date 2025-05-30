@@ -12,6 +12,23 @@ def show_node_info() {
     """
 }
 
+class Version {
+    int major, minor, patch
+    @Override
+    String toString() {
+        return [major, minor, patch].findAll().join('.')
+    }
+}
+def parseVersion(String versionString) {
+    if (!versionString) return null
+    int[] tokens = versionString.split(/\./).collect { it as int } // Splits the string by '.' and converts each part to an integer.
+    return new Version(
+        major: tokens[0],
+        minor: tokens.length > 1 ? tokens[1] : null,
+        patch: tokens.length > 2 ? tokens[2] : null,
+    )
+}
+
 def nthreads() {
     def nproc = sh(returnStdout: true, script: 'nproc')
     echo "Number of cores: ${nproc}"
@@ -38,8 +55,10 @@ def getBaseDockerImageName(){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-        def ROCM_numeric = "${params.ROCMVERSION}" as float
-        if ( ROCM_numeric < 6.5 ){
+        def ROCM_numeric = parseVersion("${params.ROCMVERSION}")
+        println("rocm version major: ${ROCM_numeric.major}")
+        println("rocm version minor: ${ROCM_numeric.minor}")
+        if ( ROCM_numeric.major <= 6 && ROCM_numeric.minor < 5 ){
             img = "${env.CK_DOCKERHUB}:ck_ub24.04_rocm${params.ROCMVERSION}"
             }
         else{
