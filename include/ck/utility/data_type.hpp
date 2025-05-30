@@ -11,6 +11,7 @@
 /// /opt/rocm/include/hip/amd_detail/amd_hip_vector_types.h.
 
 #if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
+#define CHAR_BIT 8
 using int8_t   = signed char;
 using uint8_t  = unsigned char;
 using int16_t  = signed short;
@@ -376,7 +377,7 @@ using element_type_t = typename element_type<T>::type;
 
 template <typename T>
 inline constexpr bool is_packed_type_v =
-    has_packed_type_v<element_type_t<T>>&& is_same_v<T, packed_type_t<element_type_t<T>>>;
+    has_packed_type_v<element_type_t<T>> && is_same_v<T, packed_type_t<element_type_t<T>>>;
 
 template <typename T>
 struct packed_size
