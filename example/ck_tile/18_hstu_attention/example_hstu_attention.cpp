@@ -199,8 +199,8 @@ auto get_elimit()
 template <>
 auto get_elimit<ck_tile::bf16_t>()
 {
-    double rtol = 2e-3;
-    double atol = 2e-3;
+    double rtol = 1e-3;
+    double atol = 1e-3;
     return ck_tile::make_tuple(rtol, atol);
 }
 
