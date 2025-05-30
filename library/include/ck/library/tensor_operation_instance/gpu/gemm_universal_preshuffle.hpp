@@ -32,7 +32,7 @@ template <typename ADataType,
           typename CLayout>
 struct DeviceOperationInstanceFactory<
     //ck::tensor_operation::device::DeviceGemmV2BPreshuffle<ALayout,
-    ck::tensor_operation::device::DeviceGemmV2<ALayout,
+    ck::tensor_operation::device::DeviceGemmV2BPreshuffle<ALayout,
                                                BLayout,
                                                CLayout,
                                                ADataType,
@@ -42,7 +42,7 @@ struct DeviceOperationInstanceFactory<
                                                ck::tensor_operation::element_wise::PassThrough,
                                                ck::tensor_operation::element_wise::PassThrough>>
 {
-    using DeviceOp = DeviceGemmV2<ALayout,
+    using DeviceOp = DeviceGemmV2BPreshuffle<ALayout,
                                   BLayout,
                                   CLayout,
                                   ADataType,
@@ -61,7 +61,8 @@ struct DeviceOperationInstanceFactory<
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
-            {
+            {   
+                printf("*******************Adding f8_f8_bf16 Row instances************************\n");
                 add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_kn_mn_comp_default_instances(
                     op_ptrs);
             }
