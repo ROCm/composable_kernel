@@ -215,7 +215,7 @@ struct BlockUniversalGemmAsBsCr
         using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
 
         ALdsTile a_warp_tile_;
-        ALdsTile b_warp_tile_;
+        BLdsTile b_warp_tile_;
 
         // C += A * B
         template <typename CBlockTensor, typename ASmemBlockWindow, typename BSmemBlockWindow>
