@@ -1162,8 +1162,8 @@ pipeline {
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a -G Ninja && \
-                                           ninja benchmark_gemm && \
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                                           make benchmark_gemm -j && \
                                            ./bin/benchmark_gemm """
                     }
                     steps{
@@ -1180,8 +1180,8 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 -G Ninja && \
-                                           ninja benchmark_gemm && \
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
+                                           make benchmark_gemm -j && \
                                            ./bin/benchmark_gemm """
                     }
                     steps{
