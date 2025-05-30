@@ -1,0 +1,29 @@
+{
+  "name": "${localEnv:USER}-ck-dev",
+  "dockerFile": "Dockerfile",
+  "build": {
+    "context": ".",
+    "args": {
+      "CK_SCCACHE": "1"
+    }
+  },
+  "runArgs": ["--device=/dev/kfd", "--device=/dev/dri", "--security-opt=seccomp=unconfined", "--network=host","--ipc=host", "--group-add=video", "--cap-add=SYS_PTRACE", "--name=${localEnv:USER}-ck-dev"],
+  "customizations": {
+      "vscode": {
+          "extensions": [
+           "ms-vscode.cpptools-extension-pack",
+           "eamodio.gitlens",
+           "ms-python.python",
+           "benjamin-simmonds.pythoncpp-debug",
+           "ms-azuretools.vscode-docker",
+           "mechatroner.rainbow-csv"
+        ]
+      }
+  },
+  "containerEnv": {
+    "LANG": "C.UTF-8"
+   },
+  "mounts": [
+     "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached"
+  ]
+}

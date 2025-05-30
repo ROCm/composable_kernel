@@ -121,3 +121,6 @@ RUN if ( [ "$compiler_version" = "amd-staging" ] || [ "$compiler_version" = "amd
         make -j 8 ; \
     else echo "using the release compiler"; \
     fi
+
+# Ensure that one can call sccache from command line
+RUN ln -s /usr/local/.cargo/bin/sccache /usr/local/bin/sccache
