@@ -156,7 +156,8 @@ template <typename GemmConfig,
           typename BLayout,
           typename DsLayout,
           typename CLayout,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+          typename CDEElementWise,
+          bool Persistent>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
 
 template <typename GemmConfig,
