@@ -9,9 +9,6 @@ add_example_dependencies(example_gemm_mx example_gemm_mx_bf8)
 add_example_executable(example_gemm_mx_fp8_bf8 gemm_mx_fp8_bf8.cpp)
 # add_example_dependencies(example_gemm_mx example_gemm_mx_fp8_bf8) TOFO: Fix RRR
 
-add_example_executable(example_gemm_mx_fp8_bpreshuffle gemm_mx_fp8_bpreshuffle.cpp)
-# add_example_dependencies(example_gemm_mx example_gemm_mx_fp8_bpreshuffle) TODO: Fix
-
 add_example_executable(example_gemm_mx_fp6 gemm_mx_fp6.cpp)
 add_example_dependencies(example_gemm_mx example_gemm_mx_fp6)
 
@@ -48,7 +45,6 @@ list(APPEND FP8_MXGEMM_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1
 list(APPEND FP8_MXGEMM_OPTIONS --save-temps -Wno-gnu-line-marker -ftemplate-backtrace-limit=0)
 target_compile_options(example_gemm_mx_fp8 PRIVATE ${FP8_MXGEMM_OPTIONS})
 target_compile_options(example_gemm_mx_bf8 PRIVATE ${FP8_MXGEMM_OPTIONS})
-target_compile_options(example_gemm_mx_fp8_bpreshuffle PRIVATE ${FP8_MXGEMM_OPTIONS})
 target_compile_options(example_gemm_mx_fp6 PRIVATE ${FP8_MXGEMM_OPTIONS})
 
 

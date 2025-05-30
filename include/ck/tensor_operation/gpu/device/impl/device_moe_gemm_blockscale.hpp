@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
 #include <sstream>
+#include <hip/hip_runtime.h>
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_ab_scale.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_moe_mx_gemm_bns.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_moe_gemm_blockscale.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
@@ -37,8 +38,10 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
-          index_t ScaleBlockSize,
           index_t BlockSize,
+          index_t ScaleBlockM,
+          index_t ScaleBlockN,
+          index_t ScaleBlockK,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -71,97 +74,102 @@ template <typename ALayout,
           index_t ActivationOP                        = 0,
           bool NSwizzle                               = false,
           bool IsInputGemm                            = true,
-          bool MulRoutedWeight                        = true,
+          bool MulRoutedWeight                        = false,
           typename IndexType                          = index_t,
-          typename ComputeTypeA                       = ADataType,
-          typename ComputeTypeB                       = BDataType>
-struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
-                                                              BLayout,
-                                                              DsLayout,
-                                                              CLayout,
-                                                              ADataType,
-                                                              AScaleDataType,
-                                                              BDataType,
-                                                              BScaleDataType,
-                                                              DsDataType,
-                                                              CDataType,
-                                                              ScaleBlockSize,
-                                                              AElementwiseOperation,
-                                                              BElementwiseOperation,
-                                                              CElementwiseOperation>
+          typename ComputeTypeA                       = CDataType,
+          typename ComputeTypeB                       = ComputeTypeA,
+          typename LDSTypeA                           = ComputeTypeA,
+          typename LDSTypeB                           = ComputeTypeB>
+struct DeviceMoeGemmBlockScale
+    : public DeviceGemmMultipleD_BlockScale_BPreshuffle<ALayout,
+                                                        BLayout,
+                                                        DsLayout,
+                                                        CLayout,
+                                                        ADataType,
+                                                        AScaleDataType,
+                                                        BDataType,
+                                                        BScaleDataType,
+                                                        DsDataType,
+                                                        CDataType,
+                                                        ScaleBlockM,
+                                                        ScaleBlockN,
+                                                        ScaleBlockK,
+                                                        AElementwiseOperation,
+                                                        BElementwiseOperation,
+                                                        CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
-    using GridwiseGemm =
-        GridwiseMoeGemmMXBNS<ALayout,
-                             BLayout,
-                             DsLayout,
-                             CLayout,
-                             ADataType,
-                             AScaleDataType,
-                             BDataType,
-                             BScaleDataType,
-                             GemmAccDataType,
-                             CShuffleDataType,
-                             DsDataType,
-                             CDataType,
-                             AElementwiseOperation,
-                             BElementwiseOperation,
-                             CElementwiseOperation,
-                             GemmSpec,
-                             ScaleBlockSize,
-                             BlockSize,
-                             MPerBlock,
-                             NPerBlock,
-                             KPerBlock,
-                             AK1,
-                             BK1,
-                             MPerXDL,
-                             NPerXDL,
-                             MXdlPerWave,
-                             NXdlPerWave,
-                             ABlockTransferThreadClusterLengths_AK0_M_AK1,
-                             ABlockTransferThreadClusterArrangeOrder,
-                             ABlockTransferSrcAccessOrder,
-                             ABlockTransferSrcVectorDim,
-                             ABlockTransferSrcScalarPerVector,
-                             ABlockTransferDstScalarPerVector_AK1,
-                             false,
-                             ABlockLdsExtraM,
-                             BBlockTransferThreadClusterLengths_BK0_N_BK1,
-                             BBlockTransferThreadClusterArrangeOrder,
-                             BBlockTransferSrcAccessOrder,
-                             BBlockTransferSrcVectorDim,
-                             BBlockTransferSrcScalarPerVector,
-                             BBlockTransferDstScalarPerVector_BK1,
-                             false,
-                             BBlockLdsExtraN,
-                             CShuffleMXdlPerWavePerShuffle,
-                             CShuffleNXdlPerWavePerShuffle,
-                             CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                             CDEShuffleBlockTransferScalarPerVectors,
-                             BlkGemmPipeSched,
-                             BlkGemmPipelineVer,
-                             ActivationOP,
-                             NSwizzle,
-                             IsInputGemm,
-                             MulRoutedWeight,
-                             IndexType,
-                             ComputeTypeA,
-                             ComputeTypeB>;
+    using GridwiseGemm                  = GridwiseMoeGemmBlockScale<
+        ALayout,
+        BLayout,
+        DsLayout,
+        CLayout,
+        ADataType,
+        BDataType,
+        GemmAccDataType,
+        CShuffleDataType,
+        DsDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GemmSpec,
+        BlockSize,
+        ScaleBlockM,
+        ScaleBlockN,
+        ScaleBlockK,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
+        false,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
+        false,
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CDEShuffleBlockTransferScalarPerVectors,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ActivationOP,
+        NSwizzle,
+        IsInputGemm,
+        MulRoutedWeight,
+        IndexType,
+        ComputeTypeA,
+        ComputeTypeB,
+        LDSTypeA,
+        LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
     static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
             return 2;
         else
             return 1;
     }();
 
     static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<BDataType>, f4x2_pk_t>)
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
             return 2;
         else
             return 1;
@@ -193,7 +201,6 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
             index_t K_split = (arg.K + k_grain - 1) / k_grain * KPerBlock;
 
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
-
             const auto RunKernel = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
@@ -207,10 +214,10 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                     const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
                         arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
 
-                    auto size_a_buffer =
-                        a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
-                    auto size_b_buffer =
-                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
+                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
+                                         sizeof(ADataType) / APackedSize;
+                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
+                                         sizeof(BDataType) / BPackedSize;
 
                     const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
                         arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
@@ -258,88 +265,123 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                 }
             };
 
-            // TODO: Check if this is the right algorithm for minimum_occupancy
-            constexpr index_t minimum_occupancy =
-                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave
-                    ? (BlkGemmPipelineVer == BlockGemmPipelineVersion::v3 &&
-                       MPerBlock * NPerBlock * KPerBlock * sizeof(ADataType) <= 128 * 128 * 64 * 2)
-                          ? 2
-                          : 1
-                    : 2;
+            // constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) /
+            // BlockSize /
+            //                                  4 * (1 + GridwiseGemm::NWave);
+            // constexpr auto estimated_reg_b =
+            //     NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2);
+            // constexpr auto estimated_reg_c =
+            //     MPerBlock * NPerBlock * sizeof(GemmAccDataType) / BlockSize / 4;
+            // constexpr auto estimated_reg_total =
+            //     estimated_reg_a + estimated_reg_b + estimated_reg_c;
+
+            constexpr index_t minimum_occupancy = 2;
 
             constexpr auto MemoryDataOp =
                 IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+
             if(has_main_k_block_loop)
             {
                 // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                          true,
-                                                          MemoryDataOp,
-                                                          minimum_occupancy,
-                                                          TailNumber::Full>;
-                    RunKernel(kernel);
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                                true,
+                                                                MemoryDataOp,
+                                                                minimum_occupancy,
+                                                                TailNumber::Odd>;
+                            RunKernel(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                                true,
+                                                                MemoryDataOp,
+                                                                minimum_occupancy,
+                                                                TailNumber::Even>;
+                            RunKernel(kernel);
+                        }
+                    }
                 }
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              true,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Odd>;
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 true,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Odd>;
                         RunKernel(kernel);
                     }
                     else
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              true,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Even>;
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 true,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Even>;
                         RunKernel(kernel);
                     }
                 }
                 else
                 {
-                    throw std::runtime_error("todo: only v1 & v3 support now");
+                    throw std::runtime_error("todo: only v1 & v2 support now");
                 }
             }
+#if 1
             else
             {
+                // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-                {
-                    const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                          false,
-                                                          MemoryDataOp,
-                                                          minimum_occupancy,
-                                                          TailNumber::Full>;
-                    RunKernel(kernel);
-                }
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              false,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Odd>;
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            false,
+                                                            MemoryDataOp,
+                                                            minimum_occupancy,
+                                                            TailNumber::Odd>;
                         RunKernel(kernel);
                     }
                     else
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              false,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Even>;
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            false,
+                                                            MemoryDataOp,
+                                                            minimum_occupancy,
+                                                            TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Even>;
                         RunKernel(kernel);
                     }
                 }
             }
+#endif
 
             return ave_time;
         }
@@ -400,9 +442,7 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                              const void* p_sorted_expert_ids,
                              const void* p_max_token_id,
                              const void* p_a,
-                             const void* p_a_scale,
                              const void* p_b,
-                             const void* p_b_scale,
                              std::array<const void*, NumDTensor> p_ds,
                              void* p_c,
                              index_t NumTokens,
@@ -411,11 +451,11 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                              index_t N,
                              index_t K,
                              index_t StrideA,
-                             index_t StrideScaleA,
                              index_t StrideB,
-                             index_t StrideScaleB,
                              std::array<index_t, NumDTensor> StrideDs,
                              index_t StrideC,
+                             const void* p_a_scale,
+                             const void* p_b_scale,
                              index_t KBatch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -425,9 +465,7 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                         static_cast<const index_t*>(p_sorted_expert_ids),
                         static_cast<const index_t*>(p_max_token_id),
                         static_cast<const ADataType*>(p_a),
-                        static_cast<const AScaleDataType*>(p_a_scale),
                         static_cast<const BDataType*>(p_b),
-                        static_cast<const BScaleDataType*>(p_b_scale),
                         p_ds,
                         static_cast<CDataType*>(p_c),
                         NumTokens,
@@ -436,11 +474,11 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                         N,
                         K,
                         StrideA,
-                        StrideScaleA,
                         StrideB,
-                        StrideScaleB,
                         StrideDs,
                         StrideC,
+                        static_cast<const AScaleDataType*>(p_a_scale),
+                        static_cast<const BScaleDataType*>(p_b_scale),
                         KBatch,
                         a_element_op,
                         b_element_op,
@@ -451,21 +489,19 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
 
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_a_scale,
                                                       const void* p_b,
-                                                      const void* p_b_scale,
                                                       std::array<const void*, NumDTensor> p_ds,
                                                       void* p_c,
                                                       index_t M,
                                                       index_t N,
                                                       index_t K,
                                                       index_t StrideA,
-                                                      index_t StrideScaleA,
                                                       index_t StrideB,
-                                                      index_t StrideScaleB,
                                                       std::array<ck::index_t, NumDTensor> StrideDs,
                                                       index_t StrideC,
-                                                      index_t KBatch,
+                                                      const void* p_a_scale,
+                                                      const void* p_b_scale,
+                                                      //   index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
@@ -474,9 +510,7 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                                           nullptr,
                                           nullptr,
                                           static_cast<const ADataType*>(p_a),
-                                          static_cast<const AScaleDataType*>(p_a_scale),
                                           static_cast<const BDataType*>(p_b),
-                                          static_cast<const BScaleDataType*>(p_b_scale),
                                           p_ds,
                                           static_cast<CDataType*>(p_c),
                                           M, // randoms set, no use
@@ -485,12 +519,12 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                                           N,
                                           K,
                                           StrideA,
-                                          StrideScaleA,
                                           StrideB,
-                                          StrideScaleB,
                                           StrideDs,
                                           StrideC,
-                                          KBatch,
+                                          static_cast<const AScaleDataType*>(p_a_scale),
+                                          static_cast<const BScaleDataType*>(p_b_scale),
+                                          1, // KBatch,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op);
@@ -514,12 +548,10 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
         std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
             {BlockGemmPipelineVersion::v1, "v1"},
             {BlockGemmPipelineVersion::v2, "v2"},
-            {BlockGemmPipelineVersion::v3, "v3"},
-            {BlockGemmPipelineVersion::v4, "v4"},
-            {BlockGemmPipelineVersion::v5, "v5"}};
+            {BlockGemmPipelineVersion::v3, "v3"}};
 
         // clang-format off
-        str << "DeviceMoeGEmmMx"
+        str << "DeviceMoeGEmm"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
             << std::string(ALayout::name)[0]
