@@ -31,11 +31,11 @@ static constexpr index_t Filter_X = 5;
 static constexpr index_t Filter_Y = 5;
 
 static constexpr index_t SizeOfType = 2;
-static constexpr index_t Tile_Align_W = Tile_W + 1;
+static constexpr index_t Tile_Align_W = Tile_W;
 static constexpr index_t ShareMemSize = Tile_H * Tile_Align_W * N_Pack * SizeOfType;
 static constexpr index_t ScratchSize = ShareMemSize / 64 / 4;
 static constexpr index_t Num_Wave = 4;
-#define MergeShareMem 1
+#define MergeShareMem 0
 template <typename T>
 __device__ T warp_shuffle_up(const T& v_local, uint32_t lane_delta)
 {
@@ -275,8 +275,9 @@ __global__ void
         p_out += 2 * Out_N_Stride;
  
         // do conv_bwd on 0
+            block_sync_lds();
         run_conv_bwd_weight(x, y, Ho, Wo, H_base, p_input_0, p_output_0, acc);
-
+    block_sync_lds();
         // write 1
         //write_input_to_lds();
         //write_output_to_lds();
