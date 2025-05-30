@@ -27,41 +27,39 @@ template <int Shards, int ShardIndex>
 void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_inter_instances_sharded(
     device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_inter_instances& instances)
 {
-    add_device_operation_instances(
-        instances,
-        ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_xdl_f16_mem_instances<3,
-                                                           NGCDHW,
-                                                           GKCZYX,
-                                                           Empty_Tuple,
-                                                           NGKDHW,
-                                                           ConvFwdDefault,
-                                                           Interwave>,
-            Shards,
-            ShardIndex>{});
     add_device_operation_instances(instances,
                                    ck::util::filter_tuple_by_modulo_t<
                                        device_grouped_conv_fwd_xdl_f16_mem_instances<3,
-                                                                                      NGCDHW,
-                                                                                      GKCZYX,
-                                                                                      Empty_Tuple,
-                                                                                      NGKDHW,
-                                                                                      ConvFwd1x1P0,
-                                                                                      Interwave>,
+                                                                                     NGCDHW,
+                                                                                     GKCZYX,
+                                                                                     Empty_Tuple,
+                                                                                     NGKDHW,
+                                                                                     ConvFwdDefault,
+                                                                                     Interwave>,
                                        Shards,
                                        ShardIndex>{});
-    add_device_operation_instances(
-        instances,
-        ck::util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_xdl_f16_mem_instances<3,
-                                                           NGCDHW,
-                                                           GKCZYX,
-                                                           Empty_Tuple,
-                                                           NGKDHW,
-                                                           ConvFwd1x1S1P0,
-                                                           Interwave>,
-            Shards,
-            ShardIndex>{});
+    add_device_operation_instances(instances,
+                                   ck::util::filter_tuple_by_modulo_t<
+                                       device_grouped_conv_fwd_xdl_f16_mem_instances<3,
+                                                                                     NGCDHW,
+                                                                                     GKCZYX,
+                                                                                     Empty_Tuple,
+                                                                                     NGKDHW,
+                                                                                     ConvFwd1x1P0,
+                                                                                     Interwave>,
+                                       Shards,
+                                       ShardIndex>{});
+    add_device_operation_instances(instances,
+                                   ck::util::filter_tuple_by_modulo_t<
+                                       device_grouped_conv_fwd_xdl_f16_mem_instances<3,
+                                                                                     NGCDHW,
+                                                                                     GKCZYX,
+                                                                                     Empty_Tuple,
+                                                                                     NGKDHW,
+                                                                                     ConvFwd1x1S1P0,
+                                                                                     Interwave>,
+                                       Shards,
+                                       ShardIndex>{});
 }
 
 } // namespace instance

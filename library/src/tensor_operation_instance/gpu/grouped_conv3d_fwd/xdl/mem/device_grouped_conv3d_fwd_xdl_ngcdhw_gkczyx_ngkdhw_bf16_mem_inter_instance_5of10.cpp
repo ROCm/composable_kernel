@@ -4,7 +4,7 @@
 #include "device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_inter_instance.inc"
 
 namespace ck::tensor_operation::device::instance {
-template
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_inter_instances_sharded<10, 4>(
+template void
+add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_inter_instances_sharded<10, 4>(
     device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_inter_instances& instances);
 } // namespace ck::tensor_operation::device::instance

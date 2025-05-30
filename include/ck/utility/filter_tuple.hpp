@@ -22,13 +22,13 @@ struct filter_tuple_by_modulo
 
     // Generate filtered indices for this stride and offset.
     static constexpr int new_size = (std::tuple_size_v<Tuple> + Stride - Offset - 1) / Stride;
-    
+
     template <std::size_t... Is>
     static constexpr auto to_index(std::index_sequence<Is...>)
     {
         return std::index_sequence<(Offset + Is * Stride)...>{};
     }
-    
+
     using filtered_indices = decltype(to_index(std::make_index_sequence<new_size>{}));
 
     // Helper struct to construct the new tuple type from the filtered indices.
@@ -36,12 +36,12 @@ struct filter_tuple_by_modulo
     struct make_filtered_tuple_type_impl;
 
     template <typename T, std::size_t... Is>
-    struct make_filtered_tuple_type_impl<T, std::index_sequence<Is...>> {
+    struct make_filtered_tuple_type_impl<T, std::index_sequence<Is...>>
+    {
         using type = std::tuple<std::tuple_element_t<Is, T>...>;
     };
 
     using type = typename make_filtered_tuple_type_impl<Tuple, filtered_indices>::type;
-
 };
 
 // Filter a tuple with a stride and offset.

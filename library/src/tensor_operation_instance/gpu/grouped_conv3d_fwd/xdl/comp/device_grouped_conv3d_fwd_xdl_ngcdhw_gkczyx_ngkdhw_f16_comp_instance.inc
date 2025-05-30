@@ -31,35 +31,34 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_instances_s
         instances,
         util::filter_tuple_by_modulo_t<
             device_grouped_conv_fwd_xdl_f16_comp_instances<3,
-                                                            NGCDHW,
-                                                            GKCZYX,
-                                                            Empty_Tuple,
-                                                            NGKDHW,
-                                                            ConvFwdDefault>,
+                                                           NGCDHW,
+                                                           GKCZYX,
+                                                           Empty_Tuple,
+                                                           NGKDHW,
+                                                           ConvFwdDefault>,
             Shards,
             ShardIndex>{});
 
     add_device_operation_instances(
         instances,
-        util::filter_tuple_by_modulo_t<
-            device_grouped_conv_fwd_xdl_f16_comp_instances<3,
-                                                            NGCDHW,
-                                                            GKCZYX,
-                                                            Empty_Tuple,
-                                                            NGKDHW,
-                                                            ConvFwd1x1P0>,
-            Shards,
-            ShardIndex>{});
+        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_f16_comp_instances<3,
+                                                                                      NGCDHW,
+                                                                                      GKCZYX,
+                                                                                      Empty_Tuple,
+                                                                                      NGKDHW,
+                                                                                      ConvFwd1x1P0>,
+                                       Shards,
+                                       ShardIndex>{});
 
     add_device_operation_instances(
         instances,
         util::filter_tuple_by_modulo_t<
             device_grouped_conv_fwd_xdl_f16_comp_instances<3,
-                                                            NGCDHW,
-                                                            GKCZYX,
-                                                            Empty_Tuple,
-                                                            NGKDHW,
-                                                            ConvFwd1x1S1P0>,
+                                                           NGCDHW,
+                                                           GKCZYX,
+                                                           Empty_Tuple,
+                                                           NGKDHW,
+                                                           ConvFwd1x1S1P0>,
             Shards,
             ShardIndex>{});
 }
