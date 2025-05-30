@@ -56,8 +56,6 @@ def getBaseDockerImageName(){
     }
     else{
         def ROCM_numeric = parseVersion("${params.ROCMVERSION}")
-        println("rocm version major: ${ROCM_numeric.major}")
-        println("rocm version minor: ${ROCM_numeric.minor}")
         if ( ROCM_numeric.major <= 6 && ROCM_numeric.minor < 5 ){
             img = "${env.CK_DOCKERHUB}:ck_ub24.04_rocm${params.ROCMVERSION}"
             }
