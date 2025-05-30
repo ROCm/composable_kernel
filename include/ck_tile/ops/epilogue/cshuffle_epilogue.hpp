@@ -51,6 +51,7 @@ struct CShuffleEpilogue
     using BDataType   = remove_cvref_t<typename Problem::BDataType>;
     using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
     using ODataType   = remove_cvref_t<typename Problem::ODataType>;
+   
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
@@ -92,7 +93,18 @@ struct CShuffleEpilogue
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
         constexpr index_t MaxVectorStoreSize = 16;
-        return MaxVectorStoreSize / sizeof(ODataType);
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        {
+            return std::min(static_cast<int>(kNPerIteration), static_cast<int>(MaxVectorStoreSize / sizeof(ODataType)));
+        }
+        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
+        {
+            return std::min(static_cast<int>(kMPerIteration), static_cast<int>(MaxVectorStoreSize / sizeof(ODataType)));
+        }
+        else
+        {
+            static_assert(false, "Unsupported CLayout!");
+        }
     }
 
     template <typename Problem>

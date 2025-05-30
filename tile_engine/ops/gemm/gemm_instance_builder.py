@@ -337,9 +337,6 @@ struct GemmKernel {{
         if (warp_m, warp_n, warp_k) not in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]:
             invalid_params.append(
                 f"warp_m({warp_m}) * warp_n({warp_n}) * warp_k({warp_k})")
-        if (warp_m, warp_n, warp_k) in [(4,1,1)] and (warp_tile_m, warp_tile_n, warp_tile_k) in [(64, 4, 16)]:
-            invalid_params.append(
-                f"warp_tile_m({warp_tile_m}) * warp_tile_n({warp_tile_n}) * warp_tile_k({warp_tile_k})")
         if (warp_m * warp_tile_m) == 0:
             invalid_params.append(
                 f"warp_m({warp_m}) * warp_tile_m({warp_tile_m})")
