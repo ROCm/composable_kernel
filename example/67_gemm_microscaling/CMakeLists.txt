@@ -16,22 +16,22 @@ add_example_executable(example_gemm_mx_fp6 gemm_mx_fp6.cpp)
 add_example_dependencies(example_gemm_mx example_gemm_mx_fp6)
 
 add_example_executable(example_gemm_mx_fp4 gemm_mx_fp4.cpp)
-add_example_dependencies(example_gemm_mx example_gemm_mx_fp4)
+#add_example_dependencies(example_gemm_mx example_gemm_mx_fp4)
 
 add_example_executable(example_gemm_mx_fp4_bpreshuffle gemm_mx_fp4_bpreshuffle.cpp)
-add_example_dependencies(example_gemm_mx example_gemm_mx_fp4_bpreshuffle)
+#add_example_dependencies(example_gemm_mx example_gemm_mx_fp4_bpreshuffle)
 
 add_example_executable(example_moe_gemm1_xdl_mx_fp4 moe_gemm1_xdl_mx_fp4.cpp)
 # add_example_dependencies(example_gemm_mx example_moe_gemm1_xdl_mx_fp4) TODO: Fix
 
 add_example_executable(example_moe_gemm1_xdl_mx_fp4_bns moe_gemm1_xdl_mx_fp4_bns.cpp)
-add_example_dependencies(example_gemm_mx example_moe_gemm1_xdl_mx_fp4_bns)
+#add_example_dependencies(example_gemm_mx example_moe_gemm1_xdl_mx_fp4_bns)
 
 add_example_executable(example_moe_gemm2_xdl_mx_fp4 moe_gemm2_xdl_mx_fp4.cpp)
 # add_example_dependencies(example_gemm_mx example_moe_gemm2_xdl_mx_fp4) TODO: Fix
 
 add_example_executable(example_moe_gemm2_xdl_mx_fp4_bns moe_gemm2_xdl_mx_fp4_bns.cpp)
-add_example_dependencies(example_gemm_mx example_moe_gemm2_xdl_mx_fp4_bns)
+#add_example_dependencies(example_gemm_mx example_moe_gemm2_xdl_mx_fp4_bns)
 
 set(FP4_MXGEMM_OPTIONS)
 list(APPEND FP4_MXGEMM_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllvm --amdgpu-use-amdgpu-trackers=1")

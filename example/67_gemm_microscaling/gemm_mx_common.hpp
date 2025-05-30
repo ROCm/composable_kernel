@@ -798,7 +798,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         }
         else if(config.init_method == 13)
         {
-#if 1
+#if 0
             std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
