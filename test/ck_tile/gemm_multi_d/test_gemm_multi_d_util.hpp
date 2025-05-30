@@ -61,8 +61,6 @@ class TestCkTileGemmMultiD : public ::testing::Test
     using DsLayout         = ck_tile::tuple<D0Layout, D1Layout>;
     using DsDataType       = ck_tile::tuple<D0DataType, D1DataType>;
 
-    // using CDEElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
-
     template <typename ADataType,
               typename BDataType,
               typename DsDataType,
