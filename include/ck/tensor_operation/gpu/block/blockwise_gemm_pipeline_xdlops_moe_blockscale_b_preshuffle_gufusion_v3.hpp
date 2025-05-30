@@ -286,7 +286,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v3<
                 {
                     __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
                 }
-                __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
+                // __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
             });
             // __builtin_amdgcn_sched_barrier(0);
         });
@@ -319,7 +319,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v3<
                 {
                     __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
                 }
-                __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
+                // __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
             });
             // __builtin_amdgcn_sched_barrier(0);
         });
@@ -338,7 +338,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v3<
                 {
                     __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
                 }
-                __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
+                // __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
             });
             // __builtin_amdgcn_sched_barrier(0);
         });
