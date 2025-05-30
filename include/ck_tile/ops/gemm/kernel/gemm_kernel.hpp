@@ -388,7 +388,6 @@ struct GemmKernel
             {
                 if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
                 {
-                    printf("%d %d\n", kargs.M, TilePartitioner::MPerBlock);
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
                         CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
@@ -398,7 +397,6 @@ struct GemmKernel
                 }
                 if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
                 {
-                    printf("AAAAAA\n");
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
                         CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
