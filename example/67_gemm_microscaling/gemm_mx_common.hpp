@@ -302,6 +302,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             return ck::type_convert<BDataType>(x);
     };
 
+    using int_distr   = std::uniform_int_distribution<int>;
+    using float_distr = std::uniform_real_distribution<float>;
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
@@ -320,22 +322,19 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         break;
 
     case 1:
-
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6});  // Z[-5,5]
-        b_k_n->GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+        a_m_k.GenerateTensorDistr(int_distr{-5, 6});  // Z[-5,5]
+        b_k_n->GenerateTensorDistr(int_distr{-5, 6}); // Z[-5,5]
         static_assert(ck::is_same_v<XDataType, ck::e8m0_bexp_t>);
-        a_m_k_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
-        b_k_n_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        a_m_k_scale.GenerateTensorDistr(int_distr{120, 129}); // scales: {0.25, 0.5, 1, 2}
+        b_k_n_scale.GenerateTensorDistr(int_distr{125, 129}); // scales: {0.25, 0.5, 1, 2}
         break;
 
     case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
+        a_m_k.GenerateTensorDistr(float_distr{-2.0, 2.0});
+        a_m_k_scale.GenerateTensorDistr(float_distr{powf(2.0f, -125.0f), 1.0f});
 
-        b_k_n->GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
-        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
+        b_k_n->GenerateTensorDistr(float_distr{-2.0, 2.0});
+        b_k_n_scale.GenerateTensorDistr(float_distr{powf(2.0f, -125.0f), 1.0f});
         break;
 
     default:
