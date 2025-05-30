@@ -158,13 +158,13 @@ using BElementOp = PassThrough;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t NPerBlock = 256;
+static constexpr ck::index_t NPerBlock = 128;
 static constexpr ck::index_t MNPerXDL  = 16;
-static constexpr ck::index_t MXDLPerWave         = MPerBlock / (MNPerXDL * 1);
-static constexpr ck::index_t NXDLPerWave         = NPerBlock / (MNPerXDL * 4);
-static constexpr ck::index_t CShuffleMXDLPerWave = MXDLPerWave;
-static constexpr ck::index_t CShuffleNXDLPerWave = NXDLPerWave;
-static constexpr ck::index_t BLOCKSIZE           = 256;
+static constexpr ck::index_t MXDLPerWave = MPerBlock / (MNPerXDL * 1);
+static constexpr ck::index_t NXDLPerWave = NPerBlock / (MNPerXDL * 4);
+// static constexpr ck::index_t CShuffleMXDLPerWave = MXDLPerWave;
+// static constexpr ck::index_t CShuffleNXDLPerWave = NXDLPerWave;
+static constexpr ck::index_t BLOCKSIZE = 256;
 
 static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
 static constexpr ck::index_t Nswizzle  = false;
@@ -193,7 +193,7 @@ using DeviceOpInstance                 = ck::tensor_operation::device::DeviceMoe
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-                CShuffleMXDLPerWave,    CShuffleNXDLPerWave,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec, 1>,
+                2,    2,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, true, MulRoutedWeight, true, int32_t, A0DataType>;
 
 // clang-format on
@@ -208,9 +208,9 @@ int main(int argc, char* argv[])
     ck::index_t N               = 4096;
     ck::index_t K               = 6144;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 133;
-    ck::index_t valid_tile_num  = 128;
-    ck::index_t tokens          = 8192;
+    ck::index_t sorted_tile_num = 256;
+    ck::index_t valid_tile_num  = 256;
+    ck::index_t tokens          = 16384;
     ck::index_t topk            = 2;
 
     if(argc == 1)
