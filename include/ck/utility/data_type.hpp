@@ -11,6 +11,7 @@
 /// /opt/rocm/include/hip/amd_detail/amd_hip_vector_types.h.
 
 #if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
+#define CHAR_BIT 8
 using int8_t   = signed char;
 using uint8_t  = unsigned char;
 using int16_t  = signed short;
