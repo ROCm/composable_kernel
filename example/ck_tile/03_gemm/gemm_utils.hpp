@@ -150,6 +150,15 @@ struct GemmTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
     using CDataType   = ck_tile::half_t;
 };
 
+template <>
+struct GemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, int32_t>
+{
+    using ADataType   = ck_tile::int8_t;
+    using BDataType   = ck_tile::int8_t;
+    using AccDataType = int32_t;
+    using CDataType   = int32_t;  
+};
+
 template <typename T>
 struct DataTypeTraits;
 
@@ -163,6 +172,12 @@ template <>
 struct DataTypeTraits<double>
 {
     static constexpr const char* name = "fp64";
+};
+
+template <>
+struct DataTypeTraits<int32_t>
+{
+    static constexpr const char* name = "i32";
 };
 
 template <>
@@ -194,6 +209,12 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
 {
     static constexpr const char* name = "pk_int4_t";
 };
+
+template <>
+struct DataTypeTraits<ck_tile::int8_t>
+{
+    static constexpr const char* name = "i8"; 
+}; 
 
 auto create_args(int argc, char* argv[])
 {
