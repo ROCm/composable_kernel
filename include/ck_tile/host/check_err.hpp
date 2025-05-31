@@ -5,9 +5,10 @@
  * @file
  * @brief Error checking utilities for numerical computations and type conversions
  *
- * This file provides utilities for checking numerical errors between computed and reference results,
- * handling various data types including floating point (FP8, BF8, FP16, BF16, FP32) and integer types.
- * It includes functions for calculating error thresholds and comparing results with specified tolerances.
+ * This file provides utilities for checking numerical errors between computed and reference
+ * results, handling various data types including floating point (FP8, BF8, FP16, BF16, FP32) and
+ * integer types. It includes functions for calculating error thresholds and comparing results with
+ * specified tolerances.
  */
 
 #pragma once
@@ -28,22 +29,25 @@
 namespace ck_tile {
 
 /** @brief 8-bit floating point type */
-using F8   = ck_tile::fp8_t;
+using F8 = ck_tile::fp8_t;
 /** @brief 8-bit brain floating point type */
-using BF8  = ck_tile::bf8_t;
+using BF8 = ck_tile::bf8_t;
 /** @brief 16-bit floating point (half precision) type */
-using F16  = ck_tile::half_t;
+using F16 = ck_tile::half_t;
 /** @brief 16-bit brain floating point type */
 using BF16 = ck_tile::bf16_t;
 /** @brief 32-bit floating point (single precision) type */
-using F32  = float;
+using F32 = float;
 /** @brief 8-bit signed integer type */
-using I8   = int8_t;
+using I8 = int8_t;
 /** @brief 32-bit signed integer type */
-using I32  = int32_t;
+using I32 = int32_t;
 
 /**
  * @brief Calculate relative error threshold for numerical comparisons
+ *
+ * Calculates the relative error threshold based on the mantissa bits and characteristics
+ * of the data types involved in the computation.
  *
  * @tparam ComputeDataType Type used for computation
  * @tparam OutDataType Type used for output
@@ -100,6 +104,9 @@ double get_relative_threshold(const int number_of_accumulations = 1)
 
 /**
  * @brief Calculate absolute error threshold for numerical comparisons
+ *
+ * Calculates the absolute error threshold based on the maximum possible value and
+ * the characteristics of the data types involved in the computation.
  *
  * @tparam ComputeDataType Type used for computation
  * @tparam OutDataType Type used for output
@@ -159,6 +166,8 @@ double get_absolute_threshold(const double max_possible_num, const int number_of
 /**
  * @brief Stream operator overload for vector output
  *
+ * Provides a formatted string representation of a vector, useful for debugging and logging.
+ *
  * @tparam T Type of vector elements
  * @param os Output stream
  * @param v Vector to output
@@ -184,6 +193,8 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 /**
  * @brief Check for size mismatch between output and reference ranges
  *
+ * Verifies that the output and reference ranges have the same size.
+ *
  * @tparam Range Type of output range
  * @tparam RefRange Type of reference range
  * @param out Output range to check
@@ -208,6 +219,8 @@ bool check_size_mismatch(const Range& out,
 /**
  * @brief Report error statistics for numerical comparisons
  *
+ * Outputs statistics about numerical comparison errors including count and maximum error.
+ *
  * @param err_count Number of errors found
  * @param max_err Maximum error value encountered
  * @param total_size Total number of elements compared
@@ -223,6 +236,9 @@ void report_error_stats(int err_count, double max_err, std::size_t total_size)
 
 /**
  * @brief Check errors between floating point ranges with specified tolerances
+ *
+ * Compares two ranges of floating point values within specified relative and absolute tolerances.
+ * This overload handles standard floating point types except half precision.
  *
  * @tparam Range Type of output range
  * @tparam RefRange Type of reference range
@@ -289,6 +305,10 @@ check_err(const Range& out,
 /**
  * @brief Check errors between half precision floating point ranges
  *
+ * Compares two ranges of half precision floating point values within specified tolerances.
+ * This specialization handles the specific requirements and characteristics of half precision
+ * floating point comparisons.
+ *
  * @tparam Range Type of output range
  * @tparam RefRange Type of reference range
  * @param out Output range to check
@@ -353,12 +373,15 @@ check_err(const Range& out,
 /**
  * @brief Check errors between integer ranges
  *
+ * Compares two ranges of integer values with an absolute tolerance.
+ * This specialization handles integer types and optionally int4_t when the
+ * experimental bit int extension is enabled.
+ *
  * @tparam Range Type of output range
  * @tparam RefRange Type of reference range
  * @param out Output range to check
  * @param ref Reference range to check against
  * @param msg Error message to display if check fails
- * @param rtol Relative tolerance (unused for integers)
  * @param atol Absolute tolerance
  * @return bool True if check passes, false otherwise
  */
@@ -372,10 +395,10 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
                  ,
                  bool>
     CK_TILE_HOST check_err(const Range& out,
-                          const RefRange& ref,
-                          const std::string& msg = "Error: Incorrect results!",
-                          double                 = 0,
-                          double atol            = 0)
+                           const RefRange& ref,
+                           const std::string& msg = "Error: Incorrect results!",
+                           double                 = 0,
+                           double atol            = 0)
 {
     if(check_size_mismatch(out, ref, msg))
         return false;
@@ -412,6 +435,10 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
 /**
  * @brief Check errors between FP8 ranges
  *
+ * Specialized comparison for 8-bit floating point values that takes into account
+ * the unique characteristics and limitations of FP8 arithmetic, including
+ * rounding point distances and special handling of infinity values.
+ *
  * @tparam Range Type of output range
  * @tparam RefRange Type of reference range
  * @param out Output range to check
@@ -427,11 +454,11 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
                   std::is_same_v<ranges::range_value_t<Range>, fp8_t>),
                  bool>
     CK_TILE_HOST check_err(const Range& out,
-                          const RefRange& ref,
-                          const std::string& msg               = "Error: Incorrect results!",
-                          unsigned max_rounding_point_distance = 1,
-                          double atol                         = 1e-1,
-                          bool allow_infinity_ref             = false)
+                           const RefRange& ref,
+                           const std::string& msg               = "Error: Incorrect results!",
+                           unsigned max_rounding_point_distance = 1,
+                           double atol                          = 1e-1,
+                           bool allow_infinity_ref              = false)
 {
     if(check_size_mismatch(out, ref, msg))
         return false;
@@ -494,6 +521,9 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
 /**
  * @brief Check errors between BF8 ranges
  *
+ * Specialized comparison for 8-bit brain floating point values that considers
+ * the specific numerical properties and error characteristics of the BF8 format.
+ *
  * @tparam Range Type of output range
  * @tparam RefRange Type of reference range
  * @param out Output range to check
@@ -509,11 +539,11 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
                   std::is_same_v<ranges::range_value_t<Range>, bf8_t>),
                  bool>
     CK_TILE_HOST check_err(const Range& out,
-                          const RefRange& ref,
-                          const std::string& msg  = "Error: Incorrect results!",
-                          double rtol             = 1e-3,
-                          double atol             = 1e-3,
-                          bool allow_infinity_ref = false)
+                           const RefRange& ref,
+                           const std::string& msg  = "Error: Incorrect results!",
+                           double rtol             = 1e-3,
+                           double atol             = 1e-3,
+                           bool allow_infinity_ref = false)
 {
     if(check_size_mismatch(out, ref, msg))
         return false;
