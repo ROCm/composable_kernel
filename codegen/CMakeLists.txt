@@ -48,6 +48,7 @@ rocm_install_targets(
     INCLUDE include
 )
 rocm_export_targets(
+    TARGETS ck_host ck_headers
     EXPORT ck_host_targets
     NAMESPACE composable_kernel::
 )

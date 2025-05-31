@@ -104,17 +104,6 @@ function(add_instance_library INSTANCE_NAME)
         endif()
     endforeach()
 
-    if(MIOPEN_REQ_LIBS_ONLY)
-        message("Removing all sources that are not required for MIOpen")
-        foreach(source IN LISTS ARGN)
-            if(source MATCHES "gemm" OR 
-               source MATCHES "mha" OR 
-               source MATCHES "contraction" OR 
-               source MATCHES "reduce")
-                    list(REMOVE_ITEM ARGN "${source}")
-            endif()
-        endforeach()
-    endif()
     #message("remaining instances: ${ARGN}")
     #only continue if there are some source files left on the list
     if(ARGN)
@@ -180,7 +169,7 @@ function(add_instance_library INSTANCE_NAME)
         target_compile_features(${INSTANCE_NAME} PUBLIC)
 
         # flags to compress the library
-        if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+        if(NOT DISABLE_OFFLOAD_COMPRESS AND NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
             #message("Adding --offload-compress flag for ${INSTANCE_NAME}")
             target_compile_options(${INSTANCE_NAME} PRIVATE --offload-compress)
         endif()
@@ -294,6 +283,17 @@ FOREACH(subdir_path ${dir_list})
             message("Found gemm_multiply_multiply_f8 instances, but gfx94/gfx95 not on the target list. Skipping.")
             set(add_inst 0)
         endif()
+
+        if(MIOPEN_REQ_LIBS_ONLY)
+            message("Removing all sources that are not required for MIOpen")
+            if("${cmake_instance}" MATCHES "gemm" OR 
+               "${cmake_instance}" MATCHES "mha" OR 
+               "${cmake_instance}" MATCHES "contraction" OR 
+               "${cmake_instance}" MATCHES "reduce")
+                    set(add_inst 0)
+            endif()
+        endif()
+
         if((add_inst EQUAL 1))
             get_filename_component(target_dir ${subdir_path} NAME)
             add_subdirectory(${target_dir})
