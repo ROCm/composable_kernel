@@ -10,21 +10,6 @@
 
 namespace ck_tile {
 
-template <typename F, typename Tuple, ck_tile::index_t... Is>
-
-constexpr void for_each_in_tuple_impl(F&& f, Tuple&& t, sequence<Is...>)
-{
-    (f(std::forward<Tuple>(t).get(number<Is>{})), ...);
-}
-
-template <typename F, typename Tuple>
-constexpr void for_each_in_tuple(F&& f, Tuple&& t)
-{
-    for_each_in_tuple_impl(std::forward<F>(f),
-                           std::forward<Tuple>(t),
-                           make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>{});
-}
-
 template <typename Problem_, typename Policy_>
 struct ElementWiseKernel
 {
@@ -104,12 +89,6 @@ struct ElementWiseKernel
                 tiles);
         };
 
-        // Move tile windows for all input tensors
-        auto move_tile_windows = [&](auto& tile_windows) {
-            for_each_in_tuple([&](auto& window) { move_tile_window(window, {S::kBlockM}); },
-                              tile_windows);
-        };
-
         const auto x_tiles = load_tiles(x_windows);
 
         // Process the vector operation
@@ -126,10 +105,6 @@ struct ElementWiseKernel
 
         // Store results
         store_tile(y_window, cast_tile<YDataType>(y_tile));
-
-        // Move windows to next block
-        move_tile_windows(x_windows);
-        move_tile_window(y_window, {S::kBlockM});
     }
 };
 
