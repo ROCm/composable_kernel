@@ -6,6 +6,7 @@
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 #include "device_grouped_conv_bwd_weight_dl_v4.hpp"
 
+#define ENABLE_CONV_FACTORY 1
 
 using InDataType  = F16;
 using WeiDataType = F16;
@@ -42,6 +43,21 @@ using DeviceConvBwdWeightInstance =
                                                                   4,  // OutScalarPerVector
                                                                   2,  // DstScalarPerVector
                                                                   false>;
+
+using DeviceConvBwdWeightFactory = std::tuple<     
+    //                                                   NDimSpatial BlockSize InLayout WeiLayout OutLayout  InDataType WeiDataType  OutDataType   BlockTileSize FilterSize  FilterParam(dilation, stride, pad)                                        NBatch NumWavePerTile InScalarPerVector OutScalarPerVector DstScalarPerVector  RequirePadding
+      ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  256,      ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<28, 28>,    5,          ck::Tuple<S<1,1>, S<1,1>, S<2,2>>, InElementOp, WeiElementOp, OutElementOp, 2,     1,             4,                4,                 2,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  256,      ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<14, 14>,    5,          ck::Tuple<S<1,1>, S<1,1>, S<2,2>>, InElementOp, WeiElementOp, OutElementOp, 8,     1,             2,                2,                 8,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  64,       ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<7, 7>,      5,          ck::Tuple<S<1,1>, S<1,1>, S<2,2>>, InElementOp, WeiElementOp, OutElementOp, 16,    1,             1,                1,                 8,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  128,      ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<56, 56>,    5,          ck::Tuple<S<1,1>, S<2,2>, S<2,2>>, InElementOp, WeiElementOp, OutElementOp, 2,     2,             4,                2,                 2,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  256,      ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<14, 14>,    5,          ck::Tuple<S<1,1>, S<2,2>, S<2,2>>, InElementOp, WeiElementOp, OutElementOp, 8,     1,             2,                1,                 8,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  256,      ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<112, 112>,  3,          ck::Tuple<S<1,1>, S<1,1>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp, 1,     4,             8,                8,                 1,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  128,      ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<56, 56>,    3,          ck::Tuple<S<1,1>, S<1,1>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp, 2,     2,             4,                4,                 2,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  256,      ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<28, 28>,    3,          ck::Tuple<S<1,1>, S<1,1>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp, 2,     1,             4,                4,                 2,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  64,       ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<14, 14>,    3,          ck::Tuple<S<1,1>, S<1,1>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp, 8,     1,             2,                2,                 8,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  256,      ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<112, 112>,  3,          ck::Tuple<S<1,1>, S<2,2>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp, 1,     4,             8,                4,                 1,                 false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<2,  256,      ALayout,  BLayout,  ELayout,  InDataType, WeiDataType, OutDataType, S<28, 28>,    3,          ck::Tuple<S<1,1>, S<2,2>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp, 2,     1,             4,                2,                 2,                 false>
+>;
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,

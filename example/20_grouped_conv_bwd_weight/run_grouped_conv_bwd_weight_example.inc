@@ -75,7 +75,82 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
     range_copy(conv_param.input_left_pads_, begin(input_left_pads));
     range_copy(conv_param.input_right_pads_, begin(input_right_pads));
 
-    // do GEMM
+    // do CONV
+    if(config.do_verification)
+    {
+        auto ref_conv     = HostConvBwdWeightInstance<NDimSpatial>{};
+        auto ref_invoker  = ref_conv.MakeInvoker();
+        auto ref_argument = ref_conv.MakeArgument(in,
+                                                  wei_host_result,
+                                                  out,
+                                                  conv_param.conv_filter_strides_,
+                                                  conv_param.conv_filter_dilations_,
+                                                  conv_param.input_left_pads_,
+                                                  conv_param.input_right_pads_,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
+                                                  OutElementOp{},
+                                                  {},
+                                                  {},
+                                                  {});
+
+        ref_invoker.Run(ref_argument);
+    }
+
+#if ENABLE_CONV_FACTORY
+    ck::static_for<0, std::tuple_size_v<DeviceConvBwdWeightFactory>, 1>{}([&](auto i) -> void {
+        const auto device_conv_bwd_weight_instance = std::get<i>(DeviceConvBwdWeightFactory{});
+        using DeviceConvBwdWeightInstance = ck::remove_cvref_t<decltype(device_conv_bwd_weight_instance)>;
+        auto conv     = DeviceConvBwdWeightInstance{};
+        auto invoker  = conv.MakeInvoker();
+        auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                                        static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                                        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                                        input_lengths,
+                                        input_strides,
+                                        filter_lengths,
+                                        weights_strides,
+                                        output_lengths,
+                                        output_strides,
+                                        conv_filter_strides,
+                                        conv_filter_dilations,
+                                        input_left_pads,
+                                        input_right_pads,
+                                        InElementOp{},
+                                        WeiElementOp{},
+                                        OutElementOp{},
+                                        split_k);
+        
+        DeviceMem gemm_workspace_dev(conv.GetWorkSpaceSize(&argument));
+        conv.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
+
+        if(conv.IsSupportedArgument(argument))
+        {
+            std::cout << "Run conv :" << conv.GetTypeString() << std::endl;
+            invoker.ShowInfo(argument);
+            float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+            if(config.time_kernel)
+            {
+                std::size_t flop      = conv_param.GetFlops();
+                std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+
+                float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
+
+                float gb_per_sec = num_btype / 1.E6 / avg_time;
+
+                std::cerr << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                          << " GB/s" << std::endl
+                          << "DeviceOp: " << conv.GetTypeString() << std::endl;
+            }
+            if(config.do_verification)
+            {
+                wei_device_buf.FromDevice(wei_device_result.mData.data());
+
+                ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
+            }
+        }
+    });
+#else
     auto conv     = DeviceConvBwdWeightInstance<NDimSpatial>{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
@@ -107,45 +182,27 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         return true;
     }
 
-    invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+    float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
+    if(config.time_kernel)
+    {
+        std::size_t flop      = conv_param.GetFlops();
+        std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+
+        float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
+
+        float gb_per_sec = num_btype / 1.E6 / avg_time;
+
+        std::cerr << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s" << std::endl
+                  << "DeviceOp: " << conv.GetTypeString() << std::endl;
+    }
     if(config.do_verification)
     {
-        auto ref_conv     = HostConvBwdWeightInstance<NDimSpatial>{};
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(in,
-                                                  wei_host_result,
-                                                  out,
-                                                  conv_param.conv_filter_strides_,
-                                                  conv_param.conv_filter_dilations_,
-                                                  conv_param.input_left_pads_,
-                                                  conv_param.input_right_pads_,
-                                                  InElementOp{},
-                                                  WeiElementOp{},
-                                                  OutElementOp{},
-                                                  {},
-                                                  {},
-                                                  {});
-
-        ref_invoker.Run(ref_argument);
-
         wei_device_buf.FromDevice(wei_device_result.mData.data());
 
         return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
     }
-
-    float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
-    std::size_t flop      = conv_param.GetFlops();
-    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
-
-    float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
-
-    float gb_per_sec = num_btype / 1.E6 / avg_time;
-
-    std::cerr << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << std::endl
-              << "DeviceOp: " << conv.GetTypeString() << std::endl;
-
+#endif
     return true;
 }
