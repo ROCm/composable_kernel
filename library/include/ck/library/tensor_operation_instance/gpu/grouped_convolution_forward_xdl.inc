@@ -387,7 +387,7 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_16x16_instances(
 
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward, GNDHWC/GKZYXC/GNDHWK
-using grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances =
+void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 GNDHWC,
                                                                 GKZYXC,
@@ -399,24 +399,7 @@ using grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances =
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>;
-
-void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_default_instances_0of4(
-    grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances& instances);
-
-void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_1x1_P0instances_0of4(
-    grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances& instances);
-
-void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_1x1_S1_P0instances_0of4(
-    grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances& instances);
-
-void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances(
-    grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances& instances)
-{
-    add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_default_instances(instances);
-    add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_1x1_P0instances(instances);
-    add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_1x1_S1_P0instances(instances);
-};
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP16
@@ -692,7 +675,7 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_16x16_instances(
 #endif
 
 #ifdef CK_ENABLE_BF16
-using grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances =
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NGCDHW,
                                                                 GKCZYX,
@@ -704,35 +687,7 @@ using grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances =
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>;
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_1of8(
-    grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances);
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_2of8(
-    grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances);
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_3of8(
-    grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances);
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_4of8(
-    grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances);
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_5of8(
-    grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances);
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_6of8(
-    grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances);
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_7of8(
-    grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances);
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_8of8(
-    grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances);
-inline void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances(
-    grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances)
-{
-    add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_1of8(instances);
-    add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_2of8(instances);
-    add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_3of8(instances);
-    add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_4of8(instances);
-    add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_5of8(instances);
-    add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_6of8(instances);
-    add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_7of8(instances);
-    add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_8of8(instances);
-}
+                                                                PassThrough>>>& instances);
 
 void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_16x16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
