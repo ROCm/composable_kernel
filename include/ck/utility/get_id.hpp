@@ -19,8 +19,11 @@ __host__ __device__ constexpr index_t get_warp_size()
 #endif
     } else {
         hipDeviceProp_t props;
-        [[maybe_unused]] hipError_t status = hipGetDeviceProperties(&props, get_device_id());
+        int device;
+        [[maybe_unused]] hipError_t status = hipGetDevice(&device);
 
+        assert(status == hipSuccess && "Failed to get device");
+        status = hipGetDeviceProperties(&props, device);
         assert(status == hipSuccess && "Failed to get device properties when trying to get warp size");
         return props.warpSize;
     }
