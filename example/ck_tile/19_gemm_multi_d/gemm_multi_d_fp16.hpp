@@ -49,7 +49,7 @@ auto create_args(int argc, char* argv[])
         .insert("k", "4096", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Col by default")
-        .insert("ds_layout", "C", "Ds tensor data layout - Row by default")
+        .insert("ds_layout", "R", "Ds tensor data layout - Row by default")
         .insert("e_layout", "R", "E tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
@@ -57,7 +57,8 @@ auto create_args(int argc, char* argv[])
         .insert("stride_e", "0", "Tensor E stride")
         .insert("v", "1", "0. No validation, 1. Validation on GPU")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
-        .insert("repeat", "100", "number of iterations to benchmark the kernel");
+        .insert("repeat", "100", "number of iterations to benchmark the kernel")
+        .insert("kbatch", "1", "kbatch for SplitK");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

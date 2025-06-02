@@ -364,6 +364,10 @@ struct GemmKernel
         bool DTesnorIsValid = {true};
         static_for<0, NumDTensor, 1>{}([&](auto index) {
             using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
+            if(std::is_same_v<DiLayout, ELayout> == false)
+            {
+                DTesnorIsValid = false;
+            }
             if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
             {
                 if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)

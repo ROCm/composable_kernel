@@ -77,7 +77,8 @@ template <typename ADataType,
           typename D1DataType,
           typename AccDataType,
           typename CDataType,
-          typename ACCElementOp>
+          typename ACCElementOp,
+          typename D0Layout>
 CK_TILE_HOST void reference_gemm_multiple_d(const HostTensor<ADataType>& a_m_k,
                                             const HostTensor<BDataType>& b_k_n,
                                             const HostTensor<D0DataType>& d0_m_n,
@@ -100,10 +101,23 @@ CK_TILE_HOST void reference_gemm_multiple_d(const HostTensor<ADataType>& a_m_k,
             v_acc +=
                 ck_tile::type_convert<AccDataType>(v_a) * ck_tile::type_convert<AccDataType>(v_b);
         }
-        acc_element_op(c_m_n(m, n), v_acc, d0_m_n(m, n), d1_m_n(m, n));
+        c_m_n(m, n) = ck_tile::type_convert<CDataType>(v_acc);
     };
 
     make_ParallelTensorFunctor(f_mn, M, N)(std::thread::hardware_concurrency());
+
+    auto f_mn1 = [&](auto i, auto j) {
+        acc_element_op(c_m_n(i, j), c_m_n(i, j), d0_m_n(i, j), d1_m_n(i, j));
+    };
+
+    if(std::is_same_v<D0Layout, tensor_layout::gemm::RowMajor>)
+    {
+        make_ParallelTensorFunctor(f_mn1, M, N)(std::thread::hardware_concurrency());
+    }
+    else
+    {
+        make_ParallelTensorFunctor(f_mn1, N, M)(std::thread::hardware_concurrency());
+    }
 }
 
 template <typename ADataType,

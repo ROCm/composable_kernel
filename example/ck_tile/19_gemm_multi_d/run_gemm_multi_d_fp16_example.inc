@@ -26,13 +26,14 @@ float invoke_gemm_multi_d(const void* a_m_k_dev_buf,
                           const std::array<ck_tile::index_t, DsDataType::size()>& StrideDs,
                           ck_tile::index_t StrideE,
                           int n_warmup,
-                          int n_repeat)
+                          int n_repeat,
+                          int k_batch)
 {
     gemm_multi_d_kargs gemm_descs({a_m_k_dev_buf,
                                    b_k_n_dev_buf,
                                    ds_m_n_dev_buf,
                                    e_m_n_dev_buf,
-                                   /*kbatch */ 1,
+                                   k_batch,
                                    M,
                                    N,
                                    K,
@@ -115,6 +116,7 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
 
     const int n_warmup = arg_parser.get_int("warmup");
     const int n_repeat = arg_parser.get_int("repeat");
+    const int k_batch  = arg_parser.get_int("kbatch");
 
     StrideA  = get_default_stride(M, K, StrideA, is_row_major(a_layout));
     StrideB  = get_default_stride(K, N, StrideB, is_row_major(b_layout));
@@ -178,7 +180,8 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
                                          stridesDs,
                                          StrideE,
                                          n_warmup,
-                                         n_repeat);
+                                         n_repeat,
+                                         k_batch);
 
     e_m_n_dev_buf.FromDevice(e_m_n_device_result.data());
 
@@ -192,7 +195,8 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
                                        D1DataType,
                                        AccDataType,
                                        EDataType,
-                                       CDElementWiseFn>(
+                                       CDElementWiseFn,
+                                       D0Layout>(
         a_m_k_tesnor, b_k_n_tensors, d0_m_n_tensors, d1_m_n_tensors, e_m_n_host_ref);
 
     bool pass{true};
@@ -237,11 +241,6 @@ int run_multiple_d_gemm_example(int argc, char* argv[])
     {
         return run_multiple_d_gemm_example_with_layouts(
             argc, argv, Row{}, Col{}, Row{}, Row{}, Row{});
-    }
-    else if(a_layout == "R" && b_layout == "C" && ds_layout == "C")
-    {
-        return run_multiple_d_gemm_example_with_layouts(
-            argc, argv, Row{}, Col{}, Col{}, Col{}, Row{});
     }
     else
     {

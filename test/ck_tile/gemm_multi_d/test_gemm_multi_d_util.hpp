@@ -240,6 +240,7 @@ class TestCkTileGemmMultiD : public ::testing::Test
     void Run(const int M,
              const int N,
              const int K,
+             const int k_batch,
              int StrideA  = 0,
              int StrideB  = 0,
              int StrideD0 = 0,
@@ -324,7 +325,7 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                         b_k_n_dev_buf.GetDeviceBuffer(),
                                                         ds_ptr_buf,
                                                         e_m_n_dev_buf.GetDeviceBuffer(),
-                                                        /* kBatch */ 1,
+                                                        k_batch,
                                                         M,
                                                         N,
                                                         K,
@@ -361,14 +362,15 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                            D1DataType,
                                            AccDataType,
                                            EDataType,
-                                           CDEElementWiseFn>(
+                                           CDEElementWiseFn,
+                                           D0Layout>(
             a_m_k_tesnor, b_k_n_tensors, d0_m_n_tensors, d1_m_n_tensors, e_m_n_host_ref);
 
         const float max_accumulated_value =
             *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());
         const auto rtol_atol =
             calculate_rtol_atol<ADataType, BDataType, AccDataType, EDataType, DsDataType>(
-                K, /* kBatch */ 1, max_accumulated_value);
+                K, k_batch, max_accumulated_value);
         pass = ck_tile::check_err(e_m_n_device_result,
                                   e_m_n_host_ref,
                                   "Error: Incorrect results!",

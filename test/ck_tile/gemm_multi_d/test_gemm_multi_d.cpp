@@ -24,7 +24,11 @@ using KernelTypesAdd = ::testing::Types<
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F32,        F32,        F32,      F32,     ck_tile::element_wise::ElementWiseAdd>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F32,        F32,        F32,      F16,     ck_tile::element_wise::ElementWiseAdd>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           BF16,       BF16,       F32,      F32,     ck_tile::element_wise::ElementWiseAdd>,
-    std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           F8,         F8,         F32,      F16,     ck_tile::element_wise::ElementWiseAdd>
+    std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           F8,         F8,         F32,      F16,     ck_tile::element_wise::ElementWiseAdd>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F16,       F16,          F16,        F16,        F32,      F32,     ck_tile::element_wise::ElementWiseAdd>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F16,       F16,          F32,        F32,        F32,      F32,     ck_tile::element_wise::ElementWiseAdd>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F16,       F16,          F32,        F32,        F32,      F32,     ck_tile::element_wise::ElementWiseAdd>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F8,        F8,           F8,         F8,         F32,      F32,     ck_tile::element_wise::ElementWiseAdd>
     >;
 
 using KernelTypesMultiply = ::testing::Types<
@@ -34,21 +38,39 @@ using KernelTypesMultiply = ::testing::Types<
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F32,        F32,        F32,      F32,     ck_tile::element_wise::MultiplyMultiply>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F16,       F16,          F32,        F32,        F32,      F16,     ck_tile::element_wise::MultiplyMultiply>,
     std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           BF16,       BF16,       F32,      F32,     ck_tile::element_wise::MultiplyMultiply>,
-    std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           F8,         F8,         F32,      F32,     ck_tile::element_wise::MultiplyMultiply>
+    std::tuple<    Row,     Col,     Row,     Row,      Row,      F8,        F8,           F8,         F8,         F32,      F32,     ck_tile::element_wise::MultiplyMultiply>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F16,       F16,          F32,        F32,        F32,      F32,     ck_tile::element_wise::MultiplyMultiply>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F16,       F16,          F32,        F32,        F32,      F32,     ck_tile::element_wise::MultiplyMultiply>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F16,       F16,          F32,        F32,        F32,      F32,     ck_tile::element_wise::MultiplyMultiply>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F16,       F16,          F32,        F32,        F32,      F32,     ck_tile::element_wise::MultiplyMultiply>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F8,        F8,           F32,        F32,        F32,      F32,     ck_tile::element_wise::MultiplyMultiply>,
+    std::tuple<    Row,     Col,     Col,     Col,      Col,      F8,        F8,           F32,        F32,        F32,      F32,     ck_tile::element_wise::MultiplyMultiply>
     >;
 // clang-format on
 
 template <typename T>
-class TestCkTileGemmMultiDAdd : public TestCkTileGemmMultiD<T>
+class TestCkTileGemmMultiDAddKBatch1 : public TestCkTileGemmMultiD<T>
 {
 };
 
 template <typename T>
-class TestCkTileGemmMultiDMultiply : public TestCkTileGemmMultiD<T>
+class TestCkTileGemmMultiDAddKBatch2 : public TestCkTileGemmMultiD<T>
 {
 };
 
-TYPED_TEST_SUITE(TestCkTileGemmMultiDAdd, KernelTypesAdd);
-TYPED_TEST_SUITE(TestCkTileGemmMultiDMultiply, KernelTypesMultiply);
+template <typename T>
+class TestCkTileGemmMultiDMultiplyKBatch1 : public TestCkTileGemmMultiD<T>
+{
+};
+
+template <typename T>
+class TestCkTileGemmMultiDMultiplyKBatch2 : public TestCkTileGemmMultiD<T>
+{
+};
+
+TYPED_TEST_SUITE(TestCkTileGemmMultiDAddKBatch1, KernelTypesAdd);
+TYPED_TEST_SUITE(TestCkTileGemmMultiDAddKBatch2, KernelTypesAdd);
+TYPED_TEST_SUITE(TestCkTileGemmMultiDMultiplyKBatch1, KernelTypesMultiply);
+TYPED_TEST_SUITE(TestCkTileGemmMultiDMultiplyKBatch2, KernelTypesMultiply);
 
 #include "test_gemm_multi_d_ut_cases.inc"

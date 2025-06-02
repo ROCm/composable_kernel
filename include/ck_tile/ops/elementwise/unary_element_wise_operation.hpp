@@ -1485,8 +1485,6 @@ struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, N>
  */
 struct ElementWiseAdd
 {
-    using F16  = ck_tile::half_t;
-    using BF16 = ck_tile::bf16_t;
     /**
      * @brief Function call operator for element-wise addition with 3 inputs
      *
