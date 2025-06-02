@@ -76,7 +76,7 @@ function(add_instance_library INSTANCE_NAME)
     endforeach()
     # Do not build mha instances if gfx94 or gfx90a targets are not on the target list
     foreach(source IN LISTS ARGN)
-	    if(NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx90a" AND NOT INST_TARGETS MATCHES "gfx95" AND source MATCHES "mha")
+	    if((NOT BUILD_MHA_LIB OR (NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx90a" AND NOT INST_TARGETS MATCHES "gfx95")) AND source MATCHES "mha")
          message("removing mha instance ${source} ")
          list(REMOVE_ITEM ARGN "${source}")
     endif()
@@ -103,7 +103,8 @@ function(add_instance_library INSTANCE_NAME)
             list(REMOVE_ITEM ARGN "${source}")
         endif()
     endforeach()
-    message("remaining instances: ${ARGN}")
+
+    #message("remaining instances: ${ARGN}")
     #only continue if there are some source files left on the list
     if(ARGN)
         set(INST_OBJ)
@@ -168,7 +169,7 @@ function(add_instance_library INSTANCE_NAME)
         target_compile_features(${INSTANCE_NAME} PUBLIC)
 
         # flags to compress the library
-        if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+        if(NOT DISABLE_OFFLOAD_COMPRESS AND NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
             #message("Adding --offload-compress flag for ${INSTANCE_NAME}")
             target_compile_options(${INSTANCE_NAME} PRIVATE --offload-compress)
         endif()
@@ -291,6 +292,17 @@ FOREACH(subdir_path ${dir_list})
                 set(add_inst 1)
             endif()
         endif()
+
+        if(MIOPEN_REQ_LIBS_ONLY)
+            message("Removing all sources that are not required for MIOpen")
+            if("${cmake_instance}" MATCHES "gemm" OR 
+               "${cmake_instance}" MATCHES "mha" OR 
+               "${cmake_instance}" MATCHES "contraction" OR 
+               "${cmake_instance}" MATCHES "reduce")
+                    set(add_inst 0)
+            endif()
+        endif()
+
         if((add_inst EQUAL 1))
             get_filename_component(target_dir ${subdir_path} NAME)
             add_subdirectory(${target_dir})
@@ -352,7 +364,7 @@ if(CK_DEVICE_OTHER_INSTANCES)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_GEMM_INSTANCES)
+if(CK_DEVICE_GEMM_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         add_library(device_gemm_operations ${CK_DEVICE_GEMM_INSTANCES})
         add_library(composablekernels::device_gemm_operations ALIAS device_gemm_operations)
         target_compile_features(device_gemm_operations PUBLIC)
@@ -398,7 +410,7 @@ if(CK_DEVICE_CONV_INSTANCES)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_MHA_INSTANCES)
+if(CK_DEVICE_MHA_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY AND BUILD_MHA_LIB)
         set(gpu_list ${INST_TARGETS})
         if(gpu_list MATCHES "gfx94" OR gpu_list MATCHES "gfx90a" OR gpu_list MATCHES "gfx95")
             add_library(device_mha_operations ${CK_DEVICE_MHA_INSTANCES})
@@ -420,7 +432,7 @@ if(CK_DEVICE_MHA_INSTANCES)
             )
         endif()
 endif()
-if(CK_DEVICE_CONTRACTION_INSTANCES)
+if(CK_DEVICE_CONTRACTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         add_library(device_contraction_operations ${CK_DEVICE_CONTRACTION_INSTANCES})
         add_library(composablekernels::device_contraction_operations ALIAS device_contraction_operations)
         target_compile_features(device_contraction_operations PUBLIC)
@@ -442,7 +454,7 @@ if(CK_DEVICE_CONTRACTION_INSTANCES)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_REDUCTION_INSTANCES)
+if(CK_DEVICE_REDUCTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         add_library(device_reduction_operations ${CK_DEVICE_REDUCTION_INSTANCES})
         add_library(composablekernels::device_reduction_operations ALIAS device_reduction_operations)
         target_compile_features(device_reduction_operations PUBLIC)
@@ -464,14 +476,16 @@ if(CK_DEVICE_REDUCTION_INSTANCES)
         )
 endif()
 
-add_library(device_operations INTERFACE)
-target_link_libraries(device_operations INTERFACE
-    device_contraction_operations
-    device_conv_operations
-    device_gemm_operations
-    device_other_operations
-    device_reduction_operations
-    utility)
+if(NOT MIOPEN_REQ_LIBS_ONLY)
+    add_library(device_operations INTERFACE)
+    target_link_libraries(device_operations INTERFACE
+        device_contraction_operations
+        device_conv_operations
+        device_gemm_operations
+        device_other_operations
+        device_reduction_operations
+        utility)
+endif()
 
 set(DEV_OPS_INC_DIRS
     ${PROJECT_SOURCE_DIR}/include/ck/

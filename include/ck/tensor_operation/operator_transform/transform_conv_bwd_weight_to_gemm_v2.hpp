@@ -346,8 +346,8 @@ struct TransformConvBwdWeightToGemmV2
         const index_t GemmM      = K * NumGroupsToMerge;
         const index_t GemmN      = C * X * NumGroupsToMerge;
 
-        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+        const auto PadGemmM = GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+        const auto PadGemmN = GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
         const index_t GemmKBatch = batch_k;
         const index_t GemmK0 =
@@ -534,8 +534,8 @@ struct TransformConvBwdWeightToGemmV2
         const index_t GemmM      = K * NumGroupsToMerge;
         const index_t GemmN      = C * X * Y * NumGroupsToMerge;
 
-        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+        const auto PadGemmM = GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+        const auto PadGemmN = GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
         const index_t GemmKBatch = batch_k;
         const index_t GemmK0 =
@@ -737,8 +737,8 @@ struct TransformConvBwdWeightToGemmV2
         const index_t GemmM      = K * NumGroupsToMerge;
         const index_t GemmN      = C * Z * X * Y * NumGroupsToMerge;
 
-        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
+        const auto PadGemmM = GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
+        const auto PadGemmN = GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
         const index_t GemmKBatch = batch_k;
         const index_t GemmK0 =

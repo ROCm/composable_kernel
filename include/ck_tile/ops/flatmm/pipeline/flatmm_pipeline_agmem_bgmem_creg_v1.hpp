@@ -75,6 +75,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
     CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
     {
+#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8) || defined(USING_MFMA_32x32x16)
         constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
@@ -90,7 +91,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         constexpr index_t A_Buffer_Load_Inst_Num = kMPerBlock * kKPerBlock / BlockSize / KPerLoad;
         constexpr index_t A_LDS_Read_Inst_Num    = MIterPerWarp * KIterPerWarp;
         constexpr index_t B_Buffer_Load_Inst_Num = NIterPerWarp * KIterPerWarp;
-        // constexpr index_t A_LDS_Read_Inst_Remain = A_LDS_Read_Inst_Num - A_Buffer_Load_Inst_Num;
+#endif
 #if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
         static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
             ignore = i;
