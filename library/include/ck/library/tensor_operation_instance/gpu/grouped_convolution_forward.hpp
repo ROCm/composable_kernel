@@ -409,7 +409,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<AComputeType, ck::bhalf_t> &&
                          is_same_v<BComputeType, ck::bhalf_t>)
             {
-                add_device_instances<grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16>(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instances(op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_INT8
