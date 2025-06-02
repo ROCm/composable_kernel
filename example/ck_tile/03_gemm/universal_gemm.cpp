@@ -354,7 +354,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        run_gemm_example(argc, argv);
+        return !run_gemm_example(argc, argv);
     }
     catch(const std::runtime_error& e)
     {
