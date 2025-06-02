@@ -138,7 +138,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
     static constexpr index_t TileIn_Align_H =
         math::max(TileIn_Pack_H * TileIn_Pack_Group + Pad_H, TileIn_H);
 
-    static constexpr index_t TileOut_Pack_W     = GetAlignedPackW<TileOut_W, OutScalarPerVector>;
+    static constexpr index_t TileOut_Pack_W     = GetAlignedPackW<TileOut_W, OutScalarPerVector>();
     static constexpr index_t TileOut_Pack_Group = WaveSize / TileIn_Pack_W;
     static constexpr index_t TileOut_Pack_H = math::integer_divide_ceil(TileOut_H, TileOut_Pack_Group);
 
@@ -763,7 +763,7 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
                                                               arg.out_g_n_k_wos_lengths_,
                                                               arg.out_g_n_k_wos_strides_};
 
-            constexpr index_t minimum_occupancy = 1;
+            constexpr index_t minimum_occupancy = 2;
 
             const auto kernel = kernel_grouped_conv_bwd_weight_dl_v4<GridwiseConvBwdWeight, BlockSize, minimum_occupancy>;
 
