@@ -23,15 +23,25 @@ using ELayout = ck::tensor_layout::convolution::GNHWK;
 template <ck::index_t NDimSpatial>
 using DeviceConvBwdWeightInstance =
     ck::tensor_operation::device::DeviceGroupedConvBwdWeightDlV4<NDimSpatial,
+                                                                 256,
                                                                   ALayout,
                                                                   BLayout,
                                                                   ELayout,
                                                                   InDataType,
                                                                   WeiDataType,
                                                                   OutDataType,
+                                                                  S<28, 28>,
+                                                                  5,
+                                                                  ck::Tuple<S<1,1>, S<1,1>, S<2,2>>,
                                                                   InElementOp,
                                                                   WeiElementOp,
-                                                                  OutElementOp>;
+                                                                  OutElementOp,
+                                                                  2,  // N batch
+                                                                  1,  // NumWavePerTile
+                                                                  4,  // InScalarPerVector
+                                                                  4,  // OutScalarPerVector
+                                                                  2,  // DstScalarPerVector
+                                                                  false>;
 
 template <ck::index_t NDimSpatial>
 using HostConvBwdWeightInstance = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
