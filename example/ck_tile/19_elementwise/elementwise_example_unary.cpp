@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "reference_square.hpp"
@@ -80,10 +81,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     for(auto d : shape)
         total_elements *= d;
 
-    constexpr ck_tile::index_t kBlockSize  = 512;
+    constexpr ck_tile::index_t kBlockSize = ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
-    ck_tile::index_t kGridSize = (total_elements / BlockTile::at(ck_tile::number<0>{}));
+    constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
+    ck_tile::index_t kGridSize = (total_elements + elements_per_block - 1) / elements_per_block;
 
     std::cout << "grid size = " << kGridSize << std::endl;
     std::cout << "Total elements = " << total_elements << std::endl;

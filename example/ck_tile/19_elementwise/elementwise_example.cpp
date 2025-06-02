@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "reference_add.hpp"
@@ -143,7 +144,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // This is often a multiple of the warp size, 64 on CDNA.
     // Here, it's explicitly set to 512. This should be consistent with Shape::kBlockSize.
     // Shape::kBlockSize would be BlockWarps * warpSize (e.g., 8 * 64 = 512).
-    constexpr ck_tile::index_t kBlockSize = 64 * BlockWarps::at(ck_tile::number<0>{});
+    constexpr ck_tile::index_t kBlockSize = ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
 
     // kBlockPerCu: Hint for how many thread blocks can be scheduled per Compute Unit (CU).
     // This can influence occupancy and performance.
