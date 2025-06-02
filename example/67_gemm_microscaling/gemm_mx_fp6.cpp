@@ -3,8 +3,8 @@
 
 #include "gemm_mx_common.hpp"
 
-using ADataType = ck::f8_t;
-using BDataType = ck::f8_t;
+using ADataType = ck::f6x32_pk_t;
+using BDataType = ck::f6x32_pk_t;
 
 using XDataType = ck::e8m0_bexp_t;
 
@@ -20,8 +20,8 @@ using AElementOp = PassThrough; // elementwise transformation for A matrix
 using BElementOp = PassThrough; // elementwise transformation for B matrix
 using CElementOp = PassThrough; // elementwise transformation for C matrix
 
-constexpr ck::index_t ScaleBlockSize = 32; // scaling block size
-constexpr ck::index_t KPerBlock      = 256;
+constexpr ck::index_t ScaleBlockSize = 32;                            // scaling block size
+constexpr ck::index_t KPerBlock = 256 / ck::packed_size_v<ADataType>; // K dimension size per block
 
 constexpr auto GemmSpec      = ck::tensor_operation::device::GemmSpecialization::Default;
 constexpr auto BlkGemmPSched = ck::BlockGemmPipelineScheduler::Intrawave;
@@ -43,7 +43,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     CElementOp,       // CElementwiseOperation
     GemmSpec,         // GemmSpec
     ScaleBlockSize,   // ScaleBlockSize: Scaling block size
-    256,              // BlockSize: Thread block size
+    256,              // BlockSize: Number of threads per block
     128,              // MPerBlock
     128,              // NPerBlock
     KPerBlock,        // KPerBlock

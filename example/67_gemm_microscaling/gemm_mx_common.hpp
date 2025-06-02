@@ -293,12 +293,16 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     auto a_data_element = [](float x) {
         if constexpr(ck::is_same_v<ADataType, ck::f4x2_pk_t>)
             return ck::type_convert<ADataType>(ck::float2_t(x));
+        else if constexpr(ck::is_same_v<ADataType, ck::f6x32_pk_t>)
+            return ck::type_convert<ADataType>(ck::float32_t(x));
         else
             return ck::type_convert<ADataType>(x);
     };
     auto b_data_element = [](float x) {
         if constexpr(ck::is_same_v<BDataType, ck::f4x2_pk_t>)
             return ck::type_convert<BDataType>(ck::float2_t(x));
+        else if constexpr(ck::is_same_v<BDataType, ck::f6x32_pk_t>)
+            return ck::type_convert<BDataType>(ck::float32_t(x));
         else
             return ck::type_convert<BDataType>(x);
     };
@@ -340,13 +344,13 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         break;
 
     case 13: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(0.0f)}(a_m_k);
-        for(ck::index_t j = 0; j < K; j++)
+        ck::utils::FillConstant<ADataType>{a_data_element(0.0f)}(a_m_k);
+        for(ck::index_t j = 0; j < K; j += ck::packed_size_v<ADataType>)
         {
-            a_m_k(0, j) = ck::type_convert<ADataType>(1.0f);
+            a_m_k(0, j) = a_data_element(1.0f);
         }
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.0f)}(*b_k_n);
+        ck::utils::FillConstant<BDataType>{b_data_element(0.0f)}(*b_k_n);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
 
         {
@@ -377,12 +381,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 b_k_n_scale(K / ScaleBlockSize - 1, col_id) =
                     ck::type_convert<XDataType>(1.0f / 64);
 #endif
-                (*b_k_n)(K - 1, col_id) = ck::type_convert<BDataType>(-1.0f);
+                (*b_k_n)(K - 1, col_id) = b_data_element(-1.0f);
 
                 for(int i = 00; i < K; i += 7)
                 {
                     auto coeff          = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
-                    (*b_k_n)(i, col_id) = ck::type_convert<BDataType>(coeff / 10.0f * i);
+                    (*b_k_n)(i, col_id) = b_data_element(coeff / 10.0f * i);
                 }
             }
         }
@@ -390,12 +394,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         break;
 
     case 14: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(0.0f)}(a_m_k);
+        ck::utils::FillConstant<ADataType>{a_data_element(0.0f)}(a_m_k);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.0f)}(*b_k_n);
+        ck::utils::FillConstant<BDataType>{b_data_element(0.0f)}(*b_k_n);
         for(ck::index_t j = 0; j < K; j++)
         {
-            (*b_k_n)(j, 0) = ck::type_convert<BDataType>(1.0f);
+            (*b_k_n)(j, 0) = b_data_element(1.0f);
         }
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
 
@@ -420,12 +424,12 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                     ck::type_convert<XDataType>(1.0f / 64);
 #endif
 
-                a_m_k(row_id, K - 1) = ck::type_convert<ADataType>(-1.0f);
+                a_m_k(row_id, K - 1) = a_data_element(-1.0f);
 
                 for(int i = 0; i < K; i += 7)
                 {
                     auto coeff       = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
-                    a_m_k(row_id, i) = ck::type_convert<ADataType>(coeff / 10.0f * i);
+                    a_m_k(row_id, i) = a_data_element(coeff / 10.0f * i);
                 }
             }
         }
@@ -992,20 +996,43 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         }
         else if(config.init_method == 14)
         {
+#if 0
 #if 1
             std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
                 for(int j = 0; j < 16; ++j)
                 {
-                    std::cout << std::setw(9) << type_convert<float>(a_m_k(i, j));
+                    float v_a = 0.0f;
+                    if constexpr(ck::is_same_v<ADataType, ck::f4x2_pk_t>)
+                    {
+                        if(j % 2 == 1)
+                            v_a = type_convert<float>(
+                                ck::f4_t(a_m_k(i, j).template unpack<>(Number<1>{})));
+                        else
+                            v_a = type_convert<float>(
+                                ck::f4_t(a_m_k(i, j).template unpack<>(Number<0>{})));
+                    }
+                    else if constexpr(ck::is_same_v<ADataType, ck::f6x16_pk_t> ||
+                                      ck::is_same_v<ADataType, ck::bf6x16_pk_t> ||
+                                      ck::is_same_v<ADataType, ck::f6x32_pk_t> ||
+                                      ck::is_same_v<ADataType, ck::bf6x32_pk_t>)
+                    {
+                        v_a = type_convert<float>(a_m_k(i, j).unpack(k % ADataType::packed_size));
+                    }
+                    else
+                    {
+                        v_a = type_convert<float>(a_m_k(i, j));
+                    }
+
+                    std::cout << std::setw(9) << v_a;
                 }
 
-                std::cout << "\t\t";
-                for(int j = 0; j < 16; ++j)
-                {
-                    std::cout << std::setw(9) << type_convert<float>(a_m_k(i + 96, j));
-                }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(9) << type_convert<float>(a_m_k(i + 96, j));
+                // }
 
                 // std::cout << "\t\t";
                 // for(int j = 0; j < 16; ++j)
@@ -1143,6 +1170,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 }
                 std::cout << std::endl;
             }
+#endif
 #endif
         }
 

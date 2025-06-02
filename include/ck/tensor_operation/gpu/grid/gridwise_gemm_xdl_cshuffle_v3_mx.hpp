@@ -839,6 +839,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
+            CK_PRINT<decltype(make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number))>();
+
+            CK_PRINT<decltype(make_tuple(AK1Number, Number<KPerBlock>{}, I1))>();
+
             // contiguous in LDS
             return make_naive_tensor_descriptor(
                 make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),

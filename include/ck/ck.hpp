@@ -5,6 +5,15 @@
 
 #include "ck/config.h"
 
+template <auto... val>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
+}
+template <typename... type>
+[[deprecated("Help function to print types")]] inline constexpr void CK_PRINT()
+{
+}
+
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
