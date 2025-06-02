@@ -9,7 +9,7 @@ namespace ck {
 
 __host__ __device__ constexpr index_t get_warp_size()
 {
-    if (std::is_constant_evaluated()) {
+    if (__builtin_is_constant_evaluated()) {
 // this is only for cases where the use of constexpr cannot be avoided
 #if defined(__GFX9__)
         return 64;
