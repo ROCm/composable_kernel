@@ -39,9 +39,7 @@ struct ElementWiseKernel
         auto make_tile_windows = [&](const auto& tensors, const auto& iM_) {
             return generate_tuple(
                 [&](auto idx) {
-                    auto tensor_view = make_naive_tensor_view<address_space_enum::global,
-                                                              memory_operation_enum::set,
-                                                              amd_buffer_coherence_enum::slc>(
+                    auto tensor_view = make_naive_tensor_view<address_space_enum::global>(
                         tensors.get(idx), lens, input_strides, number<S::kVectorM>{});
 
                     auto transformed_tensor = transform_tensor_view(
