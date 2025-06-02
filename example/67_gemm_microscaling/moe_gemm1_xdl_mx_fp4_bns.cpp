@@ -349,8 +349,8 @@ int main(int argc, char* argv[])
     case 7:
         a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{0.5f});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{1.5f});
-        a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{1.0f});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{1.0f});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{XDataType{1.0f}});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{XDataType{1.0f}});
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.1f});
         break;
     default:
