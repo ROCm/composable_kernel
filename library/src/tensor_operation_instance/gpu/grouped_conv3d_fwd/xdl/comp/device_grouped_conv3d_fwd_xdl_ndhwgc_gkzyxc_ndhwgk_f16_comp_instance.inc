@@ -12,10 +12,10 @@ namespace instance {
 
 using device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances =
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-                                                                NGCDHW,
-                                                                GKCZYX,
+                                                                NDHWGC,
+                                                                GKZYXC,
                                                                 Empty_Tuple,
-                                                                NGKDHW,
+                                                                NDHWGK,
                                                                 F16,
                                                                 F16,
                                                                 Empty_Tuple,
@@ -23,6 +23,7 @@ using device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances =
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>;
+
 template <int Shards, int ShardIndex>
 void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances_sharded(
     device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances& instances)
@@ -31,10 +32,10 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances_s
         instances,
         util::filter_tuple_by_modulo_t<
             device_grouped_conv_fwd_xdl_f16_comp_instances<3,
-                                                           NGCDHW,
-                                                           GKCZYX,
+                                                           NDHWGC,
+                                                           GKZYXC,
                                                            Empty_Tuple,
-                                                           NGKDHW,
+                                                           NDHWGK,
                                                            ConvFwdDefault>,
             Shards,
             ShardIndex>{});
@@ -42,10 +43,10 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances_s
     add_device_operation_instances(
         instances,
         util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_f16_comp_instances<3,
-                                                                                      NGCDHW,
-                                                                                      GKCZYX,
+                                                                                      NDHWGC,
+                                                                                      GKZYXC,
                                                                                       Empty_Tuple,
-                                                                                      NGKDHW,
+                                                                                      NDHWGK,
                                                                                       ConvFwd1x1P0>,
                                        Shards,
                                        ShardIndex>{});
@@ -54,10 +55,10 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances_s
         instances,
         util::filter_tuple_by_modulo_t<
             device_grouped_conv_fwd_xdl_f16_comp_instances<3,
-                                                           NGCDHW,
-                                                           GKCZYX,
+                                                           NDHWGC,
+                                                           GKZYXC,
                                                            Empty_Tuple,
-                                                           NGKDHW,
+                                                           NDHWGK,
                                                            ConvFwd1x1S1P0>,
             Shards,
             ShardIndex>{});
