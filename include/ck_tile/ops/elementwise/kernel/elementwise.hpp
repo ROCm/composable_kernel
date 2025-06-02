@@ -112,22 +112,16 @@ struct ElementWiseKernel
 
         const auto x_tiles = load_tiles(x_windows);
 
-        auto y_tile = load_tile(y_window);
-
         // Process the vector operation
         const auto& x_tile0 = x_tiles.get(number<0>{});
         const auto spans    = x_tile0.get_distributed_spans();
+        auto y_tile = make_static_distributed_tensor<YDataType>(x_tile0.get_tile_distribution());
 
         sweep_tile_span(spans[number<0>{}], [&](auto idx) {
             const auto tile_idx = make_tuple(idx);
             const auto x_values = compute_values(x_tiles, tile_idx);
 
-            auto y = y_tile(tile_idx);
-
-            apply([&](auto&&... vals) { ElementWiseOperation{}(y, vals...); }, x_values);
-
-            y_tile(tile_idx) =
-                y; // to avoid temporary object to be use when calling n_ary_operation
+            apply([&](auto&&... vals) { ElementWiseOperation{}(y_tile(tile_idx), vals...); }, x_values);
         });
 
         // Store results
