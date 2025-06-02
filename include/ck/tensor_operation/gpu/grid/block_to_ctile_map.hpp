@@ -1040,12 +1040,12 @@ struct BlockToCTileMap_GemmStreamK
     //--------------------------------------
 
     // prefer construct on host
-    BlockToCTileMap_GemmStreamK(uint32_t m,
-                                uint32_t n,
-                                uint32_t k,
-                                uint32_t num_cu,
-                                uint32_t occupancy,
-                                uint32_t sk_blocks = 0xffffffff)
+    __host__ __device__ BlockToCTileMap_GemmStreamK(uint32_t m,
+                                                    uint32_t n,
+                                                    uint32_t k,
+                                                    uint32_t num_cu,
+                                                    uint32_t occupancy,
+                                                    uint32_t sk_blocks = 0xffffffff)
     {
         uint32_t num_tiles =
             math::integer_divide_ceil(m, MPerBlock) * math::integer_divide_ceil(n, NPerBlock);

@@ -12,14 +12,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     using namespace ck::literals;
 
-    auto M           = problem_size.M;
-    auto N           = problem_size.N;
-    auto K           = problem_size.K;
-    auto StrideA     = problem_size.StrideA;
-    auto StrideB     = problem_size.StrideB;
-    auto StrideC     = problem_size.StrideC;
-    auto Grid_size   = problem_size.Grid_size;
-    auto Streamk_sel = problem_size.Streamk_sel;
+    auto M       = problem_size.M;
+    auto N       = problem_size.N;
+    auto K       = problem_size.K;
+    auto StrideA = problem_size.StrideA;
+    auto StrideB = problem_size.StrideB;
+    auto StrideC = problem_size.StrideC;
+    // auto Grid_size   = problem_size.Grid_size;
+    // auto Streamk_sel = problem_size.Streamk_sel;
 
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -51,20 +51,20 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 return static_cast<std::size_t>(stride);
         };
 
-    auto f_get_default_streamk_policy = [](ck::index_t streamk_sel) {
+    /**auto f_get_default_streamk_policy = [](ck::index_t streamk_sel) {
         if(streamk_sel == -1)
         {
             return static_cast<std::size_t>(4);
         }
         else
             return static_cast<std::size_t>(streamk_sel);
-    };
+    };**/
 
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
     StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
     StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
 
-    Streamk_sel = f_get_default_streamk_policy(Streamk_sel);
+    // Streamk_sel = f_get_default_streamk_policy(Streamk_sel);
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
@@ -148,11 +148,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         StrideA,
         StrideB,
         StrideC,
-        Streamk_sel,
-        Grid_size,
         a_element_op,
         b_element_op,
-        c_element_op);
+        c_element_op
+        /**problem_size.NumSKBlocks**/); // TODO: add NumSKBlocks arg into Problem?
 
     if(!gemm.IsSupportedArgument(argument))
     {
