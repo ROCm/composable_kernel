@@ -274,6 +274,27 @@ struct DeviceOperationInstanceFactory<
 #endif // CK_ENABLE_FP16
 #endif // CK_USE_XDL
 
+#if defined(CK_USE_WMMA)
+        // Reuse DeviceGemmMultipleDSplitK instances
+        using Wrapper = DeviceGemmMultipleDSplitKWrapper<ALayout,
+                                                         BLayout,
+                                                         ck::Tuple<D0Layout>,
+                                                         ELayout,
+                                                         ADataType,
+                                                         BDataType,
+                                                         ck::Tuple<D0DataType>,
+                                                         EDataType,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         AddFastGelu>;
+        auto new_op_ptrs =
+            DeviceOperationInstanceFactory<typename Wrapper::DeviceOp>::GetInstances();
+        for(auto& op_ptr : new_op_ptrs)
+        {
+            op_ptrs.emplace_back(std::make_unique<Wrapper>(std::move(op_ptr)));
+        }
+#endif // CK_USE_WMMA
+
         return op_ptrs;
     }
 };
