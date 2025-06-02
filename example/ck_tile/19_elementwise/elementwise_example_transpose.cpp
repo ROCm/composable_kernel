@@ -39,10 +39,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         throw std::runtime_error("stride_in must be >= N");
     }
 
-    using XDataType = DataType;
-    using ComputeDataType =
-        float; 
-    using YDataType             = DataType;
+    using XDataType       = DataType;
+    using ComputeDataType = float;
+    using YDataType       = DataType;
     // Use PassThrough operation for transposition (data is moved, not changed)
     using XElementwiseOperation = ck_tile::element_wise::PassThrough;
 
@@ -56,9 +55,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YDataType> y_host({N, M}, {stride_out_dim0, 1});
     ck_tile::HostTensor<YDataType> y_validation({N, M}, {stride_out_dim0, 1});
 
-    // The logical shape for the element-wise operation kernel is based on the input tensor's elements.
+    // The logical shape for the element-wise operation kernel is based on the input tensor's
+    // elements.
     std::vector<ck_tile::index_t> op_shape_vec = {M, N};
-    auto op_lengths = ck_tile::make_tuple(M, N); // Lens for the kernel
+    auto op_lengths                            = ck_tile::make_tuple(M, N); // Lens for the kernel
 
     ck_tile::FillUniformDistribution<XDataType>{0.f, 5.f}(x_host_a);
 
@@ -69,10 +69,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf_a.ToDevice(x_host_a.data());
 
     // 3. Configure the kernel execution parameters.
-    using BlockTile = ck_tile::sequence<2048>; 
-    using BlockWarps = ck_tile::sequence<8>; 
-    using WarpTile = ck_tile::sequence<64>;
-    using Vector = ck_tile::sequence<1>;
+    using BlockTile  = ck_tile::sequence<2048>;
+    using BlockWarps = ck_tile::sequence<8>;
+    using WarpTile   = ck_tile::sequence<64>;
+    using Vector     = ck_tile::sequence<1>;
 
     using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, Vector>;
 
@@ -87,8 +87,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t total_elements = M * N;
 
-    constexpr ck_tile::index_t kBlockSize = 64 * BlockWarps::at(ck_tile::number<0>{});
-    constexpr ck_tile::index_t kBlockPerCu = 1;
+    constexpr ck_tile::index_t kBlockSize         = 64 * BlockWarps::at(ck_tile::number<0>{});
+    constexpr ck_tile::index_t kBlockPerCu        = 1;
     constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
     ck_tile::index_t kGridSize = (total_elements + elements_per_block - 1) / elements_per_block;
 
@@ -104,17 +104,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // Output strides (for N x M tensor, dense)
     auto output_strides = ck_tile::make_tuple(1, stride_out_dim0);
 
-
     // 4. Run the kernel
     float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
                                    ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
                                        Kernel{},
                                        kGridSize,
                                        kBlockSize,
-                                       0, // Shared memory
-                                       op_lengths,          // Logical dimensions for the operation (M, N)
+                                       0,             // Shared memory
+                                       op_lengths,    // Logical dimensions for the operation (M, N)
                                        input_strides, // Strides for input tensor(s)
-                                       output_strides,      // Strides for output tensor (N, M)
+                                       output_strides, // Strides for output tensor (N, M)
                                        input_tensors,
                                        static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
 
@@ -125,7 +124,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(do_validation)
     {
         y_buf.FromDevice(y_validation.data()); // Copy result from device to y_validation
-        ck_tile::reference_transpose_elementwise<XDataType, YDataType>(x_host_a, y_host); // Compute reference on host
+        ck_tile::reference_transpose_elementwise<XDataType, YDataType>(
+            x_host_a, y_host); // Compute reference on host
         pass = ck_tile::check_err(
             y_validation, y_host, "Transpose Error: Incorrect results!", 0.01, 0.01);
     }
@@ -148,4 +148,3 @@ int main(int argc, char* argv[])
     std::cerr << "Unsupported data type: " << data_type << std::endl;
     return -3;
 }
-

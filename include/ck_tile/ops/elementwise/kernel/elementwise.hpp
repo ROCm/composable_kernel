@@ -101,7 +101,8 @@ struct ElementWiseKernel
             const auto tile_idx = make_tuple(idx);
             const auto x_values = compute_values(x_tiles, tile_idx);
 
-            apply([&](auto&&... vals) { ElementWiseOperation{}(y_tile(tile_idx), vals...); }, x_values);
+            apply([&](auto&&... vals) { ElementWiseOperation{}(y_tile(tile_idx), vals...); },
+                  x_values);
         });
 
         // Store results
