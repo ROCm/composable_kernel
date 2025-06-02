@@ -100,7 +100,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        kBlockSize,
                                        0,
                                        ck_tile::make_tuple(M, N),
-                                       ck_tile::make_tuple(N, 1),
+                                       ck_tile::make_tuple(N, 1), // Input Stride
+                                       ck_tile::make_tuple(N, 1), // Output Stride
                                        input_tensors,
                                        static_cast<YDataType*>(y_buf.GetDeviceBuffer())));
 

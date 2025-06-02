@@ -23,7 +23,8 @@ struct ElementWiseKernel
 
     template <typename... XDataType, typename Dims>
     CK_TILE_DEVICE void operator()(Dims lens,
-                                   Dims strides,
+                                   Dims input_strides,
+                                   Dims output_strides,
                                    const tuple<XDataType...>& input_tensors,
                                    YDataType* p_y) const
     {
@@ -41,7 +42,7 @@ struct ElementWiseKernel
                     auto tensor_view = make_naive_tensor_view<address_space_enum::global,
                                                               memory_operation_enum::set,
                                                               amd_buffer_coherence_enum::slc>(
-                        tensors.get(idx), lens, strides, number<S::kVectorM>{});
+                        tensors.get(idx), lens, input_strides, number<S::kVectorM>{});
 
                     auto transformed_tensor = transform_tensor_view(
                         tensor_view,
@@ -68,7 +69,7 @@ struct ElementWiseKernel
         const auto y_m_n = make_naive_tensor_view<address_space_enum::global,
                                                   memory_operation_enum::set,
                                                   amd_buffer_coherence_enum::slc>(
-            p_y, lens, strides, number<S::kVectorM>{});
+            p_y, lens, output_strides, number<S::kVectorM>{});
 
         // Transform the tensor view if needed
         auto transformed_y_m_n =
