@@ -4,8 +4,6 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/norm_reduce/block/block_norm_reduce_problem.hpp"
-#include "ck_tile/ops/norm_reduce/block/block_norm_reduce.hpp"
 
 namespace ck_tile {
 struct ElementWiseDefaultPolicy
