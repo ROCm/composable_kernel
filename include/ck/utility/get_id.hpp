@@ -9,8 +9,13 @@ namespace ck {
 
 __host__ __device__ constexpr index_t get_warp_size()
 {
-    // warpSize is defined by HIP
-    return warpSize;
+    hipDeviceProp_t props;
+    hipError_t status = hipGetDeviceProperties(&props, get_device_id());
+
+    if(status != hipSuccess)
+        throw std::runtime_error("Failed to get device properties when trying to get warp size");
+
+    return props.warpSize;
 }
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
