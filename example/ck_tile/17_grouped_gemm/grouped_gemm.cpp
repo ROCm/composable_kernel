@@ -319,4 +319,15 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 #include "run_grouped_gemm_example.inc"
 
 constexpr bool Persistent = false;
-int main(int argc, char* argv[]) { return !run_grouped_gemm_example<Persistent>(argc, argv); }
+int main(int argc, char* argv[])
+{
+    try
+    {
+        return !run_grouped_gemm_example<Persistent>(argc, argv);
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Runtime error: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    }
+}
