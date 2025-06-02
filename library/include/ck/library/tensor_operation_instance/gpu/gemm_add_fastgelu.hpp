@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+#if defined(CK_USE_XDL)
 void add_device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_mk_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
@@ -93,8 +94,90 @@ void add_device_gemm_add_fastgelu_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_in
                                                     PassThrough,
                                                     PassThrough,
                                                     AddFastGelu>>>&);
+#endif // CK_USE_XDL
+
+#if defined(CK_USE_WMMA)
+void add_device_gemm_add_fastgelu_wmma_universal_f16_f16_f16_f16_mk_nk_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          F16_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddFastGelu>>>&);
+#endif // CK_USE_WMMA
 
 // GEMM + Add + FastGelu
+// DeviceGemmMultipleDSplitK specialization
+template <typename ALayout,
+          typename BLayout,
+          typename D0Layout,
+          typename ELayout,
+          typename ADataType,
+          typename BDataType,
+          typename D0DataType,
+          typename EDataType>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGemmMultipleDSplitK<ALayout,
+                                                            BLayout,
+                                                            ck::Tuple<D0Layout>,
+                                                            ELayout,
+                                                            ADataType,
+                                                            BDataType,
+                                                            ck::Tuple<D0DataType>,
+                                                            EDataType,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            AddFastGelu>>
+{
+    using DeviceOp = DeviceGemmMultipleDSplitK<ALayout,
+                                               BLayout,
+                                               ck::Tuple<D0Layout>,
+                                               ELayout,
+                                               ADataType,
+                                               BDataType,
+                                               ck::Tuple<D0DataType>,
+                                               EDataType,
+                                               PassThrough,
+                                               PassThrough,
+                                               AddFastGelu>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+#if defined(CK_USE_XDL)
+        // No XDL instances for DeviceGemmMultipleDSplitK with AddFastGelu at the moment
+#endif // CK_USE_XDL
+
+#if defined(CK_USE_WMMA)
+#if defined(CK_ENABLE_FP16)
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                         is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_add_fastgelu_wmma_universal_f16_f16_f16_f16_mk_nk_mn_mn_instances(
+                    op_ptrs);
+            }
+        }
+
+        // TODO: Add other types and layouts
+
+#endif // CK_ENABLE_FP16
+#endif // CK_USE_WMMA
+
+        return op_ptrs;
+    }
+};
+
+// GEMM + Add + FastGelu
+// DeviceGemmMultipleD specialization
 template <typename ALayout,
           typename BLayout,
           typename D0Layout,
@@ -132,7 +215,8 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-#if defined(CK_ENABLE_INT8) && defined(CK_ENABLE_FP16)
+#if defined(CK_USE_XDL)
+#if defined(CK_ENABLE_FP16) && defined(CK_ENABLE_INT8)
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, int8_t> &&
                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
         {
@@ -143,7 +227,7 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
-#endif
+#endif // CK_ENABLE_FP16 && CK_ENABLE_INT8
 
 #if defined(CK_ENABLE_BF16) && defined(CK_ENABLE_INT8)
         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
@@ -156,8 +240,9 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
-#endif
+#endif // CK_ENABLE_BF16 && CK_ENABLE_INT8
 
+#if defined(CK_ENABLE_FP16)
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
         {
@@ -186,6 +271,8 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
+#endif // CK_ENABLE_FP16
+#endif // CK_USE_XDL
 
         return op_ptrs;
     }
