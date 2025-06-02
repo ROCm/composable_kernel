@@ -50,8 +50,13 @@ enum struct memory_operation_enum : std::uint16_t
 
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
-    // warpSize is defined by HIP
-    return warpSize;
+    // this is a temporary workaround until composable_kernel stops assuming
+    // it can get the warpSize as constexpr
+#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+    return 64;
+#else
+    return 32;
+#endif
 }
 
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
