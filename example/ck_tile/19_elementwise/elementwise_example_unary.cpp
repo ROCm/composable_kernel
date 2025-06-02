@@ -49,11 +49,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::FillUniformDistribution<XDataType>{0.f, 5.f}(x_host_a);
 
-    // 2. Create device memory buffers
+    // 2. Create device memory buffers and copy input data from host to device
     ck_tile::DeviceMem x_buf_a(x_host_a.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host.get_element_space_size_in_bytes());
     x_buf_a.ToDevice(x_host_a.data());
-    y_buf.ToDevice(y_host.data());
 
     // 3. Create the kernel
 

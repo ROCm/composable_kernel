@@ -77,10 +77,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem x_buf_b(x_host_b.get_element_space_size_in_bytes());
     ck_tile::DeviceMem y_buf(y_host.get_element_space_size_in_bytes());
 
-    // Copy data from host tensors to device buffers.
+    // Copy data from host input tensors to device buffers.
     x_buf_a.ToDevice(x_host_a.data());
     x_buf_b.ToDevice(x_host_b.data());
-    y_buf.ToDevice(y_host.data());
 
     // 3. Configure the kernel execution parameters.
     // Dividing the problem into blocktile, warptile, and vector
