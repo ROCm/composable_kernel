@@ -9,13 +9,22 @@ namespace ck {
 
 __host__ __device__ constexpr index_t get_warp_size()
 {
-    hipDeviceProp_t props;
-    hipError_t status = hipGetDeviceProperties(&props, get_device_id());
+    if (std::is_constant_evaluated()) {
+// this is only for cases where the use of constexpr cannot be avoided
+#if defined(__GFX9__)
+        return 64;
+#else
+        return 32;
+#endif
+    } else {
+        hipDeviceProp_t props;
+        hipError_t status = hipGetDeviceProperties(&props, get_device_id());
 
-    if(status != hipSuccess)
-        throw std::runtime_error("Failed to get device properties when trying to get warp size");
+        if(status != hipSuccess)
+            throw std::runtime_error("Failed to get device properties when trying to get warp size");
 
-    return props.warpSize;
+        return props.warpSize;
+    }
 }
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
