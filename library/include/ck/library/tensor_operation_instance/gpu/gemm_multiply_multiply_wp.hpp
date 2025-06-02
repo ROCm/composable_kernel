@@ -101,8 +101,8 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma16
 #endif
 
 #if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
-using TGemmMulMulF8F8BF16Instances = std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<
-                                                                     Row,
+using TGemmMulMulF8F8BF16Instances =
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                                      Col,
                                                                      Tuple<Row, Col>,
                                                                      Row,
