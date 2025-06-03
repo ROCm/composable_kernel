@@ -1,0 +1,130 @@
+{
+    "problem": {
+        "layout_a": {
+            "values": [
+                "r"
+            ]
+        },
+        "layout_b": {
+            "values": [
+                "c"
+            ]
+        },
+        "layout_c": {
+            "values": [
+                "r"
+            ]
+        },
+        "datatype_a": {
+            "values": [
+                "fp16"
+            ]
+        },
+        "datatype_b": {
+            "values": [
+                "fp16"
+            ]
+        },
+        "datatype_c": {
+            "values": [
+                "fp16"
+            ]
+        }
+    },
+    "tile_config": {
+        "tile_m": {
+            "max": 512,
+            "min": 64,
+            "step": 64,
+            "exclude": []
+        },
+        "tile_n": {
+            "max": 512,
+            "min": 64,
+            "step": 32,
+            "exclude": []
+        },
+        "tile_k": {
+            "max": 512,
+            "min": 64,
+            "step": 64,
+            "exclude": []
+        },
+        "warp_m": {
+            "values": [
+                4,
+                2,
+                1
+            ]
+        },
+        "warp_n": {
+            "values": [
+                4,
+                2,
+                1
+            ]
+        },
+        "warp_k": {
+            "values": [
+                1
+            ]
+        },
+        "warp_tile_m": {
+            "values": [
+                16,
+                32
+            ]
+        },
+        "warp_tile_n": {
+            "values": [
+                16,
+                32
+            ]
+        },
+        "warp_tile_k": {
+            "values": [
+                8,
+                16,
+                32,
+                64,
+                128
+            ]
+        }
+    },
+    "trait_config": {
+        "pipeline": {
+            "values": [
+                "compv4",
+                "compv3",
+                "mem"
+            ]
+        },
+        "scheduler": {
+            "values": [
+                "intrawave",
+                "interwave"
+            ]
+        },
+        "epilogue": {
+            "values": [
+                "default",
+                "cshuffle"
+            ]
+        },
+        "pad_m": {
+            "values": [
+                false
+            ]
+        },
+        "pad_n": {
+            "values": [
+                false
+            ]
+        },
+        "pad_k": {
+            "values": [
+                false
+            ]
+        }
+    }
+}

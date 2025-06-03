@@ -291,14 +291,10 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
                     using src_vector_container   = vector_type_maker_t<SrcData, VectorLoadSize>;
                     using src_vector_container_t = typename src_vector_container::type;
-                    // CK_PRINT<decltype(VectorLoadSize)>();
 
                     src_vector_container src_vector =
                         src_vector_container{src_buf.template Get<src_vector_container_t>(
                             src_coord_.GetOffset() / PackedSize + LoadOffset, true)};
-                    // printf("TID%03d src_coord_.GetOffset() / PackedSize + LoadOffset = %d\n",
-                    //        get_thread_local_1d_id(),
-                    //        src_coord_.GetOffset() / PackedSize + LoadOffset);
 
                     static_for<0, VectorLoadSize / elem_op_vec_len, 1>{}([&](auto idx) {
                         // apply the src elementwise op and convert to DstData under the hood if
@@ -638,37 +634,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 dst_element_op_(dst_v, dst_vector_container.template AsType<DstData>()[i]);
             });
 
-            //             #if defined(__gfx950__)
-            //                             printf("Tid: %03d, a_gmem: %02x %02x %02x %02x %02x %02x
-            //                             %02x %02x|\n",
-            //                                    get_thread_local_1d_id(),
-            //                                    *(reinterpret_cast<const
-            //                                    uint8_t*>(&(dst_vector_container.template
-            //                                    AsType<DstData>()[Number<0>{}]))),
-            //                                    *(reinterpret_cast<const
-            //                                    uint8_t*>(&(dst_vector_container.template
-            //                                    AsType<DstData>()[Number<1>{}]))),
-            //                                    *(reinterpret_cast<const
-            //                                    uint8_t*>(&(dst_vector_container.template
-            //                                    AsType<DstData>()[Number<2>{}]))),
-            //                                    *(reinterpret_cast<const
-            //                                    uint8_t*>(&(dst_vector_container.template
-            //                                    AsType<DstData>()[Number<3>{}]))),
-            //                                    *(reinterpret_cast<const
-            //                                    uint8_t*>(&(dst_vector_container.template
-            //                                    AsType<DstData>()[Number<0 + 4>{}]))),
-            //                                    *(reinterpret_cast<const
-            //                                    uint8_t*>(&(dst_vector_container.template
-            //                                    AsType<DstData>()[Number<1 + 4>{}]))),
-            //                                    *(reinterpret_cast<const
-            //                                    uint8_t*>(&(dst_vector_container.template
-            //                                    AsType<DstData>()[Number<2 + 4>{}]))),
-            //                                    *(reinterpret_cast<const
-            //                                    uint8_t*>(&(dst_vector_container.template
-            //                                    AsType<DstData>()[Number<3 + 4>{}]))));
-            // #endif
-            //             printf("Tid: %03d, write to dst_coord_.GetOffset(): %d\n",
-            //             get_thread_local_1d_id(), dst_coord_.GetOffset() / PackedSize);
             // copy data from dst_vector_container to dst_buf
             dst_buf.template Set<dst_vector_t>(
                 dst_coord_.GetOffset() / PackedSize,

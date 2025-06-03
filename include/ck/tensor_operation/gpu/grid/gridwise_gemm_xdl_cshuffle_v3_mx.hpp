@@ -789,26 +789,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             }
 
             // Calculate A scale offset
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
-            {
-                a_scale_k_split_offset = k_id * karg.KRead / (ScaleBlockSize / APackedSize);
-            }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
-            {
-                a_scale_k_split_offset =
-                    k_id * karg.KRead / (ScaleBlockSize / APackedSize) * karg.StrideScaleA;
-            }
+            a_scale_k_split_offset =
+                k_id * karg.KRead / (ScaleBlockSize / APackedSize) * MXdlPack * MPerXdl;
 
             // Calculate B scale offset
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
-            {
-                b_scale_k_split_offset =
-                    k_id * (karg.KRead / (ScaleBlockSize / BPackedSize)) * karg.StrideScaleB;
-            }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
-            {
-                b_scale_k_split_offset = k_id * karg.KRead / (ScaleBlockSize / BPackedSize);
-            }
+            b_scale_k_split_offset =
+                k_id * karg.KRead / (ScaleBlockSize / BPackedSize) * NXdlPack * NPerXdl;
 
             if(k_id < (karg.KBatch - 1))
             {
@@ -1850,17 +1836,27 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // MNRepeat -> KRepeat -> KThreadPerXdl -> MNThreadPerXdl -> KXdlPack -> MNXdlPack
         const auto Padded_Scale_M =
             math::integer_divide_ceil(problem.M, ScaleBlockSize) * ScaleBlockSize;
-        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
+        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
             make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
                            (KXdlPack * 64 / MPerXdl),
-                       64 * KXdlPack * MXdlPack / scale_pack_size_a));
+                       64 * KXdlPack * MXdlPack / scale_pack_size_a),
+            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
+                                                 (ScaleBlockSize / APackedSize)) *
+                           MPerXdl * MXdlPack / scale_pack_size_a,
+                       64 * KXdlPack * MXdlPack / scale_pack_size_a,
+                       1));
 
-        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor_packed(
+        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
             make_tuple(problem.N / (NXdlPack * NPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / BPackedSize)) /
                            (KXdlPack * 64 / NPerXdl),
-                       64 * KXdlPack * NXdlPack / scale_pack_size_b));
+                       64 * KXdlPack * NXdlPack / scale_pack_size_b),
+            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
+                                                 (ScaleBlockSize / BPackedSize)) *
+                           NPerXdl * NXdlPack / scale_pack_size_b,
+                       64 * KXdlPack * NXdlPack / scale_pack_size_b,
+                       1));
 
         Run<decltype(a_grid_desc_ak0_m_ak1),
             decltype(a_scale_grid_desc_am_ak),
@@ -2362,17 +2358,27 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // MNRepeat -> KRepeat -> KThreadPerXdl -> MNThreadPerXdl -> KXdlPack -> MNXdlPack
         const auto Padded_Scale_M =
             math::integer_divide_ceil(problem.M, ScaleBlockSize) * ScaleBlockSize;
-        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
+        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
             make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
                            (KXdlPack * 64 / MPerXdl),
-                       64 * KXdlPack * MXdlPack / scale_pack_size_a));
+                       64 * KXdlPack * MXdlPack / scale_pack_size_a),
+            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
+                                                 (ScaleBlockSize / APackedSize)) *
+                           MPerXdl * MXdlPack / scale_pack_size_a,
+                       64 * KXdlPack * MXdlPack / scale_pack_size_a,
+                       1));
 
-        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor_packed(
+        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
             make_tuple(problem.N / (NXdlPack * NPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / BPackedSize)) /
                            (KXdlPack * 64 / NPerXdl),
-                       64 * KXdlPack * NXdlPack / scale_pack_size_b));
+                       64 * KXdlPack * NXdlPack / scale_pack_size_b),
+            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
+                                                 (ScaleBlockSize / BPackedSize)) *
+                           NPerXdl * NXdlPack / scale_pack_size_b,
+                       64 * KXdlPack * NXdlPack / scale_pack_size_b,
+                       1));
 
         Run_2Lds<decltype(a_grid_desc_ak0_m_ak1),
                  decltype(a_scale_grid_desc_am_ak),

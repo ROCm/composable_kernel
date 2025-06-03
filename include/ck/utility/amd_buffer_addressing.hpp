@@ -847,7 +847,7 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
         src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
 
 #else
-    // CK_PRINT<T, vector_t, scalar_t>();
+
     vector_t tmp{amd_buffer_load_impl<scalar_t, vector_size, coherence>(
         src_wave_buffer_resource, src_thread_addr_offset, 0)};
     return src_thread_element_valid ? tmp : vector_t(0);
@@ -1030,14 +1030,8 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
     static_assert(bytes_per_thread == dword_bytes);
 #endif
 
-#ifndef CK_CODE_GEN_RTC
-    const uint32_t* global_ptr =
-        reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(global_base_ptr));
-#else
-    const uint32_t* global_ptr =
-        reinterpret_cast<uint32_t*>(reinterpret_cast<size_t>(global_base_ptr));
-#endif
-    const int32x4_t src_resource = make_wave_buffer_resource(global_ptr, src_element_space_size);
+    const int32x4_t src_resource =
+        make_wave_buffer_resource(global_base_ptr, src_element_space_size);
     const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
 
 #if CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
