@@ -181,11 +181,11 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         constexpr index_t AlignedPackH    = math::integer_divide_ceil(TileH, NumGroup);
         constexpr index_t PackH = TileH / NumGroup;
 
-        const index_t x      = lane_id % (WaveSize / NumGroup);
-        const index_t y_offset = lane_id / (WaveSize / NumGroup);
+        const index_t x      = lane_id % AlignedPackW;
+        const index_t y_offset = lane_id / AlignedPackW;
 
-        auto get_offset = [&](index_t y_, index_t x_, index_t n_) {
-            return (y_ * h_stride + x_ * w_stride + n_ * n_stride) / ScalarPerVector;
+        auto get_offset = [&](index_t y_, index_t packed_x_, index_t n_) {
+            return (y_ * h_stride + packed_x_ * ScalarPerVector * w_stride + n_ * n_stride) / ScalarPerVector;
         };
 
         // todo: check with real width/height
@@ -230,7 +230,6 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
 
             if constexpr(AlignedPackH != PackH)
             {
-                //static_assert(NumWavePerTile == 1);
                 if(y_offset < (TileH - NumGroup * PackH))
                 {
                     constexpr auto i = PackH;
@@ -289,13 +288,13 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         const index_t y_offset   = lane_id / AlignedPackW;
 
         auto get_offset = [&](index_t y_, index_t x_) {
-            return (y_ * TileW_Stride + x_) * NumVectorPerPixel;
+            return y_ * TileW_Stride * NumVectorPerPixel + x_ * NumVectorPerPixel * ScalarPerVector;
         };
 
         if(x < PackW)
         {
             static_for<0, PackH, 1>{}([&](auto i) {
-                const index_t y      = y_offset + i * AlignedPackW;
+                const index_t y      = y_offset + i * NumGroup;
                 const index_t offset = get_offset(y, x);
                 static_for<0, NumVectorPerPixel * ScalarPerVector, 1>{}([&](auto j) {
                     p_sharemem[offset + j] = p_scratch[i * NumVectorPerPixel * ScalarPerVector + j];
@@ -307,7 +306,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
                 if (y_offset < (TileH - NumGroup * PackH))
                 {
                     constexpr auto i = PackH;
-                    const index_t y      = y_offset + i * AlignedPackW;
+                    const index_t y      = y_offset + i * NumGroup;
                     const index_t offset = get_offset(y, x);
                     static_for<0, NumVectorPerPixel * ScalarPerVector, 1>{}([&](auto j) {
                         p_sharemem[offset + j] = p_scratch[i * NumVectorPerPixel * ScalarPerVector + j];
@@ -341,7 +340,9 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         if(x < Filter_X && y < Filter_Y)
         {
             static_for<0, TileH, 1>{}([&](auto ho) {
+              //for (index_t ho = 0; ho < TileH; ho++) {
                 static_for<0, TileOut_W, 1>{}([&](auto wo) {
+                // for (index_t wo = 0; wo < TileOut_W; wo ++) {
                     static_for<0, NumVectorPerPixel, 1>{}([&](auto i) {
                         auto v_in  = get_in(ho, wo, i);
                         auto v_out = get_out(ho, wo, i);
@@ -364,7 +365,19 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             *p_wei     = acc;
         }
     }
-
+    template <typename DstVector>
+    static void __device__ dump_lds(DstVector* p, index_t totalcount, index_t length)
+    {
+        for (index_t i = 0; i < totalcount; i++)
+        {
+            if (i % length ==0)
+            {
+                printf("\n [%d]", i/length);
+            }
+            printf("%08x ", bit_cast<uint32_t>(p[i]));
+        }
+        printf("\n");
+    }
 
     template <typename Argument>
     static void __device__ Run(Argument arg, char* p_share_in, char* p_share_out)
@@ -449,7 +462,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
                 static_for<0, element_count, 1>{}([&](auto j) {
                     if(cluster_id + i * WaveSize * NumWavePerTile < array_count)
                     {
-                        auto p = share_vec + i * stride + j;
+                        auto p = share_vec + (cluster_id + i * WaveSize * NumWavePerTile) * stride + j;
                          *p = {};
                     }
                 });
@@ -462,7 +475,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         {
             static_assert(ButtomPaddingSize >= 0);
             init_array_pading(share_in + TopPadingSize, Number<Pad_W * NumVectorPerPixel>{}, Number<Tile_H>{}, TileIn_Align_W * NumVectorPerPixel);
-            init_array_pading(share_in + TopPadingSize + Tile_W * NumVectorPerPixel , Number<Pad_W * NumVectorPerPixel>{}, Number<Tile_H>{}, TileIn_Align_W * NumVectorPerPixel);
+            init_array_pading(share_in + TopPadingSize + (Tile_W + Pad_W) * NumVectorPerPixel , Number<Pad_W * NumVectorPerPixel>{}, Number<Tile_H>{}, TileIn_Align_W * NumVectorPerPixel);
         }
         if constexpr(Pad_H > 0)
         {
@@ -487,20 +500,21 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         p_out += NBatch * out_n_stride;
 
         // adjust share memory offset
-        share_in += (TileIn_Align_W * Pad_H + Pad_W) * NumVectorPerPixel;
         if constexpr (NumWavePerTile > 1)
         {
             static_assert(RequirePadding == false);
             share_in += Copy_Tile_H * TileIn_Align_W * NumVectorPerPixel * wave_id;
             share_out += Copy_TileOut_H * TileOut_Align_W * NumVectorPerPixel * wave_id;
         }
+        auto share_in_base = share_in;
+        share_in += (TileIn_Align_W * Pad_H + Pad_W) * NumVectorPerPixel;
 
         write_data_to_lds<Copy_Tile_H, Tile_W, TileIn_Align_W, InScalarPerVector>(
             lane_id, tmp_in, share_in);
         write_data_to_lds<Copy_TileOut_H, TileOut_W, TileOut_Align_W, OutScalarPerVector>(
             lane_id, tmp_out, share_out);
 
-        constexpr index_t TileOut_H_batch = math::integer_divide_ceil(Copy_TileOut_H, ThreadPerBatch);
+        constexpr index_t TileOut_H_batch = math::integer_divide_ceil(Copy_TileOut_H, BatchPerWave);
         index_t hout_base                 = lane_id / ThreadPerBatch * TileOut_H_batch;
         if constexpr (NumWavePerTile > 1)
         {
@@ -509,6 +523,12 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         index_t x = (lane_id % ThreadPerBatch) % Filter_X;
         index_t y = (lane_id % ThreadPerBatch) / Filter_X;
         float acc = 0;
+
+        //if (threadIdx.x == 0)
+        //{
+        //    dump_lds(reinterpret_cast<InDataVector*>(p_share_in), ShareMemInSize/sizeof(InDataVector), TileIn_Align_W);
+        //   dump_lds(reinterpret_cast<OutDataVector*>(p_share_out), ShareMemOutSize/sizeof(OutDataVector), TileOut_Align_W);
+        //}
 
         while(num_loop > 0)
         {
@@ -522,7 +542,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
 
             // do conv_bwd on 0
             run_conv_bwd_weight<TileOut_H_batch>(
-                x, y, ho, wo, hout_base, share_in, share_out, acc);
+                x, y, ho, wo, hout_base, share_in_base, share_out, acc);
 
             // write 0
             write_data_to_lds<Copy_Tile_H, Tile_W, TileIn_Align_W, InScalarPerVector>(
@@ -534,7 +554,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
 
         // tail
         {
-            run_conv_bwd_weight<TileOut_H_batch>(x, y, ho, wo, hout_base, share_in, share_out, acc);
+            run_conv_bwd_weight<TileOut_H_batch>(x, y, ho, wo, hout_base, share_in_base, share_out, acc);
         }
 
         if constexpr(ThreadPerBatch == 32)
