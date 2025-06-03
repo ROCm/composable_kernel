@@ -198,6 +198,8 @@ struct UniversalGemmPipelineProblem
 
     static constexpr bool TransposeC            = Traits::TransposeC;
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
+
+    static constexpr index_t kNumWaveGroups = Traits::kNumWaveGroups;
 };
 
 } // namespace ck_tile

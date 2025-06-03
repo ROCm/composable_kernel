@@ -23,7 +23,8 @@ template <typename ADataType_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
           bool isCTransposed_,
-          memory_operation_enum MemoryOperation_>
+          memory_operation_enum MemoryOperation_,
+          index_t kNumWaveGroups_>
 struct CShuffleEpilogueProblem
 {
     using ADataType                                        = remove_cvref_t<ADataType_>;
@@ -41,6 +42,7 @@ struct CShuffleEpilogueProblem
     static constexpr index_t kKPerXdl                      = kKPerXdl_;
     static constexpr index_t isCTransposed                 = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
+    static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -59,14 +61,14 @@ struct CShuffleEpilogue
     static constexpr index_t kBlockSize                    = Problem::kBlockSize;
     static constexpr index_t kMPerBlock                    = Problem::kMPerBlock;
     static constexpr index_t kNPerBlock                    = Problem::kNPerBlock;
-    static constexpr index_t kMWave                        = Problem::kMWave;
-    static constexpr index_t kNWave                        = Problem::kNWave;
-    static constexpr index_t kMPerXdl                      = Problem::kMPerXdl;
-    static constexpr index_t kNPerXdl                      = Problem::kNPerXdl;
-    static constexpr index_t kKPerXdl                      = Problem::kKPerXdl;
-    static constexpr index_t isCTransposed                 = Problem::isCTransposed;
-    static constexpr index_t kMPerIteration                = kMPerXdl * kMWave;
-    static constexpr index_t kNPerIteration                = kNPerXdl * kNWave;
+    static constexpr index_t kMWave         = Problem::kMWave;
+    static constexpr index_t kNWave         = Problem::kNWave;
+    static constexpr index_t kMPerXdl       = Problem::kMPerXdl;
+    static constexpr index_t kNPerXdl       = Problem::kNPerXdl;
+    static constexpr index_t kKPerXdl       = Problem::kKPerXdl;
+    static constexpr index_t isCTransposed  = Problem::isCTransposed;
+    static constexpr index_t kMPerIteration = kMPerXdl * kMWave;
+    static constexpr index_t kNPerIteration = kNPerXdl * kNWave;
 
     using WG = WarpGemmMfmaDispatcher<ADataType,
                                       BTypeToUse,
@@ -153,6 +155,7 @@ struct CShuffleEpilogue
                                               kMPerIteration,
                                               kNPerIteration,
                                               GetVectorSizeC(),
+                                              Problem::kNumWaveGroups,
                                               tile_distribution_pattern::thread_raked>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 

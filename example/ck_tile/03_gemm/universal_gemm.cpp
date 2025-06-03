@@ -60,7 +60,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                  BLayout,
                                                                  CLayout,
                                                                  GemmConfig::TransposeC,
-                                                                 GemmConfig::UseStructuredSparsity>;
+                                                                 GemmConfig::UseStructuredSparsity,
+                                                                 false,
+                                                                 GemmConfig::NumWaveGroups>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
@@ -77,9 +79,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     const auto Run = [&](const auto has_hot_loop_,
                          const auto tail_number_,
                          const auto memory_operation_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = GEMM_PIPELINE_SCHEDULER;
+        constexpr bool has_hot_loop_v = has_hot_loop_.value;
+        constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto scheduler      = GEMM_PIPELINE_SCHEDULER;
         constexpr auto memory_operation = memory_operation_.value;
 
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -107,7 +109,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
-                                             memory_operation>>;
+                                             memory_operation,
+                                             GemmConfig::NumWaveGroups>>;
+
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
@@ -211,6 +215,10 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             RunSplitk(ck_tile::bool_constant<true>{},
                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
         }
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V5)
+        RunSplitk(ck_tile::bool_constant<true>{},
+                  ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Empty>{});
+
 #endif
     }
     else
