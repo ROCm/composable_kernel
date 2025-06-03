@@ -347,7 +347,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
                         auto v_in  = get_in(ho, wo, i);
                         auto v_out = get_out(ho, wo, i);
                         inner_product(v_in, v_out, acc);
-
+             
                         //if (x == 0 && y == 0)
                        // {
                         //    uint32_t * pin = reinterpret_cast<uint32_t*>(&v_in);
@@ -394,6 +394,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
     {
         const index_t g_idx   = __builtin_amdgcn_readfirstlane(blockIdx.x);
         const index_t wave_id = __builtin_amdgcn_readfirstlane(threadIdx.x / WaveSize);
+        const index_t tile_id = wave_id / NumWavePerTile;
         const index_t lane_id = __lane_id();
 
         constexpr index_t ThreadPerBatch = WaveSize / BatchPerWave;
@@ -408,12 +409,14 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         static constexpr index_t spatial_offset = 3;
         const index_t n = arg.in_g_n_c_wis_lengths_[1];
         index_t num_loop = n / NumTilePerBlock / NBatch - 1;
-        index_t n_idx = n / NumTilePerBlock * wave_id;
-
-        if(wave_id == NumTilePerBlock - 1)
+        index_t n_idx = n / NumTilePerBlock * tile_id;
+        if constexpr (NumTilePerBlock > 1)
         {
-            n_idx    = n / NumTilePerBlock * (NumTilePerBlock - 1);
-            num_loop = (n - n_idx) / NBatch - 1;
+            if(tile_id == NumTilePerBlock - 1)
+            {
+                n_idx    = n / NumTilePerBlock * (NumTilePerBlock - 1);
+                num_loop = (n - n_idx) / NBatch - 1;
+            }
         }
 
         // In
@@ -443,8 +446,8 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         if constexpr (NumWavePerTile > 1)
         {
             static_assert(RequirePadding == false);
-            p_in += Copy_Tile_H * hi_stride * wave_id;
-            p_out += Copy_TileOut_H * ho_stride * wave_id;
+            p_in += Copy_Tile_H * hi_stride * (wave_id % NumWavePerTile);
+            p_out += Copy_TileOut_H * ho_stride * (wave_id % NumWavePerTile);
         }
 
         InDataVector* share_in = 
@@ -509,16 +512,18 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         p_in += NBatch * in_n_stride;
         p_out += NBatch * out_n_stride;
 
-        // adjust share memory offset
+         auto share_in_base = share_in;
+         auto share_out_base = share_out;
+        // adjust share memory offset for copy
         if constexpr (NumWavePerTile > 1)
         {
             static_assert(RequirePadding == false);
             share_in += Copy_Tile_H * TileIn_Align_W * NumVectorPerPixel * wave_id;
             share_out += Copy_TileOut_H * TileOut_Align_W * NumVectorPerPixel * wave_id;
         }
-        auto share_in_base = share_in;
-        share_in += (TileIn_Align_W * Pad_H + Pad_W) * NumVectorPerPixel;
 
+   
+        share_in += (TileIn_Align_W * Pad_H + Pad_W) * NumVectorPerPixel;
         write_data_to_lds<Copy_Tile_H, Tile_W, TileIn_Align_W, InScalarPerVector>(
             lane_id, tmp_in, share_in);
         write_data_to_lds<Copy_TileOut_H, TileOut_W, TileOut_Align_W, OutScalarPerVector>(
@@ -534,15 +539,21 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         index_t y = (lane_id % ThreadPerBatch) / Filter_X;
         float acc = 0;
 
-        //if (threadIdx.x == 0)
+        //if (lane_id == 0)
         //{
-        //    dump_lds(reinterpret_cast<InDataVector*>(p_share_in), ShareMemInSize/sizeof(InDataVector), TileIn_Align_W * NumVectorPerPixel);
-        //    dump_lds(reinterpret_cast<OutDataVector*>(p_share_out), ShareMemOutSize/sizeof(OutDataVector), TileOut_Align_W * NumVectorPerPixel);
-       // }
+        //    dump_lds(tmp_in, sizeof(tmp_in)/sizeof(InDataVector), sizeof(tmp_in)/sizeof(InDataVector));
+         //   dump_lds(tmp_out, sizeof(tmp_out)/sizeof(OutDataVector), sizeof(tmp_out)/sizeof(OutDataVector));
+        //}
+        //block_sync_lds();
+        //if (threadIdx.x == 0)
+        //{    
+        //   dump_lds(reinterpret_cast<InDataVector*>(p_share_in), ShareMemInSize/sizeof(InDataVector), TileIn_Align_W * NumVectorPerPixel);
+        //  dump_lds(reinterpret_cast<OutDataVector*>(p_share_out), ShareMemOutSize/sizeof(OutDataVector), TileOut_Align_W * NumVectorPerPixel);
+        //}
+        //block_sync_lds();
 
         while(num_loop > 0)
         {
-
             load_data_from_global<Copy_Tile_H, Tile_W, InScalarPerVector>(
                 p_in, lane_id, in_n_stride, hi, wi, hi_stride, wi_stride, tmp_in);
             load_data_from_global<Copy_TileOut_H, TileOut_W, OutScalarPerVector>(
@@ -551,8 +562,12 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             p_out += NBatch * out_n_stride;
 
             // do conv_bwd on 0
+            if constexpr (NumWavePerTile > 1)
+            {
+                block_sync_lds();
+            }
             run_conv_bwd_weight<TileOut_H_batch>(
-                x, y, ho, wo, hout_base, share_in_base, share_out, acc);
+                x, y, ho, wo, hout_base, share_in_base, share_out_base, acc);
 
             // write 0
             write_data_to_lds<Copy_Tile_H, Tile_W, TileIn_Align_W, InScalarPerVector>(
@@ -564,12 +579,11 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
 
         // tail
         {
-            run_conv_bwd_weight<TileOut_H_batch>(x, y, ho, wo, hout_base, share_in_base, share_out, acc);
+            run_conv_bwd_weight<TileOut_H_batch>(x, y, ho, wo, hout_base, share_in_base, share_out_base, acc);
         }
 
         if constexpr(ThreadPerBatch == 32)
         {
-            //static_assert(0);
             float acc_2 = warp_shuffle_down(acc, ThreadPerBatch);
             acc += acc_2;
         }
@@ -593,6 +607,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         {
             uint32_t* p_share_acc = reinterpret_cast<uint32_t*>(p_share_in);
             block_sync_lds();
+ 
             p_share_acc[threadIdx.x] = bit_cast<uint32_t>(acc);
             block_sync_lds();
             if(hout_base == 0 && wave_id == 0)
