@@ -228,6 +228,12 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
 
 endfunction(add_example_executable_no_testing EXAMPLE_NAME)
 
+function(example_compile_options EXAMPLE_NAME)
+    if(TARGET ${EXAMPLE_NAME})
+        target_compile_options(${EXAMPLE_NAME} ${ARGN})
+    endif()
+endfunction(example_compile_options)
+
 # add all example subdir
 file(GLOB dir_list LIST_DIRECTORIES true *)
 FOREACH(subdir ${dir_list})
