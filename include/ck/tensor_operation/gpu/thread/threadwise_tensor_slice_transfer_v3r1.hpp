@@ -90,8 +90,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
           src_element_op_(src_element_op),
           dst_element_op_(dst_element_op)
     {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
+        if constexpr((packed_size_v<SrcData>) > 1)
         {
             static_assert(is_same_v<remove_cvref_t<SrcData>, remove_cvref_t<DstData>>,
                           "SrcData != DstData");
@@ -100,7 +99,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 SrcScalarPerVector_ % PackedSize == 0 && DstScalarPerVector_ % PackedSize == 0,
                 "SrcScalarPerVector_ and DstScalarPerVector_ cannot be 1 for packed data type");
 
-            static_assert(SrcVectorDim == DstVectorDim, "pk_i4_t does not support transpose");
+            static_assert(SrcVectorDim == DstVectorDim,
+                          "Packed data type does not support transpose");
         }
     }
 
@@ -168,7 +168,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             },
             Number<nDim>{});
 
-        // // CK_PRINT<SliceLengths, decltype(src_scalar_per_access)>();
         // loop over tensor and copy
         static_ford<decltype(ordered_src_access_lengths)>{}([&](auto ordered_src_access_idx) {
             // judge move forward or move backward
@@ -281,7 +280,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                                                    Sequence<I0, I8, I12, I14>,
                                                    Sequence<I0>>;
 
-            // // CK_PRINT<tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>>();
             static_for<0, tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>::Size(), 1>{}(
                 [&](auto v_idx) {
                     constexpr auto VectorLoadSize =
@@ -548,7 +546,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
         constexpr auto dst_dim_access_order = DstDimAccessOrder{};
 
-        // CK_PRINT<SliceLengths, decltype(dst_scalar_per_access)>();
         constexpr auto ordered_dst_access_lengths =
             container_reorder_given_new2old(dst_access_lengths, dst_dim_access_order);
 
@@ -579,7 +576,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             Number<nDim>{});
 
         // loop over tensor and copy
-        // CK_PRINT<decltype(ordered_dst_access_lengths)>();
         static_ford<decltype(ordered_dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
             // judge move forward or move backward
             constexpr auto forward_sweep = [&]() {

@@ -15,10 +15,6 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_dependencies(example_gemm_dl example_gemm_dl_int4)
 endif(USE_BITINT_EXTENSION_INT4)
 
-
-set(GEMM_OPTIONS)
-list(APPEND GEMM_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllvm --slp-threshold=-16")
-
 add_custom_target(example_gemm_xdl)
 add_example_executable(example_gemm_xdl_fp16 gemm_xdl_fp16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16)
@@ -31,9 +27,6 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_streamk_v3)
 add_example_executable(example_gemm_xdl_fp16_v3 gemm_xdl_fp16_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v3)
 add_example_executable(example_gemm_xdl_fp8_v3 gemm_xdl_fp8_v3.cpp)
-if(result EQUAL 0)
-    target_compile_options(example_gemm_xdl_fp8_v3 PRIVATE ${GEMM_OPTIONS})
-endif()
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_v3)
 
 add_example_executable(example_gemm_xdl_fp16_fp8_v3 gemm_xdl_fp16_fp8_v3.cpp)
@@ -44,10 +37,13 @@ add_example_executable(example_gemm_xdl_fp16_fp8_streamk_v3 gemm_xdl_fp16_fp8_st
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_streamk_v3)
 
 add_example_executable(example_gemm_xdl_bf16_v3 gemm_xdl_bf16_v3.cpp)
-if(result EQUAL 0)
-    target_compile_options(example_gemm_xdl_bf16_v3 PRIVATE ${GEMM_OPTIONS})
-endif()
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16_v3)
+
+set(GEMM_OPTIONS)
+list(APPEND GEMM_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllvm --slp-threshold=-16")
+example_compile_options(example_gemm_xdl_fp8_v3 PRIVATE ${GEMM_OPTIONS})
+example_compile_options(example_gemm_xdl_bf16_v3 PRIVATE ${GEMM_OPTIONS})
+
 
 list(APPEND gpu_list gfx942 gfx950)
 set(target 0)
