@@ -109,13 +109,13 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
     static constexpr auto HSlice = Number<HPerBlock>{}; // in issupported has to be >= Y
     static constexpr auto WSlice = Number<WPerBlock>{}; // in issupported has to be equal to img W
 
-    static constexpr auto NSlice = 1;
+    static constexpr auto NSlice = Number<1>{};
     static constexpr auto HoutSlice = Number<HPerBlock - Y + 1>{}; // H dim must be partly replicated between iterations if X*Y > 1x1
     static constexpr auto WoutSlice = Number<WPerBlock>{};
 
     static constexpr auto TrueKPerBlock = Number<CSlice * X * Y>{}; 
 
-    static constexpr auto PaddedCSlice = KPerBlock == 64 ? Number<8>{} : Number<4>{}; // hardcore for now, should enable even elem distribution between all threads
+    static constexpr auto PaddedCSlice = Number<4>{}; // hardcore for now, should enable even elem distribution between all threads
 
 
     // also WoutSlice * Hout_Slice must be equal to MPerBlock
@@ -143,38 +143,29 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
         // Slice of NCHW - initial A matrix part in LDS memory, dst of global -> lds1 blockwise copy
         return make_naive_tensor_descriptor(
             make_tuple(NSlice, PaddedCSlice, HSlice, WSlice),
-            make_tuple(Number<PaddedCSlice * HSlice * WSlice + ABlockLdsExtraM>{}, HSlice * WSlice, WSlice, I1));
+            make_tuple(Number<PaddedCSlice * HSlice * WSlice + ABlockLdsExtraM>{}, Number<HSlice * WSlice>{}, WSlice, I1));
     }
 
-    __host__ __device__ static auto GetABlockDescriptor_A_NHoWoCYX()
+    __host__ __device__ static constexpr auto GetABlockDescriptor_A_NHoWoCYX()
     {
-        constexpr auto InLeftPadW = PadW ? X / 2 : 0;
+        constexpr auto InLeftPadW = Number<X / 2>{};// : 0;
         constexpr auto InRightPadW = InLeftPadW;
 
-        constexpr auto ConvDilationH = 1; //hardcode for now
-        constexpr auto ConvStrideH = 1;
-        constexpr auto ConvDilationW = 1;
-        constexpr auto ConvStrideW = 1;
+        constexpr auto ConvDilationH =  Number<1>{}; //hardcode for now
+        constexpr auto ConvStrideH =    Number<1>{};
+        constexpr auto ConvDilationW =  Number<1>{};
+        constexpr auto ConvStrideW =    Number<1>{};
 
         // Slice of NCHW after im2col, src of lds1 -> lds2 blockwise copy
 
         constexpr auto nchw_slice_desc = make_naive_tensor_descriptor(
             make_tuple(NSlice, PaddedCSlice, HSlice, WSlice),
-            make_tuple(Number<PaddedCSlice * HSlice * WSlice + ABlockLdsExtraM>{}, HSlice * WSlice, WSlice, I1));
+            make_tuple(Number<PaddedCSlice * HSlice * WSlice + ABlockLdsExtraM>{}, Number<HSlice * WSlice>{}, WSlice, I1));
 
-        constexpr auto nchw_slice_sliced_desc = transform_tensor_descriptor(
+        constexpr auto nchw_padded_slice_desc = transform_tensor_descriptor(
                     nchw_slice_desc,
                     make_tuple(make_pass_through_transform(NSlice),
                                make_slice_transform(PaddedCSlice, I0, CSlice),
-                               make_pass_through_transform(HSlice),
-                               make_pass_through_transform(WSlice)),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
-
-        constexpr auto nchw_padded_slice_desc = transform_tensor_descriptor(
-                    nchw_slice_sliced_desc,
-                    make_tuple(make_pass_through_transform(NSlice),
-                               make_pass_through_transform(CSlice),
                                make_pass_through_transform(HSlice),
                                make_pad_transform(WSlice, InLeftPadW, InRightPadW)),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
@@ -184,9 +175,9 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                     nchw_padded_slice_desc,
                     make_tuple(make_pass_through_transform(NSlice),
                                make_pass_through_transform(CSlice),
-                               make_embed_transform(make_tuple(Y, HoutSlice),
+                               make_embed_transform(make_tuple(Number<Y>{}, HoutSlice),
                                                     make_tuple(ConvDilationH, ConvStrideH)),
-                               make_embed_transform(make_tuple(X, WoutSlice),
+                               make_embed_transform(make_tuple(Number<X>{}, WoutSlice),
                                                     make_tuple(ConvDilationW, ConvStrideW))),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}));
@@ -196,31 +187,24 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
         constexpr auto mk_desc = transform_tensor_descriptor(
                     n_c_y_ho_x_wo_desc,
                     make_tuple(make_merge_transform(make_tuple(NSlice, HoutSlice, WoutSlice)),
-                               make_merge_transform(make_tuple(CSlice, Y, X))),
+                               make_merge_transform(make_tuple(CSlice, Number<Y>{}, Number<X>{}))),
                     make_tuple(Sequence<0, 3, 5>{}, Sequence<1, 2, 4>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        constexpr auto FinalMKPad = KPerBlock - TrueKPerBlock;
+        constexpr auto FinalMKPad = Number<KPerBlock - TrueKPerBlock>{};
 
         constexpr auto mk_pad_desc = transform_tensor_descriptor(
                     mk_desc,
-                    make_tuple(make_pass_through_transform(NSlice * HoutSlice * WoutSlice),
-                               make_right_pad_transform(CSlice * Y * X, FinalMKPad)),
+                    make_tuple(make_pass_through_transform(Number<NSlice * HoutSlice * WoutSlice>{}),
+                               make_right_pad_transform(Number<CSlice * Y * X>{}, FinalMKPad)),
                     make_tuple(Sequence<0>{}, Sequence<1>{}),
                     make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        // if(threadIdx.x == 0 && blockIdx.x == 0) {
-        //     printf("nchw pad slice%d\n", nchw_padded_slice_desc.GetElementSize());
-        //     printf("nhowocyx %d\n", nhowocyx_desc.GetElementSize());
-        //     printf("mk_desc %d\n", mk_desc.GetElementSize());
-        //     printf("mk_pad_desc %d\n", mk_pad_desc.GetElementSize());
-        // }
-
-        constexpr auto AK0 = KPerBlock / AK1;
+        constexpr auto AK0 = Number<KPerBlock / AK1>{};
 
         return transform_tensor_descriptor(mk_pad_desc,
                                            make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                      make_pass_through_transform(MPerBlock)),
+                                                      make_pass_through_transform(Number<MPerBlock>{})),
                                            make_tuple(Sequence<1>{}, Sequence<0>{}),
                                            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
     }
@@ -704,7 +688,7 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
         constexpr auto a_block1_desc_cslice_hslice_wslice = GetABlockDescriptor_CSlice_HSlice_WSlice();
 
 
-        auto a_block1_desc_nhowo_cyx = GetABlockDescriptor_A_NHoWoCYX();
+        constexpr auto a_block1_desc_nhowo_cyx = GetABlockDescriptor_A_NHoWoCYX();
 
         auto a_global_into_lds1_blockwise_copy =
             ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
@@ -751,9 +735,9 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
                                                 ABlockTransferSrcAccessOrder,
                                                 Sequence<1, 0, 2>,
                                                 ABlockTransferSrcVectorDim,
-                                                2,
+                                                2, //ABlockTransferDstVectorDim
                                                 1,//ABlockTransferSrcScalarPerVector, 
-                                                ABlockTransferDstScalarPerVector_AK1,//ABlockTransferDstScalarPerVector_AK1,
+                                                1,//ABlockTransferDstScalarPerVector_AK1,//ABlockTransferDstScalarPerVector_AK1,
                                                 1,
                                                 1,
                                                 true,//AThreadTransferSrcResetCoordinateAfterRun,
@@ -826,6 +810,7 @@ struct GridwiseGemmConvFwdPreshuffleMultipleD_xdl_cshuffle
             AComputeDataType,
             BComputeDataType,
             AccDataType,
+            //decltype(a_block1_desc_nhowo_cyx),
             decltype(a_block2_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
             MPerXdl,

@@ -93,11 +93,11 @@ struct GridwiseGemmPipeline_v1_nchw<1, true, true>
                 //
                 block_sync_lds();
 
-                a_blockwise_global_to_lds1_copy.RunWrite(a_block1_desc_nchw_slice, a_block1_buf);    // write lds1 i + 1
+                // a_blockwise_global_to_lds1_copy.RunWrite(a_block1_desc_nchw_slice, a_block1_buf);    // write lds1 i + 1
                 blockwise_gemm.Run(a_block2_buf, b_block_buf, c_thread_buf);                         // gemm i
 
                 block_sync_lds();
-                a_blockwise_lds1_to_lds2_copy.RunRead(a_block1_desc_nhowo_cyx, a_block1_buf);        // read lds2 i + 1
+                // a_blockwise_lds1_to_lds2_copy.RunRead(a_block1_desc_nhowo_cyx, a_block1_buf);        // read lds2 i + 1
 
                 a_blockwise_global_to_lds1_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);  // move to i+2
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);                 // move to i+2

@@ -1356,31 +1356,31 @@ struct DeviceGroupedConvFwdPreshuffleMultipleABD_Xdl_CShuffle
 
         // check vector access of A
         // FIXME: layout
-        if constexpr(is_same_v<ALayout, ctc::G_NW_C> || is_same_v<ALayout, ctc::G_NHW_C> ||
-                     is_same_v<ALayout, ctc::G_NDHW_C> || is_same_v<ALayout, ctc::GNWC> ||
-                     is_same_v<ALayout, ctc::GNHWC> || is_same_v<ALayout, ctc::GNDHWC> ||
-                     is_same_v<ALayout, ctc::NWGC> || is_same_v<ALayout, ctc::NHWGC> ||
-                     is_same_v<ALayout, ctc::NDHWGC> || is_same_v<ALayout, ctc::NGCW> ||
-                     is_same_v<ALayout, ctc::NGCHW> || is_same_v<ALayout, ctc::NGCDHW>)
-        {
+        // if constexpr(is_same_v<ALayout, ctc::G_NW_C> || is_same_v<ALayout, ctc::G_NHW_C> ||
+        //              is_same_v<ALayout, ctc::G_NDHW_C> || is_same_v<ALayout, ctc::GNWC> ||
+        //              is_same_v<ALayout, ctc::GNHWC> || is_same_v<ALayout, ctc::GNDHWC> ||
+        //              is_same_v<ALayout, ctc::NWGC> || is_same_v<ALayout, ctc::NHWGC> ||
+        //              is_same_v<ALayout, ctc::NDHWGC> || is_same_v<ALayout, ctc::NGCW> ||
+        //              is_same_v<ALayout, ctc::NGCHW> || is_same_v<ALayout, ctc::NGCDHW>)
+        // {
             // Check access per C
-            if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
-            {
-                // If not possible, check access per G
-                if(!(ABlockTransferSrcVectorDim == 1 && (C == 1 || NumGroupsToMerge == 1) &&
-                     (is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() ||
-                      is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-                      is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()) &&
-                     G % ABlockTransferSrcScalarPerVector == 0))
-                {
-                    return false;
-                }
-            }
-        }
-        else
-        {
-            return false;
-        }
+        //     if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
+        //     {
+        //         // If not possible, check access per G
+        //         if(!(ABlockTransferSrcVectorDim == 1 && (C == 1 || NumGroupsToMerge == 1) &&
+        //              (is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() ||
+        //               is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
+        //               is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()) &&
+        //              G % ABlockTransferSrcScalarPerVector == 0))
+        //         {
+        //             return false;
+        //         }
+        //     }
+        // }
+        // else
+        // {
+        //     return false;
+        // }
 
         // check vector access of B
         // FIXME: layout
