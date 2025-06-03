@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <gtest/gtest.h>
@@ -56,7 +56,7 @@ class TestBatchedGemmMultiD : public ::testing::Test
                                                                             PassThrough,
                                                                             PassThrough,
                                                                             PassThrough>>(
-                true, 1, false, 1, M, N, K, K, N, N, M * K, K * N, M * N, BatchCount);
+                true, 1, false, 1, M, N, K, M * K, K * N, M * N, K, N, N, BatchCount);
         EXPECT_TRUE(pass);
     }
 };
