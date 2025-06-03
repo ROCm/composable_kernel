@@ -1058,7 +1058,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 auto launch_kernel = [&]() {
                     // constexpr bool has_main_loop = has_main_k_block_loop.value;
                     constexpr index_t GroupPerBlock = 64;
-                    constexpr index_t BatchPerBlock = 64;
+                    constexpr index_t BatchPerBlock = 8;
                     const auto kernel = kernel_grouped_conv_bwd_data_optimized<ADataType,
                                                                                EDataType,
                                                                                GroupPerBlock,
@@ -1066,7 +1066,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
                     return launch_and_time_kernel(stream_config,
                                                   kernel,
-                                                  dim3(1344 / GroupPerBlock * 2, 1, 1),
+                                                  dim3(1344 / GroupPerBlock * 16, 1, 1),
                                                   dim3(512),
                                                   0,
                                                   p_a_grid,
