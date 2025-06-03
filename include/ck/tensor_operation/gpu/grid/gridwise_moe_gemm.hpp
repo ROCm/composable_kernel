@@ -190,9 +190,15 @@ struct GridwiseMoeGemm
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
 
     static constexpr index_t KGroup  = mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
-    static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);
-    static constexpr index_t NLane   = NPerXdl;
-    static constexpr index_t NWave   = NPerBlock / NPerXdl / NXdlPerWave;
+    static constexpr index_t KRepeat = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, f8_t>)
+            return KPerBlock / KLane / (KPack / KGroup);
+        else
+            return KPerBlock / KLane / KPack;
+    }();
+
+    static constexpr index_t NLane = NPerXdl;
+    static constexpr index_t NWave = NPerBlock / NPerXdl / NXdlPerWave;
     // static constexpr index_t NumTokens = 1;
     static constexpr index_t SortedTileSize = MPerBlock;
 
