@@ -3,7 +3,7 @@
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
-#include "ck_tile/host/reference/reference_elementwise.hpp"
+#include "ck_tile/host/reference/reference_transpose.hpp"
 
 auto create_args(int argc, char* argv[])
 {

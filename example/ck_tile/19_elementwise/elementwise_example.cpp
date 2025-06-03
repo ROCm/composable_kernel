@@ -4,7 +4,7 @@
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
-#include "reference_add.hpp"
+#include "ck_tile/host/reference/reference_elementwise.hpp"
 
 auto create_args(int argc, char* argv[])
 {
@@ -184,7 +184,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(do_validation)
     {
         y_buf.FromDevice(y_validation.data());
-        ck_tile::reference_add<XDataType, YDataType>(y_host, x_host_a, x_host_b);
+        auto op = [](const auto& v0, const auto& v1) { return v0 + v1; };
+
+        ck_tile::reference_binary_elementwise<XDataType, XDataType, YDataType, ComputeDataType>(
+            x_host_a, x_host_b, y_host, op);
+
         pass = ck_tile::check_err(
             y_validation, y_host, "Elementwise Add Error: Incorrect results!", 0.01, 0.01);
     }
