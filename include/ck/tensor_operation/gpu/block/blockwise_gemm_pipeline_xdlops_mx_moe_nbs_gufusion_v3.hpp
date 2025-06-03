@@ -299,14 +299,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
         static_for<0, num_buffer_load_a_scale, 1>{}([&](auto i) {
             if constexpr((i + num_buffer_load_inst_a + num_buffer_load_inst_b) < mfma_stages_more)
             {
-                static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
+                static_for<0, mfma_perstage_more, 1>{}([&](auto /*imfma*/) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
             else
             {
-                static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
+                static_for<0, mfma_perstage_less, 1>{}([&](auto /*imfma*/) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
@@ -317,14 +317,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
             if constexpr((i + num_buffer_load_inst_a + num_buffer_load_inst_b +
                           num_buffer_load_a_scale) < mfma_stages_more)
             {
-                static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
+                static_for<0, mfma_perstage_more, 1>{}([&](auto /*imfma*/) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
             else
             {
-                static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
+                static_for<0, mfma_perstage_less, 1>{}([&](auto /*imfma*/) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
