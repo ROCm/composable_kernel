@@ -175,18 +175,19 @@ __global__ void
 //     grp3 grp4 grp5 grp6 grp7
 // load weight: 64*5*5 half needs 200 requests when use float4
 
-template <typename ABDataType, typename EDataType>
+template <typename ABDataType, typename EDataType, index_t GroupPerBlock, index_t BatchPerBlock>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(512, CK_MIN_BLOCK_PER_CU)
 #endif
         kernel_grouped_conv_bwd_data_optimized(const ABDataType* __restrict__ p_gradOut,
                                                const ABDataType* __restrict__ p_weight,
                                                EDataType* __restrict__ p_gradIn)
 {
-    int grp_idx                  = 64 * blockIdx.x;
-    const ABDataType* weight_ptr = p_weight + grp_idx * 25;
-    int tid                      = threadIdx.x;
+    constexpr int blockNumPerGroup = 128 / BatchPerBlock;
+    int grp_idx                    = GroupPerBlock * (blockIdx.x / blockNumPerGroup);
+    const ABDataType* weight_ptr   = p_weight + grp_idx * 25;
+    int tid                        = threadIdx.x;
 
     constexpr int filter_height = 5;
     constexpr int filter_width  = 5;
@@ -200,7 +201,7 @@ __global__ void
     constexpr int in_width  = 14;
     constexpr int in_height = 14;
 
-    constexpr int batch_num = 128;
+    constexpr int batch_num = BatchPerBlock;
 
     // NHWGK
     constexpr int outgrad_group_stride = 1;
@@ -215,6 +216,7 @@ __global__ void
 
     __shared__ half shmem_weight[64 * 5 * 5];
 
+#pragma unroll
     for(int index = tid; index < 64 * 5 * 5 / 8; index += blockDim.x)
     {
         reinterpret_cast<float4*>(shmem_weight)[index] =
@@ -226,27 +228,33 @@ __global__ void
     int batch_iter   = blockDim.x / warpSize;
     int local_grp_id = tid % warpSize;
 
+    int glb_batch_offset = (blockIdx.x % blockNumPerGroup) * BatchPerBlock;
+
     for(int batch_idx = 0; batch_idx < batch_num; batch_idx += batch_iter)
     {
         int wave_id             = tid / warpSize;
-        int batch_id_in_glb_mem = wave_id + batch_idx;
+        int batch_id_in_glb_mem = wave_id + batch_idx + glb_batch_offset;
         for(int h_idx = 0; h_idx < in_height; h_idx += 1)
         {
             for(int w_idx = 0; w_idx < in_width; w_idx += 1)
             {
-                float sum = 0.0f;
-                const int out_row_start =
-                    max(0, (h_idx - filter_height + pad_height + stride) / stride);
-                const int out_row_end = min(out_height - 1, (h_idx + pad_height) / stride);
-                const int out_col_start =
-                    max(0, (w_idx - filter_width + pad_width + stride) / stride);
-                const int out_col_end = min(out_width - 1, (w_idx + pad_width) / stride);
+                float sum               = 0.0f;
+                const int out_row_start = __builtin_amdgcn_readfirstlane(
+                    max(0, (h_idx - filter_height + pad_height + stride) / stride));
+                const int out_row_end = __builtin_amdgcn_readfirstlane(
+                    min(out_height - 1, (h_idx + pad_height) / stride));
+                const int out_col_start = __builtin_amdgcn_readfirstlane(
+                    max(0, (w_idx - filter_width + pad_width + stride) / stride));
+                const int out_col_end = __builtin_amdgcn_readfirstlane(
+                    min(out_width - 1, (w_idx + pad_width) / stride));
                 for(int out_row = out_row_start; out_row <= out_row_end; ++out_row)
                 {
-                    const int filter_row = h_idx + pad_height - out_row * stride;
+                    const int filter_row =
+                        __builtin_amdgcn_readfirstlane(h_idx + pad_height - out_row * stride);
                     for(int out_col = out_col_start; out_col <= out_col_end; ++out_col)
                     {
-                        const int filter_col     = w_idx + pad_width - out_col * stride;
+                        const int filter_col =
+                            __builtin_amdgcn_readfirstlane(w_idx + pad_width - out_col * stride);
                         const int outgrad_offset = (grp_idx + local_grp_id) * outgrad_group_stride +
                                                    batch_id_in_glb_mem * outgrad_batch_stride +
                                                    out_row * outgrad_row_stride +
@@ -1049,14 +1057,17 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
                 auto launch_kernel = [&]() {
                     // constexpr bool has_main_loop = has_main_k_block_loop.value;
-
-                    const auto kernel =
-                        kernel_grouped_conv_bwd_data_optimized<ADataType, EDataType>;
+                    constexpr index_t GroupPerBlock = 64;
+                    constexpr index_t BatchPerBlock = 64;
+                    const auto kernel = kernel_grouped_conv_bwd_data_optimized<ADataType,
+                                                                               EDataType,
+                                                                               GroupPerBlock,
+                                                                               BatchPerBlock>;
 
                     return launch_and_time_kernel(stream_config,
                                                   kernel,
-                                                  dim3(21, 1, 1),
-                                                  dim3(128),
+                                                  dim3(1344 / GroupPerBlock * 2, 1, 1),
+                                                  dim3(512),
                                                   0,
                                                   p_a_grid,
                                                   p_b_grid,
