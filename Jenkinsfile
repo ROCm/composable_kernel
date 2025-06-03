@@ -12,6 +12,23 @@ def show_node_info() {
     """
 }
 
+class Version {
+    int major, minor, patch
+    @Override
+    String toString() {
+        return [major, minor, patch].findAll().join('.')
+    }
+}
+def parseVersion(String versionString) {
+    if (!versionString) return null
+    int[] tokens = versionString.split(/\./).collect { it as int } // Splits the string by '.' and converts each part to an integer.
+    return new Version(
+        major: tokens[0],
+        minor: tokens.length > 1 ? tokens[1] : null,
+        patch: tokens.length > 2 ? tokens[2] : null,
+    )
+}
+
 def nthreads() {
     def nproc = sh(returnStdout: true, script: 'nproc')
     echo "Number of cores: ${nproc}"
@@ -38,8 +55,8 @@ def getBaseDockerImageName(){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-        def ROCM_numeric = "${params.ROCMVERSION}" as float
-        if ( ROCM_numeric < 6.5 ){
+        def ROCM_numeric = parseVersion("${params.ROCMVERSION}")
+        if ( ROCM_numeric.major <= 6 && ROCM_numeric.minor < 5 ){
             img = "${env.CK_DOCKERHUB}:ck_ub24.04_rocm${params.ROCMVERSION}"
             }
         else{
@@ -802,8 +819,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '6.4',
-            description: 'Specify which ROCM version to use: 6.3 (default).')
+            defaultValue: '6.4.1',
+            description: 'Specify which ROCM version to use: 6.4.1 (default).')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
@@ -1354,10 +1371,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1030") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" -DCMAKE_CXX_FLAGS=" -O3 " """ 
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx10-3-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx1030" \
+                                           -DGPU_TARGETS="gfx10-3-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
@@ -1375,10 +1392,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1101") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1101" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx1101" \
+                                           -DGPU_TARGETS="gfx11-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
@@ -1396,10 +1413,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1201") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1201" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx1201" \
+                                           -DGPU_TARGETS="gfx12-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
