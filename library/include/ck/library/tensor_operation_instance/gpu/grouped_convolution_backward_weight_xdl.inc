@@ -196,30 +196,6 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_default_pip
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
-void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_pad0_pipev2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_pad0_pipev5_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
 void add_device_grouped_conv2d_bwd_weight_two_stage_xdl_nhwgc_gkyxc_nhwgk_bf16_pipev1_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
@@ -390,30 +366,6 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_default_pipe
                                                            PassThrough>>>& instances);
 
 void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_default_pipev5_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_pad0_pipev2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_pad0_pipev5_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
                                                            GKYXC,
@@ -731,30 +683,6 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_default_
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_pad0_pipev2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_pad0_pipev5_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           BF16,
-                                                           BF16,
-                                                           BF16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
 void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
@@ -937,30 +865,6 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_default_p
                                                            PassThrough>>>& instances);
 
 void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_default_pipev5_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_pad0_pipev2_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
-                                                           NDHWGC,
-                                                           GKZYXC,
-                                                           NDHWGK,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances);
-
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_pad0_pipev5_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
                                                            GKZYXC,
