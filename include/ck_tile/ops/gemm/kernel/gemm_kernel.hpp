@@ -475,9 +475,9 @@ struct GemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     c_ptr,
-                    make_tuple(kargs.M, kargs.N),
-                    make_tuple(1, kargs.stride_C),
-                    number<1>{},
+                    make_tuple(kargs.N, kargs.M),
+                    make_tuple(kargs.stride_C, 1),
+                    number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
             }
         }();
@@ -537,9 +537,9 @@ struct GemmKernel
             else
             {
                 return pad_tensor_view(c_tensor_view,
-                                       make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                  number<TilePartitioner::NPerBlock>{}),
-                                       sequence<GemmPipeline::kPadM, false>{});
+                                       make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                  number<TilePartitioner::MPerBlock>{}),
+                                       sequence<false, GemmPipeline::kPadM>{});
             }
         }();
 
@@ -588,10 +588,22 @@ struct GemmKernel
             }
         }();
 
-        auto c_block_window = make_tile_window(
-            c_pad_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            {i_m, i_n});
+        auto c_block_window = [&]() {
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_tile_window(c_pad_view,
+                                        make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                   number<TilePartitioner::NPerBlock>{}),
+                                        {i_m, i_n});
+            }
+            else
+            {
+                return make_tile_window(c_pad_view,
+                                        make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                   number<TilePartitioner::MPerBlock>{}),
+                                        {i_n, i_m});
+            }
+        }();
 
         return make_tuple(a_block_window, b_block_window, c_block_window);
     }

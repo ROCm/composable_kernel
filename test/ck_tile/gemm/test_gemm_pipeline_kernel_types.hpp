@@ -38,7 +38,26 @@ using KernelTypesMem = ::testing::Types<
     std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
     std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
     std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
-    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>
+    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    
+    std::tuple<    Col,     Col,     Col,       F16,       F16,         F32,       F16,             Intrawave,         Mem>
+
+    //std::tuple<    Row,     Row,     Col,       F16,       F16,         F32,       F16,             Intrawave,         Mem>, // Change M <-> N numbers in input and add Col cases
+    //std::tuple<    Row,     Row,     Col,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    //std::tuple<    Row,     Row,     Col,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    //std::tuple<    Row,     Row,     Col,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    //std::tuple<    Row,     Col,     Col,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    //std::tuple<    Row,     Col,     Col,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    //std::tuple<    Row,     Col,     Col,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    //std::tuple<    Row,     Col,     Col,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    //std::tuple<    Col,     Row,     Col,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    //std::tuple<    Col,     Row,     Col,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    //std::tuple<    Col,     Row,     Col,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    //std::tuple<    Col,     Row,     Col,       F8,       F8,         F32,       F16,             Interwave,         Mem>,
+    //std::tuple<    Col,     Col,     Col,       F16,       F16,         F32,       F16,             Intrawave,         Mem>,
+    //std::tuple<    Col,     Col,     Col,       F16,       F16,         F32,       F16,             Interwave,         Mem>,
+    //std::tuple<    Col,     Col,     Col,       F8,       F8,         F32,       F16,             Intrawave,         Mem>,
+    //std::tuple<    Col,     Col,     Col,       F8,       F8,         F32,       F16,             Interwave,         Mem>
 >;
 
 using KernelTypesCompV3 = ::testing::Types<
