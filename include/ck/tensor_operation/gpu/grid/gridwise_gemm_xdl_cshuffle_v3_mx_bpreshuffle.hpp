@@ -182,21 +182,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
     // TODO: Move this to blockwise pipeline base
     // KPack in packed data types for pk A/B
 
-    static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t>)
-            return 2;
-        else
-            return 1;
-    }();
-
-    static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<BDataType>, f4x2_pk_t>)
-            return 2;
-        else
-            return 1;
-    }();
+    static constexpr index_t APackedSize = packed_size_v<ADataType>;
+    static constexpr index_t BPackedSize = packed_size_v<BDataType>;
 
     static constexpr index_t KPack =
         math::max(lcm_AK1_BK1,

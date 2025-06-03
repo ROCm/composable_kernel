@@ -35,10 +35,8 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     using ComputeTypeB = BDataType;
     using AccType      = float; // for now only support V_MFMA_SCALE_F32
 
-    static constexpr index_t APackedSize =
-        is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ? 2 : 1;
-    static constexpr index_t BPackedSize =
-        is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t> ? 2 : 1;
+    static constexpr index_t APackedSize = packed_size_v<ComputeTypeA>;
+    static constexpr index_t BPackedSize = packed_size_v<ComputeTypeB>;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -85,7 +83,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t NXdlPack = 2;
     static constexpr index_t KXdlPack = 2;
 
-    using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<
+    using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst< //
         BlockSize,
         MPerBlock,
         NPerBlock,
@@ -101,8 +99,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         MPerXDL,
         NPerXDL,
         xdlops_gemm.KPerXdlops,
-        (is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ||
-         is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t>)>;
+        (packed_size_v<ComputeTypeA> > 1 || packed_size_v<ComputeTypeB> > 1)>;
 
     static_assert(KPerThread % KPack == 0,
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");
