@@ -84,42 +84,42 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // 3. Configure the kernel execution parameters.
     // Dividing the problem into blocktile, warptile, and vector
-    // The blocktile is the size of the tile that will be processed by a single thread block (also
-    // called work group) The warptile is the size of the tile that will be processed by a single
-    // warp (also called wavefront) The vector is the size of the tile that will be processed by a
-    // single thread (also called work item) The problem is divided into blocks of size BlockTile,
-    // each block is further divided into warps of size WarpTile and each warp is composed of 64 or
-    // 32 threads of size Vector each of the thread in a warp will process one vector worth elements
-    // of the data
-    // Note that WarpTile/ Vector should be a 64 for CDNA (because there 64 threads per warp)
+    // The blocktile is the size of the tile processed by a single work group (also called thread block).
+    // The warptile is the size of the tile processed by a single wavefront (also called warp).
+    // The vector is the size of the tile processed by a single work item (also called thread).
+    // The problem is divided into blocks of size BlockTile. Each block is further divided into wavefronts
+    // of size WarpTile.
+    // Each wavefront is composed of 64 work items (on AMD; 32 threads on NVIDIA).
+    // Each work item in a wavefront processes one vector's worth of elements.
+    // Note that WarpTile/Vector should be 64 for CDNA (because there are 64 work items per wavefront).
     using BlockTile = ck_tile::sequence<2048>; // How many elements are handled by a block tile (the
                                                // tensor is divided into blocks of this size)
-    using BlockWarps = ck_tile::sequence<8>; // How many concurrent warps are in a block (each warp
-                                             // will cover some part of the block tile)
+    using BlockWarps = ck_tile::sequence<8>; // How many concurrent wavefronts are in a block (each
+                                             // wavefront will cover some part of the block tile)
 
-    // WarpTile: Defines the size of the data sub-tile processed by a single warp.
+    // WarpTile: Defines the size of the data sub-tile processed by a single wavefront.
     // This should be consistent with BlockTile and BlockWarps.
     // If BlockTile is 2048 and BlockWarps is 8, then WarpTile could be 2048/8 = 256.
-    // However, this example uses 64, meaning each warp processes 64 elements, and multiple
-    // such warp operations might be needed to cover the BlockTile, or the BlockTile is
+    // However, this example uses 64, meaning each wavefront processes 64 elements, and multiple
+    // such wavefront operations might be needed to cover the BlockTile, or the BlockTile is
     // distributed differently.
     // The current configuration (BlockTile=2048, BlockWarps=8, WarpTile=64) implies that
-    // each warp processes 64 elements, and 8 warps process 8*64 = 512 elements concurrently.
+    // each wavefront processes 64 elements, and 8 wavefronts process 8*64 = 512 elements concurrently.
     // Since 512 is not equal to 2048, it means that warptile(s) will need to iterate over multiple
     // times over different set of elements to cover the entire BlockTile.
     using WarpTile = ck_tile::sequence<64>;
 
-    // Vector: Defines the number of elements processed by a single thread in one operation.
-    // If Vector is sequence<1>, each thread handles one element at a time from its assigned
-    // WarpTile portion. If WarpTile is 64 and warpSize is 64 (common), then each thread in the warp
-    // processes one element. If Vector is > 1, it implies vectorized load/store/compute operations
-    // per thread.
+    // Vector: Defines the number of elements processed by a single work item in one operation.
+    // If Vector is sequence<1>, each work item handles one element at a time from its assigned
+    // WarpTile portion. If WarpTile is 64 and warpSize is 64 (common), then each work item in the
+    // wavefront processes one element. If Vector is > 1, it implies vectorized load/store/compute
+    // operations per work item.
     using Vector = ck_tile::sequence<1>;
 
     // 4. Create the kernel
 
-    // ElementWiseTraits bundles these tiling parameters.
-    // It calculates derived properties like threads per warp, repeats, and total block size.
+    // ElementWiseShape bundles these tiling parameters.
+    // It calculates derived properties like threads per wavefront, repeats, and total block size.
     using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, Vector>;
 
     // ElementWisePipelineProblem encapsulates all necessary information for the elementwise kernel:
@@ -140,19 +140,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
     for(auto d : shape)
         total_elements *= d;
 
-    // kBlockSize: The number of threads in a GPU thread block (workgroup).
-    // This is often a multiple of the warp size, 64 on CDNA.
+    // kBlockSize: The number of work items in a GPU workgroup (thread block).
+    // This is often a multiple of the wavefront size, 64 on CDNA.
     // Here, it's explicitly set to 512. This should be consistent with Shape::kBlockSize.
     // Shape::kBlockSize would be BlockWarps * warpSize (e.g., 8 * 64 = 512).
     constexpr ck_tile::index_t kBlockSize =
         ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
 
-    // kBlockPerCu: Hint for how many thread blocks can be scheduled per Compute Unit (CU).
+    // kBlockPerCu: Hint for how many workgroups can be scheduled per Compute Unit (CU).
     // This can influence occupancy and performance.
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
-    // kGridSize: Calculates the total number of thread blocks required to process all elements.
-    // Each thread block is responsible for 'elements_per_block' elements.
+    // kGridSize: Calculates the total number of workgroups required to process all elements.
+    // Each workgroup is responsible for 'elements_per_block' elements.
     // To ensure all elements are covered, especially when 'total_elements' is not perfectly
     // divisible by 'elements_per_block', using ceiling division.
     constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
