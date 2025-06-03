@@ -67,6 +67,11 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+
+    // static constexpr index_t AK0 = SrcDesc{}.GetLength(I0);
+    // static constexpr index_t M   = SrcDesc{}.GetLength(I1);
+    // static constexpr index_t AK1 = SrcDesc{}.GetLength(I2);
 
     static constexpr auto block_slice_lengths    = BlockSliceLengths{};
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
@@ -252,7 +257,14 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
         // Loop over the destination block and copy data.
         static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
             IndexType gather_offset = gather_offsets_[ordered_dst_access_idx[Number<GatherDim>{}]];
-            const IndexType src_offset = src_coord_.GetOffset() + gather_offset;
+            // src_coord_xor_          = src_coord_;
+            // src_coord_xor_.GetIndex().At(I0) =
+            //     src_coord_.GetIndex().At(I0) ^ ((threadIdx.x % 64) / 8);
+            Index new_index = src_coord_.GetIndex();
+            new_index(I0)   = src_coord_.GetIndex().At(I0) ^ ((threadIdx.x % 64) / 8);
+            src_coord_xor_  = make_tensor_coordinate(src_desc, new_index);
+
+            const IndexType src_offset = src_coord_xor_.GetOffset() + gather_offset;
             const IndexType dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
 
             // Check if src data is not in the logic padding area.
@@ -264,7 +276,7 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, true);
 
-#if 1
+#if 0
             __builtin_amdgcn_s_waitcnt(3952);
             block_sync_lds();
             printf("blkx: %u, blky: %u, tid: %u, red_id: %d src: %d (cal: %d, gather: %d), "
@@ -275,7 +287,7 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
                    threadIdx.x,
                    static_cast<int>(ordered_dst_access_idx[Number<GatherDim>{}]),
                    src_offset,
-                   src_coord_.GetOffset(),
+                   src_coord_xor_.GetOffset(),
                    gather_offset,
                    dst_offset,
                    //    *(reinterpret_cast<const uint32_t*>(&(dst_buf[dst_offset + 0].data))),
@@ -291,13 +303,22 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 #else
             __builtin_amdgcn_s_waitcnt(3952);
             block_sync_lds();
-            printf("blkx: %u, blky: %u, tid: %u, red_id: %d src: %d (cal: %d, gather: %d)\n",
+            printf("blkx: %u, blky: %u, tid: %u, thread_slice_lengths=<%d, %d, %d>, "
+                   "src_coord_xor_=<%d, "
+                   "%d, %d>, read_id: %d "
+                   "src: %d (cal: %d, gather: %d)\n",
                    blockIdx.x,
                    blockIdx.y,
                    threadIdx.x,
+                   thread_slice_lengths[0],
+                   thread_slice_lengths[1],
+                   thread_slice_lengths[2],
+                   src_coord_xor_.GetIndex().At(I0),
+                   src_coord_xor_.GetIndex().At(I1),
+                   src_coord_xor_.GetIndex().At(I2),
                    static_cast<int>(ordered_dst_access_idx[Number<GatherDim>{}]),
                    src_offset,
-                   src_coord_.GetOffset(),
+                   src_coord_xor_.GetOffset(),
                    gather_offset);
 #endif
 
@@ -415,10 +436,13 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
         make_cluster_descriptor(wave_cluster_lengths, ThreadClusterArrangeOrder{});
 
     SrcCoord src_coord_;
+    SrcCoord src_coord_xor_;
     DstCoord dst_coord_;
     Index src_slice_origin_;
     Index dst_slice_origin_;
     StaticallyIndexedArray<IndexType, gather_num> gather_offsets_;
+    // static constexpr auto a_grid_xor_desc = make_naive_tensor_descriptor_packed(
+    //     make_tuple(Number<AK0 ^ ((threadIdx / AK0) % AK0)>{}, Number<M>{}, Number<AK1>{}));
 };
 
 } // namespace ck
