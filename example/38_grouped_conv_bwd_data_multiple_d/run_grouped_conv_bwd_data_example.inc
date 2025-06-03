@@ -91,7 +91,7 @@ bool run_conv_bwd_data(const ExecutionConfig& config,
                                       in_element_op);
 
     DeviceMem workspace_buf(argument.GetWorkspaceSizeBytes());
-    conv.SetWorkspacePointer(&argument, workspace_buf.GetDeviceBuffer());
+    conv.SetWorkSpacePointer(&argument, workspace_buf.GetDeviceBuffer());
 
     if(!conv.IsSupportedArgument(argument))
     {

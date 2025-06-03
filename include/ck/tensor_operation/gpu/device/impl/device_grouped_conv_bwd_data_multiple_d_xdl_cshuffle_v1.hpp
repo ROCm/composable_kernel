@@ -197,7 +197,7 @@ __global__ void
     constexpr int out_width  = 14;
     constexpr int out_height = 14;
 
-    constepxr int in_width  = 14;
+    constexpr int in_width  = 14;
     constexpr int in_height = 14;
 
     constexpr int batch_num = 128;
@@ -254,7 +254,7 @@ __global__ void
                         const int filter_offset = local_grp_id * 25 + filter_row * 5 + filter_col;
 
                         sum += __half2float(shmem_weight[filter_offset]) *
-                               __half2float(argument->p_gradOut[outgrad_offset]);
+                               __half2float(p_gradOut[outgrad_offset]);
                     }
                 }
                 const int output_offset = (grp_idx + local_grp_id) * ingrad_group_stride +
@@ -1006,8 +1006,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         {
             float ave_time = 0;
 
-            const index_t gdy = arg.num_group_;
-            const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
+            // const index_t gdy = arg.num_group_;
+            // const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
 
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
