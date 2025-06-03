@@ -182,93 +182,151 @@ __global__ void
 #endif
         kernel_grouped_conv_bwd_data_optimized(const ABDataType* __restrict__ p_gradOut,
                                                const ABDataType* __restrict__ p_weight,
-                                               EDataType* __restrict__ p_gradIn)
+                                               EDataType* __restrict__ p_gradIn,
+                                               const index_t filter_y,
+                                               const index_t filter_x,
+                                               const index_t stride_y,
+                                               const index_t stride_x,
+                                               const index_t pad_y,
+                                               const index_t pad_x,
+                                               const index_t out_width,
+                                               const index_t out_height,
+                                               const index_t in_width,
+                                               const index_t in_height,
+                                               const index_t group_num)
 {
     constexpr int blockNumPerGroup = 128 / BatchPerBlock;
     int grp_idx                    = GroupPerBlock * (blockIdx.x / blockNumPerGroup);
     const ABDataType* weight_ptr   = p_weight + grp_idx * 25;
     int tid                        = threadIdx.x;
 
-    constexpr int filter_height = 5;
-    constexpr int filter_width  = 5;
-    constexpr int stride        = 1;
-    constexpr int pad_height    = 2;
-    constexpr int pad_width     = 2;
+    const int filter_height = filter_y;
+    const int filter_width  = filter_x;
 
-    constexpr int out_width  = 14;
-    constexpr int out_height = 14;
-
-    constexpr int in_width  = 14;
-    constexpr int in_height = 14;
+    const int pad_height = pad_y;
+    const int pad_width  = pad_x;
 
     constexpr int batch_num = BatchPerBlock;
 
-    // NHWGK
-    constexpr int outgrad_group_stride = 1;
-    constexpr int outgrad_batch_stride = 1344 * out_height * out_width;
-    constexpr int outgrad_row_stride   = 1344 * out_width;
-    constexpr int outgrad_col_stride   = 1344;
+    // NHWGK todo use the stride
+    const int outgrad_group_stride = 1;
+    const int outgrad_batch_stride = group_num * out_height * out_width;
+    const int outgrad_row_stride   = group_num * out_width;
+    const int outgrad_col_stride   = group_num;
     // NHWGC
-    constexpr int ingrad_group_stride = 1;
-    constexpr int ingrad_batch_stride = 1344 * in_height * in_width;
-    constexpr int ingrad_row_stride   = 1344 * in_width;
-    constexpr int ingrad_col_stride   = 1344;
+    const int ingrad_group_stride = 1;
+    const int ingrad_batch_stride = group_num * in_height * in_width;
+    const int ingrad_row_stride   = group_num * in_width;
+    const int ingrad_col_stride   = group_num;
 
-    __shared__ half shmem_weight[64 * 5 * 5];
+    __shared__ ABDataType shmem_weight[64 * 5 * 5];
+
+    constexpr index_t ElementPerFP4 = 16 / sizeof(ABDataType);
 
 #pragma unroll
-    for(int index = tid; index < 64 * 5 * 5 / 8; index += blockDim.x)
+    for(int index = tid; index < 64 * 5 * 5 / ElementPerFP4; index += blockDim.x)
     {
         reinterpret_cast<float4*>(shmem_weight)[index] =
             reinterpret_cast<const float4*>(weight_ptr)[index];
     }
 
-    __syncthreads();
+    block_sync_lds();
 
     int batch_iter   = blockDim.x / warpSize;
     int local_grp_id = tid % warpSize;
 
     int glb_batch_offset = (blockIdx.x % blockNumPerGroup) * BatchPerBlock;
 
+    int wave_id = __builtin_amdgcn_readfirstlane(tid / warpSize);
+
     for(int batch_idx = 0; batch_idx < batch_num; batch_idx += batch_iter)
     {
-        int wave_id             = tid / warpSize;
-        int batch_id_in_glb_mem = wave_id + batch_idx + glb_batch_offset;
-        for(int h_idx = 0; h_idx < in_height; h_idx += 1)
+        int batch_id_in_glb_mem       = wave_id + batch_idx + glb_batch_offset;
+        const int base_outgrad_offset = (grp_idx + local_grp_id) * outgrad_group_stride +
+                                        batch_id_in_glb_mem * outgrad_batch_stride;
+        const int base_ingrad_offset = (grp_idx + local_grp_id) * ingrad_group_stride +
+                                       batch_id_in_glb_mem * ingrad_batch_stride;
+        const int base_filter_offset = local_grp_id * 25;
+
+        for(int h_idx = 0; h_idx < in_height; h_idx += 2)
         {
-            for(int w_idx = 0; w_idx < in_width; w_idx += 1)
+            for(int w_idx = 0; w_idx < in_width; w_idx += 2)
             {
-                float sum               = 0.0f;
-                const int out_row_start = __builtin_amdgcn_readfirstlane(
-                    max(0, (h_idx - filter_height + pad_height + stride) / stride));
-                const int out_row_end = __builtin_amdgcn_readfirstlane(
-                    min(out_height - 1, (h_idx + pad_height) / stride));
-                const int out_col_start = __builtin_amdgcn_readfirstlane(
-                    max(0, (w_idx - filter_width + pad_width + stride) / stride));
-                const int out_col_end = __builtin_amdgcn_readfirstlane(
-                    min(out_width - 1, (w_idx + pad_width) / stride));
-                for(int out_row = out_row_start; out_row <= out_row_end; ++out_row)
+                float sum[4]{0.f};
+                const int out_row_start_0 = __builtin_amdgcn_readfirstlane(
+                    max(0, (h_idx - filter_height + pad_height + stride_y) / stride_y));
+                const int out_row_end_0 = __builtin_amdgcn_readfirstlane(
+                    min(out_height - 1, (h_idx + pad_height) / stride_y));
+                const int out_row_start_1 = __builtin_amdgcn_readfirstlane(
+                    max(0, (h_idx + 1 - filter_height + pad_height + stride_y) / stride_y));
+                const int out_row_end_1 = __builtin_amdgcn_readfirstlane(
+                    min(out_height - 1, (h_idx + 1 + pad_height) / stride_y));
+                const int out_col_start_0 = __builtin_amdgcn_readfirstlane(
+                    max(0, (w_idx - filter_width + pad_width + stride_x) / stride_x));
+                const int out_col_start_1 = __builtin_amdgcn_readfirstlane(
+                    max(0, (w_idx + 1 - filter_width + pad_width + stride_x) / stride_x));
+                const int out_col_end_0 = __builtin_amdgcn_readfirstlane(
+                    min(out_width - 1, (w_idx + pad_width) / stride_x));
+                const int out_col_end_1 = __builtin_amdgcn_readfirstlane(
+                    min(out_width - 1, (w_idx + 1 + pad_width) / stride_x));
+
+                for(int out_row = out_row_start_0; out_row <= out_row_end_1; ++out_row)
                 {
-                    const int filter_row =
-                        __builtin_amdgcn_readfirstlane(h_idx + pad_height - out_row * stride);
-                    for(int out_col = out_col_start; out_col <= out_col_end; ++out_col)
+                    const int filter_row_0 =
+                        __builtin_amdgcn_readfirstlane(h_idx + pad_height - out_row * stride_y);
+                    const int filter_row_1 =
+                        __builtin_amdgcn_readfirstlane(h_idx + 1 + pad_height - out_row * stride_y);
+                    for(int out_col = out_col_start_0; out_col <= out_col_end_1; ++out_col)
                     {
-                        const int filter_col =
-                            __builtin_amdgcn_readfirstlane(w_idx + pad_width - out_col * stride);
-                        const int outgrad_offset = (grp_idx + local_grp_id) * outgrad_group_stride +
-                                                   batch_id_in_glb_mem * outgrad_batch_stride +
+                        const int filter_col_0 =
+                            __builtin_amdgcn_readfirstlane(w_idx + pad_width - out_col * stride_x);
+                        const int filter_col_1 = __builtin_amdgcn_readfirstlane(
+                            w_idx + 1 + pad_width - out_col * stride_x);
+                        const int outgrad_offset = base_outgrad_offset +
                                                    out_row * outgrad_row_stride +
                                                    out_col * outgrad_col_stride;
-                        const int filter_offset = local_grp_id * 25 + filter_row * 5 + filter_col;
 
-                        sum += __half2float(shmem_weight[filter_offset]) *
-                               __half2float(p_gradOut[outgrad_offset]);
+                        ABDataType gradOut = p_gradOut[outgrad_offset];
+
+                        bool row_in_axis0 = (out_row <= out_row_end_0);
+                        bool row_in_axis1 = (out_row >= out_row_start_1);
+                        bool col_in_axis0 = (out_col <= out_col_end_0);
+                        bool col_in_axis1 = (out_col >= out_col_start_1);
+
+                        sum[0] += ((row_in_axis0 && col_in_axis0)
+                                       ? shmem_weight[base_filter_offset + filter_row_0 * 5 +
+                                                      filter_col_0] *
+                                             gradOut
+                                       : 0.f);
+                        sum[1] += ((row_in_axis0 && col_in_axis1)
+                                       ? shmem_weight[base_filter_offset + filter_row_0 * 5 +
+                                                      filter_col_1] *
+                                             gradOut
+                                       : 0.f);
+                        sum[2] += ((row_in_axis1 && col_in_axis0)
+                                       ? shmem_weight[base_filter_offset + filter_row_1 * 5 +
+                                                      filter_col_0] *
+                                             gradOut
+                                       : 0.f);
+                        sum[3] += ((row_in_axis1 && col_in_axis1)
+                                       ? shmem_weight[base_filter_offset + filter_row_1 * 5 +
+                                                      filter_col_1] *
+                                             gradOut
+                                       : 0.f);
                     }
                 }
-                const int output_offset = (grp_idx + local_grp_id) * ingrad_group_stride +
-                                          batch_id_in_glb_mem * ingrad_batch_stride +
-                                          h_idx * ingrad_row_stride + w_idx * ingrad_col_stride;
-                p_gradIn[output_offset] = __float2half(sum);
+#pragma unroll
+                for(int i = 0; i < 2; i++)
+                {
+#pragma unroll
+                    for(int j = 0; j < 2; j++)
+                    {
+                        const int output_offset = base_ingrad_offset +
+                                                  (h_idx + i) * ingrad_row_stride +
+                                                  (w_idx + j) * ingrad_col_stride;
+                        p_gradIn[output_offset] = __float2half(sum[i * 2 + j]);
+                    }
+                }
             }
         }
     }
@@ -1071,7 +1129,18 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                   0,
                                                   p_a_grid,
                                                   p_b_grid,
-                                                  p_e_grid);
+                                                  p_e_grid,
+                                                  5,
+                                                  5,
+                                                  1,
+                                                  1,
+                                                  2,
+                                                  2,
+                                                  14,
+                                                  14,
+                                                  14,
+                                                  14,
+                                                  1344);
                     // const auto kernel = kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle<
                     //     GridwiseGemm,
                     //     ADataType, // TODO: distiguish A/B datatype
