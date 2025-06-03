@@ -45,17 +45,17 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
         std::conditional_t<sizeof(A0DataType) < sizeof(B0DataType), A0DataType, B0DataType>;
 
     // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType, AccDataType>(
         ck_tile::integer_divide_ceil(K, kbatch));
 
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, EDataType, AccDataType>(
         max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
 
     // Calculate error due to split_k accumulation
     const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
+        ck_tile::get_relative_threshold<EDataType, EDataType, EDataType>(kbatch);
 
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
+    const auto atol_split_k = ck_tile::get_absolute_threshold<EDataType, EDataType, EDataType>(
         max_accumulated_value, kbatch);
 
     // Use higher threshold

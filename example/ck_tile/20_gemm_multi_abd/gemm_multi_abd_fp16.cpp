@@ -14,22 +14,22 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
-#include "multi_abd_gemm.hpp"
+#include "gemm_multi_abd_fp16.hpp"
 #include "utils.hpp"
 
 template <typename AsDataType,
           typename BsDataType,
           typename DsDataType,
           typename AccDataType,
-          typename CDataType,
+          typename EDataType,
           typename AsLayout,
           typename BsLayout,
           typename DsLayout,
-          typename CLayout,
-          typename AElementWise = ck_tile::element_wise::PassThrough,
-          typename BElementWise = ck_tile::element_wise::PassThrough,
+          typename ELayout,
+          typename AsElementWise = ck_tile::element_wise::PassThrough,
+          typename BsElementWise = ck_tile::element_wise::PassThrough,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-auto multiple_abd_gemm(const multiple_abd_gemm_kargs& args, const ck_tile::stream_config& s) -> float
+auto gemm_multiple_abd(const gemm_multiple_abd_kargs& args, const ck_tile::stream_config& s) -> float
 {
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
     // Memory friendly for Interwave scheduler
@@ -80,7 +80,7 @@ auto multiple_abd_gemm(const multiple_abd_gemm_kargs& args, const ck_tile::strea
     constexpr bool DoubleSmemBuffer = true;
 #endif
 
-     constexpr bool kPadM = false;
+    constexpr bool kPadM = false;
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
@@ -98,7 +98,7 @@ auto multiple_abd_gemm(const multiple_abd_gemm_kargs& args, const ck_tile::strea
     using TilePartitioner = ck_tile::
         GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, AsLayout, BsLayout, CLayout>;
+    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, AsLayout, BsLayout, ELayout>;
 
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                  kPadN,
@@ -106,7 +106,7 @@ auto multiple_abd_gemm(const multiple_abd_gemm_kargs& args, const ck_tile::strea
                                                                  DoubleSmemBuffer,
                                                                  AsLayout,
                                                                  BsLayout,
-                                                                 CLayout,
+                                                                 ELayout,
                                                                  TransposeC>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<AsDataType, BsDataType, AccDataType, GemmShape, Traits>;
@@ -132,8 +132,8 @@ auto multiple_abd_gemm(const multiple_abd_gemm_kargs& args, const ck_tile::strea
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<AsDataType,
                                                                            BsDataType,
                                                                            AccDataType,
-                                                                           AElementWise,
-                                                                           BElementWise,
+                                                                           AsElementWise,
+                                                                           BsElementWise,
                                                                            GemmShape,
                                                                            GemmUniversalTraits,
                                                                            scheduler,
@@ -145,8 +145,8 @@ auto multiple_abd_gemm(const multiple_abd_gemm_kargs& args, const ck_tile::strea
             ck_tile::CShuffleEpilogueProblem<AsDataType,
                                              BsDataType,
                                              AccDataType,
-                                             CDataType,
-                                             CLayout,
+                                             EDataType,
+                                             ELayout,
                                              GemmPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
@@ -292,6 +292,6 @@ auto multiple_abd_gemm(const multiple_abd_gemm_kargs& args, const ck_tile::strea
     return ave_time;
 }
 
-#include "run_multi_abd_gemm_example.inc"
+#include "run_gemm_multi_abd_fp16_example.inc"
 
 int main(int argc, char* argv[]) { return !run_multiple_abd_gemm_example(argc, argv); }

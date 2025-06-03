@@ -13,6 +13,93 @@
 
 namespace ck_tile {
 
+/// @brief The GEMM kernel host arguments.
+///
+/// @par Overview
+///      This structure is passed to @ref GemmKernel "GemmKernel" when creating kernel arguments
+///      object. It contain all necessary information required to build proper kernel argument
+///      and launch kernel on GPU.
+///      This structure defines the GEMM problem configuration by stating all required information
+///      like M,N,K sizes and respective strides.
+///      NumDTensor describes the number of D tensors.
+template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
+struct GemmHostArgs
+{
+    CK_TILE_HOST GemmHostArgs() = default;
+    CK_TILE_HOST GemmHostArgs(const std::array<const void*, NumATensor>& as_ptr_,
+                              const std::array<const void*, NumBTensor>& bs_ptr_,
+                              const std::array<const void*, NumDTensor>& ds_ptr_,
+                              void* e_ptr_,
+                              index_t k_batch_,
+                              index_t M_,
+                              index_t N_,
+                              index_t K_,
+                              const std::array<index_t, NumATensor>& stride_As_,
+                              const std::array<index_t, NumBTensor>& stride_Bs_,
+                              const std::array<index_t, NumDTensor>& stride_Ds_,
+                              index_t stride_E_)
+        : a_ptr(a_ptr_),
+          b_ptr(b_ptr_),
+          ds_ptr(ds_ptr_),
+          e_ptr(e_ptr_),
+          M(M_),
+          N(N_),
+          K(K_),
+          stride_A(stride_A_),
+          stride_B(stride_B_),
+          stride_Ds(stride_Ds_),
+          stride_E(stride_E_),
+          k_batch(k_batch_)
+    {
+    }
+
+    const std::array<const void*, NumATensor> as_ptr;
+    const std::array<const void*, NumBTensor> bs_ptr;
+    const std::array<const void*, NumDTensor> ds_ptr;
+    void* e_ptr;
+    index_t M;
+    index_t N;
+    index_t K;
+    const std::array<index_t, NumATensor> stride_As;
+    const std::array<index_t, NumBTensor> stride_Bs;
+    const std::array<index_t, NumDTensor> stride_Ds;
+    index_t stride_E;
+    index_t k_batch;
+};
+
+/// @brief The GEMM kernel device arguments.
+template <typename AType = ck_tile::tuple<>, typename BType = ck_tile::tuple<>, typename DType = ck_tile::tuple<>>
+struct GemmKernelArgs
+{
+    /// @brief The A input tensor's pointer to device memory.
+    const AType* a_ptr;
+    /// @brief The B input tensor's pointer to device memory.
+    const BType* b_ptr;
+    /// @brief The B input tensor's pointer to device memory.
+    const DType ds_ptr;
+    /// @brief The E output tensor's pointer to device memory.
+    void* e_ptr;
+    /// @brief GEMM's M dimension size.
+    index_t M;
+    /// @brief GEMM's N dimension size.
+    index_t N;
+    /// @brief GEMM's K dimension size.
+    index_t K;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of As tensor.
+    std::array<index_t, AType::size()> stride_As;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of Bs tensor.
+    std::array<index_t, BType::size()> stride_Bs;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of Ds tensor.
+    std::array<index_t, DType::size()> stride_Ds;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of E tensor.
+    index_t stride_E;
+    index_t k_batch;
+};
+
 template <index_t NumATensor = 1, index_t NumBTensor = 1>
 struct GemmHostArgs
 {
@@ -130,7 +217,7 @@ struct GemmKernel
     using AsDataType = remove_cvref_t<typename GemmPipeline::AsDataType>;
     using BsDataType = remove_cvref_t<typename GemmPipeline::BsDataType>;
     // Below type is actually accumulation data type - the output of block GEMM.
-    using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     static constexpr auto I0 = number<0>();
     static constexpr auto I1 = number<1>();
@@ -267,7 +354,7 @@ struct GemmKernel
     CK_TILE_HOST static bool IsSupportedArgument(const GemmKernelArgs<AsGridPointer, BsGridPointer>& kargs)
     {
         if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                     is_any_of<CDataType, fp16_t, bf16_t>::value)
+                     is_any_of<EDataType, fp16_t, bf16_t>::value)
         {
             if(kargs.k_batch != 1)
             {
@@ -417,7 +504,7 @@ struct GemmKernel
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
     CK_TILE_DEVICE static auto MakeGemmTensorViews(const AsGridPointer as_ptr,
                                                    const BsGridPointer bs_ptr,
-                                                   CDataType* c_ptr,
+                                                   EDataType* c_ptr,
                                                    const GemmKernelArgs<AsGridPointer, BsGridPointer>& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
@@ -668,7 +755,7 @@ struct GemmKernel
      */
     CK_TILE_DEVICE static void RunGemm(const AsGridPointer as_ptr,
                                        const BsGridPointer bs_ptr,
-                                       CDataType* c_ptr,
+                                       EDataType* c_ptr,
                                        void* smem_ptr_0,
                                        const GemmKernelArgs<AsGridPointer, BsGridPointer>& kargs,
                                        const SplitKBatchOffset& splitk_batch_offset,
@@ -720,7 +807,7 @@ struct GemmKernel
      */
     CK_TILE_DEVICE static void RunGemm2LDS(const AsGridPointer as_ptr,
                                            const BsGridPointer bs_ptr,
-                                           CDataType* c_ptr,
+                                           EDataType* c_ptr,
                                            void* __restrict__ smem_ptr_0,
                                            void* __restrict__ smem_ptr_1,
                                            const GemmKernelArgs<AsGridPointer, BsGridPointer>& kargs,
@@ -774,7 +861,7 @@ struct GemmKernel
             bs_ptr(i) = static_cast<const BDataType*>(kargs.bs_ptr[i]) + splitk_batch_offset.b_k_split_offset[i];
         });
 
-        CDataType* c_ptr = static_cast<CDataType*>(kargs.e_ptr);
+        EDataType* c_ptr = static_cast<EDataType*>(kargs.e_ptr);
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
@@ -784,7 +871,7 @@ struct GemmKernel
             __shared__ char smem_ptr_1[GetSmemSize()];
             if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
                            EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                           is_any_of<CDataType, fp16_t, bf16_t>::value))
+                           is_any_of<EDataType, fp16_t, bf16_t>::value))
             {
                 RunGemm2LDS(as_ptr,
                             bs_ptr,
@@ -801,7 +888,7 @@ struct GemmKernel
         {
             if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
                            EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                           is_any_of<CDataType, fp16_t, bf16_t>::value))
+                           is_any_of<EDataType, fp16_t, bf16_t>::value))
             {
                 RunGemm(as_ptr, bs_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }

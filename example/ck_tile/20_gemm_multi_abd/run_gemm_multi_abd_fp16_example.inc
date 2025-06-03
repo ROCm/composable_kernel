@@ -8,70 +8,70 @@ template <typename AsDataType,
           typename BsDataType,
           typename DsDataType,
           typename AccDataType,
-          typename CDataType,
+          typename EDataType,
           typename AsLayout,
           typename BsLayout,
           typename DsLayout,
-          typename CLayout,
-          typename AElementWise = ck_tile::element_wise::PassThrough,
-          typename BElementWise = ck_tile::element_wise::PassThrough,
+          typename ELayout,
+          typename AsElementWise = ck_tile::element_wise::PassThrough,
+          typename BsElementWise = ck_tile::element_wise::PassThrough,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float invoke_multi_abd_gemm(const std::array<const void*, AsDataType::size()>& as_m_k_dev_buf,
+float invoke_gemm_multi_abd(const std::array<const void*, AsDataType::size()>& as_m_k_dev_buf,
                             const std::array<const void*, BsDataType::size()>& bs_k_n_dev_buf,
                             [[maybe_unused]] const std::array<const void*, DsDataType::size()>& ds_m_n_dev_buf,
-                            void* c_m_n_dev_buf,
+                            void* e_m_n_dev_buf,
                             ck_tile::index_t M,
                             ck_tile::index_t N,
                             ck_tile::index_t K,
                             const std::array<ck_tile::index_t, AsDataType::size()>& StrideAs,
                             const std::array<ck_tile::index_t, BsDataType::size()>& StrideBs,
                             [[maybe_unused]] const std::array<ck_tile::index_t, DsDataType::size()>& StrideDs,
-                            ck_tile::index_t StrideC,
+                            ck_tile::index_t StrideE,
                             int n_warmup,
-                            int n_repeat)
+                            int n_repeat,
+                            int k_batch)
 {
-    multiple_abd_gemm_kargs gemm_descs({as_m_k_dev_buf,
+    gemm_multiple_abd_kargs gemm_descs({as_m_k_dev_buf,
                                       bs_k_n_dev_buf,
                                       //ds_m_n_dev_buf,
-                                      c_m_n_dev_buf,
-                                      /*kbatch */ 1,
+                                      e_m_n_dev_buf,
+                                      k_batch,
                                       M,
                                       N,
                                       K,
                                       StrideAs,
                                       StrideBs,
                                       //StrideDs,
-                                      StrideC});
+                                      StrideE});
 
-    float ave_time = multiple_abd_gemm<AsDataType,
+    float ave_time = gemm_multiple_abd<AsDataType,
                                      BsDataType,
                                      DsDataType,
                                      AccDataType,
-                                     CDataType,
+                                     EDataType,
                                      AsLayout,
                                      BsLayout,
                                      DsLayout,
-                                     CLayout,
-                                     AElementWise,
-                                     BElementWise,
+                                     ELayout,
+                                     AsElementWise,
+                                     BsElementWise,
                                      CDEElementWise>(
-        gemm_descs, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+    gemm_descs, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
-    std::string op_name{"Multiple-D Gemm"};
-    //static constexpr ck_tile::index_t NumDTensor = DsDataType::size();
+    std::string op_name{"Gemm Multiple-ABD"};
 
     std::size_t flop = 0, num_btype = 0;
 
     flop += std::size_t(2) * M * N * K;
 
-    num_btype += sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(CDataType) * M * N;
+    num_btype += sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    std::cout << "Run Multiple-D Gemm kernel with:\n";
+    std::cout << "Run Gemm Multiple-ABD kernel with:\n";
     std::cout << "M =" << M << " N =" << N << " K =" << K << "\n";
-    //std::cout << "StrideA = " << StrideA << " StrideB = " << StrideB << " StrideC = " << StrideC
+    //std::cout << "StrideA = " << StrideA << " StrideB = " << StrideB << " StrideE = " << StrideE
     //          << "\n";
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << "\n";
@@ -85,8 +85,8 @@ template <typename A0Layout,
           typename B1Layout,
           typename D0Layout,
           typename D1Layout,
-          typename CLayout>
-int run_multiple_abd_gemm_example_with_layouts(int argc,
+          typename ELayout>
+int run_gemm_multi_abd_example_with_layouts(int argc,
                                              char* argv[],
                                              const A0Layout a0_layout  = A0Layout{},
                                              const A1Layout a1_layout  = A1Layout{},
@@ -94,7 +94,7 @@ int run_multiple_abd_gemm_example_with_layouts(int argc,
                                              const B1Layout b1_layout  = B1Layout{},
                                              const D0Layout d0_layout = D0Layout{},
                                              const D1Layout d1_layout = D1Layout{},
-                                             const CLayout c_layout   = CLayout{})
+                                             const ELayout e_layout   = ELayout{})
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
@@ -112,10 +112,10 @@ int run_multiple_abd_gemm_example_with_layouts(int argc,
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
 
-    ck_tile::index_t StrideA = arg_parser.get_int("stride_a");
-    ck_tile::index_t StrideB = arg_parser.get_int("stride_b");
-    ck_tile::index_t StrideD = arg_parser.get_int("stride_d");
-    ck_tile::index_t StrideC = arg_parser.get_int("stride_c");
+    ck_tile::index_t StrideA = arg_parser.get_int("stride_as");
+    ck_tile::index_t StrideB = arg_parser.get_int("stride_bs");
+    ck_tile::index_t StrideD = arg_parser.get_int("stride_ds");
+    ck_tile::index_t StrideE = arg_parser.get_int("stride_e");
 
     ck_tile::index_t StrideA0 = StrideA;
     ck_tile::index_t StrideA1 = StrideA;
@@ -128,6 +128,7 @@ int run_multiple_abd_gemm_example_with_layouts(int argc,
 
     const int n_warmup = arg_parser.get_int("warmup");
     const int n_repeat = arg_parser.get_int("repeat");
+    const int k_batch  = arg_parser.get_int("kbatch");
 
     StrideA0 = f_get_default_stride(M, N, StrideA0, a0_layout);
     StrideA1 = f_get_default_stride(M, N, StrideA1, a1_layout);
@@ -138,7 +139,7 @@ int run_multiple_abd_gemm_example_with_layouts(int argc,
     StrideD0 = f_get_default_stride(M, N, StrideD0, d0_layout);
     StrideD1 = f_get_default_stride(M, N, StrideD1, d1_layout);
 
-    StrideC = f_get_default_stride(M, N, StrideC, c_layout);
+    StrideE = f_get_default_stride(M, N, StrideE, e_layout);
 
     ck_tile::HostTensor<A0DataType> a0_m_k_tesnor(
         f_host_tensor_descriptor(M, K, StrideA0, a0_layout));
@@ -155,8 +156,8 @@ int run_multiple_abd_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<D1DataType> d1_m_n_tensors(
         f_host_tensor_descriptor(M, N, StrideD1, d1_layout));
 
-    ck_tile::HostTensor<CDataType> e_m_n_device_result(
-        f_host_tensor_descriptor(M, N, StrideC, c_layout));
+    ck_tile::HostTensor<EDataType> e_m_n_device_result(
+        f_host_tensor_descriptor(M, N, StrideE, e_layout));
 
     ck_tile::FillUniformDistribution<A0DataType>{-1.f, 1.f}(a0_m_k_tesnor);
     ck_tile::FillUniformDistribution<A0DataType>{-1.f, 1.f}(a1_m_k_tesnor);
@@ -176,7 +177,7 @@ int run_multiple_abd_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem d0_m_n_dev_buf(d0_m_n_tensors.get_element_space_size_in_bytes());
     ck_tile::DeviceMem d1_m_n_dev_buf(d1_m_n_tensors.get_element_space_size_in_bytes());
 
-    ck_tile::DeviceMem c_m_n_dev_buf(e_m_n_device_result.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem e_m_n_dev_buf(e_m_n_device_result.get_element_space_size_in_bytes());
 
     a0_m_k_dev_buf.ToDevice(a0_m_k_tesnor.mData.data());
     a1_m_k_dev_buf.ToDevice(a1_m_k_tesnor.mData.data());
@@ -187,7 +188,7 @@ int run_multiple_abd_gemm_example_with_layouts(int argc,
     d0_m_n_dev_buf.ToDevice(d0_m_n_tensors.mData.data());
     d1_m_n_dev_buf.ToDevice(d1_m_n_tensors.mData.data());
 
-    c_m_n_dev_buf.SetZero();
+    e_m_n_dev_buf.SetZero();
     e_m_n_device_result.SetZero();
 
     std::array<const void*, DsDataType::size()> as_ptr_buf = {a0_m_k_dev_buf.GetDeviceBuffer(),
@@ -203,36 +204,37 @@ int run_multiple_abd_gemm_example_with_layouts(int argc,
     std::array<ck_tile::index_t, BsDataType::size()> strideBs = {StrideB0, StrideB1};
     std::array<ck_tile::index_t, DsDataType::size()> strideDs = {StrideD0, StrideD1};
 
-    invoke_multi_abd_gemm<AsDataType,
+    invoke_gemm_multi_abd<AsDataType,
                           BsDataType,
                           DsDataType,
                           AccDataType,
-                          CDataType,
+                          EDataType,
                           AsLayout,
                           BsLayout,
                           DsLayout,
-                          CLayout,
+                          ELayout,
                           AElementWiseFn,
                           BElementWiseFn,
                           CDEElementWiseFn>(as_ptr_buf,
                                             bs_ptr_buf,
                                             ds_ptr_buf,
-                                            c_m_n_dev_buf.GetDeviceBuffer(),
+                                            e_m_n_dev_buf.GetDeviceBuffer(),
                                             M,
                                             N,
                                             K,
                                             strideAs,
                                             strideBs,
                                             strideDs,
-                                            StrideC,
+                                            StrideE,
                                             n_warmup,
-                                            n_repeat);
+                                            n_repeat,
+                                            k_batch);
 
-    c_m_n_dev_buf.FromDevice(e_m_n_device_result.data());
+    e_m_n_dev_buf.FromDevice(e_m_n_device_result.data());
 
     ck_tile::HostTensor<A0DataType> a_m_k_host_ref(f_host_tensor_descriptor(M, K, StrideA0, a0_layout));
     ck_tile::HostTensor<B0DataType> b_k_n_host_ref(f_host_tensor_descriptor(K, N, StrideB0, b0_layout));
-    ck_tile::HostTensor<CDataType> e_m_n_host_ref(f_host_tensor_descriptor(M, N, StrideC, c_layout));
+    ck_tile::HostTensor<EDataType> e_m_n_host_ref(f_host_tensor_descriptor(M, N, StrideE, e_layout));
     a_m_k_host_ref.SetZero();
     b_k_n_host_ref.SetZero();
     e_m_n_host_ref.SetZero();
@@ -242,7 +244,7 @@ int run_multiple_abd_gemm_example_with_layouts(int argc,
         B0DataType,
         D0DataType,
         AccDataType,
-        CDataType,
+        EDataType,
         AElementWiseFn,
         BElementWiseFn,
         CDEElementWiseFn>(
@@ -279,18 +281,15 @@ int run_multiple_abd_gemm_example(int argc, char* argv[])
         return -1;
     }
 
-    const std::string a_layout = arg_parser.get_str("a_layout");
-    const std::string b_layout = arg_parser.get_str("b_layout");
+    const std::string as_layout = arg_parser.get_str("as_layout");
+    const std::string bs_layout = arg_parser.get_str("bs_layout");
 
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
-
-    if(a_layout == "R" && b_layout == "C")
+    if(as_layout == "R" && bs_layout == "C")
     {
-        return run_multiple_abd_gemm_example_with_layouts(
+        return run_gemm_multi_abd_example_with_layouts(
             argc, argv, Row{}, Row{}, Col{}, Col{}, Row{}, Row{}, Row{});
     }
     else
