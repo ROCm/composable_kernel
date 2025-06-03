@@ -604,7 +604,7 @@ ENDFOREACH()
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
 add_subdirectory(library)
 
-# if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
+if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
 #    rocm_package_setup_component(tests
 #         LIBRARY_NAME composablekernel
 #         PACKAGE_NAME tests # Prevent -static suffix on package name
@@ -616,10 +616,10 @@ add_subdirectory(library)
 #    )
 #    add_subdirectory(example)
 #    add_subdirectory(tile_engine)
-#    if(BUILD_TESTING)
-#        add_subdirectory(test)
-#    endif()
-# endif()
+   if(BUILD_TESTING)
+       add_subdirectory(test)
+   endif()
+endif()
 
 rocm_package_setup_component(profiler
     LIBRARY_NAME composablekernel
