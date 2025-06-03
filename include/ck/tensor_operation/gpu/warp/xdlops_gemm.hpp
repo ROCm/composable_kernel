@@ -1146,7 +1146,7 @@ struct MfmaSelector
 #endif
     }
 
-    // Use singal rate mfma instruction for this special case A (f8_t) * B (pk_i4_t)
+    // Use single rate mfma instruction for this special case A (f8_t) * B (pk_i4_t)
     // See example gemm_xdl_fp8_pk_i4_bpreshuffle_v3
     // TODO: explore optimization opportunity by using new mfma instructions on gfx950
     template <>
