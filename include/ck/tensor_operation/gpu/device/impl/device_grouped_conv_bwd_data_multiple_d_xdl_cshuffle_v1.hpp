@@ -159,6 +159,113 @@ __global__ void
 #endif
 }
 
+// kernel 声明
+// Output: NHWGK 128, 14, 14, 1344, 1
+// Weight: GKYXC 64, 1, 5,  5,    1
+// Input:  NHWGC 128, 14, 14, 1344, 1
+
+// one threadblock works on 64 groups 128 batchs' result
+// gridDim(1644/64 = 21, 1, 1)
+// bloblockDim(128, 1, 1); each thread will work on 1 groups' 64 batch result? one each iteration
+// if need to load output grad to lds / can only work on 2 batch;
+// because / 64(group)*14 * 14 * 2(byte)*2(wave) / or can use blockDim(256, 1, 1);
+// each thread will work on 1 /
+//     groups ' 32 batch result /  or can use blockDim(512, 1, 1); each thread will work on 1
+//     groups' 16 / batch result / this need to be tuned / tid 0 1 2 3 4 5 6 7 / grp0 grp1 / grp2
+//     grp3 grp4 grp5 grp6 grp7
+// load weight: 64*5*5 half needs 200 requests when use float4
+
+template <typename ABDataType, typename EDataType>
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_grouped_conv_bwd_data_optimized(const ABDataType* __restrict__ p_weight,
+                                               const ABDataType* __restrict__ p_gradOut,
+                                               EDataType* __restrict__ p_gradIn)
+{
+    int grp_idx                  = 64 * blockIdx.x;
+    const ABDataType* weight_ptr = p_weight + grp_idx * 25;
+    int tid                      = threadIdx.x;
+
+    constexpr int filter_height = 5;
+    constexpr int filter_width  = 5;
+    constexpr int stride        = 1;
+    constexpr int pad_height    = 2;
+    constexpr int pad_width     = 2;
+
+    constexpr int out_width  = 14;
+    constexpr int out_height = 14;
+
+    constepxr int in_width  = 14;
+    constexpr int in_height = 14;
+
+    constexpr int batch_num = 128;
+
+    // NHWGK
+    constexpr int outgrad_group_stride = 1;
+    constexpr int outgrad_batch_stride = 1344 * out_height * out_width;
+    constexpr int outgrad_row_stride   = 1344 * out_width;
+    constexpr int outgrad_col_stride   = 1344;
+    // NHWGC
+    constexpr int ingrad_group_stride = 1;
+    constexpr int ingrad_batch_stride = 1344 * in_height * in_width;
+    constexpr int ingrad_row_stride   = 1344 * in_width;
+    constexpr int ingrad_col_stride   = 1344;
+
+    __shared__ half shmem_weight[64 * 5 * 5];
+
+    for(int index = tid; index < 64 * 5 * 5 / 8; index += blockDim.x)
+    {
+        reinterpret_cast<float4*>(shmem_weight)[index] =
+            reinterpret_cast<const float4*>(weight_ptr)[index];
+    }
+
+    __syncthreads();
+
+    int batch_iter   = blockDim.x / warpSize;
+    int local_grp_id = tid % warpSize;
+
+    for(int batch_idx = 0; batch_idx < batch_num; batch_idx += batch_iter)
+    {
+        int wave_id             = tid / warpSize;
+        int batch_id_in_glb_mem = wave_id + batch_idx;
+        for(int h_idx = 0; h_idx < in_height; h_idx += 1)
+        {
+            for(int w_idx = 0; w_idx < in_width; w_idx += 1)
+            {
+                float sum = 0.0f;
+                const int out_row_start =
+                    max(0, (h_idx - filter_height + pad_height + stride) / stride);
+                const int out_row_end = min(out_height - 1, (h_idx + pad_height) / stride);
+                const int out_col_start =
+                    max(0, (w_idx - filter_width + pad_width + stride) / stride);
+                const int out_col_end = min(out_width - 1, (w_idx + pad_width) / stride);
+                for(int out_row = out_row_start; out_row <= out_row_end; ++out_row)
+                {
+                    const int filter_row = h_idx + pad_height - out_row * stride;
+                    for(int out_col = out_col_start; out_col <= out_col_end; ++out_col)
+                    {
+                        const int filter_col     = w_idx + pad_width - out_col * stride;
+                        const int outgrad_offset = (grp_idx + local_grp_id) * outgrad_group_stride +
+                                                   batch_id_in_glb_mem * outgrad_batch_stride +
+                                                   out_row * outgrad_row_stride +
+                                                   out_col * outgrad_col_stride;
+                        const int filter_offset = local_grp_id * 25 + filter_row * 5 + filter_col;
+
+                        sum += __half2float(shmem_weight[filter_offset]) *
+                               __half2float(argument->p_gradOut[outgrad_offset]);
+                    }
+                }
+                const int output_offset = (grp_idx + local_grp_id) * ingrad_group_stride +
+                                          batch_id_in_glb_mem * ingrad_batch_stride +
+                                          h_idx * ingrad_row_stride + w_idx * ingrad_col_stride;
+                p_gradIn[output_offset] = __float2half(sum);
+            }
+        }
+    }
+}
+
 } // namespace
 
 // Conv backward data multiple D:
@@ -935,63 +1042,74 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     throw std::runtime_error("wrong! device_op has invalid setting");
                 }
 
-                const index_t gdx = arg.block_2_etile_map_container_[i].CalculateGridSize(
-                    arg.e_grid_desc_m_n_container_[i]);
+                // const index_t gdx = arg.block_2_etile_map_container_[i].CalculateGridSize(
+                //     arg.e_grid_desc_m_n_container_[i]);
 
-                const auto GemmK = arg.a_grid_desc_m_k_container_[i].GetLength(I1);
+                // const auto GemmK = arg.a_grid_desc_m_k_container_[i].GetLength(I1);
 
-                auto launch_kernel = [&](auto has_main_k_block_loop) {
-                    constexpr bool has_main_loop = has_main_k_block_loop.value;
+                auto launch_kernel = [&]() {
+                    // constexpr bool has_main_loop = has_main_k_block_loop.value;
 
-                    const auto kernel = kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle<
-                        GridwiseGemm,
-                        ADataType, // TODO: distiguish A/B datatype
-                        typename GridwiseGemm::DsGridPointer,
-                        EDataType,
-                        AElementwiseOp,
-                        BElementwiseOp,
-                        CDEElementwiseOp,
-                        DeviceOp::AGridDesc_AK0_M_AK1,
-                        DeviceOp::BGridDesc_BK0_N_BK1,
-                        DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                        DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                        Block2ETileMap,
-                        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
-                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                        has_main_loop,
-                        ElementOp>;
+                    const auto kernel =
+                        kernel_grouped_conv_bwd_data_optimized<ADataType, EDataType>;
 
-                    return launch_and_time_kernel(
-                        stream_config,
-                        kernel,
-                        dim3(gdx, gdy, gdz),
-                        dim3(BlockSize),
-                        0,
-                        p_a_grid,
-                        p_b_grid,
-                        arg.p_ds_grid_,
-                        p_e_grid,
-                        arg.a_element_op_,
-                        arg.b_element_op_,
-                        arg.cde_element_op_,
-                        arg.a_grid_desc_ak0_m_ak1_container_[i],
-                        arg.b_grid_desc_bk0_n_bk1_container_[i],
-                        arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
-                        arg.e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
-                        arg.block_2_etile_map_container_[i],
-                        arg.compute_ptr_offset_of_batch_,
-                        arg.compute_ptr_offset_of_n_,
-                        arg.k_batch_);
+                    return launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3(21, 1, 1),
+                                                  dim3(128),
+                                                  0,
+                                                  p_a_grid,
+                                                  p_b_grid,
+                                                  p_e_grid);
+                    // const auto kernel = kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle<
+                    //     GridwiseGemm,
+                    //     ADataType, // TODO: distiguish A/B datatype
+                    //     typename GridwiseGemm::DsGridPointer,
+                    //     EDataType,
+                    //     AElementwiseOp,
+                    //     BElementwiseOp,
+                    //     CDEElementwiseOp,
+                    //     DeviceOp::AGridDesc_AK0_M_AK1,
+                    //     DeviceOp::BGridDesc_BK0_N_BK1,
+                    //     DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    //     DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    //     Block2ETileMap,
+                    //     ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
+                    //     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                    //     has_main_loop,
+                    //     ElementOp>;
+
+                    // return launch_and_time_kernel(
+                    //     stream_config,
+                    //     kernel,
+                    //     dim3(gdx, gdy, gdz),
+                    //     dim3(BlockSize),
+                    //     0,
+                    //     p_a_grid,
+                    //     p_b_grid,
+                    //     arg.p_ds_grid_,
+                    //     p_e_grid,
+                    //     arg.a_element_op_,
+                    //     arg.b_element_op_,
+                    //     arg.cde_element_op_,
+                    //     arg.a_grid_desc_ak0_m_ak1_container_[i],
+                    //     arg.b_grid_desc_bk0_n_bk1_container_[i],
+                    //     arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
+                    //     arg.e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
+                    //     arg.block_2_etile_map_container_[i],
+                    //     arg.compute_ptr_offset_of_batch_,
+                    //     arg.compute_ptr_offset_of_n_,
+                    //     arg.k_batch_);
                 };
 
-                if(GridwiseGemm::CalculateHasMainKBlockLoop(GemmK, arg.k_batch_))
-                {
-                    ave_time += launch_kernel(integral_constant<bool, true>{});
-                }
-                else
-                {
-                    ave_time += launch_kernel(integral_constant<bool, false>{});
-                }
+                // if(GridwiseGemm::CalculateHasMainKBlockLoop(GemmK, arg.k_batch_))
+                // {
+                //     ave_time += launch_kernel(integral_constant<bool, true>{});
+                // }
+                // else
+                // {
+                ave_time += launch_kernel();
+                // }
             }
 
             return ave_time;
