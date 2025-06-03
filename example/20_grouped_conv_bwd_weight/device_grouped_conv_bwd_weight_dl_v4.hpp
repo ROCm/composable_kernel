@@ -340,13 +340,20 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         if(x < Filter_X && y < Filter_Y)
         {
             static_for<0, TileH, 1>{}([&](auto ho) {
-              //for (index_t ho = 0; ho < TileH; ho++) {
+            //for (index_t ho = 0; ho < TileH; ho++) {
                 static_for<0, TileOut_W, 1>{}([&](auto wo) {
-                // for (index_t wo = 0; wo < TileOut_W; wo ++) {
+                //for (index_t wo = 0; wo < TileOut_W; wo ++) {
                     static_for<0, NumVectorPerPixel, 1>{}([&](auto i) {
                         auto v_in  = get_in(ho, wo, i);
                         auto v_out = get_out(ho, wo, i);
                         inner_product(v_in, v_out, acc);
+
+                        //if (x == 0 && y == 0)
+                       // {
+                        //    uint32_t * pin = reinterpret_cast<uint32_t*>(&v_in);
+                        //    uint32_t * pout = reinterpret_cast<uint32_t*>(&v_out);
+                        //    printf("h w [%d %d] vin %08x %08x %08x %08x vout %08x %08x %08x %08x  acc = %f\n", ho+ hout_base, wo, pin[0], pin[1], pin[2], pin[3], pout[0], pout[1], pout[2],pout[3], acc);
+                       // }
                     });
                 });
             });
@@ -374,7 +381,10 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             {
                 printf("\n [%d]", i/length);
             }
-            printf("%08x ", bit_cast<uint32_t>(p[i]));
+            uint32_t* p1 = reinterpret_cast<uint32_t*>(&p[i]);
+            static_for<0, sizeof(DstVector)/ sizeof(uint32_t), 1>{}([&](auto j) {
+                printf("%08x ", p1[j]);
+            });
         }
         printf("\n");
     }
@@ -397,13 +407,13 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
 
         static constexpr index_t spatial_offset = 3;
         const index_t n = arg.in_g_n_c_wis_lengths_[1];
-        index_t num_loop = n / NumTilePerBlock / BatchPerWave - 1;
+        index_t num_loop = n / NumTilePerBlock / NBatch - 1;
         index_t n_idx = n / NumTilePerBlock * wave_id;
 
         if(wave_id == NumTilePerBlock - 1)
         {
             n_idx    = n / NumTilePerBlock * (NumTilePerBlock - 1);
-            num_loop = (n - n_idx) / BatchPerWave - 1;
+            num_loop = (n - n_idx) / NBatch - 1;
         }
 
         // In
@@ -526,9 +536,9 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
 
         //if (threadIdx.x == 0)
         //{
-        //    dump_lds(reinterpret_cast<InDataVector*>(p_share_in), ShareMemInSize/sizeof(InDataVector), TileIn_Align_W);
-        //   dump_lds(reinterpret_cast<OutDataVector*>(p_share_out), ShareMemOutSize/sizeof(OutDataVector), TileOut_Align_W);
-        //}
+        //    dump_lds(reinterpret_cast<InDataVector*>(p_share_in), ShareMemInSize/sizeof(InDataVector), TileIn_Align_W * NumVectorPerPixel);
+        //    dump_lds(reinterpret_cast<OutDataVector*>(p_share_out), ShareMemOutSize/sizeof(OutDataVector), TileOut_Align_W * NumVectorPerPixel);
+       // }
 
         while(num_loop > 0)
         {
