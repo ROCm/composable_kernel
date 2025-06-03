@@ -35,6 +35,7 @@ enum Activation
     silu_and_mul = 1
 };
 
+#if 0
 template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -42,7 +43,7 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_moe_mxgemm(typename GridwiseGemm::Argument karg)
@@ -71,6 +72,7 @@ __global__ void
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
 }
+#endif
 
 template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
@@ -1369,6 +1371,7 @@ struct GridwiseMoeGemmMXBNS
     static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
                   "B scale pack data type too large!");
 
+#if 0
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
@@ -1488,10 +1491,10 @@ struct GridwiseMoeGemmMXBNS
             {
                 token_offset = token_offset * problem.TopK + (fused_token >> 24);
             }
-            gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
+            gather_offsets(m0) = static_cast<IndexType>(token_offset);
         });
 
-#if 0
+#if 1
         printf("blkx: %u, blky: %u, tidx: %u, token_pos: %d, gather_offsets:<%d, %d, %d, %d>\n",
                blockIdx.x,
                blockIdx.y,
@@ -1967,18 +1970,16 @@ struct GridwiseMoeGemmMXBNS
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_desc_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie(
-                    [&](auto i) -> const auto& // return type should be reference
-                    { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                    Number<NumDTensor>{}));
+                generate_tie([&](auto i) -> const auto& // return type should be reference
+                             { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                             Number<NumDTensor>{}));
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_buf_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_buf),
-                generate_tie(
-                    [&](auto i) -> const auto& // return type should be reference
-                    { return ds_grid_buf[i]; },
-                    Number<NumDTensor>{}));
+                generate_tie([&](auto i) -> const auto& // return type should be reference
+                             { return ds_grid_buf[i]; },
+                             Number<NumDTensor>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin =
@@ -1999,41 +2000,41 @@ struct GridwiseMoeGemmMXBNS
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
             constexpr index_t scatter_weight_idx  = 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
-                ThisThreadBlock,
-                decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
-                Tuple<EDataType>,
-                decltype(c_ds_desc_refs),
-                decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
-                CElementwiseOperation,
-                Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make
-                                                                            // Sequence support
-                                                                            // arbitray type
-                Sequence<1,
-                         CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
-                         1,
-                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
-                CDEBlockTransferCluster,
-                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                Sequence<0, 1, 2, 3>, // typename SrcDimAccessOrder,
-                Sequence<0, 1, 2, 3>, // typename DstDimAccessOrder,
-                3,                    // index_t SrcVectorDim,
-                3,                    // index_t DstVectorDim,
-                CDEShuffleBlockTransferScalarPerVectors,
-                CShuffleBlockTransferScalarPerVector_NPerBlock,
-                sequence_merge_t<
-                    Sequence<true>,
-                    uniform_sequence_gen_t<NumDTensor,
-                                           false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
-                Sequence<false>, // ThreadTransferDstResetCoordinateAfterRunFlags
-                IndexType,
-                1,                 // ScatterDim
-                true,              // OutputScatter: false, only use scatter weights
-                scatter_weight_idx // ScatterWeightIdx: ascale
-                >{c_ds_desc_refs,
-                  idx_c_ds_block_begin,
-                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                  make_tuple(make_multi_index(0, 0, block_n_id, 0)),
-                  c_element_op};
+                   ThisThreadBlock,
+                   decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
+                   Tuple<EDataType>,
+                   decltype(c_ds_desc_refs),
+                   decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
+                   CElementwiseOperation,
+                   Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make
+                                                                               // Sequence support
+                                                                               // arbitray type
+                   Sequence<1,
+                            CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                            1,
+                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
+                   CDEBlockTransferCluster,
+                   Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                   Sequence<0, 1, 2, 3>, // typename SrcDimAccessOrder,
+                   Sequence<0, 1, 2, 3>, // typename DstDimAccessOrder,
+                   3,                    // index_t SrcVectorDim,
+                   3,                    // index_t DstVectorDim,
+                   CDEShuffleBlockTransferScalarPerVectors,
+                   CShuffleBlockTransferScalarPerVector_NPerBlock,
+                   sequence_merge_t<
+                       Sequence<true>,
+                       uniform_sequence_gen_t<NumDTensor,
+                                              false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
+                   Sequence<false>, // ThreadTransferDstResetCoordinateAfterRunFlags
+                   IndexType,
+                   1,                 // ScatterDim
+                   true,              // OutputScatter: false, only use scatter weights
+                   scatter_weight_idx // ScatterWeightIdx: ascale
+                   >{c_ds_desc_refs,
+                     idx_c_ds_block_begin,
+                     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                     make_tuple(make_multi_index(0, 0, block_n_id, 0)),
+                     c_element_op};
 
             auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -2135,6 +2136,7 @@ struct GridwiseMoeGemmMXBNS
             });
         }
     }
+#endif
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -2174,7 +2176,7 @@ struct GridwiseMoeGemmMXBNS
             problem.StrideC);
 
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
-            make_tuple((IsInputGemm ? problem.NumTokens : problem.M) / (MXdlPack * MPerXdl),
+            make_tuple(problem.M / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
                            (KXdlPack * 64 / MPerXdl),
                        64 * KXdlPack * MXdlPack / scale_pack_size_a));
@@ -2227,13 +2229,13 @@ struct GridwiseMoeGemmMXBNS
         constexpr auto AK1Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I2);
         constexpr auto AKThreads  = AK0Threads * AK1Threads;
         constexpr auto AMRepeats  = MPerBlock / AMThreads;
-        const index_t token_pos   = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
+        const index_t token_pos   = block_m_id * MPerBlock + threadIdx.x / AKThreads;
 
         if(token_pos >= max_token_id || token0 >= problem.NumTokens)
             return;
         StaticallyIndexedArray<IndexType, AMRepeats> gather_offsets;
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
-            const index_t fused_token = p_sorted_token_ids[token_pos + m0];
+            const index_t fused_token = p_sorted_token_ids[token_pos + m0 * AMThreads];
             index_t token_offset      = fused_token & 0xffffff;
             if constexpr(!IsInputGemm)
             {
@@ -2242,11 +2244,13 @@ struct GridwiseMoeGemmMXBNS
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
 
-#if 1
-        printf("blkx: %u, blky: %u, tidx: %u, token_pos: %d, gather_offsets:<%d, %d, %d, %d>\n",
+#if 0
+        printf("blkx: %u, blky: %u, tidx: %u,AMThreads: %d, token_pos: %d, gather_offsets:<%d, %d, "
+               "%d, %d>\n",
                blockIdx.x,
                blockIdx.y,
                threadIdx.x,
+               AMThreads,
                token_pos,
                gather_offsets[Number<0>{}],
                gather_offsets[Number<1>{}],

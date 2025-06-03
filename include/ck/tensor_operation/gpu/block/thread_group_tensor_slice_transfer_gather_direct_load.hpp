@@ -280,13 +280,25 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
                    dst_offset,
                    //    *(reinterpret_cast<const uint32_t*>(&(dst_buf[dst_offset + 0].data))),
                    *(reinterpret_cast<const uint32_t*>(
-                       &(dst_buf[dst_offset + 16 * threadIdx.x].data))),
+                       &(dst_buf[dst_offset + 0 + 16 * threadIdx.x].data))),
                    *(reinterpret_cast<const uint32_t*>(
-                       &(dst_buf[dst_offset + 16 * threadIdx.x].data))),
+                       &(dst_buf[dst_offset + 4 + 16 * threadIdx.x].data))),
                    *(reinterpret_cast<const uint32_t*>(
-                       &(dst_buf[dst_offset + 32 * threadIdx.x].data))),
+                       &(dst_buf[dst_offset + 8 + 16 * threadIdx.x].data))),
                    *(reinterpret_cast<const uint32_t*>(
-                       &(dst_buf[dst_offset + 48 * threadIdx.x].data))));
+                       &(dst_buf[dst_offset + 12 + 16 * threadIdx.x].data))));
+
+#else
+            __builtin_amdgcn_s_waitcnt(3952);
+            block_sync_lds();
+            printf("blkx: %u, blky: %u, tid: %u, red_id: %d src: %d (cal: %d, gather: %d)\n",
+                   blockIdx.x,
+                   blockIdx.y,
+                   threadIdx.x,
+                   static_cast<int>(ordered_dst_access_idx[Number<GatherDim>{}]),
+                   src_offset,
+                   src_coord_.GetOffset(),
+                   gather_offset);
 #endif
 
             constexpr auto move_src_on_dim = [&]() constexpr
@@ -369,30 +381,6 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
                 }
             });
         });
-
-#if 0
-        __builtin_amdgcn_s_waitcnt(3952);
-        block_sync_lds();
-
-        if(threadIdx.x == 0)
-        {
-            // Print the contents of the destination buffer.
-            printf("blkx: %u, blky: %u, tid: %u, a_dst_buf_offset=<%d, %d, %d, %d>, "
-                   "a_dst_buffer=<%02x, %02x, %02x, %02x>\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   threadIdx.x,
-                   0,
-                   16,
-                   32,
-                   48,
-                   static_cast<uint8_t>(dst_buf[Number<0>{}].data),
-                   static_cast<uint8_t>(dst_buf[Number<16>{}].data),
-                   static_cast<uint8_t>(dst_buf[Number<32>{}].data),
-                   static_cast<uint8_t>(dst_buf[Number<48>{}].data));
-        }
-
-#endif
 
         // Reset the destination slice since the entire buffer has been already filled.
         ResetDstSliceWindow(dst_desc);
