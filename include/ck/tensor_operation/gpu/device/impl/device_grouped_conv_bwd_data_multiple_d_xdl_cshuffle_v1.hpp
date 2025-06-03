@@ -180,8 +180,8 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_bwd_data_optimized(const ABDataType* __restrict__ p_weight,
-                                               const ABDataType* __restrict__ p_gradOut,
+        kernel_grouped_conv_bwd_data_optimized(const ABDataType* __restrict__ p_gradOut,
+                                               const ABDataType* __restrict__ p_weight,
                                                EDataType* __restrict__ p_gradIn)
 {
     int grp_idx                  = 64 * blockIdx.x;
