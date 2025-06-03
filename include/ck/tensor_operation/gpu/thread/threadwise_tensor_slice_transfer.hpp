@@ -1288,9 +1288,6 @@ struct ThreadwiseTensorSliceTransfer_v4
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
 
-        // static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
-        //               "wrong! Not divisible");
-
         if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
                      is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
         {
@@ -1309,8 +1306,6 @@ struct ThreadwiseTensorSliceTransfer_v4
                         const DstOriginIdx&,
                         DstBuffer& dst_buf) const
     {
-        // if(get_thread_local_1d_id() < 4)
-        //     printf("TID%03d %s:%d\n", get_thread_local_1d_id(), __FILE__, __LINE__);
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
 
@@ -1369,8 +1364,6 @@ struct ThreadwiseTensorSliceTransfer_v4
         constexpr auto ordered_access_lengths =
             container_reorder_given_new2old(access_lengths, dim_access_order);
 
-        // CK_PRINT<SliceLengths, decltype(src_scalar_per_access), decltype(access_lengths)>();
-        // CK_PRINT<decltype(ordered_access_lengths)>();
         static_ford<decltype(ordered_access_lengths)>{}([&](auto ordered_access_idx) {
 #if 0
             // TODO: unable to compile
@@ -1404,8 +1397,6 @@ struct ThreadwiseTensorSliceTransfer_v4
             // copy data from src_buf into src_tmp_vector
             if constexpr(SrcBuffer::IsDynamicBuffer())
             {
-                // printf("Tid: %03d, read lds src_data_coord.GetOffset() = %d\n",
-                // get_thread_local_1d_id(),src_data_coord.GetOffset());
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
                                                        is_src_valid);

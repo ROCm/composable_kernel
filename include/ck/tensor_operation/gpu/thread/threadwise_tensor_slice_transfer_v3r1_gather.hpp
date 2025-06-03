@@ -228,15 +228,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             src_oob_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<bool>(src_data_idx_seq, true);
 
-#if 0
-            printf("blkx: %u, blky: %u, tidx: %u, gather_offset: %d, cal_offset: %d\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   threadIdx.x,
-                   gather_offset,
-                   src_coord_.GetOffset() / PackedSize);
-#endif
-
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
 
@@ -286,19 +277,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
-
-#if 0
-            auto data_print = src_thread_scratch_tuple_(thread_scratch_id).data_;
-            printf("blkx: %u, blky: %u, tidx: %u, src_thread_scratch_tuple_=<%02x, %02x, %02x, "
-                   "%02x>\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   threadIdx.x,
-                   *reinterpret_cast<const uint8_t*>(&data_print[Number<0>{}]),
-                   *reinterpret_cast<const uint8_t*>(&data_print[Number<1>{}]),
-                   *reinterpret_cast<const uint8_t*>(&data_print[Number<2>{}]),
-                   *reinterpret_cast<const uint8_t*>(&data_print[Number<3>{}]));
-#endif
 
             auto move_on_dim = [&]() constexpr
             {
