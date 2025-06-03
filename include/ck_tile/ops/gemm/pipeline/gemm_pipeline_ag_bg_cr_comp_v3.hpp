@@ -63,19 +63,53 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
+    using AsDataType      = remove_cvref_t<typename Problem::AsDataType>;
+    using BsDataType      = remove_cvref_t<typename Problem::BsDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using AElementwise    = remove_cvref_t<typename Problem::AElementwise>;
+    using BElementwise    = remove_cvref_t<typename Problem::BElementwise>;
+
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
     static constexpr index_t BPackedSize =
         ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
+    using AsLayout = remove_cvref_t<typename Problem::AsLayout>;
+    using BsLayout = remove_cvref_t<typename Problem::BsLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
+
+    using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+    using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
+
+    // CK_TILE_HOST static constexpr auto MakeAsGridPointer()
+    // {
+    //     return generate_tuple(
+    //         [&](auto i) {
+    //             using ADataType = remove_cvref_t<std::tuple_element_t<i.value, AsDataType>>;
+
+    //             return static_cast<const ADataType*>(nullptr);
+    //         },
+    //         number<NumATensor>{});
+    // }
+
+    // CK_TILE_HOST static constexpr auto MakeBsGridPointer()
+    // {
+    //     return generate_tuple(
+    //         [&](auto i) {
+    //             using BDataType = remove_cvref_t<std::tuple_element_t<i.value, BsDataType>>;
+
+    //             return static_cast<const BDataType*>(nullptr);
+    //         },
+    //         number<NumBTensor>{});
+    // }
+
+    // using AsGridPointer = decltype(MakeAsGridPointer());
+    // using BsGridPointer = decltype(MakeBsGridPointer());
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
     using I0        = number<0>;
@@ -323,23 +357,27 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
         template <bool HasHotLoop,
                   TailNumber TailNum,
-                  typename ADramBlockWindowTmp,
-                  typename BDramBlockWindowTmp,
+                  typename ADramBlockWindowTmps,
+                  typename BDramBlockWindowTmps,
                   typename AElementFunction,
                   typename BElementFunction>
-        CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+        CK_TILE_DEVICE auto operator()(ADramBlockWindowTmps& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
-                                       const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                       const BDramBlockWindowTmps& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
                                        void* p_smem) const
         {
+           // printf("SIZE OF TUPLE %lu\n", ADramBlockWindowTmps::size());
+            using ADramBlockWindowTmp = remove_cvref_t<std::tuple_element_t<number<0>{}, ADramBlockWindowTmps>>;
+            using BDramBlockWindowTmp = remove_cvref_t<std::tuple_element_t<number<0>{}, BDramBlockWindowTmps>>;
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
                                    remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
                 "A/B Dram block window should have the same data type as appropriate "
                 "([A|B]DataType) defined in Problem definition!");
+            //printf("CK_TILE_DEVICE auto operator()\n");
 
             constexpr bool is_a_col_major =
                 std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
@@ -360,8 +398,12 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             // ------------------------------------------------------------------------------------
             // Definitions of all needed tiles
-
-            // A/B tiles in LDS
+            // using elemenet_wise_output_t = decltype(load_tile(make_tile_window(a_dram_block_window_tmp[number<0>{}].get_bottom_tensor_view(),
+            //                     make_tuple(YPerTile{}, XPerTile{}),
+            //                     a_dram_block_window_tmp[number<0>{}].get_window_origin(),
+            //                     Policy::template MakeADramTileDistribution<Problem>())));
+          
+                    // A/B tiles in LDS
             auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
 
             // Tile distribution for load from lds
@@ -375,27 +417,41 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // A LDS tile for block GEMM
             auto&& [a_copy_dram_window, a_copy_lds_window, a_lds_gemm_window] =
                 Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
-
+                
             // B DRAM tile window for load
             // B LDS tile window for store
             // B LDS tile for block GEMM
             auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
                 Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
-
+            
+            //tile_elementwise_inout([](auto& c) { c = 0; }, a_copy_dram_window);
+            
             // Block GEMM
             auto block_gemm   = BlockGemm();
             auto c_block_tile = block_gemm.MakeCBlockTile();
 
-            using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
-            using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
+            using ABlockTileDistr = decltype(a_copy_dram_window[number<0>{}].get_tile_distribution());
+            using BBlockTileDistr = decltype(b_copy_dram_window[number<0>{}].get_tile_distribution());
 
             using ABlockTile =
                 decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
             using BBlockTile =
                 decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
 
-            ABlockTile a_block_tile;
-            BBlockTile b_block_tile;
+            auto as_block_tile = generate_tuple( [&]([[maybe_unused]] auto i) {
+                ABlockTile a_block_tile;
+                return a_block_tile;
+             }, number<AsLayout::size()>{});
+
+            auto bs_block_tile = generate_tuple( [&]([[maybe_unused]] auto i) {
+                BBlockTile b_block_tile;
+                return b_block_tile;
+             }, number<BsLayout::size()>{});
+
+            ABlockTile a_block_tile_element_wise;
+            //ABlockTile a_block_tile;
+            //BBlockTile b_block_tile;
+            BBlockTile b_block_tile_element_wise;
 
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
@@ -410,39 +466,88 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             // prefetch
             // global read 0
-            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            Base::GlobalPrefetch(as_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(bs_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+            // Initialize A, B
+            tile_elementwise_inout([](auto& c) { c = 0; }, a_block_tile_element_wise);
+            tile_elementwise_inout([](auto& c) { c = 0; }, b_block_tile_element_wise);
+
+            // auto a_tuple_reference = concat_tuple_of_reference(
+            //         tie(a_block_tile_element_wise, a_block_tile_element_wise),
+            //         generate_tie(
+            //             [&](auto idx) -> auto& { return as_block_tile[idx]; },
+            //             number<AsLayout::size()>{}));
+            tile_elementwise_in_out_unpack_tuple(typename Problem::AElementwise{}, concat_tuple_of_reference(
+                    tie(a_block_tile_element_wise, a_block_tile_element_wise),
+                    generate_tie(
+                        [&](auto idx) -> auto& { return as_block_tile[idx]; },
+                        number<AsLayout::size()>{})));
+
+            //  auto b_tuple_reference = concat_tuple_of_reference(
+            //         tie(b_block_tile_element_wise, b_block_tile_element_wise),
+            //         generate_tie(
+            //             [&](auto idx) -> auto& { return bs_block_tile[idx]; },
+            //             number<BsLayout::size()>{}));
+            tile_elementwise_in_out_unpack_tuple(typename Problem::BElementwise{},  concat_tuple_of_reference(
+                    tie(b_block_tile_element_wise, b_block_tile_element_wise),
+                    generate_tie(
+                        [&](auto idx) -> auto& { return bs_block_tile[idx]; },
+                        number<BsLayout::size()>{})));
 
             // LDS write 0
             if constexpr(is_a_col_major)
             {
+
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                     Policy::template MakeShuffledARegTileDistribution<Problem>());
-                transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                transpose_tile2d(a_shuffle_tmp, a_block_tile_element_wise);
                 Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
             }
             else
             {
-                Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                Base::LocalPrefill(a_copy_lds_window, a_block_tile_element_wise, a_element_func);
             }
             if constexpr(is_b_row_major)
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                     Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                transpose_tile2d(b_shuffle_tmp, b_block_tile_element_wise);
                 Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
             }
             else
             {
-                Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                Base::LocalPrefill(b_copy_lds_window, b_block_tile_element_wise, b_element_func);
             }
 
-            Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            Base::GlobalPrefetch(as_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+            Base::GlobalPrefetch(bs_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            tile_elementwise_inout([](auto& c) { c = 0; }, a_block_tile_element_wise);
+            tile_elementwise_inout([](auto& c) { c = 0; }, b_block_tile_element_wise);
 
+            // a_tuple_reference = concat_tuple_of_reference(
+            //         tie(a_block_tile_element_wise, a_block_tile_element_wise),
+            //         generate_tie(
+            //             [&](auto idx) -> auto& { return as_block_tile[idx]; },
+            //             number<AsLayout::size()>{}));
+            tile_elementwise_in_out_unpack_tuple(typename Problem::AElementwise{}, concat_tuple_of_reference(
+                    tie(a_block_tile_element_wise, a_block_tile_element_wise),
+                    generate_tie(
+                        [&](auto idx) -> auto& { return as_block_tile[idx]; },
+                        number<AsLayout::size()>{})));
+
+            // b_tuple_reference = concat_tuple_of_reference(
+            //         tie(b_block_tile_element_wise, b_block_tile_element_wise),
+            //         generate_tie(
+            //             [&](auto idx) -> auto& { return bs_block_tile[idx]; },
+            //             number<BsLayout::size()>{}));
+            tile_elementwise_in_out_unpack_tuple(typename Problem::BElementwise{}, concat_tuple_of_reference(
+                    tie(b_block_tile_element_wise, b_block_tile_element_wise),
+                    generate_tie(
+                        [&](auto idx) -> auto& { return bs_block_tile[idx]; },
+                        number<BsLayout::size()>{})));
             block_sync_lds();
             block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
 
@@ -460,27 +565,50 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     {
                         auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                             Policy::template MakeShuffledARegTileDistribution<Problem>());
-                        transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                        transpose_tile2d(a_shuffle_tmp, a_block_tile_element_wise);
                         Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
                     }
                     else
                     {
-                        Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                        Base::LocalPrefill(a_copy_lds_window, a_block_tile_element_wise, a_element_func);
                     }
                     if constexpr(is_b_row_major)
                     {
                         auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                             Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                        transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                        transpose_tile2d(b_shuffle_tmp, b_block_tile_element_wise);
                         Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
                     }
                     else
                     {
-                        Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                        Base::LocalPrefill(b_copy_lds_window, b_block_tile_element_wise, b_element_func);
                     }
 
-                    Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-                    Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                    Base::GlobalPrefetch(as_block_tile, a_copy_dram_window, a_dram_tile_window_step);
+                    Base::GlobalPrefetch(bs_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                    tile_elementwise_inout([](auto& c) { c = 0; }, a_block_tile_element_wise);
+                    tile_elementwise_inout([](auto& c) { c = 0; }, b_block_tile_element_wise);
+                    // a_tuple_reference = concat_tuple_of_reference(
+                    // tie(a_block_tile_element_wise, a_block_tile_element_wise),
+                    // generate_tie(
+                    //     [&](auto idx) -> auto& { return as_block_tile[idx]; },
+                    //     number<AsLayout::size()>{}));
+                    tile_elementwise_in_out_unpack_tuple(typename Problem::AElementwise{}, concat_tuple_of_reference(
+                    tie(a_block_tile_element_wise, a_block_tile_element_wise),
+                    generate_tie(
+                        [&](auto idx) -> auto& { return as_block_tile[idx]; },
+                        number<AsLayout::size()>{})));
+
+                    // b_tuple_reference = concat_tuple_of_reference(
+                    // tie(b_block_tile_element_wise, b_block_tile_element_wise),
+                    // generate_tie(
+                    //     [&](auto idx) -> auto& { return bs_block_tile[idx]; },
+                    //     number<BsLayout::size()>{}));
+                    tile_elementwise_in_out_unpack_tuple(typename Problem::BElementwise{}, concat_tuple_of_reference(
+                    tie(b_block_tile_element_wise, b_block_tile_element_wise),
+                    generate_tie(
+                        [&](auto idx) -> auto& { return bs_block_tile[idx]; },
+                        number<BsLayout::size()>{})));
 
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
@@ -509,23 +637,23 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 {
                     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                         Policy::template MakeShuffledARegTileDistribution<Problem>());
-                    transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                    transpose_tile2d(a_shuffle_tmp, a_block_tile_element_wise);
                     Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
                 }
                 else
                 {
-                    Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                    Base::LocalPrefill(a_copy_lds_window, a_block_tile_element_wise, a_element_func);
                 }
                 if constexpr(is_b_row_major)
                 {
                     auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                         Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                    transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                    transpose_tile2d(b_shuffle_tmp, b_block_tile_element_wise);
                     Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
                 }
                 else
                 {
-                    Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                    Base::LocalPrefill(b_copy_lds_window, b_block_tile_element_wise, b_element_func);
                 }
                 block_sync_lds();
                 block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);

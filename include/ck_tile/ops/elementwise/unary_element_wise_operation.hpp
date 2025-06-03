@@ -1479,5 +1479,54 @@ struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, N>
     CK_TILE_DEVICE OutputArray operator()(InputArray const& Input) { return convert(Input); }
 };
 #endif
+
+/**
+ * @brief Struct defining element-wise addition operations
+ */
+struct ElementWiseAdd
+{
+    /**
+     * @brief Function call operator for element-wise addition with 3 inputs
+     *
+     * @param e     Output element (result)
+     * @param c     first input
+     * @param d0    second input
+     * @param d1    third input
+     *
+     * @note [return] Perform element-wise addition and store the result in 'r'
+     */
+    template <typename E, typename C, typename D0, typename D1>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    {
+        const float x0_f = c + d0 + d1;
+
+        e = ck_tile::type_convert<E>(x0_f);
+    }
+};
+
+/**
+ * @brief Struct defining element-wise multiplication operations
+ */
+struct MultiplyMultiply
+{
+    /**
+     * @brief Function call operator for element-wise multiplication with 3 inputs
+     *
+     * @param e     Output element (result)
+     * @param c     first input
+     * @param d0    second input
+     * @param d1    third input
+     *
+     * @note [return] Perform element-wise multiplication and store the result in 'r'
+     */
+    template <typename E, typename C, typename D0, typename D1>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    {
+        const float x0_f = c * d0 * d1;
+
+        e = ck_tile::type_convert<E>(x0_f);
+    }
+};
+
 } // namespace element_wise
 } // namespace ck_tile

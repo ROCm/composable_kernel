@@ -9,35 +9,43 @@
 
 namespace ck_tile {
 
-struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
+struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs<>
 {
-    CK_TILE_HOST BatchedGemmHostArgs() = default;
-    CK_TILE_HOST BatchedGemmHostArgs(const void* a_ptr_,
-                                     const void* b_ptr_,
+    CK_TILE_HOST BatchedGemmHostArgs() = delete;
+    CK_TILE_HOST BatchedGemmHostArgs(const std::array<const void*, 1>& as_ptr_,
+                                     const std::array<const void*, 1>& bs_ptr_,
                                      void* c_ptr_,
                                      ck_tile::index_t k_batch_,
                                      ck_tile::index_t M_,
                                      ck_tile::index_t N_,
                                      ck_tile::index_t K_,
-                                     ck_tile::index_t stride_A_,
-                                     ck_tile::index_t stride_B_,
+                                     const std::array<index_t, 1>& stride_As_,
+                                     const std::array<index_t, 1>& stride_Bs_,
                                      ck_tile::index_t stride_C_,
-                                     ck_tile::index_t batch_stride_A_,
-                                     ck_tile::index_t batch_stride_B_,
+                                     ck_tile::index_t batch_stride_As_,
+                                     ck_tile::index_t batch_stride_Bs_,
                                      ck_tile::index_t batch_stride_C_,
                                      ck_tile::index_t batch_count_)
-        : GemmHostArgs(
-              a_ptr_, b_ptr_, c_ptr_, k_batch_, M_, N_, K_, stride_A_, stride_B_, stride_C_),
-          batch_stride_A(batch_stride_A_),
-          batch_stride_B(batch_stride_B_),
-          batch_stride_C(batch_stride_C_),
+        : GemmHostArgs(as_ptr_,
+                       bs_ptr_,
+                       c_ptr_,
+                       k_batch_,
+                       M_,
+                       N_,
+                       K_,
+                       stride_As_,
+                       stride_Bs_,
+                       stride_C_),
+          batch_stride_As(batch_stride_As_),
+          batch_stride_Bs(batch_stride_Bs_),
+          batch_stride_E(batch_stride_C_),
           batch_count(batch_count_)
     {
     }
 
-    ck_tile::index_t batch_stride_A;
-    ck_tile::index_t batch_stride_B;
-    ck_tile::index_t batch_stride_C;
+    ck_tile::index_t batch_stride_As;
+    ck_tile::index_t batch_stride_Bs;
+    ck_tile::index_t batch_stride_E;
     ck_tile::index_t batch_count;
 };
 
@@ -46,36 +54,65 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 {
     using Base = GemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
 
-    using GemmKernelArgs = typename ck_tile::GemmKernelArgs;
+    using GemmKernelArgs = typename ck_tile::GemmKernelArgs<>;
 
-    using ADataType = typename Base::ADataType;
-    using BDataType = typename Base::BDataType;
-    using CDataType = typename Base::CDataType;
+    using AsDataType = typename Base::AsDataType;
+    using BsDataType = typename Base::BsDataType;
+    using CDataType = typename Base::EDataType;
 
     using TilePartitioner  = typename Base::TilePartitioner;
     using GemmPipeline     = typename Base::GemmPipeline;
     using EpiloguePipeline = typename Base::EpiloguePipeline;
-    using ALayout          = typename Base::ALayout;
-    using BLayout          = typename Base::BLayout;
-    using CLayout          = typename Base::CLayout;
+    using AsLayout          = typename Base::AsLayout;
+    using BsLayout          = typename Base::BsLayout;
+    using CLayout          = typename Base::ELayout;
+
+    static constexpr index_t NumATensor = AsDataType::size();
+    static constexpr index_t NumBTensor = BsDataType::size();
+
+    CK_TILE_HOST static constexpr auto MakeAsGridPointer()
+    {
+        return generate_tuple(
+            [&](auto i) {
+                using ADataType = remove_cvref_t<std::tuple_element_t<i.value, AsDataType>>;
+
+                return static_cast<const ADataType*>(nullptr);
+            },
+            number<NumATensor>{});
+    }
+
+    CK_TILE_HOST static constexpr auto MakeBsGridPointer()
+    {
+        return generate_tuple(
+            [&](auto i) {
+                using BDataType = remove_cvref_t<std::tuple_element_t<i.value, BsDataType>>;
+
+                return static_cast<const BDataType*>(nullptr);
+            },
+            number<NumBTensor>{});
+    }
+
+    using AsGridPointer = decltype(MakeAsGridPointer());
+    using BsGridPointer = decltype(MakeBsGridPointer());
+
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
         using P_ = GemmPipeline;
 
-        return concat('_', "gemm_batched", gemm_prec_str<ADataType, BDataType>,
+        return concat('_', "gemm_batched", /*gemm_prec_str<ADataType, BDataType>,*/
                       concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock), 
-                      concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
+                    //   concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK));
         // clang-format on
     }
 
     struct BatchedGemmKernelArgs : GemmKernelArgs
     {
-        index_t batch_stride_A;
-        index_t batch_stride_B;
-        index_t batch_stride_C;
+        index_t batch_stride_As;
+        index_t batch_stride_Bs;
+        index_t batch_stride_E;
         index_t batch_count;
     };
 
@@ -89,22 +126,23 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
     __host__ static constexpr auto BlockSize() { return dim3(Base::KernelBlockSize); }
 
+
     CK_TILE_HOST static constexpr BatchedGemmKernelArgs
     MakeKernelArgs(const BatchedGemmHostArgs& hostArgs)
     {
-        return BatchedGemmKernelArgs{{hostArgs.a_ptr,
-                                      hostArgs.b_ptr,
-                                      hostArgs.c_ptr,
+        return BatchedGemmKernelArgs{{hostArgs.as_ptr,
+                                      hostArgs.bs_ptr,
+                                      hostArgs.e_ptr,
                                       hostArgs.M,
                                       hostArgs.N,
                                       hostArgs.K,
-                                      hostArgs.stride_A,
-                                      hostArgs.stride_B,
-                                      hostArgs.stride_C,
+                                      hostArgs.stride_As,
+                                      hostArgs.stride_Bs,
+                                      hostArgs.stride_E,
                                       hostArgs.k_batch},
-                                     hostArgs.batch_stride_A,
-                                     hostArgs.batch_stride_B,
-                                     hostArgs.batch_stride_C,
+                                     hostArgs.batch_stride_As,
+                                     hostArgs.batch_stride_Bs,
+                                     hostArgs.batch_stride_E,
                                      hostArgs.batch_count};
     }
 
@@ -124,25 +162,32 @@ struct BatchedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
         const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, i_splitk);
 
-        //  options
+        AsGridPointer p_as_grid;
         const auto batch_stride_A = __builtin_amdgcn_readfirstlane(kargs.batch_stride_A);
         const auto batch_offset_A = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_A);
-        const ADataType* a_ptr    = static_cast<const ADataType*>(kargs.a_ptr) + batch_offset_A +
+        static_for<0, NumATensor, 1>{}([&](auto index) {
+            using ADataType_ = remove_cvref_t<std::tuple_element_t<index.value, AsDataType>>;
+            p_as_grid(index)     = static_cast<const ADataType_*>(kargs.as_ptr[index]) + batch_offset_A +
                                  splitk_batch_offset.a_k_split_offset;
+        });
 
+        BsGridPointer p_bs_grid;
         const auto batch_stride_B = __builtin_amdgcn_readfirstlane(kargs.batch_stride_B);
         const auto batch_offset_B = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_B);
-        const BDataType* b_ptr    = static_cast<const BDataType*>(kargs.b_ptr) + batch_offset_B +
-                                 splitk_batch_offset.b_k_split_offset;
+        static_for<0, NumBTensor, 1>{}([&](auto index) {
+            using BDataType_ = remove_cvref_t<std::tuple_element_t<index.value, BsDataType>>;
+            p_bs_grid(index)     = static_cast<const BDataType_*>(kargs.bs_ptr[index]) + batch_offset_B +
+                                 splitk_batch_offset.b_k_split_offset;;
+        });
 
-        const auto batch_stride_C = __builtin_amdgcn_readfirstlane(kargs.batch_stride_C);
-        const auto batch_offset_C = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_C);
-        CDataType* c_ptr          = static_cast<CDataType*>(kargs.c_ptr) + batch_offset_C;
+        const auto batch_stride_E = __builtin_amdgcn_readfirstlane(kargs.batch_stride_E);
+        const auto batch_offset_C = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_E);
+        CDataType* c_ptr          = static_cast<CDataType*>(kargs.e_ptr) + batch_offset_C;
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        this->RunGemm(p_as_grid, p_bs_grid, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
     }
 };
 

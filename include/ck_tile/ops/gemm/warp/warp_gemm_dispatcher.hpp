@@ -22,6 +22,7 @@ struct WarpGemmMfmaDispatcher;
 
 // clang-format off
 // fp16
+template<> struct WarpGemmMfmaDispatcher<ck_tile::tuple<ck_tile::half_t, ck_tile::half_t>, ck_tile::tuple<ck_tile::half_t, ck_tile::half_t>, float, 32, 32,  16, false> { using Type = WarpGemmMfmaF16F16F32M32N32K8; };
 template<> struct WarpGemmMfmaDispatcher<ck_tile::half_t, ck_tile::half_t, float, 32, 32,  8, false> { using Type = WarpGemmMfmaF16F16F32M32N32K8; };
 template<> struct WarpGemmMfmaDispatcher<ck_tile::half_t, ck_tile::half_t, float, 32, 32,  8, true> { using Type = WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution; };
 template<> struct WarpGemmMfmaDispatcher<ck_tile::half_t, ck_tile::half_t, float, 32, 32, 16, false> { using Type = WarpGemmMfmaF16F16F32M32N32K16; };

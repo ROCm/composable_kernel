@@ -22,13 +22,13 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+        using AsDataType = remove_cvref_t<typename Problem::AsDataType>;
 
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t KPack     = GetSmemPackA<Problem>();
 
-        constexpr auto DataTypeSize = sizeof(ADataType);
+        constexpr auto DataTypeSize = sizeof(remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>);
         constexpr auto MLdsLayer =
             (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
@@ -79,7 +79,8 @@ struct UniversalGemmBasePolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
         // using BLayout   = remove_cvref_t<typename Problem::BLayout>;
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        // TODO: mozga-amd
+        using BDataType = remove_cvref_t<typename Problem::BsDataType>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -314,13 +315,15 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA()
     {
-        using ALayout               = remove_cvref_t<typename Problem::ALayout>;
-        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
+        using AsLayout               = remove_cvref_t<typename Problem::AsLayout>;
+        using AsDataType             = remove_cvref_t<typename Problem::AsDataType>;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
+        using ALayout = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
+        using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
+        { 
             return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, KPerBlock>();
         }
         else
@@ -332,11 +335,13 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB()
     {
-        using BLayout               = remove_cvref_t<typename Problem::BLayout>;
-        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
+        using BsLayout               = remove_cvref_t<typename Problem::BsLayout>;
+        using BsDataType             = remove_cvref_t<typename Problem::BsDataType>;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
+        using BLayout = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
+        using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, NPerBlock>();
@@ -424,7 +429,7 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
-        using ALayout = remove_cvref_t<typename Problem::ALayout>;
+        using AsLayout = remove_cvref_t<typename Problem::AsLayout>;
 
         constexpr index_t BlockSize   = Problem::kBlockSize;
         constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
@@ -432,6 +437,7 @@ struct UniversalGemmBasePolicy
         constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
 
         // Tile: MPerBlock X KPerBlock
+        using ALayout = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
@@ -456,7 +462,7 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
     {
-        using BLayout = remove_cvref_t<typename Problem::BLayout>;
+        using BsLayout = remove_cvref_t<typename Problem::BsLayout>;
 
         constexpr index_t BlockSize   = Problem::kBlockSize;
         constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
@@ -464,6 +470,7 @@ struct UniversalGemmBasePolicy
         constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
 
         // Tile: KPerBlock X NPerBlock
+        using BLayout = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
@@ -540,18 +547,22 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
+        // TODO: mozga-amd
+        using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, typename Problem::AsDataType>>;
         constexpr auto a_lds_desc     = MakeALdsBlockDescriptor<Problem>();
         constexpr index_t smem_size_a = integer_least_multiple(
-            sizeof(typename Problem::ADataType) * a_lds_desc.get_element_space_size(), 16);
+            sizeof(ADataType) * a_lds_desc.get_element_space_size(), 16);
         return smem_size_a;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
+        // TODO: mozga-amd
+        using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, typename Problem::BsDataType>>;
         constexpr auto b_lds_desc     = MakeBLdsBlockDescriptor<Problem>();
         constexpr index_t smem_size_b = integer_least_multiple(
-            sizeof(typename Problem::BDataType) * b_lds_desc.get_element_space_size(), 16);
+            sizeof(BDataType) * b_lds_desc.get_element_space_size(), 16);
         return smem_size_b;
     }
 
@@ -583,8 +594,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 Problem::TransposeC,
                                                 false,
                                                 Problem::UseStructuredSparsity>;
-        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
-                                                                      typename Problem::BDataType,
+        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::AsDataType,
+                                                                      typename Problem::BsDataType,
                                                                       typename Problem::CDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;

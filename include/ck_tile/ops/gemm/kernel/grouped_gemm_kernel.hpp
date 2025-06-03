@@ -18,17 +18,17 @@ namespace ck_tile {
 
 struct GemmTransKernelArg
 {
-    GemmKernelArgs group_karg;
+    GemmKernelArgs<> group_karg;
     ck_tile::index_t block_start;
     ck_tile::index_t block_end;
 
     GemmTransKernelArg() = default;
-    GemmTransKernelArg(GemmKernelArgs&& karg, index_t bl_start, index_t bl_end)
+    GemmTransKernelArg(GemmKernelArgs<>&& karg, index_t bl_start, index_t bl_end)
         : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
     {
     }
 
-    GemmTransKernelArg(GemmKernelArgs&& karg) : group_karg{karg}, block_start{0}, block_end{0} {}
+    GemmTransKernelArg(GemmKernelArgs<>&& karg) : group_karg{karg}, block_start{0}, block_end{0} {}
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
@@ -65,7 +65,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // clang-format on
     }
 
-    CK_TILE_HOST static auto GetWorkSpaceSize(const std::vector<GemmHostArgs>& gemm_descs)
+    CK_TILE_HOST static auto GetWorkSpaceSize(const std::vector<GemmHostArgs<>>& gemm_descs)
         -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg);
@@ -95,7 +95,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(const std::vector<GemmHostArgs>& gemm_descs)
+    CK_TILE_HOST static constexpr auto GridSize(const std::vector<GemmHostArgs<>>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -106,7 +106,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto MakeKargs(const std::vector<GemmHostArgs>& gemm_descs)
+    CK_TILE_HOST static auto MakeKargs(const std::vector<GemmHostArgs<>>& gemm_descs)
         -> std::vector<GemmTransKernelArg>
     {
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
@@ -125,9 +125,9 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
                 continue;
             }
 
-            const index_t stride_a = gemm_descs[i].stride_A;
-            const index_t stride_b = gemm_descs[i].stride_B;
-            const index_t stride_c = gemm_descs[i].stride_C;
+            const index_t stride_a = gemm_descs[i].stride_As[0];
+            const index_t stride_b = gemm_descs[i].stride_Bs[0];
+            const index_t stride_c = gemm_descs[i].stride_E;
 
             const index_t grid_size_grp = TilePartitioner::GridSize(M, N) * gemm_descs[i].k_batch;
 
@@ -136,9 +136,9 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
             grid_size += grid_size_grp;
 
-            auto karg = GemmKernelArgs{type_convert<const ADataType*>(gemm_descs[i].a_ptr),
-                                       type_convert<const BDataType*>(gemm_descs[i].b_ptr),
-                                       type_convert<CDataType*>(gemm_descs[i].c_ptr),
+            auto karg = GemmKernelArgs<>{type_convert<const ADataType*>(gemm_descs[i].as_ptr[0]),
+                                       type_convert<const BDataType*>(gemm_descs[i].bs_ptr[0]),
+                                       type_convert<CDataType*>(gemm_descs[i].e_ptr),
                                        M,
                                        N,
                                        K,
@@ -177,35 +177,35 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         Run(kargs.group_karg, block_idx_2d, block_idx_z);
     }
 
-    CK_TILE_DEVICE void Run(const GemmKernelArgs& kargs,
-                            const tuple<index_t, index_t>& block_idx_2d,
-                            const index_t block_idx_z) const
+    CK_TILE_DEVICE void Run([[maybe_unused]] const GemmKernelArgs<>& kargs,
+                            [[maybe_unused]]const tuple<index_t, index_t>& block_idx_2d,
+                            [[maybe_unused]]const index_t block_idx_z) const
     {
-        const auto [iM, iN] = block_idx_2d;
+        // const auto [iM, iN] = block_idx_2d;
 
-        const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        // const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+        // const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
-        const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, block_idx_z);
+        // const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, block_idx_z);
 
-        const ADataType* a_ptr =
-            static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
-        const BDataType* b_ptr =
-            static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
-        CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
+        // const ADataType* a_ptr =
+        //     static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+        // const BDataType* b_ptr =
+        //     static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
+        // CDataType* e_ptr = static_cast<CDataType*>(kargs.e_ptr);
 
-        // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
+        // // allocate LDS
+        // __shared__ char smem_ptr[GetSmemSize()];
 
-        if constexpr(UsePersistentKernel)
-        {
-            RunGemmWithPipelineSelection(
-                a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
-        }
-        else
-        {
-            this->RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
-        }
+        // if constexpr(UsePersistentKernel)
+        // {
+        //     RunGemmWithPipelineSelection(
+        //         a_ptr, b_ptr, e_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        // }
+        // else
+        // {
+        //     this->RunGemm(a_ptr, b_ptr, e_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        // }
     }
 
     /**
@@ -217,7 +217,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
      *
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
-     * @param c_ptr output C pointer
+     * @param e_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
      * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k batch.
@@ -228,9 +228,9 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
     CK_TILE_DEVICE static void
     RunGemmWithPipelineSelection(const ADataType* a_ptr,
                                  const BDataType* b_ptr,
-                                 CDataType* c_ptr,
+                                 CDataType* e_ptr,
                                  void* smem_ptr_0,
-                                 const GemmKernelArgs& kargs,
+                                 const GemmKernelArgs<>& kargs,
                                  const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                  const index_t block_idx_m,
                                  const index_t block_idx_n)
@@ -238,7 +238,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+                a_ptr, b_ptr, e_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =

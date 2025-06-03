@@ -1,0 +1,1 @@
+add_executable(tile_example_multi_abd_gemm EXCLUDE_FROM_ALL multi_abd_gemm.cpp)
