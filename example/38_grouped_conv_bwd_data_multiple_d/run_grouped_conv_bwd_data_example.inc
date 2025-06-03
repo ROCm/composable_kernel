@@ -90,6 +90,9 @@ bool run_conv_bwd_data(const ExecutionConfig& config,
                                       wei_element_op,
                                       in_element_op);
 
+    DeviceMem workspace_buf(argument.GetWorkspaceSizeBytes());
+    conv.SetWorkspacePointer(&argument, workspace_buf.GetDeviceBuffer());
+
     if(!conv.IsSupportedArgument(argument))
     {
         std::cerr << "wrong! device_conv with the specified compilation parameters does "

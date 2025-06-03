@@ -11,10 +11,10 @@ using CShuffleDataType = FP16;
 using DsDataType       = ck::Tuple<>;
 using InDataType       = FP16;
 
-using OutLayout = ck::tensor_layout::convolution::GNHWK;
+using OutLayout = ck::tensor_layout::convolution::NHWGK;
 using WeiLayout = ck::tensor_layout::convolution::GKYXC;
 using DsLayout  = ck::Tuple<>;
-using InLayout  = ck::tensor_layout::convolution::GNHWC;
+using InLayout  = ck::tensor_layout::convolution::NHWGC;
 
 using OutElementOp = PassThrough;
 using WeiElementOp = PassThrough;

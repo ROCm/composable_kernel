@@ -91,8 +91,8 @@ inline bool parse_cmd_args(int argc,
         config.time_kernel     = std::stoi(argv[3]);
 
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
-        conv_params                       = ck::utils::conv::parse_conv_param(
-            num_dim_spatial, threshold_to_catch_partial_args, argv);
+        conv_params =
+            ck::utils::conv::parse_conv_param(num_dim_spatial, num_conv_param_leading_args, argv);
     }
     else
     {
