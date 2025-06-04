@@ -433,8 +433,14 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                     auto size_b_buffer =
                         b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
 
+                    // Note: the grid descriptors and size_a / size_b do *not* take batching into
+                    // account, so we have to manually multiply overall buffer sizes for rotating
+                    // memory by batch.
                     ck::utility::RotatingMemWrapper<Argument> rotating_mem(
-                        arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
+                        arg_,
+                        stream_config.rotating_count,
+                        arg_.batch * size_a_buffer,
+                        arg_.batch * size_b_buffer);
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
@@ -444,10 +450,15 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                         rotating_mem.Next();
                         // clear c mem
                         if(arg_.KBatch > 1)
-                            HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_c_grid,
-                                                           0,
-                                                           arg_.M * arg_.N * sizeof(CDataType),
-                                                           stream_config.stream_id_));
+                            // Note: we multiply by batch since we want to clear the C matrix for
+                            // the whole batch. Untested since we don't have k batching ATM.
+                            // Note: This seems incorrect for non-contiguous memory layouts for C
+                            // (padding, gaps).
+                            HIP_CHECK_ERROR(
+                                hipMemsetAsync(arg_.p_c_grid,
+                                               0,
+                                               arg_.batch * arg_.M * arg_.N * sizeof(CDataType),
+                                               stream_config.stream_id_));
                     };
 
                     ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
@@ -464,10 +475,15 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                 else
                 {
                     if(arg.KBatch > 1)
-                        HIP_CHECK_ERROR(hipMemsetAsync(arg.p_c_grid,
-                                                       0,
-                                                       arg.M * arg.N * sizeof(CDataType),
-                                                       stream_config.stream_id_));
+                        // Note: we multiply by batch since we want to clear the C matrix for
+                        // the whole batch. Untested since we don't have k batching ATM.
+                        // Note: This seems incorrect for non-contiguous memory layouts for C
+                        // (padding, gaps).
+                        HIP_CHECK_ERROR(
+                            hipMemsetAsync(arg.p_c_grid,
+                                           0,
+                                           arg.batch * arg.M * arg.N * sizeof(CDataType),
+                                           stream_config.stream_id_));
 
                     ave_time = launch_and_time_kernel(stream_config,
                                                       kernel,
