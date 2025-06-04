@@ -109,8 +109,8 @@ struct CShuffleEpilogue
         else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
         {
             return make_naive_tensor_descriptor(
-                make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
-                make_tuple(number<1>{}, number<kMWave * kMPerXdl>{}));
+                make_tuple(number<kNWave * kNPerXdl>{}, number<kMWave * kMPerXdl>{}),
+                make_tuple(number<kMWave * kMPerXdl>{}, number<1>{}));
         }
         else
         {
