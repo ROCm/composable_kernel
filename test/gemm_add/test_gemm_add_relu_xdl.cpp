@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "ck/ck.hpp"
 #include "profiler/profile_gemm_add_relu_impl.hpp"
-#include "test_gemm_add_xdl.hpp"
+#include "test_gemm_common.hpp"
 
 template <typename Tuple>
-class TestGemmAddRelu : public TestGemmAdd<Tuple>
+class TestGemmAddRelu : public TestGemmD0Common<Tuple>
 {
     private:
     using ADataType   = std::tuple_element_t<0, Tuple>;

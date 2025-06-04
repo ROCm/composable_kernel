@@ -30,3 +30,5 @@ foreach(gpu IN LISTS GPU_TARGETS)
         set(target 1)
     endif()
 endforeach()
+
+add_example_executable(example_gemm_add_add_wmma_fp16 gemm_add_add_wmma_fp16.cpp)

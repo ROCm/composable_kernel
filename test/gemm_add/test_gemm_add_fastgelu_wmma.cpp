@@ -34,8 +34,7 @@ class TestGemmAddFastgelu : public TestGemmD0Common<Tuple>
     decltype(ProfileGemmAddFastgeluImpl) GetImpl() override { return ProfileGemmAddFastgeluImpl; }
 };
 
-using KernelTypes = ::testing::Types<std::tuple<F16, I8, F32, F16, F16, Row, Row, Row, Row>,
-                                     std::tuple<BF16, I8, F32, BF16, BF16, Row, Row, Row, Row>>;
+using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, F16, F16, Row, Col, Row, Row>>;
 
 TYPED_TEST_SUITE(TestGemmAddFastgelu, KernelTypes);
 TYPED_TEST(TestGemmAddFastgelu, Test_BF16FP16) { this->Run(); }
