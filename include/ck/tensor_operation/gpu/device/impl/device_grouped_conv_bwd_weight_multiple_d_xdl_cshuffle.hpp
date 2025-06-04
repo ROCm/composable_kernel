@@ -598,7 +598,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
             c_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
                     e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
-                sizeof(WeiDataType);
+                sizeof(AccDataType);
 
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
