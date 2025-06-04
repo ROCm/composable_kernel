@@ -275,14 +275,12 @@ __global__ void
             {
                 const int filter_row_0 =
                     __builtin_amdgcn_readfirstlane(h_idx + pad_height - out_row * stride_y);
-                const int filter_row_1 =
-                    __builtin_amdgcn_readfirstlane(h_idx + 1 + pad_height - out_row * stride_y);
+                const int filter_row_1 = filter_row_0 + 1;
                 for(int out_col = out_col_start_0; out_col <= out_col_end_1; ++out_col)
                 {
                     const int filter_col_0 =
                         __builtin_amdgcn_readfirstlane(w_idx + pad_width - out_col * stride_x);
-                    const int filter_col_1 =
-                        __builtin_amdgcn_readfirstlane(w_idx + 1 + pad_width - out_col * stride_x);
+
                     const int outgrad_offset = base_outgrad_offset + out_row * outgrad_row_stride +
                                                out_col * outgrad_col_stride;
 
@@ -293,26 +291,21 @@ __global__ void
                     bool col_in_axis0 = (out_col <= out_col_end_0);
                     bool col_in_axis1 = (out_col >= out_col_start_1);
 
+                    const int filter_offset0 = base_filter_offset + filter_row_0 * 5 + filter_col_0;
+                    const int filter_offset1 = base_filter_offset + filter_row_1 * 5 + filter_col_0;
+
                     sum[0] +=
-                        ((row_in_axis0 && col_in_axis0)
-                             ? shmem_weight[base_filter_offset + filter_row_0 * 5 + filter_col_0] *
-                                   gradOut
-                             : 0.f);
+                        ((row_in_axis0 && col_in_axis0) ? shmem_weight[filter_offset0] * gradOut
+                                                        : 0.f);
                     sum[1] +=
-                        ((row_in_axis0 && col_in_axis1)
-                             ? shmem_weight[base_filter_offset + filter_row_0 * 5 + filter_col_1] *
-                                   gradOut
-                             : 0.f);
+                        ((row_in_axis0 && col_in_axis1) ? shmem_weight[filter_offset0 + 1] * gradOut
+                                                        : 0.f);
                     sum[2] +=
-                        ((row_in_axis1 && col_in_axis0)
-                             ? shmem_weight[base_filter_offset + filter_row_1 * 5 + filter_col_0] *
-                                   gradOut
-                             : 0.f);
+                        ((row_in_axis1 && col_in_axis0) ? shmem_weight[filter_offset1] * gradOut
+                                                        : 0.f);
                     sum[3] +=
-                        ((row_in_axis1 && col_in_axis1)
-                             ? shmem_weight[base_filter_offset + filter_row_1 * 5 + filter_col_1] *
-                                   gradOut
-                             : 0.f);
+                        ((row_in_axis1 && col_in_axis1) ? shmem_weight[filter_offset1 + 1] * gradOut
+                                                        : 0.f);
                 }
             }
 #pragma unroll
