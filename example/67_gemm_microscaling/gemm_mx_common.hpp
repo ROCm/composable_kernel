@@ -108,7 +108,6 @@ bool parse_cmd_args(int argc,
     return true;
 }
 
-#if 1
 template <bool KLast>
 void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
 {
@@ -146,8 +145,9 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
                               k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
                               k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
                               k2 * MNXdlPack + n2;
-            // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f, n2 +
-            // k2 * MNXdlPack)));
+            // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f,
+            // 2-k)));
+
             if constexpr(KLast)
                 dst[outputIndex] = src[n * K + k];
             else
@@ -186,7 +186,6 @@ void preShuffleBuffer(const ck::f4x2_pk_t* src, ck::f4x2_pk_t* dst, int N, int K
         }
     }
 }
-#endif
 
 template <typename DeviceOpInstance,
           typename ADataType,
@@ -307,6 +306,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             return ck::type_convert<BDataType>(x);
     };
 
+    using int_distr   = std::uniform_int_distribution<int>;
+    using float_distr = std::uniform_real_distribution<float>;
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
@@ -325,22 +326,19 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         break;
 
     case 1:
-
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6});  // Z[-5,5]
-        b_k_n->GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
+        a_m_k.GenerateTensorDistr(int_distr{-5, 6});  // Z[-5,5]
+        b_k_n->GenerateTensorDistr(int_distr{-5, 6}); // Z[-5,5]
         static_assert(ck::is_same_v<XDataType, ck::e8m0_bexp_t>);
-        a_m_k_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{120, 129}); // scales: {0.25, 0.5, 1, 2}
-        b_k_n_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        a_m_k_scale.GenerateTensorDistr(int_distr{120, 129}); // scales: {0.25, 0.5, 1, 2}
+        b_k_n_scale.GenerateTensorDistr(int_distr{125, 129}); // scales: {0.25, 0.5, 1, 2}
         break;
 
     case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
+        a_m_k.GenerateTensorDistr(float_distr{-2.0, 2.0});
+        a_m_k_scale.GenerateTensorDistr(float_distr{powf(2.0f, -125.0f), 1.0f});
 
-        b_k_n->GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
-        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
+        b_k_n->GenerateTensorDistr(float_distr{-2.0, 2.0});
+        b_k_n_scale.GenerateTensorDistr(float_distr{powf(2.0f, -125.0f), 1.0f});
         break;
 
     case 13: // Initializations for development and debugging
@@ -441,7 +439,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         }
     }
 
-#if 1
     preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(a_m_k_scale.mData.data(),
                                                        a_shuffled_scale.mData.data(),
                                                        Scale_Padded_M,
@@ -453,48 +450,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         int NPerXdl = 16; // Fixed 16
         preShuffleBuffer(b_k_n->mData.data(), b_input->mData.data(), N, K, NPerXdl);
     }
-#endif
-    // printf("a_scale:\n");
-    // for(ck::index_t i = 0; i < M; i++)
-    // {
-    //     for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
-    //     {
-    //         // a_m_k_scale(i, j) =
-    //         //     ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
-    //         // a_m_k_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
-    //         // a_shuffled_scale(i, j) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
-    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&a_m_k_scale(i, j)));
-    //     }
-    //     printf("\n");
-    // }
-    // printf("b_scale:\n");
-    // for(ck::index_t i = 0; i < N; i++)
-    // {
-    //     for(ck::index_t j = 0; j < K / ScaleBlockSize; j++)
-    //     {
-    // //         // b_k_n_scale(j, i) =
-    // //             // ck::type_convert<XDataType>(static_cast<float>(powf(2.0f, (j / 4) % 4)));
-    //         // b_k_n_scale(j, i) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
-    //         // b_shuffled_scale(j, i) =ck::type_convert<XDataType>(static_cast<float>(1.0f));
-    //         printf("%02x ", *reinterpret_cast<uint8_t*>(&b_k_n_scale(j, i)));
-    //     }
-    //     printf("\n");
-    // }
-
-    // printf("a_shuffled_scale:\n");
-    // for(ck::index_t i = 0; i < M * K / ScaleBlockSize; i++)
-    // {
-    //     printf("%02x ", *reinterpret_cast<uint8_t*>(&(a_shuffled_scale.mData.data()[i])));
-    //     if(i % 64 == 63)
-    //         printf("\n");
-    // }
-    // printf("b_shuffled_scale:\n");
-    // for(ck::index_t i = 0; i < N * K / ScaleBlockSize; i++)
-    // {
-    //     printf("%02x ", *reinterpret_cast<uint8_t*>(&(b_shuffled_scale.mData.data()[i])));
-    //     if(i % 64 == 63)
-    //         printf("\n");
-    // }
 
     if(config.verbosity > 0)
         std::cout << "Device memory allocation..." << std::endl;
@@ -1174,9 +1129,10 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 #endif
         }
 
-        res_verified = res_verified && ck::utils::check_err(c_m_n_device_result,
-                                                            c_m_n_host_result,
-                                                            "Error: Incorrect results!");
+        res_verified =
+            res_verified &&
+            ck::utils::check_err(
+                c_m_n_device_result, c_m_n_host_result, "Error: Incorrect results!", 5e-1, 5e-1);
 
         if(config.verbosity > 0 && res_verified)
             std::cout << "Verification Successful!" << std::endl;

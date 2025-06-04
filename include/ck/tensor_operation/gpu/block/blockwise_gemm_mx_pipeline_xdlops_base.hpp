@@ -83,7 +83,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t NXdlPack = 2;
     static constexpr index_t KXdlPack = 2;
 
-    using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<
+    using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst< //
         BlockSize,
         MPerBlock,
         NPerBlock,
@@ -99,8 +99,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         MPerXDL,
         NPerXDL,
         xdlops_gemm.KPerXdlops,
-        (is_same_v<remove_cvref_t<ComputeTypeA>, f4x2_pk_t> ||
-         is_same_v<remove_cvref_t<ComputeTypeB>, f4x2_pk_t>)>;
+        (packed_size_v<ComputeTypeA> > 1 || packed_size_v<ComputeTypeB> > 1)>;
 
     static_assert(KPerThread % KPack == 0,
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");

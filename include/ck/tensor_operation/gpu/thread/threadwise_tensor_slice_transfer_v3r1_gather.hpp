@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -96,8 +96,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
           dst_element_op_(dst_element_op),
           gather_offsets_(gather_offsets)
     {
-        if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
-                     is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
+        if constexpr((packed_size_v<SrcData>) > 1)
         {
             static_assert(is_same_v<remove_cvref_t<SrcData>, remove_cvref_t<DstData>>,
                           "SrcData != DstData");
@@ -107,7 +106,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1_gather
                 "SrcScalarPerVector_ and DstScalarPerVector_ cannot be 1 for packed data type");
 
             static_assert(SrcVectorDim == DstVectorDim,
-                          "pk_i4_t or f4x2_pk_t does not support transpose");
+                          "Packed data type does not support transpose");
         }
     }
 

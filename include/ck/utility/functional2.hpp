@@ -102,4 +102,13 @@ struct static_for_product<Tuple<Is...>, Rest...>
     }
 };
 
+struct identity
+{
+    template <typename T>
+    __host__ __device__ constexpr T&& operator()(T&& arg) const noexcept
+    {
+        return std::forward<T>(arg);
+    }
+};
+
 } // namespace ck
