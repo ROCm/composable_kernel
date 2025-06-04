@@ -9,8 +9,6 @@ namespace ck {
 
 __host__ __device__ constexpr index_t get_warp_size()
 {
-    // this is a temporary workaround until composable_kernel stops assuming
-    // it can get the warpSize as constexpr
 #if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
     return 64;
 #else
