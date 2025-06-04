@@ -1,4 +1,19 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+# -*- coding: utf-8 -*-
+
 def parse_args():
+    """
+    Parse command-line arguments
+    -   --shapes_csv : input csv file with M, N, K integer columns
+    -   --best       : if True, store only the result reported by the best instance.
+                       if False, store results from all instances
+    -   -o           : output csv file
+    -   --build_dir  : path to directory where CMake stores all the build artifacts.
+                       The profiler binary is bin/ckProfiler relative to this directory.
+    """
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -6,11 +21,15 @@ def parse_args():
     parser.add_argument("--shapes_csv", required=True)
     parser.add_argument("--best", action="store_true")
     parser.add_argument("-o", default="out.csv")
+    parser.add_argument("--build_dir", default=".")
 
     return vars(parser.parse_args())
 
 
 def tuples(filename):
+    """
+    Parse M, N, K integers from the input csv file
+    """
     lines = []
     with open(filename, "r", newline="") as f:
         import csv
@@ -26,6 +45,10 @@ def tuples(filename):
 
 
 def parse_result(line):
+    """
+    Parse the ckProfiler stdout line.
+    Result: a dict with the instance metadata and performance results
+    """
     words = line.split()
     fields = dict()
     if "Perf:" in words or "Perf" in words:
@@ -49,17 +72,19 @@ def parse_result(line):
     return fields
 
 
-def run_shape(shape):
+def run_shape(shape, profiler_bin):
+    """
+    Launch ckProfiler in subprocess and collect its stdout
+    """
     import subprocess
 
     m, n, k = shape
-    bin_name = "./bin/ckProfiler"
     op_name = "gemm_multiply_multiply_weight_preshuffle"
     meta_args = map(str, [1, 0, 0, 2, 0, 1])
     shape_args = map(str, [m, n, k, k, k, 0, 0, n])
     control_args = map(str, [1, 50, 10, 4096])
 
-    cmd = [bin_name, op_name, *meta_args, *shape_args, *control_args]
+    cmd = [profiler_bin, op_name, *meta_args, *shape_args, *control_args]
     print(" ".join(cmd))
     result = subprocess.run(
         cmd,
@@ -71,6 +96,9 @@ def run_shape(shape):
 
 
 def filter_output_line(result_line, best_only):
+    """
+    Filter out ckProfiler output lines which don't report performance results
+    """
     if "DeviceGemmXdlUniversal" in result_line:
         if best_only:
             if "Best Perf" in result_line:
@@ -82,6 +110,9 @@ def filter_output_line(result_line, best_only):
 
 
 def write_results(filename, results):
+    """
+    Write out the performance results to a csv file
+    """
     if not results:
         return
     with open(filename, "w", newline="") as f:
@@ -95,11 +126,23 @@ def write_results(filename, results):
 
 
 def add_shape_to_metadata(shape, metadata):
+    """
+    Adds M, N, K to the parsed profiler results
+    """
     m, n, k = shape
     return metadata | {"M": m, "N": n, "K": k}
 
 
 def main():
+    """
+    Main driver: 
+    - parses command line arguments
+    - parses input shapes to run ckProfiler with
+    - for each shape,
+       - runs ckProfiler
+       - parses the ckProfiler output
+    - writes out the results for all shapes 
+    """
     args = parse_args()
     filename = args["shapes_csv"]
     shapes = tuples(filename)
@@ -107,14 +150,18 @@ def main():
     all_results = []
     from tqdm import tqdm
     from functools import partial
+    from os import path
+
+    profiler_bin = path.join(args["build_dir"], "bin", "ckProfiler")
 
     for s in tqdm(shapes):
+        run_shape_stdout_lines = run_shape(s, profiler_bin)
         results_single_shape = map(
             lambda r: add_shape_to_metadata(s, r),
             map(
                 parse_result,
                 filter(
-                    partial(filter_output_line, best_only=args["best"]), run_shape(s)
+                    partial(filter_output_line, best_only=args["best"]), run_shape_stdout_lines
                 ),
             ),
         )
