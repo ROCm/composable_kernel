@@ -134,26 +134,60 @@ struct CShuffleEpilogue
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
         auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
             static_cast<ODataType*>(p_smem), lds_block_desc);
-        auto in_lds_window =
-            make_tile_window(o_lds_block,
-                             make_tuple(number<kMPerXdl>{}, number<kNPerXdl>{}),
-                             {number<kMPerXdl>{} * iMWarp, number<kNPerXdl>{} * iNWarp});
-        auto out_lds_window =
-            make_tile_window(o_lds_block,
-                             make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
-                             {0, 0});
+        auto in_lds_window = [&]() {
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_tile_window(o_lds_block,
+                                        make_tuple(number<kMPerXdl>{}, number<kNPerXdl>{}),
+                                        {number<kMPerXdl>{} * iMWarp, number<kNPerXdl>{} * iNWarp});
+            }
+            else
+            {
+                return make_tile_window(o_lds_block,
+                                        make_tuple(number<kNPerXdl>{}, number<kMPerXdl>{}),
+                                        {number<kNPerXdl>{} * iNWarp, number<kMPerXdl>{} * iMWarp});
+            }
+        }();
 
-        using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                        sequence<0, 1>,
-                                        sequence<kMPerXdl * kMWave, kNPerXdl * kNWave>>;
+        auto out_lds_window = [&]() {
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            {
+                return make_tile_window(
+                    o_lds_block,
+                    make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
+                    {0, 0});
+            }
+            else
+            {
+                return make_tile_window(
+                    o_lds_block,
+                    make_tuple(number<kNWave * kNPerXdl>{}, number<kMWave * kMPerXdl>{}),
+                    {0, 0});
+            }
+        }();
+
+        using SFC =
+            std::conditional_t<std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>,
+                               space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+                                                   sequence<0, 1>,
+                                                   sequence<kMPerXdl * kMWave, kNPerXdl * kNWave>>,
+                               space_filling_curve<sequence<kNPerBlock, kMPerBlock>,
+                                                   sequence<1, 0>,
+                                                   sequence<kNPerXdl * kNWave, kMPerXdl * kMWave>>>;
         constexpr index_t num_access = SFC::get_num_of_access();
 
-        using TileEncodingPattern =
+        using TileEncodingPattern = std::conditional_t<
+            std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>,
             TileDistributionEncodingPattern2D<kBlockSize,
                                               kMPerIteration,
                                               kNPerIteration,
                                               GetVectorSizeC(),
-                                              tile_distribution_pattern::thread_raked>;
+                                              tile_distribution_pattern::thread_raked>,
+            TileDistributionEncodingPattern2D<kBlockSize,
+                                              kNPerIteration,
+                                              kMPerIteration,
+                                              GetVectorSizeC(),
+                                              tile_distribution_pattern::thread_raked>>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
         constexpr auto c_warp_y_lengths =
@@ -164,8 +198,26 @@ struct CShuffleEpilogue
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             constexpr auto idx_y_start = SFC::get_index(iAccess);
 
-            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (kMPerXdl * kMWave)>{};
-            constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (kNPerXdl * kNWave)>{};
+            constexpr auto mIter = [&]() {
+                if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return number<idx_y_start.at(number<0>{}) / (kMPerXdl * kMWave)>{};
+                }
+                else
+                {
+                    return number<idx_y_start.at(number<1>{}) / (kNPerXdl * kNWave)>{};
+                }
+            }();
+            constexpr auto nIter = [&]() {
+                if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return number<idx_y_start.at(number<1>{}) / (kNPerXdl * kNWave)>{};
+                }
+                else
+                {
+                    return number<idx_y_start.at(number<0>{}) / (kMPerXdl * kMWave)>{};
+                }
+            }();
 
             c_warp_in_tensor.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
                 merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
