@@ -17,13 +17,31 @@
 
 namespace ck_tile {
 
+/**
+ * @brief Functor for filling a range with randomly generated values from a uniform distribution.
+ *
+ * This struct provides functionality to fill iterators or ranges with random values
+ * generated from a uniform distribution. It supports both single-threaded and
+ * multi-threaded operation.
+ *
+ * @tparam T The target type for the generated values.
+ *
+ * @note The multi-threaded implementation is not guaranteed to provide perfectly
+ * distributed values across threads.
+ *
+ * @example
+ *
+ *     // Direct usage without creating a separate variable:
+ *     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_host_tensor);
+ */
 template <typename T>
 struct FillUniformDistribution
 {
     float a_{-5.f};
     float b_{5.f};
     std::optional<uint32_t> seed_{11939};
-    // ATTENTION: threaded does not guarantee the distribution between thread
+    // ATTENTION: Whether to use multi-threading (note: not guaranteed to be perfectly distributed
+    // across threads).
     bool threaded = false;
 
     template <typename ForwardIter>
@@ -280,7 +298,7 @@ struct FillMonotonicSeq
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::generate(first, last, [=, n = init_value_]() mutable {
+        std::generate(first, last, [=, *this, n = init_value_]() mutable {
             auto tmp = n;
             if constexpr(std::is_same_v<decltype(tmp), pk_int4_t>)
             {
@@ -315,7 +333,7 @@ struct FillStepRange
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::generate(first, last, [=, n = start_value_]() mutable {
+        std::generate(first, last, [=, *this, n = start_value_]() mutable {
             auto tmp = n;
             n += step_;
             if constexpr(IsAscending)
@@ -358,6 +376,49 @@ struct FillConstant
     auto operator()(ForwardRange&& range) const -> std::void_t<
         decltype(std::declval<const FillConstant&>()(std::begin(std::forward<ForwardRange>(range)),
                                                      std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
+//----------------------------------------------------------------------------------------------
+/// @brief      Transforms given input to fit 2:4 structured sparsity pattern so
+///             every subgroup of 4 elements contain at most 2 non-zero elements
+template <typename T>
+struct AdjustToStructuredSparsity
+{
+    size_t start{0};
+    // masks represent all valid 2:4 structured sparsity permutations
+    // clang-format off
+    static constexpr int32_t masks[] = {0, 0, 1, 1,
+                                        0, 1, 0, 1,
+                                        0, 1, 1, 0,
+                                        1, 0, 0, 1,
+                                        1, 0, 1, 0,
+                                        1, 1, 0, 0,
+                                        0, 0, 0, 1,
+                                        0, 0, 1, 0,
+                                        0, 1, 0, 0,
+                                        1, 0, 0, 0};
+    // clang-format on
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        std::transform(first, last, first, [=, *this, index = start](T val) mutable {
+            auto tmp = val * masks[index % (sizeof(masks) / sizeof(int32_t))];
+            index += 1;
+
+            return type_convert<T>(tmp);
+        });
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const AdjustToStructuredSparsity&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
                 std::end(std::forward<ForwardRange>(range)));

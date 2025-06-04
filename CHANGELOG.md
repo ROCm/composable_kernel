@@ -13,10 +13,19 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for GKCYX layout for grouped convolution backward weight (NGCHW/GKCYX/NGKHW).
 * Added support for GKCYX layout for grouped convolution backward data (NGCHW/GKCYX/NGKHW).
 * Added support for Stream-K version of mixed fp8/bf16 GEMM
+* Added GEMM pipeline for microscaling (MX) data types
+* Added support for FP16 2:4 structured sparsity to universal GEMM.
+* Added support for Split K for grouped convolution backward data.
+* Added logit soft-capping support for fMHA forward kernels.
+* Added benchmarking support for tile engine GEMM.
+* Added rotating buffer feature for CK_Tile GEMM.
 
 ### Optimized
 
-None
+
+* Optimize the gemm multiply multiply preshuffle & lds bypass with Pack of KGroup and better instruction layout. (#2166)
+* Added Vectorize Transpose optimization for CK Tile (#2131)
+
 
 ### Fixes
 

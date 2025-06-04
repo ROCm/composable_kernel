@@ -35,4 +35,7 @@
 #include "ck_tile/host/reference/reference_softmax.hpp"
 #include "ck_tile/host/reference/reference_topk.hpp"
 #include "ck_tile/host/stream_config.hpp"
+#include "ck_tile/host/stream_utils.hpp"
 #include "ck_tile/host/timer.hpp"
+#include "ck_tile/host/flush_icache.hpp"
+#include "ck_tile/host/rotating_buffers.hpp"

@@ -153,9 +153,8 @@ bool test_moe_sorting(ck_tile::ArgParser args)
         local_expert_masking_dev.ToDevice(local_expert_masking_host.data());
 
     // if return zero, means no need workspace, can set moe_sorting_args.p_ws to nullptr
-    ck_tile::index_t workspace_size = moe_sorting_get_workspace_size(tokens, num_experts);
+    ck_tile::index_t workspace_size = moe_sorting_get_workspace_size(tokens, num_experts, topk);
     ck_tile::DeviceMem moe_sorting_ws(workspace_size != 0 ? workspace_size : 0);
-
     if(workspace_size != 0)
         moe_sorting_ws.SetZero(); // note, clear here!!!!
 
@@ -335,16 +334,26 @@ bool test_moe_sorting(ck_tile::ArgParser args)
 
 int main(int argc, char** argv)
 {
-    auto [result, args] = create_args(argc, argv);
-    if(!result)
-        return -1;
-    std::string index_prec  = args.get_str("pr_i");
-    std::string weight_prec = args.get_str("pr_w");
-
-    bool r = true;
-    if(weight_prec.compare("fp32") == 0 && index_prec.compare("int32") == 0)
+    try
     {
-        r &= test_moe_sorting<float, ck_tile::index_t>(args);
+        auto [result, args] = create_args(argc, argv);
+        if(!result)
+            return -1;
+
+        std::string index_prec  = args.get_str("pr_i");
+        std::string weight_prec = args.get_str("pr_w");
+
+        bool r = true;
+        if(weight_prec == "fp32" && index_prec == "int32")
+        {
+            r &= test_moe_sorting<float, ck_tile::index_t>(args);
+        }
+
+        return r ? 0 : -1;
     }
-    return r ? 0 : -1;
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Runtime error: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    }
 }
