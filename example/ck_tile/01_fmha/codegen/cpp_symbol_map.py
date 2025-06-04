@@ -73,6 +73,13 @@ BIAS_CHECK_MAP = {
     "alibi" : "bias_enum::alibi"
 }
 
+# TODO: this is ugly
+KV_CACHE_MAP = {
+    "no" : "ck_tile::KVCacheEnum::NONE",
+    "sglang"  : "ck_tile::KVCacheEnum::SGLANG",
+    "vllm" : "ck_tile::KVCacheEnum::VLLM"
+}
+
 DROPOUT_MAP = {
     "no"                        : "ck_tile::BlockDropoutBwd<false, true,  false>",
     "dropout_wg32"              : "ck_tile::BlockDropoutBwd<true,  true,  false>",

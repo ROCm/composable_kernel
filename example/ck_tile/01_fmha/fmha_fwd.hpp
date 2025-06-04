@@ -1238,7 +1238,7 @@ template <ck_tile::index_t HDim_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kStoreLse_,
           bool kDoFp8StaticQuant_,
-          bool kIsPagedKV_,
+          ck_tile::KVCacheEnum kKVCacheEnum_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
@@ -1265,7 +1265,7 @@ struct fmha_batch_decode_traits_
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
-    static constexpr bool kIsPagedKV                 = kIsPagedKV_;
+    static constexpr auto kKVCacheEnum               = kKVCacheEnum_;
 };
 
 template <typename Traits_>

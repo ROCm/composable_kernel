@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_problem.hpp"
 #include <string>
 #include <type_traits>
 
@@ -213,17 +214,18 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
         const int32_t* kv_page_indices;
 #if 0 // we assume page_block_size=1 for now
         const int32_t* kv_last_page_lens;
-        ck_tile::index_t page_block_size;
-#else
-        static constexpr ck_tile::index_t page_block_size = 1;
 #endif
-    };
-
-    struct VllmPageBlockTableKargs
-    {
-        int32_t num_page_blocks;
         const int32_t* block_table_ptr;
         ck_tile::index_t page_block_size;
+        CommonPageBlockTableKargs() = default;
+        CommonPageBlockTableKargs(int32_t num_total_pages_, const int32_t* kv_indptr_, const int32_t* kv_page_indices_)
+            : num_total_pages(num_total_pages_), kv_indptr(kv_indptr_), kv_page_indices(kv_page_indices_), block_table_ptr(nullptr), page_block_size(1)
+        {
+        }
+
+        CommonPageBlockTableKargs(int32_t num_total_pages_, const int32_t* kv_indptr_, const int32_t* kv_page_indices_, const int32_t* block_table_ptr_, ck_tile::index_t page_block_size_) : num_total_pages(num_total_pages_), kv_indptr(kv_indptr_), kv_page_indices(kv_page_indices_), block_table_ptr(block_table_ptr_), page_block_size(page_block_size_)
+        {
+        }
     };
 
     struct BatchModeKargs
@@ -235,7 +237,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
                                                 EmptyKargs<0>>>,
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>,
-          std::conditional_t<kKVCacheEnum == KVCacheEnum::SGLANG, CommonPageBlockTableKargs, std::conditional_t<kKVCacheEnum == KVCacheEnum::VLLM, VllmPageBlockTableKargs, EmptyKargs<3>>>,
+          std::conditional_t<kKVCacheEnum != KVCacheEnum::NONE, CommonPageBlockTableKargs, EmptyKargs<3>>,
           std::conditional_t<kHasLogitsSoftCap, LogitsSoftCapKargs, EmptyKargs<4>>
     {
         ck_tile::index_t batch_stride_q;
@@ -256,7 +258,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
                                                 EmptyKargs<0>>>,
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>,
-          std::conditional_t<kKVCacheEnum == KVCacheEnum::SGLANG, CommonPageBlockTableKargs, std::conditional_t<kKVCacheEnum == KVCacheEnum::VLLM, VllmPageBlockTableKargs, EmptyKargs<3>>>,
+          std::conditional_t<kKVCacheEnum != KVCacheEnum::NONE, CommonPageBlockTableKargs, EmptyKargs<3>>,
           std::conditional_t<kHasLogitsSoftCap, LogitsSoftCapKargs, EmptyKargs<4>>
     {
         const int32_t* seqstart_q_ptr;
@@ -381,10 +383,10 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
         }
         if constexpr(kKVCacheEnum == KVCacheEnum::VLLM)
         {
-            kargs.num_page_blocks = num_total_pages;
+            kargs.num_total_pages = num_total_pages;
             kargs.max_num_blocks_per_seq = max_num_blocks_per_seq;
-            kargs.block_table_ptr     = reinterpret_cast<const int32_t*>(block_table_ptr);
-            kargs.page_block_size   = page_block_size;
+            kargs.block_table_ptr = reinterpret_cast<const int32_t*>(block_table_ptr);
+            kargs.page_block_size = page_block_size;
         }
         if constexpr(kHasLogitsSoftCap)
         {
@@ -500,7 +502,7 @@ template <bool Cond = kIsGroupMode>
         if constexpr(kKVCacheEnum == KVCacheEnum::VLLM)
         {
             kargs.max_num_blocks_per_seq = max_num_blocks_per_seq;
-            kargs.num_page_blocks = num_total_pages;
+            kargs.num_total_pages = num_total_pages;
             kargs.block_table_ptr = reinterpret_cast<const int32_t*>(block_table_ptr);
             kargs.page_block_size = page_block_size;
 
@@ -629,7 +631,7 @@ template <bool Cond = kIsGroupMode>
         }
         if constexpr(kKVCacheEnum == KVCacheEnum::SGLANG)
         {
-            kargs.max_num_blocks_per_seq = max_num_blocks_per_seq;
+            kargs.num_total_pages = num_total_pages;
             kargs.kv_indptr       = reinterpret_cast<const int32_t*>(kv_indptr);
             kargs.kv_page_indices = reinterpret_cast<const int32_t*>(kv_page_indices);
 #if 0 // we assume page_block_size=1 for now
@@ -827,7 +829,7 @@ template <bool Cond = kIsGroupMode>
         long_index_t batch_offset_lse_acc = 0;
         long_index_t batch_offset_o_acc   = 0;
         int32_t num_page_blocks = 0;
-        int32_t* kv_page_indices = nullptr;
+        const int32_t* kv_page_indices;
         if constexpr(kKVCacheEnum == KVCacheEnum::SGLANG){
             num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
     #if 0 // we assume page_block_size=1 for now

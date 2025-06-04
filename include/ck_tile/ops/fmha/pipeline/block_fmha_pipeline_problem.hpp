@@ -111,7 +111,7 @@ struct BlockFmhaFwdSplitKVPipelineProblem
     static constexpr auto BiasEnum                   = Traits::BiasEnum;
     static constexpr bool kStoreLSE                  = Traits::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant          = Traits::kDoFp8StaticQuant;
-    static constexpr auto KVCacheEnum                = Traits::KVCacheEnum;
+    static constexpr auto kKVCacheEnum               = Traits::kKVCacheEnum;
     static constexpr bool kHasUnevenSplits           = kIsGroupMode || Traits::kHasUnevenSplits;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
     static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
@@ -307,7 +307,7 @@ struct BlockFmhaBatchDecodePipelineProblem
     static constexpr auto BiasEnum                   = Traits::BiasEnum;
     static constexpr bool kStoreLSE                  = Traits::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant          = Traits::kDoFp8StaticQuant;
-    static constexpr auto KVCacheEnum                = Traits::KVCacheEnum;
+    static constexpr auto kKVCacheEnum               = Traits::kKVCacheEnum;
     static constexpr bool kHasUnevenSplits           = kIsGroupMode || Traits::kHasUnevenSplits;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
     static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
