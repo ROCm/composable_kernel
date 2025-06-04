@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -52,8 +52,7 @@ template <typename ThreadGroup,
           index_t DstVectorDim,
           index_t ScalarPerVector,
           typename IndexType,
-          index_t GatherDim = 1,
-          bool SrcXor       = true>
+          index_t GatherDim = 1>
 struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
@@ -67,31 +66,15 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-
-    // static constexpr index_t AK0 = SrcDesc{}.GetLength(I0);
-    // static constexpr index_t M   = SrcDesc{}.GetLength(I1);
-    // static constexpr index_t AK1 = SrcDesc{}.GetLength(I2);
 
     static constexpr auto block_slice_lengths    = BlockSliceLengths{};
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
-    static constexpr auto wave_thread_cluster_lengths =
-        Sequence<ThreadClusterLengths{}.At(I0),
-                 ThreadClusterLengths{}.At(I1) * 64 / ThreadGroup::GetNumOfThread(),
-                 1>{};
-    static constexpr auto wave_cluster_lengths =
-        Sequence<1, ThreadGroup::GetNumOfThread() / 64, 1>{};
 
     static constexpr auto thread_single_load_size = generate_sequence(
         detail::lambda_scalar_per_access<DstVectorDim, ScalarPerVector>{}, Number<nDim>{});
-
-    // CK_PRINT<decltype(thread_single_load_size)>();
-
     // After a load, each thread moves by `thread_steps` instead of loading the next elements.
     // It makes the whole wavefront load contiguous memory, what is required for direct loads.
-    static constexpr auto thread_steps = thread_cluster_lengths * thread_single_load_size;
-    static constexpr auto wave_single_load_size =
-        wave_thread_cluster_lengths * thread_single_load_size;
+    static constexpr auto thread_steps         = thread_cluster_lengths * thread_single_load_size;
     static constexpr auto thread_slice_lengths = block_slice_lengths / thread_steps;
     static constexpr index_t gather_num        = thread_slice_lengths.At(Number<GatherDim>{});
 
@@ -119,8 +102,12 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
         //    VALID: ThreadClusterLengths = [4, 16, 4] or [2, 32, 4] or [1, 64, 4] since in the
         //           first iteration, threads 0-63 write [0, 0, 0] -  [0, 15, 7] -> 128 consecutive
         //           elements = 64 consecutive DWORDs.
+#if defined(__gfx950__)
         int num_contiguous_dwords = 4;
-        bool is_contiguous        = true;
+#else
+        int num_contiguous_dwords = 1;
+#endif
+        bool is_contiguous = true;
         static_for<0, nDim, 1>{}([&](auto i) {
             if(is_contiguous)
             {
@@ -128,7 +115,6 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
             }
             if(thread_slice_lengths[nDim - i - 1] > 1)
             {
-                CK_PRINT<Number<thread_slice_lengths[nDim - i - 1]>>();
                 is_contiguous = false;
             }
         });
@@ -188,6 +174,25 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
+
+        constexpr auto wave_cluster_lengths = generate_sequence_v2(
+            [&](auto i) {
+                if constexpr(ThreadClusterArrangeOrder{}.At(i) == (nDim - 3))
+                {
+                    return Number<ThreadGroup::GetNumOfThread() / 64>{};
+                }
+                else
+                {
+                    return I1;
+                }
+            },
+            Number<nDim>{});
+
+        constexpr auto wave_thread_cluster_lengths = ThreadClusterLengths{} / wave_cluster_lengths;
+        constexpr auto wave_single_load_size =
+            wave_thread_cluster_lengths * thread_single_load_size;
+        constexpr auto wave_cluster_desc_ =
+            make_cluster_descriptor(wave_cluster_lengths, ThreadClusterArrangeOrder{});
 
         const auto wave_cluster_idx = wave_cluster_desc_.CalculateBottomIndex(
             make_multi_index(ThreadGroup::GetThreadId() / 64));
@@ -275,52 +280,6 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, true);
-
-#if 0
-            __builtin_amdgcn_s_waitcnt(3952);
-            block_sync_lds();
-            printf("blkx: %u, blky: %u, tid: %u, red_id: %d src: %d (cal: %d, gather: %d), "
-                   "dst_offset: "
-                   "%d, a_dst_buffer=<0x%08x, 0x%08x, 0x%08x, 0x%08x>\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   threadIdx.x,
-                   static_cast<int>(ordered_dst_access_idx[Number<GatherDim>{}]),
-                   src_offset,
-                   src_coord_xor_.GetOffset(),
-                   gather_offset,
-                   dst_offset,
-                   //    *(reinterpret_cast<const uint32_t*>(&(dst_buf[dst_offset + 0].data))),
-                   *(reinterpret_cast<const uint32_t*>(
-                       &(dst_buf[dst_offset + 0 + 16 * threadIdx.x].data))),
-                   *(reinterpret_cast<const uint32_t*>(
-                       &(dst_buf[dst_offset + 4 + 16 * threadIdx.x].data))),
-                   *(reinterpret_cast<const uint32_t*>(
-                       &(dst_buf[dst_offset + 8 + 16 * threadIdx.x].data))),
-                   *(reinterpret_cast<const uint32_t*>(
-                       &(dst_buf[dst_offset + 12 + 16 * threadIdx.x].data))));
-
-#else
-            __builtin_amdgcn_s_waitcnt(3952);
-            block_sync_lds();
-            printf("blkx: %u, blky: %u, tid: %u, thread_slice_lengths=<%d, %d, %d>, "
-                   "src_coord_xor_=<%d, "
-                   "%d, %d>, read_id: %d "
-                   "src: %d (cal: %d, gather: %d)\n",
-                   blockIdx.x,
-                   blockIdx.y,
-                   threadIdx.x,
-                   thread_slice_lengths[0],
-                   thread_slice_lengths[1],
-                   thread_slice_lengths[2],
-                   src_coord_xor_.GetIndex().At(I0),
-                   src_coord_xor_.GetIndex().At(I1),
-                   src_coord_xor_.GetIndex().At(I2),
-                   static_cast<int>(ordered_dst_access_idx[Number<GatherDim>{}]),
-                   src_offset,
-                   src_coord_xor_.GetOffset(),
-                   gather_offset);
-#endif
 
             constexpr auto move_src_on_dim = [&]() constexpr
             {
@@ -432,8 +391,6 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
     private:
     static constexpr auto thread_cluster_desc_ =
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
-    static constexpr auto wave_cluster_desc_ =
-        make_cluster_descriptor(wave_cluster_lengths, ThreadClusterArrangeOrder{});
 
     SrcCoord src_coord_;
     SrcCoord src_coord_xor_;

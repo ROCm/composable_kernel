@@ -129,8 +129,8 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           tensor_operation::device::GemmSpecialization GemmSpec,
-          index_t ScaleBlockSize,
-          index_t BlockSize,
+          index_t ScaleBlockSize, // Scaling block size
+          index_t BlockSize,      // Thread block size
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -193,25 +193,33 @@ struct GridwiseMoeGemmMXBNS
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
 
+    static constexpr auto lcm_AK1_BK1         = math::lcm(AK1Number, BK1Number);
+    static constexpr bool is_single_rate_mfma = false;
+    static constexpr auto is_scale_mfma       = true;
+
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     static constexpr auto MXdlPack = 2;
     static constexpr auto NXdlPack = 2;
     static constexpr auto KXdlPack = 2;
 
+    //> KPack is at least the k_per_blk of selected mfma
+    //
+    // Should be a multiple of k_per_blk.
+    // TODO: Move this to blockwise pipeline base
+    // KPack in packed data types for pk A/B
+
     static constexpr index_t APackedSize = packed_size_v<ADataType>;
     static constexpr index_t BPackedSize = packed_size_v<BDataType>;
 
-    static constexpr bool is_single_rate_mfma = false;
-    static constexpr auto is_scale_mfma       = true;
-    using mfma_selector                       = MfmaSelector<ComputeTypeA,
+    using mfma_selector = MfmaSelector<ComputeTypeA,
                                        MPerXdl,
                                        NPerXdl,
                                        ComputeTypeB,
                                        is_single_rate_mfma,
                                        is_scale_mfma>;
-    static constexpr index_t KPack            = math::max(
-        math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk / APackedSize);
+    static constexpr index_t KPack =
+        math::max(lcm_AK1_BK1, mfma_selector::selected_mfma.k_per_blk / APackedSize);
 
     // static constexpr index_t NumTokens = 1;
     static constexpr index_t SortedTileSize = MPerBlock;
@@ -362,12 +370,28 @@ struct GridwiseMoeGemmMXBNS
             // pad M, but not K
             const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
                 a_grid_desc_mraw_kraw,
-                make_tuple(make_unmerge_transform(make_tuple(AK0, AK1Value)),
+                make_tuple(make_unmerge_transform(make_tuple(K / KPerBlock, AK0Number, AK1Value)),
                            make_right_pad_transform(M, MPad - M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
 
-            return a_grid_desc_ak0_m_ak1;
+            const auto a_grid_desc_permuted = transform_tensor_descriptor(
+                a_grid_desc_ak0_m_ak1,
+                make_tuple(make_pass_through_transform(K / KPerBlock),
+                           make_xor_with_modulo_transform(make_tuple(MPad, AK0Number)),
+                           make_pass_through_transform(AK1Value)),
+                make_tuple(Sequence<0>{}, Sequence<2, 1>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<2, 1>{}, Sequence<3>{}));
+
+            const auto a_grid_desc = transform_tensor_descriptor(
+                a_grid_desc_permuted,
+                make_tuple(
+                    make_merge_transform_v3_division_mod(make_tuple(K / KPerBlock, AK0Number)),
+                    make_pass_through_transform(MPad),
+                    make_pass_through_transform(AK1Value)),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+            return a_grid_desc;
         }
         else if constexpr(GemmSpec == GemmSpecialization::KPadding ||
                           GemmSpec == GemmSpecialization::NKPadding)
@@ -439,8 +463,9 @@ struct GridwiseMoeGemmMXBNS
                         GemmSpec != GemmSpecialization::Default),
                       "pk_i4_t does not support padding");
         static_assert(!(is_same_v<remove_cvref_t<ADataType>, f4x2_pk_t> &&
-                        GemmSpec != GemmSpecialization::Default),
-                      "f4x2_pk_t does not support padding");
+                        (GemmSpec != GemmSpecialization::Default &&
+                         GemmSpec != GemmSpecialization::MPadding)),
+                      "f4x2_pk_t does not support K padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -1368,6 +1393,10 @@ struct GridwiseMoeGemmMXBNS
     static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
                   "B scale pack data type too large!");
 
+    static_assert(is_same_v<AElementwiseOperation, tensor_operation::element_wise::PassThrough> &&
+                      is_same_v<BElementwiseOperation, tensor_operation::element_wise::PassThrough>,
+                  "A/B ElementwiseOperation should be PassThrough as load_to_lds is used!");
+
 #if 0
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -2265,20 +2294,6 @@ struct GridwiseMoeGemmMXBNS
             }
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
-
-#if 0
-        printf("blkx: %u, blky: %u, tidx: %u,AMThreads: %d, token_pos: %d, gather_offsets:<%d, %d, "
-               "%d, %d>\n",
-               blockIdx.x,
-               blockIdx.y,
-               threadIdx.x,
-               AMThreads,
-               token_pos,
-               gather_offsets[Number<0>{}],
-               gather_offsets[Number<1>{}],
-               gather_offsets[Number<2>{}],
-               gather_offsets[Number<3>{}]);
-#endif
 
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
