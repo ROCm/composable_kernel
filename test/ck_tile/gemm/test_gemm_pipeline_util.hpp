@@ -89,6 +89,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using CDataType                    = std::tuple_element_t<6, Tuple>;
     static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
     static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
+    static constexpr bool Persistent =
+        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
     // TODO: expose tile size through test t-param ?
 
     template <bool PadM, bool PadN, bool PadK>
@@ -130,14 +132,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
+        static constexpr bool StructuredSparsity = false;
+        using GemmUniversalTraits                = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
                                                                      ALayout,
                                                                      BLayout,
                                                                      CLayout,
-                                                                     TransposeC>;
+                                                                     TransposeC,
+                                                                     StructuredSparsity,
+                                                                     Persistent>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -190,7 +195,15 @@ class TestCkTileGemmPipeline : public ::testing::Test
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
+            dim3 grids;
+            if constexpr(Persistent)
+            {
+                grids = Kernel::MaxOccupancyGridSize(s);
+            }
+            else
+            {
+                grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+            }
             constexpr dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
@@ -442,9 +455,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
                                   rtol_atol.at(ck_tile::number<1>{}));
-        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                  << std::endl;
         EXPECT_TRUE(pass);
     }
 };
