@@ -7,7 +7,7 @@
 
 namespace ck::tensor_operation::device::instance {
 
-using device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances =
+using device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_inter_instances =
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NGCDHW,
                                                                 GKCZYX,
@@ -21,8 +21,8 @@ using device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances
                                                                 PassThrough,
                                                                 PassThrough>>>;
 template <int Shards, int ShardIndex>
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances_shard(
-    device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances& instances)
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_inter_instances_shard(
+    device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_inter_instances& instances)
 {
     add_device_operation_instances(instances,
                                    ck::util::filter_tuple_by_modulo_t<
@@ -32,7 +32,7 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instan
                                                                                      Empty_Tuple,
                                                                                      NGKDHW,
                                                                                      ConvFwdDefault,
-                                                                                     Intrawave>,
+                                                                                     Interwave>,
                                        Shards,
                                        ShardIndex>{});
     add_device_operation_instances(instances,
@@ -43,7 +43,7 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instan
                                                                                      Empty_Tuple,
                                                                                      NGKDHW,
                                                                                      ConvFwd1x1P0,
-                                                                                     Intrawave>,
+                                                                                     Interwave>,
                                        Shards,
                                        ShardIndex>{});
     add_device_operation_instances(instances,
@@ -54,7 +54,7 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instan
                                                                                      Empty_Tuple,
                                                                                      NGKDHW,
                                                                                      ConvFwd1x1S1P0,
-                                                                                     Intrawave>,
+                                                                                     Interwave>,
                                        Shards,
                                        ShardIndex>{});
 }
