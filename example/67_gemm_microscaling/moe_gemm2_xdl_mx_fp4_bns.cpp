@@ -40,7 +40,7 @@ using B0DataType       = F4;
 using B1DataType       = XPackedDataType;
 using EDataType        = F16;
 using AccDataType      = F32;
-using CShuffleDataType = F32;
+using CShuffleDataType = F16;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using D2DataType       = F32;
@@ -62,8 +62,8 @@ struct MulABScaleExpertWeight
     operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
     // for real kernel use
     template <>
-    __host__ __device__ constexpr void operator()<EDataType, float, float, float, float>(
-        EDataType& e, const float& c, const float& d0, const float& d1, const float& d2) const
+    __host__ __device__ constexpr void operator()<EDataType, F16, float, float, float>(
+        EDataType& e, const F16& c, const float& d0, const float& d1, const float& d2) const
     {
         (void)d0;
         (void)d1;
@@ -143,7 +143,7 @@ constexpr ck::index_t DataPackedSize = 2;                    // Packed represent
 constexpr ck::index_t ScaleBlockSize = 32;                   // scaling block size
 constexpr ck::index_t KPerBlock      = 256 / DataPackedSize; // 256 f4 = 128 fp4x2
 
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MPerBlock = 32;
 static constexpr bool MulRoutedWeight  = true;
 
 // clang-format off
@@ -151,8 +151,8 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     A0Layout,    B0Layout,    DsLayout,    ELayout, 
     A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
     AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
-    ScaleBlockSize,      256,   
-    MPerBlock,  128,    KPerBlock,
+    ScaleBlockSize,      64,   
+    MPerBlock,  32,    KPerBlock,
     16,   16,
     16,   16,
     4,    4,
@@ -170,14 +170,14 @@ int main(int argc, char* argv[])
 
     // per expert:
     // GEMM shape
-    constexpr ck::index_t sorted_tile_num = 13;
+    constexpr ck::index_t sorted_tile_num = 2;
     constexpr ck::index_t valid_tile_num  = sorted_tile_num;
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
 
     ck::index_t N       = 6144;
     ck::index_t K       = 4096;
-    ck::index_t experts = 8;
+    ck::index_t experts = 2;
     ck::index_t tokens  = 832;
     ck::index_t topk    = 2;
 
@@ -319,8 +319,8 @@ int main(int argc, char* argv[])
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     case 3:
-        a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-1, 1});
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
@@ -337,12 +337,26 @@ int main(int argc, char* argv[])
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{1});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     case 6:
         a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        break;
+    case 7:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        a1_t_k_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        break;
+    case 8:
+        a0_t_k_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_t_k_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
@@ -404,25 +418,40 @@ int main(int argc, char* argv[])
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
 
-#if 0
+#if 1
     printf("a0_t_k_k:\n");
+    // for(int t = 0; t < tokens; ++t)
+    // {
+    //     for(int tk = 0; tk < topk; ++tk)
+    //     {
+    //         for(int k = 0; k < K; ++k)
+    //         {
+    //             auto f4x2 = a0_t_k_k(t, tk, k).data;
+    //             if(k % 2 == 0)
+    //             {
+    //                 ck::f4_t f4 = (f4x2 >> 4) & 0xf;
+    //                 printf("%.2f ", ck::type_convert<float>(f4));
+    //             }
+    //             else
+    //             {
+    //                 ck::f4_t f4 = (f4x2 >> 0) & 0xf;
+    //                 printf("%.2f ", ck::type_convert<float>(f4));
+    //             }
+    //         }
+    //         printf("\n");
+    //     }
+    //     printf("\n");
+    // }
+
     for(int t = 0; t < tokens; ++t)
     {
         for(int tk = 0; tk < topk; ++tk)
         {
-            for(int k = 0; k < K; ++k)
+            for(int k = 0; k < K;)
             {
-                auto f4x2 = a0_t_k_k(t, tk, k).data;
-                if(k % 2 == 0)
-                {
-                    ck::f4_t f4 = (f4x2 >> 4) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-                else
-                {
-                    ck::f4_t f4 = (f4x2 >> 0) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
+                printf("0x%08x ",
+                       *(reinterpret_cast<const uint32_t*>(&(a0_t_k_k(t, tk, k).data)))); // 4 bytes
+                k += 8;
             }
             printf("\n");
         }
@@ -464,23 +493,37 @@ int main(int argc, char* argv[])
     }
 
     printf("b0_e_n_k:\n");
+    // for(int e = 0; e < experts; ++e)
+    // {
+    //     for(int n = 0; n < N; ++n)
+    //     {
+    //         for(int k = 0; k < K; ++k)
+    //         {
+    //             auto f4x2 = b0_e_n_k(e, k, n).data;
+    //             if(k % 2 == 0)
+    //             {
+    //                 ck::f4_t f4 = f4x2 >> 4 & 0xf;
+    //                 printf("%.2f ", ck::type_convert<float>(f4));
+    //             }
+    //             else
+    //             {
+    //                 ck::f4_t f4 = f4x2 >> 0 & 0xf;
+    //                 printf("%.2f ", ck::type_convert<float>(f4));
+    //             }
+    //         }
+    //         printf("\n");
+    //     }
+    //     printf("\n");
+    // }
     for(int e = 0; e < experts; ++e)
     {
         for(int n = 0; n < N; ++n)
         {
-            for(int k = 0; k < K; ++k)
+            for(int k = 0; k < K;)
             {
-                auto f4x2 = b0_e_n_k(e, k, n).data;
-                if(k % 2 == 0)
-                {
-                    ck::f4_t f4 = f4x2 >> 4 & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-                else
-                {
-                    ck::f4_t f4 = f4x2 >> 0 & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
+                printf("0x%08x ",
+                       *(reinterpret_cast<const uint32_t*>(&(b0_e_n_k(e, k, n).data)))); // 4 bytes
+                k += 8;
             }
             printf("\n");
         }
@@ -509,6 +552,7 @@ int main(int argc, char* argv[])
             printf("%.2f ", ck::type_convert<float>(d2_e_n(i, n)));
         }
     }
+    printf("\n");
 #endif
 
     // do GEMM
@@ -573,7 +617,7 @@ int main(int argc, char* argv[])
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s" << device_op.GetTypeString() << std::endl;
+                  << " GB/s, " << device_op.GetTypeString() << std::endl;
     }
 
     if(do_verification)
@@ -582,7 +626,7 @@ int main(int argc, char* argv[])
         e_device_buf.ToDevice(e_t_n_device_result.mData.data());
         invoker.Run(argument, StreamConfig{nullptr, false, 0, 0, 1});
 
-        Tensor<CShuffleDataType> c_t_n({tokens, N});
+        Tensor<float> c_t_n({tokens, N});
 
         using ReferenceGemmInstance =
             ck::tensor_operation::host::ReferenceMoeMXGemm2<A0DataType,
@@ -590,7 +634,8 @@ int main(int argc, char* argv[])
                                                             B0DataType,
                                                             XDataType,
                                                             D2DataType,
-                                                            CShuffleDataType,
+                                                            float, // using float for Cshuffle type
+                                                                   // in reference
                                                             AccDataType,
                                                             PassThrough,
                                                             PassThrough,
@@ -626,7 +671,7 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-#if 0
+#if 1
         printf("e_t_n_device_result:\n");
         for(int t = 0; t < tokens; ++t)
         {

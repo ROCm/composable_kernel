@@ -261,31 +261,45 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                 // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                          true,
-                                                          MemoryDataOp,
-                                                          minimum_occupancy,
-                                                          TailNumber::Full>;
-                    RunKernel(kernel);
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                       true,
+                                                                       MemoryDataOp,
+                                                                       minimum_occupancy,
+                                                                       TailNumber::Odd>;
+                            RunKernel(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                       true,
+                                                                       MemoryDataOp,
+                                                                       minimum_occupancy,
+                                                                       TailNumber::Even>;
+                            RunKernel(kernel);
+                        }
+                    }
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              true,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Odd>;
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   true,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Odd>;
                         RunKernel(kernel);
                     }
                     else
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              true,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Even>;
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   true,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Even>;
                         RunKernel(kernel);
                     }
                 }
@@ -298,31 +312,43 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
             {
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                          false,
-                                                          MemoryDataOp,
-                                                          minimum_occupancy,
-                                                          TailNumber::Full>;
-                    RunKernel(kernel);
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   false,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   false,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              false,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Odd>;
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   false,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Odd>;
                         RunKernel(kernel);
                     }
                     else
                     {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              false,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Even>;
+                        const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                                   false,
+                                                                   MemoryDataOp,
+                                                                   minimum_occupancy,
+                                                                   TailNumber::Even>;
                         RunKernel(kernel);
                     }
                 }
