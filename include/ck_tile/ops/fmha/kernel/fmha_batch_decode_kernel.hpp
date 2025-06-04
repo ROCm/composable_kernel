@@ -101,7 +101,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) + (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) +
-            (kDoFp8StaticQuant ? "_squant" : "_nsquant") + (kKVCacheEnum == KVCacheEnum::SGLANG ? "_pagedkv" : (kKVCacheEnum == KVCacheEnum::VLLM ? "_pagedkv_vllm" : "_npagedkv") );
+            (kDoFp8StaticQuant ? "_squant" : "_nsquant") + (kKVCacheEnum == KVCacheEnum::SGLANG ? "_pagedkv_sglang" : (kKVCacheEnum == KVCacheEnum::VLLM ? "_pagedkv_vllm" : "_npagedkv") );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -217,6 +217,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
 #endif
         const int32_t* block_table_ptr;
         ck_tile::index_t page_block_size;
+        int32_t max_num_blocks_per_seq;
         CommonPageBlockTableKargs() = default;
         CommonPageBlockTableKargs(int32_t num_total_pages_, const int32_t* kv_indptr_, const int32_t* kv_page_indices_)
             : num_total_pages(num_total_pages_), kv_indptr(kv_indptr_), kv_page_indices(kv_page_indices_), block_table_ptr(nullptr), page_block_size(1)
@@ -397,7 +398,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
     }
 
 
-template <bool Cond = kIsGroupMode>
+    template <bool Cond = kIsGroupMode>
     __host__ static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,

@@ -259,7 +259,7 @@ float fmha_batch_decode(fmha_batch_decode_traits t, fmha_batch_decode_args a, co
 """
 
 FMHA_BATCH_DECODE_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.do_fp8_static_quant == {F_squant}) &&
-                        ((a.kv_indptr != nullptr) == {F_pagedkv}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
+                        ((a.kv_indptr != nullptr) == ({F_pagedkv} != ck_tile::KVCacheEnum::NONE)) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
                 using traits_ = fmha_batch_decode_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, true, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
                 // get combine kernel tile sizes
@@ -376,7 +376,7 @@ class FmhaFwdSplitKVPipeline:
     F_bias      : str  # true/false
     F_lse       : str  #
     F_squant    : str  #
-    F_pagedkv   : str  # t/f
+    F_pagedkv   : str  # no/sglang/vllm
     F_mask      : str  # value from MASK_MAP
 
     @property
@@ -413,8 +413,10 @@ class FmhaFwdSplitKVPipeline:
         if self.F_squant == 't' : n += '_squant'
         else: n += '_nsquant'
 
-        if self.F_pagedkv == 't' : n += '_pagedkv'
-        else: n += '_npagedkv'
+        if self.F_pagedkv == 'no' : n += '_npagedkv'
+        elif self.F_pagedkv == 'sglang' : n += '_pagedkv_sglang'
+        elif self.F_pagedkv == 'vllm' : n += '_pagedkv_vllm'
+        else: assert False
         return n
 
 @dataclass
@@ -473,7 +475,7 @@ class FmhaFwdSplitKVApiPool:
                     inners = inners + FMHA_BATCH_DECODE_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_logits=BOOL_MAP[trait.logits], F_mask=get_mask_map(self.mask_impl)[trait.mask],
                                    F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
-                                   F_lse=BOOL_MAP[trait.lse], F_squant=BOOL_MAP[trait.squant], F_pagedkv=BOOL_MAP[trait.pagedkv],
+                                   F_lse=BOOL_MAP[trait.lse], F_squant=BOOL_MAP[trait.squant], F_pagedkv=KV_CACHE_MAP[trait.pagedkv],
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
@@ -541,7 +543,7 @@ class FmhaFwdSplitKVKernel:
                 F_bias          = BIAS_MAP[self.F_pipeline.F_bias],
                 F_lse           = BOOL_MAP[self.F_pipeline.F_lse],
                 F_squant        = BOOL_MAP[self.F_pipeline.F_squant],
-                F_pagedkv       = BOOL_MAP[self.F_pipeline.F_pagedkv],
+                F_pagedkv       = KV_CACHE_MAP[self.F_pipeline.F_pagedkv],
                 F_occupancy     = self.F_tile.F_occupancy,
                 F_pipeline_enum = PIPELINE_ENUM_MAP[self.F_pipeline.tag],
                 F_mask          = get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
@@ -669,7 +671,7 @@ def get_batch_decode_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            for logits, mask, bias, pagedkv in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"]):
+            for logits, mask, bias, pagedkv in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), KV_CACHE_MAP.keys()):
                 # TODO: use async pipeline when compiler is more stable
                 if hdim == 256 or hdim in [32, 64, 128]:         ### [32, 64, 96, 128]:
                 # if True:
@@ -692,7 +694,7 @@ def get_batch_decode_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                         pipelines.append(Pipeline('qr', 'col', 't', 'f', 't', 't', logits, bias, 't', squant, pagedkv, mask)) # TODO: cover arbitraty hdim
         elif dtype in ['fp8', 'bf8']:
             for logits, mask, bias in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 't', squant, 'f', mask))
+                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 't', squant, 'no', mask))
         elif dtype in ['fp8fp16', 'fp8bf16']:
             # TODO
             None
@@ -742,7 +744,7 @@ def get_batch_decode_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     cond &= pipeline.F_bias == 'no'
                     cond &= pipeline.F_mask == 's_no'
                     cond &= pipeline.F_squant == 'f'
-                    cond &= pipeline.F_pagedkv == 't'
+                    cond &= pipeline.F_pagedkv != 'no'
                     if not cond:
                         continue
                 # aiter::mha_fwd_splikv C++ api integration
