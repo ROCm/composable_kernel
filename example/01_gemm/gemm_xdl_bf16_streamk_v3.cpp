@@ -9,7 +9,7 @@ using ADataType        = ck::bhalf_t;
 using BDataType        = ck::bhalf_t;
 using CDataType        = ck::bhalf_t;
 using AccDataType      = float;
-using CShuffleDataType = ck::bhalf_t;
+using CShuffleDataType = float;
 
 using ALayout = Row;
 using BLayout = Col;
