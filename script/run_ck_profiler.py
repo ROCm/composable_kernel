@@ -4,24 +4,56 @@
 
 # -*- coding: utf-8 -*-
 
+from enum import Enum
+
+
 def parse_args():
     """
     Parse command-line arguments
     -   --shapes_csv : input csv file with M, N, K integer columns
-    -   --best       : if True, store only the result reported by the best instance.
-                       if False, store results from all instances
+    -   --best       : if set, store only the result reported by the best instance.
+                       if not set, store results from all instances
     -   -o           : output csv file
     -   --build_dir  : path to directory where CMake stores all the build artifacts.
                        The profiler binary is bin/ckProfiler relative to this directory.
+    -   --op_name    : operator name
+    -   --layout     : inputs and output layout
+                       r ~ row-major
+                       c ~ col-major
+                       p ~ preshuffled for mfma
+    -   --dtype      : inputs and output dtype
     """
     import argparse
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--shapes_csv", required=True)
-    parser.add_argument("--best", action="store_true")
-    parser.add_argument("-o", default="out.csv")
-    parser.add_argument("--build_dir", default=".")
+    parser.add_argument(
+        "--shapes_csv",
+        required=True,
+        help="Input csv file with M, N, K integer columns",
+    )
+    parser.add_argument(
+        "--best",
+        action="store_true",
+        help="If set, store only the result reported by the best instance. If not set, store results from all instances",
+    )
+    parser.add_argument("-o", default="out.csv", help="Output csv file")
+    parser.add_argument(
+        "--build_dir",
+        default=".",
+        help="Path to directory where CMake stores all the build artifacts. The profiler binary is bin/ckProfiler relative to this directory.",
+    )
+    parser.add_argument(
+        "--op_name",
+        default="gemm_multiply_multiply_weight_preshuffle",
+        help="Operator name",
+    )
+    parser.add_argument(
+        "--layout",
+        default="rpr",
+        help="Inputs and output layout. r ~ row-major, c ~ col-major, p ~ preshuffled for mfma.",
+    )
+    parser.add_argument("--dtype", default="f8f8bf16", help="Inputs and output dtype.")
 
     return vars(parser.parse_args())
 
@@ -72,19 +104,112 @@ def parse_result(line):
     return fields
 
 
-def run_shape(shape, profiler_bin):
+class GemmMulMulWP:
+    """
+    Wrapper for ckProfiler CLI parameters specific to gemm_multiply_multiply_weight_preshuffle
+    """
+
+    dtype = Enum("dtype", [("f8f8f16", 0), ("f8f8bf16", 1)])
+    layout = Enum("layout", [("rpr", 0)])
+
+
+class GemmMulMul:
+    """
+    Wrapper for ckProfiler CLI parameters specific to gemm_multiply_multiply
+    """
+
+    dtype = Enum(
+        "dtype",
+        [
+            ("f32f32f32", 0),
+            ("f16f16f16", 1),
+            ("bf16bf16bf16", 2),
+            ("i8i8i8", 3),
+            ("f8f16f16", 4),
+            ("f16f8f16", 5),
+            ("f16f16f8", 6),
+            ("f8f8bf16", 7),
+            ("i8i8bf16", 8),
+            ("i8i8f16", 9),
+            ("f8f8f16", 10),
+        ],
+    )
+    layout = Enum(
+        "layout",
+        [
+            ("rrr", 0),
+            ("rcr", 1),
+            ("crr", 2),
+            ("ccr", 3),
+        ],
+    )
+
+
+OPs = Enum(
+    "ops",
+    [
+        ("gemm_multiply_multiply_weight_preshuffle", GemmMulMulWP),
+        ("gemm_multiply_multiply", GemmMulMul),
+    ],
+)
+
+
+def run_shape(shape, profiler_bin, op_name, dtype, layout):
     """
     Launch ckProfiler in subprocess and collect its stdout
     """
     import subprocess
 
     m, n, k = shape
-    op_name = "gemm_multiply_multiply_weight_preshuffle"
-    meta_args = map(str, [1, 0, 0, 2, 0, 1])
-    shape_args = map(str, [m, n, k, k, k, 0, 0, n])
+    try:
+        op = OPs[op_name]
+    except:
+        raise AssertionError(f"Invalid operator {op_name}")
+    name_arg = op.name
+    op_wrapper = op.value()
+
+    try:
+        dtype_arg = str(op_wrapper.dtype[dtype].value)
+    except:
+        raise AssertionError(f"Invalid dtype for {op_name}: {dtype}")
+
+    try:
+        layout_wrapper = op_wrapper.layout[layout]
+    except:
+        raise AssertionError(f"Invalid layout for {op_name}: {layout}")
+    layout_arg = str(layout_wrapper.value)
+    # verification: no, initialization: decimal, print tensor: no, time kernel: yes
+    meta_args = map(str, [0, 2, 0, 1])
+    # - r: row-major
+    # - c: col-major
+    # - p: preshuffled for mfma
+    if layout_wrapper.name in ("rcr", "rpr", "ccr"):
+        stride_b = k
+    else:
+        stride_b = n
+    if layout_wrapper.name in ("rrr", "rcr", "rpr"):
+        stride_a = k
+    else:
+        stride_a = n
+    if stride_a is None:
+        raise AssertionError(f"Couldn't decide StrideA from layout {layout_wrapper.name}")
+    if stride_b is None:
+        raise AssertionError(f"Couldn't decide StrideB from layout {layout_wrapper.name}")
+
+    # M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE
+    shape_args = map(str, [m, n, k, stride_a, stride_b, 0, 0, n])
+    # kBatch, number of warm-up cycles, number of iterations, rotating buffer size in MB
     control_args = map(str, [1, 50, 10, 4096])
 
-    cmd = [profiler_bin, op_name, *meta_args, *shape_args, *control_args]
+    cmd = [
+        profiler_bin,
+        name_arg,
+        dtype_arg,
+        layout_arg,
+        *meta_args,
+        *shape_args,
+        *control_args,
+    ]
     print(" ".join(cmd))
     result = subprocess.run(
         cmd,
@@ -135,13 +260,13 @@ def add_shape_to_metadata(shape, metadata):
 
 def main():
     """
-    Main driver: 
+    Main driver:
     - parses command line arguments
     - parses input shapes to run ckProfiler with
     - for each shape,
        - runs ckProfiler
        - parses the ckProfiler output
-    - writes out the results for all shapes 
+    - writes out the results for all shapes
     """
     args = parse_args()
     filename = args["shapes_csv"]
@@ -155,13 +280,16 @@ def main():
     profiler_bin = path.join(args["build_dir"], "bin", "ckProfiler")
 
     for s in tqdm(shapes):
-        run_shape_stdout_lines = run_shape(s, profiler_bin)
+        run_shape_stdout_lines = run_shape(
+            s, profiler_bin, args["op_name"], args["dtype"], args["layout"]
+        )
         results_single_shape = map(
             lambda r: add_shape_to_metadata(s, r),
             map(
                 parse_result,
                 filter(
-                    partial(filter_output_line, best_only=args["best"]), run_shape_stdout_lines
+                    partial(filter_output_line, best_only=args["best"]),
+                    run_shape_stdout_lines,
                 ),
             ),
         )
