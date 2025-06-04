@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/elementwise/binary_elementwise_operation.hpp"
-#include "ck_tile/ops/elementwise/kernel/elementwise.hpp"
+#include "ck_tile/ops/elementwise/kernel/elementwise_kernel.hpp"
 #include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_default_policy.hpp"
 #include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_problem.hpp"
 #include "ck_tile/ops/elementwise/pipeline/elementwise_shape.hpp"
