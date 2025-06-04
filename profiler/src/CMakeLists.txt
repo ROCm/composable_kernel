@@ -81,10 +81,12 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
 
 endif()
 
+if((SUPPORTED_GPU_TARGETS MATCHES "gfx9" AND (DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)) OR
+   (SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]" AND (DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)))
+  list(APPEND PROFILER_OPS profile_gemm_bilinear.cpp)
+endif()
+
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12" OR SUPPORTED_GPU_TARGETS MATCHES "gfx9")
-  if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
-    list(APPEND PROFILER_OPS profile_gemm_bilinear.cpp)
-  endif()
   list(APPEND PROFILER_OPS profile_gemm_universal.cpp)
   list(APPEND PROFILER_OPS profile_grouped_conv_fwd.cpp)
   list(APPEND PROFILER_OPS profile_grouped_conv_bwd_data.cpp)
@@ -188,10 +190,12 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
   list(APPEND DEVICE_INSTANCES device_grouped_conv3d_fwd_convinvscale_instance)
 endif()
 
-if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
-  if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
-    list(APPEND DEVICE_INSTANCES device_gemm_bilinear_instance)
-  endif()
+if((SUPPORTED_GPU_TARGETS MATCHES "gfx9" AND (DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)) OR
+   (SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]" AND (DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)))
+  list(APPEND DEVICE_INSTANCES device_gemm_bilinear_instance)
+endif()
+
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
   list(APPEND DEVICE_INSTANCES device_gemm_universal_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv3d_fwd_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv2d_bwd_data_instance)
