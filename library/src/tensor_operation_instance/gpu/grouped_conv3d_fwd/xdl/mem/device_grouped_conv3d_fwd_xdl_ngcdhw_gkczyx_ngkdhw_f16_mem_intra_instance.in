@@ -7,26 +7,26 @@
 
 namespace ck::tensor_operation::device::instance {
 
-using device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances =
+using device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_intra_instances =
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NGCDHW,
                                                                 GKCZYX,
                                                                 Empty_Tuple,
                                                                 NGKDHW,
-                                                                F32,
-                                                                F32,
+                                                                F16,
+                                                                F16,
                                                                 Empty_Tuple,
-                                                                F32,
+                                                                F16,
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>;
 template <int Shards, int ShardIndex>
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances_shard(
-    device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances& instances)
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_intra_instances_shard(
+    device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_intra_instances& instances)
 {
     add_device_operation_instances(instances,
                                    ck::util::filter_tuple_by_modulo_t<
-                                       device_grouped_conv_fwd_xdl_f32_mem_instances<3,
+                                       device_grouped_conv_fwd_xdl_f16_mem_instances<3,
                                                                                      NGCDHW,
                                                                                      GKCZYX,
                                                                                      Empty_Tuple,
@@ -37,7 +37,7 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instan
                                        ShardIndex>{});
     add_device_operation_instances(instances,
                                    ck::util::filter_tuple_by_modulo_t<
-                                       device_grouped_conv_fwd_xdl_f32_mem_instances<3,
+                                       device_grouped_conv_fwd_xdl_f16_mem_instances<3,
                                                                                      NGCDHW,
                                                                                      GKCZYX,
                                                                                      Empty_Tuple,
@@ -48,7 +48,7 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instan
                                        ShardIndex>{});
     add_device_operation_instances(instances,
                                    ck::util::filter_tuple_by_modulo_t<
-                                       device_grouped_conv_fwd_xdl_f32_mem_instances<3,
+                                       device_grouped_conv_fwd_xdl_f16_mem_instances<3,
                                                                                      NGCDHW,
                                                                                      GKCZYX,
                                                                                      Empty_Tuple,
