@@ -4,7 +4,12 @@
 #include "@INSTANCES@.inc"
 
 namespace ck::tensor_operation::device::instance {
-template void
-add_@INSTANCES@_shard<@NUM_SHARDS@, @SHARD_ID@>(
-    @INSTANCES@& instances);
+
+@EXTERN_TEMPLATE_STATEMENTS@;
+
+void add_@INSTANCES@(
+    @INSTANCES@& instances) {
+@CALL_STATEMENTS@; 
+}
+
 } // namespace ck::tensor_operation::device::instance
