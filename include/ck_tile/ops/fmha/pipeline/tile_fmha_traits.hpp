@@ -18,7 +18,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
           bool kStoreLSE_,
-          KVCacheEnum kKVCacheEnum_,
+          bool kHasDropout_,
           bool kDoFp8StaticQuant_,
           index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct TileFmhaTraits
@@ -31,7 +31,7 @@ struct TileFmhaTraits
     static constexpr auto BiasEnum          = BiasEnum_;
     static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
     static constexpr bool kStoreLSE         = kStoreLSE_;
-    static constexpr auto kKVCacheEnum      = kKVCacheEnum_;
+    static constexpr bool kHasDropout = kHasDropout_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
 };

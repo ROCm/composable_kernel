@@ -216,11 +216,11 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
         const int32_t* kv_last_page_lens;
 #endif
         const int32_t* block_table_ptr;
-        ck_tile::index_t page_block_size;
+        ck_tile::index_t page_block_size = 1;
         int32_t max_num_blocks_per_seq;
         CommonPageBlockTableKargs() = default;
         CommonPageBlockTableKargs(int32_t num_total_pages_, const int32_t* kv_indptr_, const int32_t* kv_page_indices_)
-            : num_total_pages(num_total_pages_), kv_indptr(kv_indptr_), kv_page_indices(kv_page_indices_), block_table_ptr(nullptr), page_block_size(1)
+            : num_total_pages(num_total_pages_), kv_indptr(kv_indptr_), kv_page_indices(kv_page_indices_), block_table_ptr(nullptr)
         {
         }
 
@@ -846,7 +846,9 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
 
             batch_offset_q = query_start * kargs.stride_q;
             if constexpr(kKVCacheEnum == KVCacheEnum::SGLANG){
-                kargs.kv_page_indices += kargs.kv_indptr[i_batch];
+                kv_page_indices = kargs.kv_page_indices + kargs.kv_indptr[i_batch];
+            }else if constexpr(kKVCacheEnum == KVCacheEnum::VLLM){
+                kv_page_indices = kargs.block_table_ptr + i_batch * kargs.max_num_blocks_per_seq;
             }
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -901,8 +903,7 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
         const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.q_ptr) +
                                  static_cast<long_index_t>(i_nhead) *
                                      (kMergeNumHeadGroupsSeqLenQ ? kargs.nhead_ratio_qk : 1) *
-                                     kargs.nhead_stride_q +
-                                 batch_offset_q;
+                                     kargs.nhead_stride_q + batch_offset_q;
         const KDataType* k_ptr = reinterpret_cast<const KDataType*>(kargs.k_ptr) +
                                  static_cast<long_index_t>(i_nhead_k) * kargs.nhead_stride_k;
         const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.v_ptr) +
