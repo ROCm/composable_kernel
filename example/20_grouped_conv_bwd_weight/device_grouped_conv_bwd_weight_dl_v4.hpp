@@ -535,8 +535,8 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
 
         const index_t in_x        = lane_id % (Tile_W / InScalarPerVector);
         const index_t in_y_offset = lane_id / (Tile_W / InScalarPerVector);
-        const index_t out_x        = lane_id % (TileOut_W / InScalarPerVector);
-        const index_t out_y_offset = lane_id / (TileOut_W / InScalarPerVector);
+        const index_t out_x        = lane_id % (TileOut_W / OutScalarPerVector);
+        const index_t out_y_offset = lane_id / (TileOut_W / OutScalarPerVector);
 
         // prefetch 0
         if(in_x < (Tile_W / InScalarPerVector))
@@ -544,7 +544,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             load_data_from_global<Copy_Tile_H, Tile_W, InScalarPerVector>(
                 p_in, in_x, in_y_offset, in_n_stride, hi, wi, hi_stride, wi_stride, tmp_in);
         }
-        if(out_x < (TileOut_W / InScalarPerVector))
+        if(out_x < (TileOut_W / OutScalarPerVector))
         {
             load_data_from_global<Copy_TileOut_H, TileOut_W, OutScalarPerVector>(
                 p_out, out_x, out_y_offset, out_n_stride, ho, wo, ho_stride, wo_stride, tmp_out);
@@ -568,7 +568,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             write_data_to_lds<Copy_Tile_H, Tile_W, TileIn_Align_W, InScalarPerVector>(
                 in_x, in_y_offset, tmp_in, share_in);
         }
-        if(out_x < (TileOut_W / InScalarPerVector))
+        if(out_x < (TileOut_W / OutScalarPerVector))
         {
             write_data_to_lds<Copy_TileOut_H, TileOut_W, TileOut_Align_W, OutScalarPerVector>(
                 out_x, out_y_offset, tmp_out, share_out);
@@ -617,7 +617,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
                     in_x, in_y_offset, tmp_in, share_in);
             }
 
-            if(out_x < (TileOut_W / InScalarPerVector))
+            if(out_x < (TileOut_W / OutScalarPerVector))
             {
                 load_data_from_global<Copy_TileOut_H, TileOut_W, OutScalarPerVector>(p_out,
                                                                                      out_x,
@@ -644,7 +644,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
                 load_data_from_global<Copy_Tile_H, Tile_W, InScalarPerVector>(
                     p_in, in_x, in_y_offset, in_n_stride, hi, wi, hi_stride, wi_stride, tmp_in);
             }
-            if(out_x < (TileOut_W / InScalarPerVector))
+            if(out_x < (TileOut_W / OutScalarPerVector))
             {
                 load_data_from_global<Copy_TileOut_H, TileOut_W, OutScalarPerVector>(p_out,
                                                                                      out_x,
@@ -673,7 +673,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
                 write_data_to_lds<Copy_Tile_H, Tile_W, TileIn_Align_W, InScalarPerVector>(
                     in_x, in_y_offset, tmp_in, share_in);
             }
-            if(out_x < (TileOut_W / InScalarPerVector))
+            if(out_x < (TileOut_W / OutScalarPerVector))
             {
                 write_data_to_lds<Copy_TileOut_H, TileOut_W, TileOut_Align_W, OutScalarPerVector>(
                     out_x, out_y_offset, tmp_out, share_out);
@@ -1115,8 +1115,8 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
         index_t Stride_H = tuple_element_t<1, FilterParam>{}.At(I0);
         index_t Stride_W = tuple_element_t<1, FilterParam>{}.At(I1);
 
-        index_t Dilation_H = tuple_element_t<1, FilterParam>{}.At(I0);
-        index_t Dilation_W = tuple_element_t<1, FilterParam>{}.At(I1);
+        index_t Dilation_Y = tuple_element_t<0, FilterParam>{}.At(I0);
+        index_t Dilation_X = tuple_element_t<0, FilterParam>{}.At(I1);
 
         // clang-format off
         str << "DeviceGroupedConvBwdWeightDlV4<"
@@ -1125,9 +1125,9 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
             << InLayout::name << ", "
             << WeiLayout::name << ", "
             << OutLayout::name << ", "
-            << "BlockTileSize<" << BlockTileSize{}.At(I0) << BlockTileSize{}.At(I1) << ">, "
+            << "BlockTileSize<" << BlockTileSize{}.At(I0) << ", " << BlockTileSize{}.At(I1) << ">, "
             << "FilterSize<" << FilterSize << ","<< FilterSize << ">, "
-            << "Dilation<" << Dilation_H << ", " << Dilation_W<< ">, "
+            << "Dilation<" << Dilation_Y << ", " << Dilation_X << ">, "
             << "Stride<" << Stride_H << ", " << Stride_W<< ">, "
             << "Pad<" << Pad_H << ", " << Pad_W<< ">, "
             << "NBatch: " << NBatch<< ", "
