@@ -25,12 +25,7 @@ using S = Sequence<Is...>;
 using PassThrough = element_wise::PassThrough;
 
 static constexpr auto GemmDefault = GemmSpecialization::Default;
-// static constexpr auto GemmKPadding   = GemmSpecialization::KPadding;
-// static constexpr auto GemmMNPadding  = GemmSpecialization::MNPadding;
-// static constexpr auto GemmMNKPadding = GemmSpecialization::MNKPadding;
-
-static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
-// static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
+static constexpr auto Intrawave   = BlockGemmPipelineScheduler::Intrawave;
 
 template <GemmSpecialization GemmSpec>
 using device_batched_gemm_wmma_universal_bf16_bf16_bf16_gmk_gnk_gmn_comp_instances =

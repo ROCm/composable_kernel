@@ -90,21 +90,18 @@ __global__ void
 #endif
 }
 
-/// @brief \"Universal\" Bacthed GEMM operation without SplitK support.
+/// @brief \"Universal\" Batched GEMM operation without SplitK support.
 ///
 /// @par Overview
 ///         This GEMM operation implements the following mathematical equation:
-///         C{M,N} = C_op(A_op(A{M,K}) * B_op(B{K,N}))
+///         C{G,M,N} = C_op(A_op(A{G,M,K}) * B_op(B{G,K,N}))
 ///         Where A, B are input tensors and C is the output tensor. The A/B/C_op are
 ///         elementwise operations applied to the A, B, and C tensors, respectively.
 ///         The \"universal\" gemm comes with multiple pipelines optimized for different usage
 ///         scenarios. That's why it's called \"universal\". It's universal through its design
 ///         and versatilty.
 ///
-/// @note   This Kernel implementation does not support the SplitK algorithm. It can not be
-///         configured to split the dot product accumulated over the K dimension into multiple
-///         working groups. The partial products of different workgroups are then reduced using the
-///         AtomicAdd operation.
+/// @note   This Kernel implementation currently does not support the SplitK algorithm.
 ///
 /// @tparam ALayout     A tensor data layout.
 /// @tparam BLayout     B tensor data layout.
@@ -362,12 +359,12 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                                      StrideC_,
                                      k_batch_,
                                      is_reduce_),
-              batch(Batch_),
+              Batch(Batch_),
               compute_ptr_offset_of_batch{BatchStrideA_, BatchStrideB_, BatchStrideC_}
         {
         }
 
-        index_t batch;
+        index_t Batch;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
     };
 
@@ -409,7 +406,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
             // it turns out, k batching does rely directly on blockIdx.Z through SplitKBatchOffset.
             // Therefore, for now we will use the grid Y dimension for batching. This may be a bit
             // fragile.
-            gdy *= arg.batch;
+            gdy *= arg.Batch;
 
             float ave_time = 0;
 
@@ -439,8 +436,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                     ck::utility::RotatingMemWrapper<Argument> rotating_mem(
                         arg_,
                         stream_config.rotating_count,
-                        arg_.batch * size_a_buffer,
-                        arg_.batch * size_b_buffer);
+                        arg_.Batch * size_a_buffer,
+                        arg_.Batch * size_b_buffer);
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
@@ -457,7 +454,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                             HIP_CHECK_ERROR(
                                 hipMemsetAsync(arg_.p_c_grid,
                                                0,
-                                               arg_.batch * arg_.M * arg_.N * sizeof(CDataType),
+                                               arg_.Batch * arg_.M * arg_.N * sizeof(CDataType),
                                                stream_config.stream_id_));
                     };
 
@@ -469,7 +466,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                         dim3(BlockSize),
                         0,
                         arg_,
-                        arg_.batch,
+                        arg_.Batch,
                         arg_.compute_ptr_offset_of_batch);
                 }
                 else
@@ -482,7 +479,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                         HIP_CHECK_ERROR(
                             hipMemsetAsync(arg.p_c_grid,
                                            0,
-                                           arg.batch * arg.M * arg.N * sizeof(CDataType),
+                                           arg.Batch * arg.M * arg.N * sizeof(CDataType),
                                            stream_config.stream_id_));
 
                     ave_time = launch_and_time_kernel(stream_config,
@@ -491,7 +488,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                                                       dim3(BlockSize),
                                                       0,
                                                       arg,
-                                                      arg.batch,
+                                                      arg.Batch,
                                                       arg.compute_ptr_offset_of_batch);
                 }
             };
