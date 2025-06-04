@@ -161,6 +161,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 dim3 grid_dim;
                 if(arg.Grid_size < 0)
                 {
+                    printf("grid size is less than 0");
                     int occupancy, num_cu;
                     hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
                         &occupancy, kernel, BlockSize, 0));
@@ -173,7 +174,11 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                     grid_dim      = arg.Grid_size;
                 }
                 else
+                {
+                    printf("grid size is not 0");
                     grid_dim = arg.Grid_size;
+                }
+                grid_dim = arg.block_2_ctile_map_streamk.get_grid_dims();
 
                 if(stream_config.flush_cache)
                 {
@@ -212,12 +217,13 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                             arg.block_2_ctile_map_streamk.get_workspace_size_for_acc(
                                 sizeof(GemmAccDataType));
                         auto preprocess = [&]() {
-                            hipMemsetAsync(
+                            auto status = hipMemsetAsync(
                                 workspace_semaphore,
                                 0,
                                 // sizeof(uint32_t),
                                 arg.block_2_ctile_map_streamk.get_workspace_size_for_semaphore(),
                                 stream_config.stream_id_);
+                            hip_check_error(status);
                         };
 
                         ave_time = launch_and_time_kernel_with_preprocess(
