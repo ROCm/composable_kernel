@@ -46,7 +46,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YDataType> y_validation({M, N}, {stride, 1});
 
     std::vector<ck_tile::index_t> shape = {M, N};
-    ck_tile::index_t ndims              = static_cast<ck_tile::index_t>(shape.size());
 
     ck_tile::FillUniformDistribution<XDataType>{0.f, 5.f}(x_host_a);
 

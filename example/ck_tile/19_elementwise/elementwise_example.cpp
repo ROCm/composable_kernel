@@ -63,7 +63,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YDataType> y_validation({M, N}, {stride, 1});
 
     std::vector<ck_tile::index_t> shape = {M, N};
-    ck_tile::index_t ndims              = static_cast<ck_tile::index_t>(shape.size());
 
     // Fill the host tensors with random data.
     // FillUniformDistribution populates the tensor with values from a uniform distribution,
