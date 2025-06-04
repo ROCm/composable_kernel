@@ -14,8 +14,8 @@
 
 # In addition to the user-supplied template, this CMake function uses two generic templates:
 #
-# 1. `instantiate_shard.cpp.in`: This is the template for the instantiation functions.
-# 2. `call_shard.cpp.in`: This is the template for the caller function that calls all the instantiation functions.
+# 1. `instantiate_shard.in`: This is the template for the instantiation functions.
+# 2. `call_shard.in`: This is the template for the caller function that calls all the instantiation functions.
 
 # This function takes the following arguments:
 #
@@ -81,7 +81,7 @@ function(generate_sharded_instantiations)
     foreach(SHARD_ID RANGE 0 ${LAST_SHARD_ID})
         set(NUM_SHARDS "${GEN_SHARDED_NUM_SHARDS}")
         set(SHARD_FUNCTION_PATH "${GEN_SHARDED_OUTPUT_DIR}/${INSTANCES}_shard_${SHARD_ID}.cpp")
-        set(SHARD_FUNCTION_TEMPLATE "${CMAKE_SOURCE_DIR}/cmake/instantiate_shard.cpp.in")
+        set(SHARD_FUNCTION_TEMPLATE "${CMAKE_SOURCE_DIR}/cmake/instantiate_shard.in")
         configure_file(
             "${SHARD_FUNCTION_TEMPLATE}"
             "${SHARD_FUNCTION_PATH}"
@@ -101,7 +101,7 @@ function(generate_sharded_instantiations)
 
     # Generate the caller function.
     set(CALLER_FUNCTION_PATH "${GEN_SHARDED_OUTPUT_DIR}/${INSTANCES}.cpp")
-    set(FUNCTION_TEMPLATE "${CMAKE_SOURCE_DIR}/cmake/call_shard.cpp.in")
+    set(FUNCTION_TEMPLATE "${CMAKE_SOURCE_DIR}/cmake/call_shard.in")
     configure_file(
         "${FUNCTION_TEMPLATE}"
         "${CALLER_FUNCTION_PATH}"
