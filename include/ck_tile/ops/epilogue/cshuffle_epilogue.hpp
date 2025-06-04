@@ -92,7 +92,20 @@ struct CShuffleEpilogue
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
         constexpr index_t MaxVectorStoreSize = 16;
-        return MaxVectorStoreSize / sizeof(ODataType);
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        {
+            return std::min(static_cast<int>(kNPerIteration),
+                            static_cast<int>(MaxVectorStoreSize / sizeof(ODataType)));
+        }
+        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
+        {
+            return std::min(static_cast<int>(kMPerIteration),
+                            static_cast<int>(MaxVectorStoreSize / sizeof(ODataType)));
+        }
+        else
+        {
+            static_assert(false, "Unsupported CLayout!");
+        }
     }
 
     template <typename Problem>
