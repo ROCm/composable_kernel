@@ -180,22 +180,23 @@ def run_shape(shape, profiler_bin, op_name, dtype, layout):
     layout_arg = str(layout_wrapper.value)
     # verification: no, initialization: decimal, print tensor: no, time kernel: yes
     meta_args = map(str, [0, 2, 0, 1])
-    # - r: row-major
-    # - c: col-major
-    # - p: preshuffled for mfma
-    if layout_wrapper.name in ("rcr", "rpr", "ccr"):
-        stride_b = k
-    else:
-        stride_b = n
-    if layout_wrapper.name in ("rrr", "rcr", "rpr"):
+
+    layout_a = layout_wrapper.name[0]
+    if layout_a == "r":
         stride_a = k
-    else:
+    elif layout_a == "c":
         stride_a = n
-    if stride_a is None:
+    else:
         raise AssertionError(
             f"Couldn't decide StrideA from layout {layout_wrapper.name}"
         )
-    if stride_b is None:
+
+    layout_b = layout_wrapper.name[1]
+    if layout_b == "r":
+        stride_b = n
+    elif layout_b in ("c", "p"):
+        stride_b = k
+    else:
         raise AssertionError(
             f"Couldn't decide StrideB from layout {layout_wrapper.name}"
         )
