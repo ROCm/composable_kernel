@@ -192,9 +192,13 @@ def run_shape(shape, profiler_bin, op_name, dtype, layout):
     else:
         stride_a = n
     if stride_a is None:
-        raise AssertionError(f"Couldn't decide StrideA from layout {layout_wrapper.name}")
+        raise AssertionError(
+            f"Couldn't decide StrideA from layout {layout_wrapper.name}"
+        )
     if stride_b is None:
-        raise AssertionError(f"Couldn't decide StrideB from layout {layout_wrapper.name}")
+        raise AssertionError(
+            f"Couldn't decide StrideB from layout {layout_wrapper.name}"
+        )
 
     # M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE
     shape_args = map(str, [m, n, k, stride_a, stride_b, 0, 0, n])
