@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <cstring>
@@ -56,21 +56,25 @@ std::tuple<std::string, int, char**> parse_global_arguments(int argc, char* argv
     args_to_keep.push_back(0); // Always keep program name
 
     // If we have an operation name, keep it
-    if(!operation_name.empty() && argc > 1) {
+    if(!operation_name.empty() && argc > 1)
+    {
         args_to_keep.push_back(1); // Keep the operation name
     }
 
     // Check remaining arguments
-    for(int i = 1; i < argc; i++) {
+    for(int i = 1; i < argc; i++)
+    {
         std::string arg = argv[i];
 
         // Skip the operation name (already handled)
-        if(i == 1 && !operation_name.empty()) {
+        if(i == 1 && !operation_name.empty())
+        {
             continue;
         }
 
         // Skip output arguments and their values
-        if(arg == "-o" || arg == "--output") {
+        if(arg == "-o" || arg == "--output")
+        {
             i++; // Skip the value too
             continue;
         }
@@ -80,20 +84,20 @@ std::tuple<std::string, int, char**> parse_global_arguments(int argc, char* argv
     }
 
     // Create new argv array
-    int new_argc = args_to_keep.size();
+    int new_argc    = args_to_keep.size();
     char** new_argv = new char*[new_argc];
 
-    for(int i = 0; i < new_argc; i++) {
+    for(int i = 0; i < new_argc; i++)
+    {
         // Make a copy of each string we want to keep
         int original_index = args_to_keep[i];
-        size_t len = std::strlen(argv[original_index]) + 1; // +1 for null terminator
-        new_argv[i] = new char[len];
+        size_t len         = std::strlen(argv[original_index]) + 1; // +1 for null terminator
+        new_argv[i]        = new char[len];
         std::strcpy(new_argv[i], argv[original_index]);
     }
 
     return {operation_name, new_argc, new_argv};
 }
-
 
 int main(int argc, char* argv[])
 {
@@ -112,8 +116,10 @@ int main(int argc, char* argv[])
 
     // Helper function to clean up memory
     auto cleanup = [new_argv, new_argc]() {
-        if(new_argv) {
-            for(int i = 0; i < new_argc; i++) {
+        if(new_argv)
+        {
+            for(int i = 0; i < new_argc; i++)
+            {
                 delete[] new_argv[i];
             }
             delete[] new_argv;
@@ -130,7 +136,7 @@ int main(int argc, char* argv[])
 
     // Look up the operation and run it if found
     if(const auto operation = ProfilerOperationRegistry::GetInstance().Get(operation_name);
-            operation.has_value())
+       operation.has_value())
     {
         int result = (*operation)(new_argc, new_argv);
         cleanup();

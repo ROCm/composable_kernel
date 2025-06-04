@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -23,7 +23,6 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/fill.hpp"
 #include "profiler/io_profiler.hpp"
-
 
 namespace ck {
 namespace profiler {
@@ -181,9 +180,10 @@ int profile_gemm_impl(int do_verification,
 
             float gb_per_sec = num_btype / 1.E6 / avg_time;
 
-            auto metadata = ck::profiler::io::CreateGemmMetadata<ALayout, BLayout, CLayout, ADataType, BDataType, CDataType>(M, N, K);
+            auto metadata = ck::profiler::io::
+                CreateGemmMetadata<ALayout, BLayout, CLayout, ADataType, BDataType, CDataType>(
+                    M, N, K);
             ck::profiler::io::ReportResult(op_name, avg_time, tflops, gb_per_sec, metadata);
-
 
             if(tflops > best_tflops)
             {
@@ -254,11 +254,11 @@ int profile_gemm_impl(int do_verification,
             float gb_per_sec = num_btype / 1.E6 / avg_time;
 
             // Report the more accurate best result with metadata
-            auto metadata = ck::profiler::io::CreateGemmMetadata<ALayout, BLayout, CLayout, ADataType, BDataType, CDataType>(M, N, K);
+            auto metadata = ck::profiler::io::
+                CreateGemmMetadata<ALayout, BLayout, CLayout, ADataType, BDataType, CDataType>(
+                    M, N, K);
             ck::profiler::io::ReportResult(op_name, avg_time, tflops, gb_per_sec, metadata);
             ck::profiler::io::ReportBestResult();
-
-
         }
     }
 
