@@ -6,8 +6,9 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/utility/blkgemmpipe_scheduler.hpp"
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
@@ -33,36 +34,33 @@ using AddMultiply = ck::tensor_operation::element_wise::AddMultiply;
 static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
+static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
+static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
+
 using device_gemm_add_multiply_wmma_c_shuffle_f16_f16_f16_f16_f16_km_kn_mn_mn_mn_instances =
     std::tuple<
         // clang-format off
-        //##############################|      A|      B|        Ds|      E| AData| BData| AccData| CShuffle|    DsData| EData|           A|           B|         CDE|           GEMM| Prefetch| Block|  MPer|  NPer| K0Per|  K1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CDEShuffleBlockTransferClusterLengths|         CDEShuffleBlock|
-        //##############################| Layout| Layout|    Layout| Layout|  Type|  Type|    Type| DataType|      Type|  Type| Elementwise| Elementwise| Elementwise| Specialization|    Stage|  Size| Block| Block| Block|    | WMMA| WMMA|        |        |   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|     MRepeat|     NRepeat|                     _MBlock_MPerBlock| TransferScalarPerVector|
-        //##############################|       |       |          |       |      |      |        |         |          |      |   Operation|   Operation|   Operation|               |         |      |      |      |      |    |     |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                     _NBlock_NPerBlock|              _NPerBlock|
-        //##############################|       |       |          |       |      |      |        |         |          |      |            |            |            |               |         |      |      |      |      |    |     |     |        |        |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                      |                        |         
-        DeviceGemmMultipleD_Wmma_CShuffle<    Col,    Row, Row_Tuple,    Row,   F16,   F16,     F32,      F16, F16_Tuple,   F16, PassThrough, PassThrough, AddMultiply,    GemmDefault,         1,   256,   128,   128,    64,  8,   16,   16,       4,       2,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,             8,      true,           1,           1,                        S<1, 32, 1,  8>,                      8>,
-
-        // M/N/K Padding
-        //##############################|      A|      B|        Ds|      E| AData| BData| AccData| CShuffle|    DsData| EData|           A|           B|         CDE|           GEMM| Prefetch| Block|  MPer|  NPer| K0Per|  K1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CDEShuffleBlockTransferClusterLengths|         CDEShuffleBlock|
-        //##############################| Layout| Layout|    Layout| Layout|  Type|  Type|    Type| DataType|      Type|  Type| Elementwise| Elementwise| Elementwise| Specialization|    Stage|  Size| Block| Block| Block|    | WMMA| WMMA|        |        |   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|     MRepeat|     NRepeat|                     _MBlock_MPerBlock| TransferScalarPerVector|
-        //##############################|       |       |          |       |      |      |        |         |          |      |   Operation|   Operation|   Operation|               |         |      |      |      |      |    |     |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                     _NBlock_NPerBlock|              _NPerBlock|
-        //##############################|       |       |          |       |      |      |        |         |          |      |            |            |            |               |         |      |      |      |      |    |     |     |        |        |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                      |                        |         
-        DeviceGemmMultipleD_Wmma_CShuffle<    Col,    Row, Row_Tuple,    Row,   F16,   F16,     F32,      F16, F16_Tuple,   F16, PassThrough, PassThrough, AddMultiply, GemmMNKPadding,        1,   256,   128,   128,    64,  8,    16,   16,       4,       2,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,             8,      true,           1,           1,                        S<1, 32, 1,  8>,                      8>
+        //##################################| ALayout| BLayout|  DsLayout| ELayout| AData| BData|    DsData| EData| AccData| CShuffle|           A|           B|          CDE|       GemmSpec| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|   CShuffle|   CShuffle| CShuffleBlockTransfer| CDEShuffleBlockTransfer|   BlkGemm|                      BlkGemm|
+        //##################################|        |        |          |        |  Type|  Type|      Type|  Type|    Type| DataType| Elementwise| Elementwise|  Elementwise|               |  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|    MRepeat|    NRepeat|        ClusterLengths|        ScalarPerVectors| PipeSched|                  PipelineVer|
+        //##################################|        |        |          |        |      |      |          |      |        |         |   Operation|   Operation|    Operation|               |      |      |      |      |    |    |     |     |        |        | Lengths_AK0_M_AK1|   ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_BK0_N_BK1|   ArrangeOrder|               |               |      PerVector|  PerVector_BK1|          | PerShuffle| PerShuffle|     _MBlock_MPerBlock|                        |          |                             |
+        //##################################|        |        |          |        |      |      |          |      |        |         |            |            |             |               |      |      |      |      |    |    |     |     |        |        |                  |               |               |               |               |               |          |                  |               |               |               |               |               |          |           |           |     _NBlock_NPerBlock|                        |          |                             |
+        DeviceGemmMultipleD_Wmma_CShuffleV3<       Col,     Row, Row_Tuple,     Row,   F16,   F16, F16_Tuple,   F16,     F32,      F16, PassThrough, PassThrough,  AddMultiply,    GemmDefault,   256,   128,   128,    64,   8,   8,   16,   16,       4,       2,     S<4, 64, 1>,       S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,       S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,          1,          1,       S<1, 32, 1,  8>,              S<8, 8, 8>, Intrawave, BlockGemmPipelineVersion::v1>,
+        DeviceGemmMultipleD_Wmma_CShuffleV3<       Col,     Row, Row_Tuple,     Row,   F16,   F16, F16_Tuple,   F16,     F32,      F16, PassThrough, PassThrough,  AddMultiply, GemmMNKPadding,   256,   128,   128,    64,   8,   8,   16,   16,       4,       2,     S<4, 64, 1>,       S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,       S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,          1,          1,       S<1, 32, 1,  8>,              S<8, 8, 8>, Interwave, BlockGemmPipelineVersion::v1>
         // clang-format on
         >;
 
 void add_device_gemm_add_multiply_wmma_c_shuffle_f16_f16_f16_f16_f16_km_kn_mn_mn_mn_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
-                                                    Row,
-                                                    Row_Tuple,
-                                                    Row,
-                                                    F16,
-                                                    F16,
-                                                    F16_Tuple,
-                                                    F16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    AddMultiply>>>& instances)
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Col,
+                                                          Row,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          F16_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddMultiply>>>& instances)
 {
     add_device_operation_instances(
         instances,
