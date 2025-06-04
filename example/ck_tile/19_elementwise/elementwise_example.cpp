@@ -83,14 +83,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // 3. Configure the kernel execution parameters.
     // Dividing the problem into blocktile, warptile, and vector
-    // The blocktile is the size of the tile processed by a single work group (also called thread block).
-    // The warptile is the size of the tile processed by a single wavefront (also called warp).
-    // The vector is the size of the tile processed by a single work item (also called thread).
-    // The problem is divided into blocks of size BlockTile. Each block is further divided into wavefronts
-    // of size WarpTile.
-    // Each wavefront is composed of 64 work items (on AMD; 32 threads on NVIDIA).
-    // Each work item in a wavefront processes one vector's worth of elements.
-    // Note that WarpTile/Vector should be 64 for CDNA (because there are 64 work items per wavefront).
+    // The blocktile is the size of the tile processed by a single work group (also called thread
+    // block). The warptile is the size of the tile processed by a single wavefront (also called
+    // warp). The vector is the size of the tile processed by a single work item (also called
+    // thread). The problem is divided into blocks of size BlockTile. Each block is further divided
+    // into wavefronts of size WarpTile. Each wavefront is composed of 64 work items (on AMD; 32
+    // threads on NVIDIA). Each work item in a wavefront processes one vector's worth of elements.
+    // Note that WarpTile/Vector should be 64 for CDNA (because there are 64 work items per
+    // wavefront).
     using BlockTile = ck_tile::sequence<2048>; // How many elements are handled by a block tile (the
                                                // tensor is divided into blocks of this size)
     using BlockWarps = ck_tile::sequence<8>; // How many concurrent wavefronts are in a block (each
@@ -103,9 +103,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // such wavefront operations might be needed to cover the BlockTile, or the BlockTile is
     // distributed differently.
     // The current configuration (BlockTile=2048, BlockWarps=8, WarpTile=64) implies that
-    // each wavefront processes 64 elements, and 8 wavefronts process 8*64 = 512 elements concurrently.
-    // Since 512 is not equal to 2048, it means that warptile(s) will need to iterate over multiple
-    // times over different set of elements to cover the entire BlockTile.
+    // each wavefront processes 64 elements, and 8 wavefronts process 8*64 = 512 elements
+    // concurrently. Since 512 is not equal to 2048, it means that warptile(s) will need to iterate
+    // over multiple times over different set of elements to cover the entire BlockTile.
     using WarpTile = ck_tile::sequence<64>;
 
     // Vector: Defines the number of elements processed by a single work item in one operation.
