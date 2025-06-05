@@ -173,6 +173,8 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
         constexpr auto wave_cluster_lengths = generate_sequence_v2(
             [&](auto i) {
+                // FIXME: wave parallelism is not always in that dimension.
+                // The ThreadClusterLengths{} must be bigger than wave_num;
                 if constexpr(ThreadClusterArrangeOrder{}.At(i) == (nDim - 3))
                 {
                     return Number<ThreadGroup::GetNumOfThread() / 64>{};
