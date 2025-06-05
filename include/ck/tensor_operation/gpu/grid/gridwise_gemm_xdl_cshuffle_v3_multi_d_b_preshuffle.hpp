@@ -366,7 +366,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPackPerGroup>{};
+        constexpr index_t NkSwizzleNumber = Number<CK_GPU_ARCH_WARP_SIZE * KPackPerGroup>{};
         return make_naive_tensor_descriptor(
             make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
             make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
@@ -1243,7 +1243,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPackPerGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPackPerGroup * (get_thread_local_1d_id() % CK_GPU_ARCH_WARP_SIZE)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1683,7 +1683,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPackPerGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPackPerGroup * (get_thread_local_1d_id() % CK_GPU_ARCH_WARP_SIZE)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds

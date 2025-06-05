@@ -594,8 +594,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                                     number<kKPerBlock / KPack>{}, // k0
                                                     number<KPack>{}),             // k1
                                          make_tuple(number<BufferSize>{},
-                                                    number<NumWarps*(warpSize * KVector + kPad)>{},
-                                                    number<warpSize * KVector + kPad>{},
+                                                    number<NumWarps*(CK_GPU_ARCH_WARP_SIZE * KVector + kPad)>{},
+                                                    number<CK_GPU_ARCH_WARP_SIZE * KVector + kPad>{},
                                                     number<kKPerBlock>{},
                                                     number<KPack>{},
                                                     number<1>{}),

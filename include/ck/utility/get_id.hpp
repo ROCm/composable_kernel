@@ -9,8 +9,9 @@ namespace ck {
 
 __host__ __device__ constexpr index_t get_warp_size()
 {
-    // warpSize is defined by HIP
-    return warpSize;
+    // CK_GPU_ARCH_WARP_SIZE needs to be manually provided
+    /*Jatin: CK_GPU_ARCH_WARP_SIZE fix??*/
+    return CK_GPU_ARCH_WARP_SIZE;
 }
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }

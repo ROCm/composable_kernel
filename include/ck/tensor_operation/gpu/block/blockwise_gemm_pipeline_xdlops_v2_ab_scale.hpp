@@ -143,7 +143,7 @@ struct BlockwiseGemmXdlops_pipeline_v2_ab_scale<BlockGemmPipelineScheduler::Intr
     using Base::BMmaKStride;
 
     static constexpr index_t WgpPerCU =
-        (4 * warpSize / BlockSize) >= 1 ? 4 * warpSize / BlockSize : 1;
+        (4 * CK_GPU_ARCH_WARP_SIZE / BlockSize) >= 1 ? 4 * CK_GPU_ARCH_WARP_SIZE / BlockSize : 1;
     static constexpr index_t FullMemBandPrefetchStages = math::integer_divide_ceil(
         32768 / WgpPerCU,
         (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);

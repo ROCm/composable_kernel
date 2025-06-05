@@ -35,7 +35,7 @@ struct Reduce2dShape
     static constexpr index_t Repeat_N = Block_N / (WarpPerBlock_N * Warp_N);
 
     static constexpr index_t BlockSize =
-        warpSize * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+        CK_GPU_ARCH_WARP_SIZE * reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
 };
 
 template <typename XDataType_,

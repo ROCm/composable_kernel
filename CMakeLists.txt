@@ -199,6 +199,11 @@ rocm_check_target_ids(SUPPORTED_GPU_TARGETS
 
 message("Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
 
+if (NOT DEFINED CK_GPU_ARCH_WARP_SIZE)
+    set(CK_GPU_ARCH_WARP_SIZE 64)
+endif()
+add_definitions(-DCK_GPU_ARCH_WARP_SIZE=${CK_GPU_ARCH_WARP_SIZE})
+
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
     message("Enabling XDL instances")
     add_definitions(-DCK_USE_XDL)
