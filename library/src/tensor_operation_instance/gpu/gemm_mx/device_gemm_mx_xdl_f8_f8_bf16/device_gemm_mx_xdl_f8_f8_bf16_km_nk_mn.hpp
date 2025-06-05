@@ -13,11 +13,12 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using F8   = f8_t;
-using F16  = half_t;
-using BF16 = bhalf_t;
-using F32  = float;
-using E8M0 = ck::e8m0_bexp_t;
+using F8     = f8_t;
+using F16    = half_t;
+using BF16   = bhalf_t;
+using F32    = float;
+using E8M0   = ck::e8m0_bexp_t;
+using E8M0PK = int32_t;
 
 using Row = tensor_layout::gemm::RowMajor;
 using Col = tensor_layout::gemm::ColumnMajor;
