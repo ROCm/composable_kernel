@@ -11,8 +11,6 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using F16  = ck::half_t;
 using F32  = float;
 
-// TODO: inerit TestGemmAddMultiply from TestGemmD0Common after changes are rebased on top of multipleD feature branch.
-// After that clean test...
 template <typename Tuple>
 class TestGemmAddMultiply : public ::testing::Test
 {
