@@ -43,7 +43,7 @@ using I32 = int32_t;
  * @tparam OutDataType Type used for output
  * @tparam AccDataType Type used for accumulation (defaults to ComputeDataType)
  * @param number_of_accumulations Number of accumulation operations performed
- * @return double Relative error threshold based on data type characteristics
+ * @return Relative error threshold based on data type characteristics
  */
 template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
 double get_relative_threshold(const int number_of_accumulations = 1)
@@ -103,7 +103,7 @@ double get_relative_threshold(const int number_of_accumulations = 1)
  * @tparam AccDataType Type used for accumulation (defaults to ComputeDataType)
  * @param max_possible_num Maximum possible value in the computation
  * @param number_of_accumulations Number of accumulation operations performed
- * @return double Absolute error threshold based on data type characteristics and maximum value
+ * @return Absolute error threshold based on data type characteristics and maximum value
  */
 template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
 double get_absolute_threshold(const double max_possible_num, const int number_of_accumulations = 1)
@@ -162,7 +162,7 @@ double get_absolute_threshold(const double max_possible_num, const int number_of
  * @tparam T Type of vector elements
  * @param os Output stream
  * @param v Vector to output
- * @return std::ostream& Reference to the output stream
+ * @return Reference to the output stream
  */
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
@@ -239,7 +239,7 @@ void report_error_stats(int err_count, double max_err, std::size_t total_size)
  * @param rtol Relative tolerance
  * @param atol Absolute tolerance
  * @param allow_infinity_ref Whether to allow infinity in reference values
- * @return bool True if check passes, false otherwise
+ * @return True if check passes, false otherwise
  */
 template <typename Range, typename RefRange>
 typename std::enable_if<
@@ -294,6 +294,22 @@ check_err(const Range& out,
     return res;
 }
 
+/**
+ * @brief Check errors between floating point ranges with specified tolerances
+ *
+ * Compares two ranges of brain floating point values within specified relative and absolute
+ * tolerances.
+ *
+ * @tparam Range Type of output range
+ * @tparam RefRange Type of reference range
+ * @param out Output range to check
+ * @param ref Reference range to check against
+ * @param msg Error message to display if check fails
+ * @param rtol Relative tolerance
+ * @param atol Absolute tolerance
+ * @param allow_infinity_ref Whether to allow infinity in reference values
+ * @return True if check passes, false otherwise
+ */
 template <typename Range, typename RefRange>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
@@ -361,7 +377,7 @@ check_err(const Range& out,
  * @param rtol Relative tolerance
  * @param atol Absolute tolerance
  * @param allow_infinity_ref Whether to allow infinity in reference values
- * @return bool True if check passes, false otherwise
+ * @return True if check passes, false otherwise
  */
 template <typename Range, typename RefRange>
 typename std::enable_if<
@@ -427,7 +443,7 @@ check_err(const Range& out,
  * @param ref Reference range to check against
  * @param msg Error message to display if check fails
  * @param atol Absolute tolerance
- * @return bool True if check passes, false otherwise
+ * @return True if check passes, false otherwise
  */
 template <typename Range, typename RefRange>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
@@ -491,7 +507,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
  * @param max_rounding_point_distance Maximum allowed distance between rounding points
  * @param atol Absolute tolerance
  * @param allow_infinity_ref Whether to allow infinity in reference values
- * @return bool True if check passes, false otherwise
+ * @return True if check passes, false otherwise
  */
 template <typename Range, typename RefRange>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
@@ -576,7 +592,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
  * @param rtol Relative tolerance
  * @param atol Absolute tolerance
  * @param allow_infinity_ref Whether to allow infinity in reference values
- * @return bool True if check passes, false otherwise
+ * @return True if check passes, false otherwise
  */
 template <typename Range, typename RefRange>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
