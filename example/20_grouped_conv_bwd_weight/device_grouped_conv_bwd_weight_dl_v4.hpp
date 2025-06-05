@@ -33,22 +33,26 @@ __device__ T warp_shuffle_down(const T& v_local, uint32_t lane_delta)
     return bit_cast<T>(v_remote_tmp);
 #endif
 }
-template <typename T>  void __device__ global_atomic_add(T* p,T val);
+template <typename T>
+void __device__ global_atomic_add(T* p, T val);
 
-template <>  void __device__ global_atomic_add<float>(float* p, float v)
+template <>
+void __device__ global_atomic_add<float>(float* p, float v)
 {
     __builtin_amdgcn_global_atomic_fadd_f32(p, v);
 }
-template <>  void __device__ global_atomic_add<half2_t>(half2_t* p, half2_t v)
+template <>
+void __device__ global_atomic_add<half2_t>(half2_t* p, half2_t v)
 {
-#if defined(__gfx942__) || defined(__gfx950__)    
+#if defined(__gfx942__) || defined(__gfx950__)
     __builtin_amdgcn_global_atomic_fadd_v2f16(p, v);
 #else
     ignore = p;
     ignore = v;
 #endif
 }
-template <>  void __device__ global_atomic_add<bhalf2_t>(bhalf2_t* p, bhalf2_t v)
+template <>
+void __device__ global_atomic_add<bhalf2_t>(bhalf2_t* p, bhalf2_t v)
 {
 #if defined(__gfx942__) || defined(__gfx950__)
     __builtin_amdgcn_global_atomic_fadd_v2bf16(p, v);
@@ -91,7 +95,8 @@ template <index_t BlockSize,
           index_t InScalarPerVector,
           index_t OutScalarPerVector,
           index_t DstScalarPerVector,
-          bool RequirePadding,
+          bool RequirePadding   = false,
+          index_t WSplit        = 1,
           typename ComputeTypeA = InDataType,
           typename ComputeTypeB = ComputeTypeA>
 struct GridwiseGroupedConv2DBwdWeightDlV4
@@ -120,10 +125,10 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
     static constexpr index_t NumVectorPerPixel = NBatch / DstScalarPerVector;
     static constexpr auto I0                   = Number<0>{};
     static constexpr auto I1                   = Number<1>{};
-
-    static constexpr index_t WaveSize = 64;
-    static constexpr index_t Tile_H   = BlockTileSize{}.At(I0);
-    static constexpr index_t Tile_W   = BlockTileSize{}.At(I1);
+    static constexpr auto I2                   = Number<2>{};
+    static constexpr index_t WaveSize          = 64;
+    static constexpr index_t Tile_H            = BlockTileSize{}.At(I0);
+    static constexpr index_t Tile_W            = BlockTileSize{}.At(I1);
 
     // Only support pad left = pad right for now
     static constexpr index_t Pad_H = tuple_element_t<2, FilterParam>{}.At(I0);
@@ -140,24 +145,33 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
     static constexpr index_t Filter_X = FilterSize;
 
     static constexpr index_t TileIn_H = Tile_H + 2 * Pad_H;
-    static constexpr index_t TileIn_W = Tile_H + 2 * Pad_W;
+    static constexpr index_t TileIn_W = Tile_W + 2 * Pad_W;
 
     static constexpr index_t TileOut_H =
         GetConvOut(Tile_H, FilterSize, Dilation_Y, Pad_H, Stride_H);
     static constexpr index_t TileOut_W =
         GetConvOut(Tile_W, FilterSize, Dilation_X, Pad_W, Stride_W);
 
-    static constexpr index_t TileIn_Align_W  = TileIn_W;
-    static constexpr index_t TileOut_Align_W = TileOut_W;
+    static_assert(Tile_W % InScalarPerVector == 0);
+    static_assert(TileOut_W % (OutScalarPerVector * WSplit) == 0);
 
-    static constexpr index_t TileIn_Pack_W     = GetAlignedPackW<Tile_W, InScalarPerVector>();
-    static constexpr index_t TileIn_Pack_Group = WaveSize / TileIn_Pack_W;
+    static constexpr index_t SubTileOut_W = TileOut_W / WSplit;
+    static constexpr index_t SubTileIn_W  = math::integer_least_multiple(
+        SubTileOut_W * Stride_W + math::max((Filter_X - 1) * Dilation_X, 2 * Pad_W),
+        InScalarPerVector);
+
+    static constexpr index_t SubTileIn_Stride  = SubTileIn_W;
+    static constexpr index_t SubTileOut_Stride = SubTileOut_W;
+
+    static constexpr index_t SubTileIn_Pack_W  = GetAlignedPackW<SubTileIn_W, InScalarPerVector>();
+    static constexpr index_t TileIn_Pack_Group = WaveSize / SubTileIn_Pack_W;
     static constexpr index_t TileIn_Pack_H = math::integer_divide_ceil(Tile_H, TileIn_Pack_Group);
     static constexpr index_t TileIn_Align_H =
         math::max(TileIn_Pack_H * TileIn_Pack_Group + Pad_H, TileIn_H);
 
-    static constexpr index_t TileOut_Pack_W     = GetAlignedPackW<TileOut_W, OutScalarPerVector>();
-    static constexpr index_t TileOut_Pack_Group = WaveSize / TileIn_Pack_W;
+    static constexpr index_t SubTileOut_Pack_W =
+        GetAlignedPackW<SubTileOut_W, OutScalarPerVector>();
+    static constexpr index_t TileOut_Pack_Group = WaveSize / SubTileOut_Pack_W;
     static constexpr index_t TileOut_Pack_H =
         math::integer_divide_ceil(TileOut_H, TileOut_Pack_Group);
 
@@ -167,9 +181,9 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
     static constexpr index_t TileOut_Align_H   = math::max(
         TileOut_Pack_H * TileOut_Pack_Group, TileOut_HPerBatch* BatchPerWave* NumWavePerTile);
     static constexpr index_t ShareMemInSize =
-        TileIn_Align_H * TileIn_Align_W * sizeof(InDataType) * NBatch;
+        TileIn_Align_H * SubTileIn_Stride * sizeof(InDataType) * NBatch;
     static constexpr index_t ShareMemOutSize =
-        TileOut_Align_H * TileOut_Align_W * sizeof(OutDataType) * NBatch;
+        TileOut_Align_H * SubTileOut_Stride * sizeof(OutDataType) * NBatch;
 
     static constexpr index_t NumTilePerBlock = BlockSize / WaveSize / NumWavePerTile;
 
@@ -177,7 +191,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
     using OutDataVector = typename vector_type<OutDataType, DstScalarPerVector>::type;
 
     template <index_t TileH,
-              index_t TileW,
+              index_t AlignedPackW,
               index_t ScalarPerVector,
               typename SrcType,
               typename DestVector>
@@ -194,8 +208,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         ignore = h;
         ignore = w;
 
-        using SrcVector                = typename vector_type<SrcType, ScalarPerVector>::type;
-        constexpr index_t AlignedPackW = GetAlignedPackW<TileW, ScalarPerVector>();
+        using SrcVector = typename vector_type<SrcType, ScalarPerVector>::type;
 
         static_assert((AlignedPackW & (AlignedPackW - 1)) == 0, "aligned width is not power 2!");
 
@@ -289,7 +302,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
 
     // todo handle pading in p_sharemem
     template <index_t TileH,
-              index_t TileW,
+              index_t AlignedPackW,
               index_t TileW_Stride,
               index_t ScalarPerVector,
               typename DestVector>
@@ -298,7 +311,6 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
                                              const DestVector* p_scratch,
                                              DestVector* p_sharemem)
     {
-        constexpr index_t AlignedPackW = GetAlignedPackW<TileW, ScalarPerVector>();
         static_assert(AlignedPackW <= WaveSize);
 
         constexpr index_t NumGroup     = WaveSize / AlignedPackW;
@@ -330,7 +342,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         }
     }
 
-    template <index_t TileH>
+    template <index_t TileH, index_t SubTileOut_W>
     static void __device__ run_conv_bwd_weight(index_t x,
                                                index_t y,
                                                index_t h,
@@ -343,13 +355,12 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         ignore      = h;
         ignore      = w;
         auto get_in = [&](index_t ho_, index_t wo_, index_t i_) {
-            // p_share_in has been shift with left_pad
             index_t hi = (ho_ + hout_base) * Stride_H + y * Dilation_Y;
             index_t wi = wo_ * Stride_W + x * Dilation_X;
-            return p_share_in[(hi * TileIn_Align_W + wi) * NumVectorPerPixel + i_];
+            return p_share_in[(hi * SubTileIn_Stride + wi) * NumVectorPerPixel + i_];
         };
         auto get_out = [&](index_t ho_, index_t wo_, index_t i_) {
-            return p_share_out[((ho_ + hout_base) * TileOut_Align_W + wo_) * NumVectorPerPixel +
+            return p_share_out[((ho_ + hout_base) * SubTileOut_Stride + wo_) * NumVectorPerPixel +
                                i_];
         };
         if(x < Filter_X && y < Filter_Y)
@@ -358,7 +369,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             {
                 static_assert(NumVectorPerPixel == 1);
                 static_for<0, TileH, 1>{}([&](auto ho) {
-                    static_for<0, TileOut_W, 2>{}([&](auto wo) {
+                    static_for<0, SubTileOut_W, 2>{}([&](auto wo) {
                         typename vector_type<InDataType, 2>::type v_in;
                         typename vector_type<OutDataType, 2>::type v_out;
                         v_in[0]  = get_in(ho, wo, 0);
@@ -373,7 +384,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             {
                 // for (index_t ho = 0; ho < TileH; ho ++) {
                 static_for<0, TileH, 1>{}([&](auto ho) {
-                    static_for<0, TileOut_W, 1>{}([&](auto wo) {
+                    static_for<0, SubTileOut_W, 1>{}([&](auto wo) {
                         // for (index_t wo = 0; wo < TileOut_W; wo ++) {
                         static_for<0, NumVectorPerPixel, 1>{}([&](auto i) {
                             auto v_in  = get_in(ho, wo, i);
@@ -463,11 +474,11 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
     template <typename Argument>
     static void __device__ Run(Argument arg, char* p_share_in, char* p_share_out)
     {
-        const index_t g_idx   = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const index_t g_idx       = __builtin_amdgcn_readfirstlane(blockIdx.x);
         const index_t k_split_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
-        const index_t wave_id = __builtin_amdgcn_readfirstlane(threadIdx.x / WaveSize);
-        const index_t tile_id = wave_id / NumWavePerTile;
-        const index_t lane_id = __lane_id();
+        const index_t wave_id     = __builtin_amdgcn_readfirstlane(threadIdx.x / WaveSize);
+        const index_t tile_id     = wave_id / NumWavePerTile;
+        const index_t lane_id     = __lane_id();
 
         constexpr index_t ThreadPerBatch = WaveSize / BatchPerWave;
 
@@ -560,28 +571,18 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
                     });
                 });
         };
-        constexpr index_t TopPadingSize = Pad_H * TileIn_Align_W * NumVectorPerPixel;
-        constexpr index_t TileInEnd     = (Tile_H + Pad_H) * TileIn_Align_W;
+        constexpr index_t TopPadingSize = Pad_H * SubTileIn_Stride * NumVectorPerPixel;
+        constexpr index_t TileInEnd     = (Tile_H + Pad_H) * SubTileIn_Stride;
         constexpr index_t ButtomPaddingSize =
             (ShareMemInSize / (sizeof(InDataType) * NBatch) - TileInEnd) * NumVectorPerPixel;
-        if constexpr(Pad_W > 0)
-        {
-            static_assert(ButtomPaddingSize >= 0);
-            init_array_pading(share_in + TopPadingSize,
-                              Number<Pad_W * NumVectorPerPixel>{},
-                              Number<Tile_H>{},
-                              TileIn_Align_W * NumVectorPerPixel);
-            init_array_pading(share_in + TopPadingSize + (Tile_W + Pad_W) * NumVectorPerPixel,
-                              Number<Pad_W * NumVectorPerPixel>{},
-                              Number<Tile_H>{},
-                              TileIn_Align_W * NumVectorPerPixel);
-        }
+        static_assert(ButtomPaddingSize >= 0);
         if constexpr(Pad_H > 0)
         {
             init_pading(share_in, Number<TopPadingSize>{});
             init_pading(share_in + TileInEnd * NumVectorPerPixel, Number<ButtomPaddingSize>{});
         }
-        constexpr index_t TileOutEnd = TileOut_H * TileOut_Align_W;
+
+        constexpr index_t TileOutEnd = TileOut_H * SubTileOut_Stride;
         constexpr index_t OutButtomPaddingSize =
             (ShareMemOutSize / (sizeof(OutDataType) * NBatch) - TileOutEnd) * NumVectorPerPixel;
         init_pading(share_out + TileOutEnd * NumVectorPerPixel, Number<OutButtomPaddingSize>{});
@@ -591,10 +592,10 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             block_sync_lds();
         }
 
-        const index_t in_x         = lane_id % TileIn_Pack_W;
-        const index_t in_y_offset  = lane_id / TileIn_Pack_W;
-        const index_t out_x        = lane_id % TileOut_Pack_W;
-        const index_t out_y_offset = lane_id / TileOut_Pack_W;
+        const index_t in_x         = lane_id % SubTileIn_Pack_W;
+        const index_t in_y_offset  = lane_id / SubTileIn_Pack_W;
+        const index_t out_x        = lane_id % SubTileOut_Pack_W;
+        const index_t out_y_offset = lane_id / SubTileOut_Pack_W;
 
         auto share_in_base  = share_in;
         auto share_out_base = share_out;
@@ -602,10 +603,10 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         if constexpr(NumWavePerTile > 1)
         {
             static_assert(RequirePadding == false);
-            share_in += Copy_Tile_H * TileIn_Align_W * NumVectorPerPixel * wave_id;
-            share_out += Copy_TileOut_H * TileOut_Align_W * NumVectorPerPixel * wave_id;
+            share_in += Copy_Tile_H * SubTileIn_Stride * NumVectorPerPixel * wave_id;
+            share_out += Copy_TileOut_H * SubTileOut_Stride * NumVectorPerPixel * wave_id;
         }
-        share_in += (TileIn_Align_W * Pad_H + Pad_W) * NumVectorPerPixel;
+        share_in += (SubTileIn_Stride * Pad_H) * NumVectorPerPixel;
 
         constexpr index_t TileOut_H_batch = math::integer_divide_ceil(Copy_TileOut_H, BatchPerWave);
         index_t hout_base                 = lane_id / ThreadPerBatch * TileOut_H_batch;
@@ -617,147 +618,269 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         index_t y = (lane_id % ThreadPerBatch) / Filter_X;
         float acc = 0;
 
-        // prefetch 0
-        if(in_x < (Tile_W / InScalarPerVector))
-        {
-            load_data_from_global<Copy_Tile_H, Tile_W, InScalarPerVector>(
-                p_in, in_x, in_y_offset, in_n_stride, hi, wi, hi_stride, wi_stride, tmp_in);
-        }
-        if(out_x < (TileOut_W / OutScalarPerVector))
-        {
-            load_data_from_global<Copy_TileOut_H, TileOut_W, OutScalarPerVector>(
-                p_out, out_x, out_y_offset, out_n_stride, ho, wo, ho_stride, wo_stride, tmp_out);
-        }
-        p_in += NBatch * in_n_stride;
-        p_out += NBatch * out_n_stride;
+        static_for<0, WSplit, 1>{}([&](auto subtile_idx) {
+            constexpr index_t out_left  = SubTileOut_W * subtile_idx;
+            constexpr index_t out_right = SubTileOut_W * (subtile_idx + 1);
 
-        if(in_x < (Tile_W / InScalarPerVector))
-        {
-            write_data_to_lds<Copy_Tile_H, Tile_W, TileIn_Align_W, InScalarPerVector>(
-                in_x, in_y_offset, tmp_in, share_in);
-        }
-        if(out_x < (TileOut_W / OutScalarPerVector))
-        {
-            write_data_to_lds<Copy_TileOut_H, TileOut_W, TileOut_Align_W, OutScalarPerVector>(
-                out_x, out_y_offset, tmp_out, share_out);
-        }
+            constexpr index_t in_left  = out_left * Stride_W;
+            constexpr index_t in_right = out_right * Stride_W + (Filter_X - 1) * Dilation_X;
+            static_assert(in_left % InScalarPerVector == 0);
 
-        // if (lane_id == 0)
-        //{
-        //     dump_lds(tmp_in, sizeof(tmp_in)/sizeof(InDataVector),
-        //     sizeof(tmp_in)/sizeof(InDataVector));
-        //    dump_lds(tmp_out, sizeof(tmp_out)/sizeof(OutDataVector),
-        //    sizeof(tmp_out)/sizeof(OutDataVector));
-        //}
-        // block_sync_lds();
-        // if (threadIdx.x == 0)
-        //{
-        //   dump_lds(reinterpret_cast<InDataVector*>(p_share_in),
-        //   ShareMemInSize/sizeof(InDataVector), TileIn_Align_W * NumVectorPerPixel);
-        //  dump_lds(reinterpret_cast<OutDataVector*>(p_share_out),
-        //  ShareMemOutSize/sizeof(OutDataVector), TileOut_Align_W * NumVectorPerPixel);
-        //}
-        // block_sync_lds();
+            constexpr auto SubTileIn = [&]() {
+                if constexpr(WSplit == 1)
+                {
+                    constexpr auto in_share_offset = Pad_W;
+                    constexpr auto in_mem_offset   = 0;
+                    constexpr auto in_subtile_w    = Tile_W;
+                    return Sequence<in_mem_offset, in_share_offset, in_subtile_w>{};
+                }
+                else if constexpr(subtile_idx == 0)
+                {
+                    constexpr auto in_share_offset = Pad_W;
+                    constexpr auto in_mem_offset   = 0;
+                    constexpr auto in_subtile_w =
+                        math::integer_least_multiple(in_right - Pad_W, InScalarPerVector);
+                    return Sequence<in_mem_offset, in_share_offset, in_subtile_w>{};
+                }
+                else if constexpr(subtile_idx == WSplit - 1)
+                {
+                    constexpr auto in_share_offset = 0;
+                    constexpr auto in_mem_offset   = in_left - Pad_W;
+                    constexpr auto in_subtile_w    = Tile_W - in_left;
+                    static_assert(in_right == TileIn_W);
+                    static_assert(in_subtile_w % InScalarPerVector == 0);
+                    return Sequence<in_mem_offset, in_share_offset, in_subtile_w>{};
+                }
+                else
+                {
+                    constexpr auto in_share_offset = 0;
+                    constexpr auto in_mem_offset   = in_left - Pad_W;
+                    constexpr auto in_subtile_w =
+                        math::integer_least_multiple(in_right - in_left, InScalarPerVector);
+                    return Sequence<in_mem_offset, in_share_offset, in_subtile_w>{};
+                }
+            }();
+            constexpr index_t in_mem_offset   = SubTileIn.At(I0);
+            constexpr index_t in_share_offset = SubTileIn.At(I1);
+            constexpr index_t in_subtile_w     = SubTileIn.At(I2);
+            if constexpr(subtile_idx == 0)
+            {
+                if constexpr(Pad_W > 0)
+                {
+                    init_array_pading(share_in_base + TopPadingSize,
+                                      Number<Pad_W * NumVectorPerPixel>{},
+                                      Number<Tile_H>{},
+                                      SubTileIn_Stride * NumVectorPerPixel);
+                }
+            }
+
+            if constexpr(subtile_idx == WSplit - 1)
+            {
+                if constexpr(Pad_W > 0)
+                {
+                    constexpr index_t right =
+                        (subtile_idx == 0) ? SubTileIn_W + Pad_W : SubTileIn_W;
+                    init_array_pading(share_in_base + TopPadingSize + right * NumVectorPerPixel,
+                                      Number<Pad_W * NumVectorPerPixel>{},
+                                      Number<Tile_H>{},
+                                      SubTileIn_Stride * NumVectorPerPixel);
+                }
+            }
+
+            // prefetch 0
+            if(in_x < (in_subtile_w / InScalarPerVector))
+            {
+                load_data_from_global<Copy_Tile_H, SubTileIn_Pack_W, InScalarPerVector>(
+                    p_in + in_mem_offset,
+                    in_x,
+                    in_y_offset,
+                    in_n_stride,
+                    hi,
+                    wi,
+                    hi_stride,
+                    wi_stride,
+                    tmp_in);
+            }
+            if(out_x < (SubTileOut_W / OutScalarPerVector))
+            {
+                load_data_from_global<Copy_TileOut_H, SubTileOut_Pack_W, OutScalarPerVector>(
+                    p_out + out_left,
+                    out_x,
+                    out_y_offset,
+                    out_n_stride,
+                    ho,
+                    wo,
+                    ho_stride,
+                    wo_stride,
+                    tmp_out);
+            }
+            p_in += NBatch * in_n_stride;
+            p_out += NBatch * out_n_stride;
+
+            if(in_x < (in_subtile_w / InScalarPerVector))
+            {
+                write_data_to_lds<Copy_Tile_H,
+                                  SubTileIn_Pack_W,
+                                  SubTileIn_Stride,
+                                  InScalarPerVector>(
+                    in_x, in_y_offset, tmp_in, share_in + in_share_offset * NumVectorPerPixel);
+            }
+            if(out_x < (SubTileOut_W / OutScalarPerVector))
+            {
+                write_data_to_lds<Copy_TileOut_H,
+                                  SubTileOut_Pack_W,
+                                  SubTileOut_Stride,
+                                  OutScalarPerVector>(
+                    out_x, out_y_offset, tmp_out, share_out + out_left * NumVectorPerPixel);
+            }
+
+            // if (lane_id == 0)
+            //{
+            //     dump_lds(tmp_in, sizeof(tmp_in)/sizeof(InDataVector),
+            //     sizeof(tmp_in)/sizeof(InDataVector));
+            //    dump_lds(tmp_out, sizeof(tmp_out)/sizeof(OutDataVector),
+            //    sizeof(tmp_out)/sizeof(OutDataVector));
+            //}
+            // block_sync_lds();
+            // if (threadIdx.x == 0)
+            //{
+            //   dump_lds(reinterpret_cast<InDataVector*>(p_share_in),
+            //   ShareMemInSize/sizeof(InDataVector), SubTileIn_Stride * NumVectorPerPixel);
+            //  dump_lds(reinterpret_cast<OutDataVector*>(p_share_out),
+            //  ShareMemOutSize/sizeof(OutDataVector), SubTileOut_Stride * NumVectorPerPixel);
+            //}
+            // block_sync_lds();
 
 #if defined(ENABLE_PIPELINE_V2)
-        while(num_loop > 0)
-        {
-            // do conv_bwd on 0
-            if constexpr(NumWavePerTile > 1)
+            while(num_loop > 0)
             {
-                block_sync_lds();
-            }
-            run_conv_bwd_weight<TileOut_H_batch>(
-                x, y, ho, wo, hout_base, share_in_base, share_out_base, acc);
-            if constexpr(NumWavePerTile > 1)
-            {
-                block_sync_lds();
-            }
-            if(in_x < (Tile_W / InScalarPerVector))
-            {
-                load_data_from_global<Copy_Tile_H, Tile_W, InScalarPerVector>(
-                    p_in, in_x, in_y_offset, in_n_stride, hi, wi, hi_stride, wi_stride, tmp_in);
+                // do conv_bwd on 0
+                if constexpr(NumWavePerTile > 1)
+                {
+                    block_sync_lds();
+                }
+                run_conv_bwd_weight<TileOut_H_batch, SubTileOut_W>(
+                    x, y, ho, wo, hout_base, share_in_base, share_out_base, acc);
+                if constexpr(NumWavePerTile > 1)
+                {
+                    block_sync_lds();
+                }
+                if(in_x < (in_subtile_w / InScalarPerVector))
+                {
+                    load_data_from_global<Copy_Tile_H, SubTileIn_Pack_W, InScalarPerVector>(
+                        p_in + in_mem_offset,
+                        in_x,
+                        in_y_offset,
+                        in_n_stride,
+                        hi,
+                        wi,
+                        hi_stride,
+                        wi_stride,
+                        tmp_in);
 
-                write_data_to_lds<Copy_Tile_H, Tile_W, TileIn_Align_W, InScalarPerVector>(
-                    in_x, in_y_offset, tmp_in, share_in);
-            }
+                    write_data_to_lds<Copy_Tile_H,
+                                      SubTileIn_Pack_W,
+                                      SubTileIn_Stride,
+                                      InScalarPerVector>(
+                        in_x, in_y_offset, tmp_in, share_in + in_share_offset * NumVectorPerPixel);
+                }
 
-            if(out_x < (TileOut_W / OutScalarPerVector))
-            {
-                load_data_from_global<Copy_TileOut_H, TileOut_W, OutScalarPerVector>(p_out,
-                                                                                     out_x,
-                                                                                     out_y_offset,
-                                                                                     out_n_stride,
-                                                                                     ho,
-                                                                                     wo,
-                                                                                     ho_stride,
-                                                                                     wo_stride,
-                                                                                     tmp_out);
-                write_data_to_lds<Copy_TileOut_H, TileOut_W, TileOut_Align_W, OutScalarPerVector>(
-                    out_x, out_y_offset, tmp_out, share_out);
-            }
+                if(out_x < (SubTileOut_W / OutScalarPerVector))
+                {
+                    load_data_from_global<Copy_TileOut_H, SubTileOut_Pack_W, OutScalarPerVector>(
+                        p_out + out_left,
+                        out_x,
+                        out_y_offset,
+                        out_n_stride,
+                        ho,
+                        wo,
+                        ho_stride,
+                        wo_stride,
+                        tmp_out);
+                    write_data_to_lds<Copy_TileOut_H,
+                                      SubTileOut_Pack_W,
+                                      SubTileOut_Stride,
+                                      OutScalarPerVector>(
+                        out_x, out_y_offset, tmp_out, share_out + out_left * NumVectorPerPixel);
+                }
 
-            p_in += NBatch * in_n_stride;
-            p_out += NBatch * out_n_stride;
-            num_loop--;
-        };
+                p_in += NBatch * in_n_stride;
+                p_out += NBatch * out_n_stride;
+                num_loop--;
+            };
 #else
-        while(num_loop > 0)
-        {
-            if(in_x < (Tile_W / InScalarPerVector))
+            while(num_loop > 0)
             {
-                load_data_from_global<Copy_Tile_H, Tile_W, InScalarPerVector>(
-                    p_in, in_x, in_y_offset, in_n_stride, hi, wi, hi_stride, wi_stride, tmp_in);
-            }
-            if(out_x < (TileOut_W / OutScalarPerVector))
-            {
-                load_data_from_global<Copy_TileOut_H, TileOut_W, OutScalarPerVector>(p_out,
-                                                                                     out_x,
-                                                                                     out_y_offset,
-                                                                                     out_n_stride,
-                                                                                     ho,
-                                                                                     wo,
-                                                                                     ho_stride,
-                                                                                     wo_stride,
-                                                                                     tmp_out);
-            }
-            p_in += NBatch * in_n_stride;
-            p_out += NBatch * out_n_stride;
+                if(in_x < (in_subtile_w / InScalarPerVector))
+                {
+                    load_data_from_global<Copy_Tile_H, SubTileIn_Pack_W, InScalarPerVector>(
+                        p_in + in_mem_offset,
+                        in_x,
+                        in_y_offset,
+                        in_n_stride,
+                        hi,
+                        wi,
+                        hi_stride,
+                        wi_stride,
+                        tmp_in);
+                }
+                if(out_x < (SubTileOut_W / OutScalarPerVector))
+                {
+                    load_data_from_global<Copy_TileOut_H, SubTileOut_Pack_W, OutScalarPerVector>(
+                        p_out + out_left,
+                        out_x,
+                        out_y_offset,
+                        out_n_stride,
+                        ho,
+                        wo,
+                        ho_stride,
+                        wo_stride,
+                        tmp_out);
+                }
+                p_in += NBatch * in_n_stride;
+                p_out += NBatch * out_n_stride;
 
-            // do conv_bwd on 0
-            if constexpr(NumWavePerTile > 1)
-            {
-                block_sync_lds();
-            }
-            run_conv_bwd_weight<TileOut_H_batch>(
-                x, y, ho, wo, hout_base, share_in_base, share_out_base, acc);
-            if constexpr(NumWavePerTile > 1)
-            {
-                block_sync_lds();
-            }
-            // write 0
-            if(in_x < (Tile_W / InScalarPerVector))
-            {
-                write_data_to_lds<Copy_Tile_H, Tile_W, TileIn_Align_W, InScalarPerVector>(
-                    in_x, in_y_offset, tmp_in, share_in);
-            }
-            if(out_x < (TileOut_W / OutScalarPerVector))
-            {
-                write_data_to_lds<Copy_TileOut_H, TileOut_W, TileOut_Align_W, OutScalarPerVector>(
-                    out_x, out_y_offset, tmp_out, share_out);
-            }
-            num_loop--;
-        };
+                // do conv_bwd on 0
+                if constexpr(NumWavePerTile > 1)
+                {
+                    block_sync_lds();
+                }
+                run_conv_bwd_weight<TileOut_H_batch, SubTileOut_W>(
+                    x, y, ho, wo, hout_base, share_in_base, share_out_base, acc);
+                if constexpr(NumWavePerTile > 1)
+                {
+                    block_sync_lds();
+                }
+                // write 0
+                if(in_x < (in_subtile_w / InScalarPerVector))
+                {
+                    write_data_to_lds<Copy_Tile_H,
+                                      SubTileIn_Pack_W,
+                                      SubTileIn_Stride,
+                                      InScalarPerVector>(
+                        in_x, in_y_offset, tmp_in, share_in + in_share_offset * NumVectorPerPixel);
+                }
+                if(out_x < (SubTileOut_W / OutScalarPerVector))
+                {
+                    write_data_to_lds<Copy_TileOut_H,
+                                      SubTileOut_Pack_W,
+                                      SubTileOut_Stride,
+                                      OutScalarPerVector>(
+                        out_x, out_y_offset, tmp_out, share_out + out_left * NumVectorPerPixel);
+                }
+                num_loop--;
+            };
 #endif
-        // tail
-        {
-            if constexpr(NumWavePerTile > 1)
+            // tail
             {
-                block_sync_lds();
+                if constexpr(NumWavePerTile > 1)
+                {
+                    block_sync_lds();
+                }
+                run_conv_bwd_weight<TileOut_H_batch, SubTileOut_W>(
+                    x, y, ho, wo, hout_base, share_in_base, share_out_base, acc);
             }
-            run_conv_bwd_weight<TileOut_H_batch>(
-                x, y, ho, wo, hout_base, share_in_base, share_out_base, acc);
-        }
+        });
 
         if constexpr(ThreadPerBatch == 32)
         {
@@ -779,7 +902,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         {
             if(hout_base == 0)
             {
-                write_output(arg, g_idx, y, x,acc);
+                write_output(arg, g_idx, y, x, acc);
             }
         }
         else
@@ -821,7 +944,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
               out_g_n_k_wos_strides_(out_g_n_k_wos_strides),
               enable_k_split_(k_batch > 1)
         {
-            if (enable_k_split_)
+            if(enable_k_split_)
             {
                 in_g_n_c_wis_lengths_[1] /= k_batch;
                 out_g_n_k_wos_lengths_[1] /= k_batch;
@@ -864,6 +987,7 @@ template <index_t NDimSpatial,
           index_t OutScalarPerVector,
           index_t DstScalarPerVector,
           bool RequirePadding,
+          index_t WSplit        = 1,
           typename ComputeTypeA = InDataType,
           typename ComputeTypeB = ComputeTypeA>
 struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSpatial,
@@ -906,7 +1030,8 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
                                                                      InScalarPerVector,
                                                                      OutScalarPerVector,
                                                                      DstScalarPerVector,
-                                                                     RequirePadding>;
+                                                                     RequirePadding,
+                                                                     WSplit>;
 
     struct Argument : public BaseArgument
     {
@@ -976,7 +1101,10 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
         using Argument = DeviceOp::Argument;
 
         void ShowInfo(const Argument&) {}
-        dim3 CalculateGridSize(const Argument& arg) { return dim3(arg.in_g_n_c_wis_lengths_[0], arg.k_batch_, 1); }
+        dim3 CalculateGridSize(const Argument& arg)
+        {
+            return dim3(arg.in_g_n_c_wis_lengths_[0], arg.k_batch_, 1);
+        }
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -1005,8 +1133,8 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
             if(arg.k_batch_ > 1)
                 hipGetErrorString(
                     hipMemsetAsync(arg.p_wei_grid_, 0, out_buf_size, stream_config.stream_id_));
-            ave_time += launch_and_time_kernel(
-                stream_config, kernel, gdx, dim3(BlockSize), 0, conv_arg);
+            ave_time +=
+                launch_and_time_kernel(stream_config, kernel, gdx, dim3(BlockSize), 0, conv_arg);
 
             return ave_time;
         }
@@ -1054,7 +1182,7 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
         {
             return false;
         }
-        if (n % (arg.k_batch_ * NBatch) != 0)
+        if(n % (arg.k_batch_ * NBatch) != 0)
         {
             return false;
         }
