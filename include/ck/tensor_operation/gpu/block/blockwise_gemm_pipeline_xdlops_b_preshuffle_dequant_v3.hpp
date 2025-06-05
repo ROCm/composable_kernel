@@ -145,7 +145,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
     using Base::MWaves;
 
     static constexpr auto xdlops_gemm =
-        XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, BDataType>{};
+        XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, ComputeDataType>{};
 
     static constexpr index_t PrefetchStages        = 2;
     static constexpr index_t PrefillStages         = 1;

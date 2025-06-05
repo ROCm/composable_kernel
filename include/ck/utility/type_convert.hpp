@@ -1586,6 +1586,11 @@ inline __host__ __device__ f4x2_t type_convert<f4x2_t, float2_t>(float2_t x)
     return f4_convert_rne(x);
 #endif
 }
+template <>
+inline __host__ __device__ f4x2_pk_t type_convert<f4x2_pk_t, float2_t>(float2_t x)
+{
+    return static_cast<f4x2_pk_t>(type_convert<f4x2_t>(x));
+}
 
 // convert vector of 32 fp32 to vector of 32 fp4
 template <>
