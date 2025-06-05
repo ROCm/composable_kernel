@@ -420,12 +420,12 @@ struct GemmKernel {{
 
         # LDS capacity verification
         matrix_a_size = (tile_m * tile_k) * \
-            pow(2, element_size(self.config.problem.datatype_map['matrix_a']))
+            element_size(self.config.problem.datatype_map['matrix_a'])
         matrix_b_size = (tile_n * tile_k) * \
-            pow(2, element_size(self.config.problem.datatype_map['matrix_b']))
+            element_size(self.config.problem.datatype_map['matrix_b'])
         total_tile_in_lds = matrix_a_size + matrix_b_size
 
-        max_tile_size = 2**16 if pipeline == "compv4" else 2**15
+        max_tile_size = 2**15 if pipeline == "compv4" else 2**16
         if total_tile_in_lds > max_tile_size:
             logging.debug(
                 f"LDS capacity exceeded [{trait}]: Total required {total_tile_in_lds:,}B ({total_tile_in_lds/1024:.1f}KB) > "
@@ -493,6 +493,9 @@ struct GemmKernel {{
         for trait in self.valid_trait_names:
             tile_valid_params = list(
                 filter(lambda t: self.is_tile_valid(t, trait), tile_params))
+
+            # if len(tile_valid_params) == 0:
+            #     raise RuntimeError(f"No valid kernel instance selected for trait: {trait}")
             if trait not in self.valid_trait_tile_combinations:
                 self.valid_trait_tile_combinations[trait] = []
             self.valid_trait_tile_combinations[trait].append(tile_valid_params)
