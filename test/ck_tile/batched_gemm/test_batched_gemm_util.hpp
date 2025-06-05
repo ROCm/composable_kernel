@@ -159,32 +159,7 @@ class TestCkTileBatchedGemm : public ::testing::Test
             }
         };
 
-        if(has_hot_loop)
-        {
-            if(tail_num == ck_tile::TailNumber::Full)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else
-            {
-                std::ostringstream err;
-                err << "For compute pipeline tail number should always be Full, but have \""
-                    << tail_num << "\" which is not supported! PrefetchStages: "
-                    << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__ << ":"
-                    << __LINE__ << ", in function: " << __func__;
-                throw std::runtime_error(err.str());
-            }
-        }
-        else
-        {
-            std::ostringstream err;
-            err << "Num K loop must be larger than number of prefetech stages."
-                << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages
-                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
-            throw std::runtime_error(err.str());
-        }
+        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 
     public:

@@ -34,6 +34,46 @@ struct BaseGemmPipelineAgBgCrCompV4
             return TailNumber::Two;
         }
     }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
+    {
+        // Handle all the valid cases.
+        if(has_hot_loop)
+        {
+            if(tail_number == TailNumber::Three)
+            {
+                return run_func(bool_constant<true>{},
+                                integral_constant<TailNumber, TailNumber::Three>{});
+            }
+            else if(tail_number == TailNumber::Two)
+            {
+                return run_func(bool_constant<true>{},
+                                integral_constant<TailNumber, TailNumber::Two>{});
+            }
+        }
+        else
+        {
+            if(tail_number == TailNumber::Three)
+            {
+                return run_func(bool_constant<false>{},
+                                integral_constant<TailNumber, TailNumber::Three>{});
+            }
+            else if(tail_number == TailNumber::Two)
+            {
+                return run_func(bool_constant<false>{},
+                                integral_constant<TailNumber, TailNumber::Two>{});
+            }
+        }
+        // If execution reaches here, it's an invalid tail_number because it wasn't handled above.
+#if defined(__HIP_DEVICE_COMPILE__)
+        __builtin_unreachable();
+#else
+        throw std::logic_error("Invalid TailNumber: Only TailNumber::Full and smaller than "
+                               "PrefetchStages are supported.");
+#endif
+    }
 };
 
 /**
@@ -571,6 +611,31 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             num_loop,
             p_smem_0,
             p_smem_1);
+    }
+
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   bool has_hot_loop,
+                                   TailNumber tail_number,
+                                   void* __restrict__ p_smem_0,
+                                   void* __restrict__ p_smem_1) const
+    {
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            constexpr bool hot_loop    = hot_loop_.value;
+            constexpr auto tail_num    = tail_num_.value;
+            constexpr auto PassThrough = [](const auto& x) { return x; };
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop, tail_num>(
+                a_dram_block_window_tmp,
+                PassThrough,
+                b_dram_block_window_tmp,
+                PassThrough,
+                num_loop,
+                p_smem_0,
+                p_smem_1);
+        };
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
 };
 } // namespace ck_tile
