@@ -82,6 +82,9 @@ struct static_for_range
     }
 };
 
+// e.g. static_for_product<Tuple<Number<0>, Number<1>>, Tuple<Number<2>, Number<3>>>{}(f)
+// will call f(Number<0>{}, Number<2>{}), f(Number<0>{}, Number<3>{})，f(Number<1>{}, Number<2>{}),
+// f(Number<1>{}, Number<3>{})
 template <typename... Ts>
 struct static_for_product;
 template <typename... Is>

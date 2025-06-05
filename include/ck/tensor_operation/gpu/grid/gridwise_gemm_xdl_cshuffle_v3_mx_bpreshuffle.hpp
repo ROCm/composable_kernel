@@ -1221,7 +1221,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                 }
             }
         }
-#if 0
         // check gridwise gemm pipeline
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
@@ -1232,7 +1231,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                 return false;
             }
         }
-#endif
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }

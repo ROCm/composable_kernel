@@ -2228,7 +2228,9 @@ using f6x32_t = typename vector_type<f6x32_pk_t, 1>::type;
 using bf6x16_t = typename vector_type<bf6x16_pk_t, 1>::type;
 using bf6x32_t = typename vector_type<bf6x32_pk_t, 1>::type;
 
+// e8m0
 using e8m0x4_bexp_t = typename vector_type<e8m0_bexp_t, 4>::type;
+
 // pack int4
 using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
 using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;

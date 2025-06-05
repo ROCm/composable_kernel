@@ -574,7 +574,7 @@ struct Tensor
             if(it > 0)
                 threads.emplace_back(std::move(job));
             else
-                job(); // last thread, run in the main thread
+                job(); // last job run in the main thread
         }
         for(auto& t : threads)
             t.join();

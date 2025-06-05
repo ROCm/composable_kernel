@@ -33,6 +33,7 @@ set(PROFILER_OPS
     profile_transpose.cpp
     profile_permute_scale.cpp
 )
+
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
   if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
     list(APPEND PROFILER_OPS profile_contraction_bilinear.cpp)

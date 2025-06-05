@@ -468,17 +468,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Comparing results..." << std::endl;
         }
 
-        // if(config.init_method == 0)
-        // {
-        //     auto expected = static_cast<float>(K);
-        //     auto computed = type_convert<float>(c_m_n_device_result(1, 12));
-
-        //     res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
-        //     std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
-        //               << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl
-        //               << std::endl;
-        // }
-
         res_verified =
             res_verified &&
             ck::utils::check_err(

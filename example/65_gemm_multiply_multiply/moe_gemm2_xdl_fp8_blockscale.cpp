@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -291,8 +291,7 @@ int main(int argc, char* argv[])
             sorted_token_ids.mData[i] = tokens;
         }
     }
-    // expert_ids.savetxt("expert_ids.txt", "int");
-    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+
     Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}));
     Tensor<A1DataType> a1_t_k_k(
         HostTensorDescriptor({tokens, topk, (K + Scale_Block_K - 1) / Scale_Block_K},
@@ -383,12 +382,7 @@ int main(int argc, char* argv[])
     DeviceMem b1_device_buf(sizeof(B1DataType) * b1_e_n_k.mDesc.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
-    // a0_t_k_k.savetxt("a.txt");
-    // expert_ids.savetxt("expert_ids.txt", "int");
-    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
-    // d0_t_n.savetxt("d0_t_n.txt", "int");
-    // d1_e_n.savetxt("d1_e_n.txt", "int");
-    // d2_e_n.savetxt("d2_e_n.txt", "int");
+
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
     max_token_id_dev.ToDevice(max_token_id.mData.data());
@@ -531,29 +525,6 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-#if 0
-        printf("e_t_n_device_result: \n");
-        for(int t = 0; t < tokens; ++t)
-        {
-            for(int n = 0; n < 5; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(e_t_n_device_result(t, n)));
-            }
-            printf("\n");
-        }
-
-        printf("e_t_n_host_result: \n");
-        for(int t = 0; t < tokens; ++t)
-        {
-            for(int n = 0; n < 5; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(e_t_n_host_result(t, n)));
-            }
-            printf("\n");
-        }
-#endif
-        // e_t_n_device_result.savetxt("out.txt");
-        // e_t_n_host_result.savetxt("ref.txt");
         auto status =
             ck::utils::check_err(
                 e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)

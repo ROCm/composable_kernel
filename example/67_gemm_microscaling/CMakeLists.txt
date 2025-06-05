@@ -16,16 +16,8 @@ add_example_dependencies(example_gemm_mx example_gemm_mx_fp4)
 add_example_executable(example_gemm_mx_fp4_bpreshuffle gemm_mx_fp4_bpreshuffle.cpp)
 add_example_dependencies(example_gemm_mx example_gemm_mx_fp4_bpreshuffle)
 
-# TODO: Fix non-bns
-# add_example_executable(example_moe_gemm1_xdl_mx_fp4 moe_gemm1_xdl_mx_fp4.cpp)
-# add_example_dependencies(example_gemm_mx example_moe_gemm1_xdl_mx_fp4)
-
 add_example_executable(example_moe_gemm1_xdl_mx_fp4_bns moe_gemm1_xdl_mx_fp4_bns.cpp)
 add_example_dependencies(example_gemm_mx example_moe_gemm1_xdl_mx_fp4_bns)
-
-# TODO: Fix non-bns
-# add_example_executable(example_moe_gemm2_xdl_mx_fp4 moe_gemm2_xdl_mx_fp4.cpp)
-# add_example_dependencies(example_gemm_mx example_moe_gemm2_xdl_mx_fp4)
 
 add_example_executable(example_moe_gemm2_xdl_mx_fp4_bns moe_gemm2_xdl_mx_fp4_bns.cpp)
 add_example_dependencies(example_gemm_mx example_moe_gemm2_xdl_mx_fp4_bns)

@@ -1965,6 +1965,7 @@ struct GridwiseMoeGemm
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride / BPackedSize,
             b_grid_desc_bpreshuffled.GetElementSpaceSize());
+
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 

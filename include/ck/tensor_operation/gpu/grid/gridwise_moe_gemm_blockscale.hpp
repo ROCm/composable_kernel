@@ -1414,10 +1414,6 @@ struct GridwiseMoeGemmBlockScale
                 token_offset * math::integer_divide_ceil(problem.K, ScaleBlockK);
         });
 
-        // printf("blkid: %d, tid:%d, a_thread_offset: %d, scale_gather_offsets: %d\n", block_m_id,
-        // threadIdx.x, a_thread_offset,
-        //        scale_gather_offsets(Number<0>{}));
-
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2_gather<AScaleType,
                                                     AScaleType,
@@ -2171,10 +2167,6 @@ struct GridwiseMoeGemmBlockScale
             scale_gather_offsets(m0) = static_cast<IndexType>(token_offset) *
                                        math::integer_divide_ceil(problem.K, ScaleBlockK);
         });
-
-        // printf("blkid: %d, tid:%d, a_thread_offset: %d, scale_gather_offsets: %d\n", block_m_id,
-        // threadIdx.x, a_thread_offset,
-        //        scale_gather_offsets(Number<0>{}));
 
         auto a_scale_thread_copy =
             ThreadwiseTensorSliceTransfer_v2_gather<AScaleType,

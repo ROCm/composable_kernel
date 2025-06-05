@@ -2035,18 +2035,6 @@ struct GridwiseMoeGemmMX
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
 
-#if 0
-        printf("blkx: %u, blky: %u, tidx: %u, token_pos: %d, gather_offsets:<%d, %d, %d, %d>\n",
-               blockIdx.x,
-               blockIdx.y,
-               threadIdx.x,
-               token_pos,
-               gather_offsets[Number<0>{}],
-               gather_offsets[Number<1>{}],
-               gather_offsets[Number<2>{}],
-               gather_offsets[Number<3>{}]);
-#endif
-
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
         const index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
@@ -2058,15 +2046,6 @@ struct GridwiseMoeGemmMX
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-
-#if 1
-        printf("blkx: %u, blky: %u, tidx: %u, a_grid_size: %ld\n",
-               blockIdx.x,
-               blockIdx.y,
-               threadIdx.x,
-               a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-
-#endif
 
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
