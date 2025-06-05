@@ -105,9 +105,9 @@ bool profile_gemm_universal_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem a_device_buf(a_m_k.GetElementSpaceSizeInBytes());
+    DeviceMem b_device_buf(b_k_n_permute.GetElementSpaceSizeInBytes());
+    DeviceMem c_device_buf(c_m_n_device_result.GetElementSpaceSizeInBytes());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
 
@@ -176,63 +176,66 @@ bool profile_gemm_universal_impl(int do_verification,
                     }
                 }
             }
-
-            if constexpr(is_same_v<BDataType, pk_i4_t> && is_same_v<ADataType, half_t>)
-            {
-                // vector pk_i4x4 permute
-                for(int i = 0; i < N; i++)
-                {
-                    for(int j = 0; j < K; j += 8)
-                    {
-                        int input[8];
-
-                        for(int k = 0; k < 4; k++)
-                        {
-                            int i4x2         = b_k_n_permute(j + k * 2, i).data;
-                            input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
-                            input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
-                        }
-
-                        // permute 01234567->20643175
-                        {
-                            int hi   = input[2];
-                            int lo   = input[0];
-                            int i4x2 = (hi << 4) | lo;
-
-                            b_k_n_permute(j + 0, i) = i4x2;
-                        }
-
-                        {
-                            int hi   = input[6];
-                            int lo   = input[4];
-                            int i4x2 = (hi << 4) | lo;
-
-                            b_k_n_permute(j + 2, i) = i4x2;
-                        }
-
-                        {
-                            int hi   = input[3];
-                            int lo   = input[1];
-                            int i4x2 = (hi << 4) | lo;
-
-                            b_k_n_permute(j + 4, i) = i4x2;
-                        }
-
-                        {
-                            int hi   = input[7];
-                            int lo   = input[5];
-                            int i4x2 = (hi << 4) | lo;
-
-                            b_k_n_permute(j + 6, i) = i4x2;
-                        }
-                    }
-                }
-            }
         }
         else
         {
             b_k_n_permute = b_k_n;
         }
+
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        // Conversion from pk_i4_t to half_t expects a particular permutation
+        if constexpr(is_same_v<BDataType, pk_i4_t> && is_same_v<ComputeDataType, half_t>)
+        {
+            // vector pk_i4x4 permute
+            for(int i = 0; i < N; i++)
+            {
+                for(int j = 0; j < K; j += 8)
+                {
+                    int input[8];
+
+                    for(int k = 0; k < 4; k++)
+                    {
+                        int i4x2         = b_k_n_permute(j + k * 2, i).data;
+                        input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
+                        input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
+                    }
+
+                    // permute 01234567->20643175
+                    {
+                        int hi   = input[2];
+                        int lo   = input[0];
+                        int i4x2 = (hi << 4) | lo;
+
+                        b_k_n_permute(j + 0, i) = i4x2;
+                    }
+
+                    {
+                        int hi   = input[6];
+                        int lo   = input[4];
+                        int i4x2 = (hi << 4) | lo;
+
+                        b_k_n_permute(j + 2, i) = i4x2;
+                    }
+
+                    {
+                        int hi   = input[3];
+                        int lo   = input[1];
+                        int i4x2 = (hi << 4) | lo;
+
+                        b_k_n_permute(j + 4, i) = i4x2;
+                    }
+
+                    {
+                        int hi   = input[7];
+                        int lo   = input[5];
+                        int i4x2 = (hi << 4) | lo;
+
+                        b_k_n_permute(j + 6, i) = i4x2;
+                    }
+                }
+            }
+        }
+#endif
 
         b_device_buf.ToDevice(b_k_n_permute.mData.data());
 
