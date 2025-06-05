@@ -251,11 +251,11 @@ __global__ void
         (grp_idx + local_grp_id) * ingrad_group_stride + batch_id_in_glb_mem * ingrad_batch_stride;
     const int base_filter_offset = local_grp_id * filter_size;
 
-    for(int h_idx = 0; h_idx < in_height; h_idx += 2)
+    for(int h_idx = 0; h_idx < in_height; h_idx += 4)
     {
         for(int w_idx = 0; w_idx < in_width; w_idx += 2)
         {
-            float sum[4]{0.f};
+            float sum[8]{0.f};
             const int out_row_start_0 = __builtin_amdgcn_readfirstlane(
                 max(0, (h_idx - filter_height + pad_height + stride_y) / stride_y));
             const int out_row_end_0 = __builtin_amdgcn_readfirstlane(
@@ -264,20 +264,31 @@ __global__ void
                 max(0, (h_idx + 1 - filter_height + pad_height + stride_y) / stride_y));
             const int out_row_end_1 = __builtin_amdgcn_readfirstlane(
                 min(out_height - 1, (h_idx + 1 + pad_height) / stride_y));
+            const int out_row_start_2 = __builtin_amdgcn_readfirstlane(
+                max(0, (h_idx + 2 - filter_height + pad_height + stride_y) / stride_y));
+            const int out_row_end_2 = __builtin_amdgcn_readfirstlane(
+                min(out_height - 1, (h_idx + 2 + pad_height) / stride_y));
+            const int out_row_start_3 = __builtin_amdgcn_readfirstlane(
+                max(0, (h_idx + 3 - filter_height + pad_height + stride_y) / stride_y));
+            const int out_row_end_3 = __builtin_amdgcn_readfirstlane(
+                min(out_height - 1, (h_idx + 3 + pad_height) / stride_y));
+
             const int out_col_start_0 = __builtin_amdgcn_readfirstlane(
                 max(0, (w_idx - filter_width + pad_width + stride_x) / stride_x));
-            const int out_col_start_1 = __builtin_amdgcn_readfirstlane(
-                max(0, (w_idx + 1 - filter_width + pad_width + stride_x) / stride_x));
             const int out_col_end_0 =
                 __builtin_amdgcn_readfirstlane(min(out_width - 1, (w_idx + pad_width) / stride_x));
+            const int out_col_start_1 = __builtin_amdgcn_readfirstlane(
+                max(0, (w_idx + 1 - filter_width + pad_width + stride_x) / stride_x));
             const int out_col_end_1 = __builtin_amdgcn_readfirstlane(
                 min(out_width - 1, (w_idx + 1 + pad_width) / stride_x));
 
-            for(int out_row = out_row_start_0; out_row <= out_row_end_1; ++out_row)
+            for(int out_row = out_row_start_0; out_row <= out_row_end_3; ++out_row)
             {
                 const int filter_row_0 =
                     __builtin_amdgcn_readfirstlane(h_idx + pad_height - out_row * stride_y);
                 const int filter_row_1 = filter_row_0 + 1;
+                const int filter_row_2 = filter_row_0 + 2;
+                const int filter_row_3 = filter_row_0 + 3;
                 for(int out_col = out_col_start_0; out_col <= out_col_end_1; ++out_col)
                 {
                     const int filter_col_0 =
@@ -289,7 +300,10 @@ __global__ void
                     ABDataType gradOut = p_gradOut[outgrad_offset];
 
                     bool row_in_axis0 = (out_row <= out_row_end_0);
-                    bool row_in_axis1 = (out_row >= out_row_start_1);
+                    bool row_in_axis1 = (out_row >= out_row_start_1 && out_row <= out_row_end_1);
+                    bool row_in_axis2 = (out_row >= out_row_start_2 && out_row <= out_row_end_2);
+                    bool row_in_axis3 = (out_row >= out_row_start_3);
+
                     bool col_in_axis0 = (out_col <= out_col_end_0);
                     bool col_in_axis1 = (out_col >= out_col_start_1);
 
@@ -297,23 +311,47 @@ __global__ void
                         base_filter_offset + filter_row_0 * filter_width + filter_col_0;
                     const int filter_offset1 =
                         base_filter_offset + filter_row_1 * filter_width + filter_col_0;
+                    const int filter_offset2 =
+                        base_filter_offset + filter_row_2 * filter_width + filter_col_0;
+                    const int filter_offset3 =
+                        base_filter_offset + filter_row_3 * filter_width + filter_col_0;
 
+                    // (0,0)
                     sum[0] +=
                         ((row_in_axis0 && col_in_axis0) ? shmem_weight[filter_offset0] * gradOut
                                                         : 0.f);
+                    // (0,1)
                     sum[1] +=
                         ((row_in_axis0 && col_in_axis1) ? shmem_weight[filter_offset0 + 1] * gradOut
                                                         : 0.f);
+                    // (1,0)
                     sum[2] +=
                         ((row_in_axis1 && col_in_axis0) ? shmem_weight[filter_offset1] * gradOut
                                                         : 0.f);
+                    // (1,1)
                     sum[3] +=
                         ((row_in_axis1 && col_in_axis1) ? shmem_weight[filter_offset1 + 1] * gradOut
+                                                        : 0.f);
+                    // (2,0)
+                    sum[4] +=
+                        ((row_in_axis2 && col_in_axis0) ? shmem_weight[filter_offset2] * gradOut
+                                                        : 0.f);
+                    // (2,1)
+                    sum[5] +=
+                        ((row_in_axis2 && col_in_axis1) ? shmem_weight[filter_offset2 + 1] * gradOut
+                                                        : 0.f);
+                    // (3,0)
+                    sum[6] +=
+                        ((row_in_axis3 && col_in_axis0) ? shmem_weight[filter_offset3] * gradOut
+                                                        : 0.f);
+                    // (3,1)
+                    sum[7] +=
+                        ((row_in_axis3 && col_in_axis1) ? shmem_weight[filter_offset3 + 1] * gradOut
                                                         : 0.f);
                 }
             }
 #pragma unroll
-            for(int i = 0; i < 2; i++)
+            for(int i = 0; i < 4; i++)
             {
 #pragma unroll
                 for(int j = 0; j < 2; j++)
@@ -331,10 +369,12 @@ __global__ void
     }
 }
 
-// __global__ void kernel_grouped_conv_bwd_data_optimized_small()
+// template <typename Argument>
+// __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
 // {
 
 // }
+
 } // namespace
 
 // Conv backward data multiple D:
