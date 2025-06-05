@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_dl_instance.hpp"
@@ -21,6 +21,8 @@ void add_device_grouped_conv3d_bwd_weight_dl_gndhwc_gkzyxc_gndhwk_f32_instances(
                                                            PassThrough,
                                                            PassThrough>>>& instances)
 {
+#if CK_BUILD_DEPRECATED
+#pragma message "These instances are getting deprecated"
     // 1. Default
     add_device_operation_instances(
         instances,
@@ -37,6 +39,10 @@ void add_device_grouped_conv3d_bwd_weight_dl_gndhwc_gkzyxc_gndhwk_f32_instances(
                                                         GKZYXC,
                                                         GNDHWK,
                                                         ConvBwdWeightFilter1x1Stride1Pad0>{});
+#else
+#pragma message "These instances were deprecated"
+    std::ignore = instances;
+#endif
 }
 
 } // namespace instance
