@@ -250,7 +250,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     using AScaleLayout = Row;
     using BScaleLayout = Col;
 
-    auto Scale_Padded_M = (M + 32 - 1) / 32 * 32;
+    auto Scale_Padded_M = (M + ScaleBlockSize - 1) / ScaleBlockSize * ScaleBlockSize;
     auto Scale_Stride_AM =
         f_get_default_stride(Scale_Padded_M, K / ScaleBlockSize, -1, AScaleLayout{});
     auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
@@ -563,8 +563,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Comparing results..." << std::endl;
         }
 
-#if 0
-        std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
+#if 0 std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
         for(int i = 0; i < 16; ++i)
         {
             for(int j = 0; j < 16; ++j)

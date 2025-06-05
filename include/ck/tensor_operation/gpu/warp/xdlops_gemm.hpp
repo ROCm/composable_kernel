@@ -889,11 +889,6 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>
                         const ScaleB& scale_b,
                         FloatC& reg_c) const
     {
-        // CK_PRINT<FloatA>();
-        // static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this
-        // point."); static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at
-        // this point.");
-
         intrin_mfma_scale_f32_32x32x64f8f6f4<MPerXdlops, NPerXdlops, OpselA, OpselB>::Run(
             a, bit_cast<uint32_t>(scale_a), b, bit_cast<uint32_t>(scale_b), reg_c);
     }
@@ -931,15 +926,6 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
                         const ScaleB& scale_b,
                         FloatC& reg_c) const
     {
-        // if(get_thread_local_1d_id() == 0)
-        // {
-        //     printf("Before BitCast: Scale A: %08x, Scale B: %08x\n",
-        //            *reinterpret_cast<const uint32_t*>(&scale_a),
-        //            *reinterpret_cast<const uint32_t*>(&scale_b));
-        // }
-        // static_assert(scalar_type<ScaleA>::vector_size == 1, "Expect single scale at this
-        // point."); static_assert(scalar_type<ScaleB>::vector_size == 1, "Expect single scale at
-        // this point.");
 
         intrin_mfma_scale_f32_16x16x128f8f6f4<MPerXdlops, NPerXdlops, OpselA, OpselB>::Run(
             a, bit_cast<uint32_t>(scale_a), b, bit_cast<uint32_t>(scale_b), reg_c);
@@ -1157,6 +1143,15 @@ struct MfmaSelector
 #else
         return MfmaInstr::mfma_i32_16x16x16i8;
 #endif
+    }
+
+    // Use single rate mfma instruction for this special case A (f8_t) * B (pk_i4_t)
+    // See example gemm_xdl_fp8_pk_i4_bpreshuffle_v3
+    // TODO: explore optimization opportunity by using new mfma instructions on gfx950
+    template <>
+    constexpr auto GetMfma<f8_t, 32, 32, pk_i4_t, true, false>()
+    {
+        return MfmaInstr::mfma_f32_32x32x16f8f8;
     }
 
     template <>

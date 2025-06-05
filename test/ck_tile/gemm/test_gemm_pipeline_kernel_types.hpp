@@ -2,7 +2,6 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <tuple>
-#include <type_traits>
 
 #include "gtest/gtest.h"
 
@@ -21,9 +20,6 @@ using Interwave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 using Mem       = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
 using CompV3    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
 using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
-
-using Persistent    = std::true_type;
-using NonPersistent = std::false_type;
 
 // clang-format off
 using KernelTypesMem = ::testing::Types<
@@ -61,11 +57,6 @@ using KernelTypesCompV4 = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
     std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>,
     std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV4>
->;
-
-using KernelTypesPersistent = ::testing::Types<
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3,    Persistent>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3, NonPersistent>
 >;
 
 // clang-format on

@@ -303,7 +303,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
         // Local prefill 1
-        __builtin_amdgcn_s_waitcnt(3952);
+        __builtin_amdgcn_s_waitcnt(3952); // wait for EXP_CNT, LDS, GDS, Constant and Message
         block_sync_lds();
 
         // Initialize C
@@ -335,8 +335,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     constexpr auto k_step =
                         k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
 
-#if 1
-                    if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
+#if 1 if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
                     {
                         if constexpr(k == 0)
                         {
@@ -1033,7 +1032,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     b_scale_grid_desc,
                     make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
-                __builtin_amdgcn_s_waitcnt(3952);
+                __builtin_amdgcn_s_waitcnt(3952); // wait for EXP_CNT and LGKM_CNT
                 block_sync_lds();
 
                 i += 1;

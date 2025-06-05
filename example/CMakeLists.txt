@@ -222,7 +222,7 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
         rocm_install(TARGETS ${EXAMPLE_NAME} COMPONENT examples)
         set(result 0)
     endif()
-    
+
     #message("add_example returns ${result}")
     set(result ${result} PARENT_SCOPE)
 

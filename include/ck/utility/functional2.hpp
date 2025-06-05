@@ -107,7 +107,7 @@ struct identity
     template <typename T>
     __host__ __device__ constexpr T&& operator()(T&& arg) const noexcept
     {
-        return std::forward<T>(arg);
+        return forward<T>(arg);
     }
 };
 

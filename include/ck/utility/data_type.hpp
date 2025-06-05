@@ -170,10 +170,9 @@ template <typename T>
 struct is_f8f6f4
 {
     static constexpr bool value =
-        std::is_same_v<T, f8_t> || std::is_same_v<T, bf8_t> || std::is_same_v<T, f6_t> ||
-        std::is_same_v<T, bf6_t> || std::is_same_v<T, f6x16_pk_t> ||
-        std::is_same_v<T, f6x32_pk_t> || std::is_same_v<T, bf6x16_pk_t> ||
-        std::is_same_v<T, bf6x32_pk_t> || std::is_same_v<T, f4_t> || std::is_same_v<T, f4x2_pk_t>;
+        is_same_v<T, f8_t> || is_same_v<T, bf8_t> || is_same_v<T, f6_t> || is_same_v<T, bf6_t> ||
+        is_same_v<T, f6x16_pk_t> || is_same_v<T, f6x32_pk_t> || is_same_v<T, bf6x16_pk_t> ||
+        is_same_v<T, bf6x32_pk_t> || is_same_v<T, f4_t> || is_same_v<T, f4x2_pk_t>;
 };
 template <typename T>
 inline constexpr bool is_f8f6f4_v = is_f8f6f4<T>::value;
@@ -337,17 +336,17 @@ struct packed_type_info
     static constexpr auto get_packed_type_info()
     {
         using U = remove_cvref_t<T>;
-        if constexpr(std::is_same_v<U, pk_i4_t>)
+        if constexpr(is_same_v<U, pk_i4_t>)
             return ck::Tuple<ck::Number<2>, int4_t>{};
-        else if constexpr(std::is_same_v<U, f4x2_pk_t>)
+        else if constexpr(is_same_v<U, f4x2_pk_t>)
             return ck::Tuple<ck::Number<2>, f4_t>{};
-        else if constexpr(std::is_same_v<U, f6x16_pk_t>)
+        else if constexpr(is_same_v<U, f6x16_pk_t>)
             return ck::Tuple<ck::Number<16>, f6_t>{};
-        else if constexpr(std::is_same_v<U, bf6x16_pk_t>)
+        else if constexpr(is_same_v<U, bf6x16_pk_t>)
             return ck::Tuple<ck::Number<16>, bf6_t>{};
-        else if constexpr(std::is_same_v<U, f6x32_pk_t>)
+        else if constexpr(is_same_v<U, f6x32_pk_t>)
             return ck::Tuple<ck::Number<32>, f6_t>{};
-        else if constexpr(std::is_same_v<U, bf6x32_pk_t>)
+        else if constexpr(is_same_v<U, bf6x32_pk_t>)
             return ck::Tuple<ck::Number<32>, bf6_t>{};
         else
             return ck::Tuple<ck::Number<1>, T>{};
@@ -374,17 +373,17 @@ struct packed_type_maker
     static constexpr auto get_packed_type()
     {
         using U = remove_cvref_t<T>;
-        if constexpr(std::is_same_v<U, int4_t>)
+        if constexpr(is_same_v<U, int4_t>)
         {
             static_assert(N == 0 || N == 2, "Packed size N for int4_t must be 2.");
             return pk_i4_t{};
         }
-        else if constexpr(std::is_same_v<U, f4_t>)
+        else if constexpr(is_same_v<U, f4_t>)
         {
             static_assert(N == 0 || N == 2, "Packed size N for f4_t must be 2.");
             return f4x2_pk_t{};
         }
-        else if constexpr(std::is_same_v<U, f6_t>)
+        else if constexpr(is_same_v<U, f6_t>)
         {
             static_assert(N == 0 || N == 16 || N == 32, "Packed size N for f6_t must be 16 or 32.");
             if constexpr(N == 16)
@@ -392,7 +391,7 @@ struct packed_type_maker
             else if constexpr(N == 0 || N == 32)
                 return f6x32_pk_t{};
         }
-        else if constexpr(std::is_same_v<U, bf6_t>)
+        else if constexpr(is_same_v<U, bf6_t>)
         {
             static_assert(N == 0 || N == 16 || N == 32,
                           "Packed size N for bf6_t must be 16 or 32.");
