@@ -1289,7 +1289,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx90a" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j && ./11_grouped_conv_bwd_weight/client_grouped_conv2d_bwd_weight_fp16 """
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
