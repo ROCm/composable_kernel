@@ -172,17 +172,27 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
 #endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
-    {
-        // A matrix in LDS memory, destination of blockwise copy.
-        return make_naive_tensor_descriptor(make_tuple(AK0PerBlock, Number<MPerBlock>{}, AK1),
-                                            make_tuple(AK1, Number<KPerBlock>{}, I1));
+    {        
+        if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>){
+            // FIXME: our support to non-K contiguous layout is limited, only work in some specific setting
+            return make_naive_tensor_descriptor_packed(make_tuple(AK0PerBlock, Number<MPerBlock>{}, AK1));
+        }
+        else{
+            return make_naive_tensor_descriptor(make_tuple(AK0PerBlock, Number<MPerBlock>{}, AK1),
+                                                make_tuple(AK1, Number<KPerBlock>{}, I1));
+        }
     }
 
     __host__ __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
-        // B matrix in LDS memory, destination of blockwise copy.
-        return make_naive_tensor_descriptor(make_tuple(BK0PerBlock, Number<NPerBlock>{}, BK1),
+        if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>){
+            // FIXME: our support to non-K contiguous layout is limited, only work in some specific setting
+            return make_naive_tensor_descriptor_packed(make_tuple(BK0PerBlock, Number<NPerBlock>{}, BK1));
+        }
+        else{
+            return make_naive_tensor_descriptor(make_tuple(BK0PerBlock, Number<NPerBlock>{}, BK1),
                                             make_tuple(BK1, Number<KPerBlock>{}, I1));
+        }
     }
 
     __host__ __device__ static constexpr auto
