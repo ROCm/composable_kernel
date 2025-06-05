@@ -517,7 +517,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                         continue
                 if hdim == 192 and tile.F_bn1 == 128:
                     # NOTE: this is used to speedup deepseek prefill case, we don't gen training
-                    if pipeline.F_bias != 'no' or pipeline.F_lse == 't' or pipeline.F_dropout == 't':
+                    if pipeline.F_bias != 'no' or pipeline.F_dropout == 't':
                         continue
                 # logits_soft_cap is only allowed if no bias
                 if not ((pipeline.F_logits == 't' and pipeline.F_bias == 'no') or pipeline.F_logits == 'f'):

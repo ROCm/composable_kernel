@@ -33,7 +33,7 @@ using Empty_Tuple = ck::Tuple<>;
 using namespace ck::tensor_layout::convolution;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddRelu     = ck::tensor_operation::element_wise::AddRelu;
+using AddClamp    = ck::tensor_operation::element_wise::AddClamp;
 
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
