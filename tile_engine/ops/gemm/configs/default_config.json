@@ -48,7 +48,7 @@
             "max": 512,
             "min": 64,
             "step": 64,
-            "exclude": []
+            "exclude": [192]
         },
         "warp_m": {
             "values": [
@@ -71,14 +71,20 @@
         },
         "warp_tile_m": {
             "values": [
+                4,
+                8,
                 16,
-                32
+                32,
+                64
             ]
         },
         "warp_tile_n": {
             "values": [
+                4,
+                8,
                 16,
-                32
+                32,
+                64
             ]
         },
         "warp_tile_k": {
