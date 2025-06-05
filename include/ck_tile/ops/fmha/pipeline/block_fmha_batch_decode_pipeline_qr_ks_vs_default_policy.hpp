@@ -7,6 +7,7 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2.hpp"
 
 namespace ck_tile {
 
@@ -218,6 +219,96 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVSDefaultPolicy
     {
         return max(GetSmemSizeQ<Problem>(), GetSmemSizeK<Problem>()) +
                max(GetSmemSizeV<Problem>(), GetSmemSizeS<Problem>());
+    }
+    
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistributionPreshuffled()
+    {
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
+        constexpr index_t warpSize   = ck_tile::get_warp_size();
+
+        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
+
+        static_assert(warpSize * KVector >= kKPerBlock && warpSize * KVector % kKPerBlock == 0);
+        constexpr index_t KLanes  = 4; // 16x16x16 b16 300x
+        constexpr index_t NFlat  = 16; // within a wave
+        static_assert(kKPerBlock % (KLanes * KVector) == 0);
+        constexpr index_t KRepeat  = kKPerBlock / KLanes / KVector; // within a wave
+
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                        tuple<sequence<N0, N1, N2>, sequence<KRepeat, KLanes, NFlat, KVector>>,
+                                        tuple<sequence<1>, sequence<1, 2>>,
+                                        tuple<sequence<2>, sequence<1, 0>>,
+                                        sequence<1, 2>,
+                                        sequence<0, 1>>{});
+    }
+    
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
+    {
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::QDataType,
+                             typename Problem::KDataType,
+                             typename Problem::SaccDataType,
+                             Problem::kNumGemm0Warps * get_warp_size(),
+                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                    Problem::BlockFmhaShape::kN0,
+                                                    Problem::BlockFmhaShape::kK0>,
+                                           typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                           typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
+
+        constexpr auto warp_gemm = []() {
+            constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
+            static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
+
+            if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
+                         std::is_same_v<typename Problem::KDataType, half_t> &&
+                         std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                if constexpr(WarpGemmM == 32)
+                    return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
+                else if constexpr(WarpGemmM == 16)
+                    return WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{};
+                else // WarpGemmM == 4
+                    return WarpGemmMfmaF16F16F32M4N64K16{};
+            }
+            else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
+                              std::is_same_v<typename Problem::KDataType, bf16_t> &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                if constexpr(WarpGemmM == 32)
+                    return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
+                else if constexpr(WarpGemmM == 16)
+                    return WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{};
+                else // WarpGemmM == 4
+                    return WarpGemmMfmaBf16Bf16F32M4N64K16{};
+            }
+            else if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::KDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                static_assert(WarpGemmM == 32);
+
+                // TODO: hard coded here. Otherwise, it may incorrect result
+                constexpr index_t swizzle_factor = 4;
+                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
+                    swizzle_factor>{};
+            } // TODO - bf8_t
+        }();
+
+        using BlockGemmPolicy =
+            BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::QDataType,
+                                                 typename Problem::KDataType,
+                                                 typename Problem::SaccDataType,
+                                                 typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                                 decltype(warp_gemm)>;
+        static_assert(1 < Problem::kNumGemm0Warps);
+        return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
 };
 

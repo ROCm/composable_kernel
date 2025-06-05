@@ -700,19 +700,33 @@ struct FmhaBatchDecodeWithPagedKVCacheKernel
                     sequence<false, kPadHeadDimQ>{});
             }
         }();
+        // const auto k_dram = [&]() {
+        //     const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+        //         k_ptr,
+        //         make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_q),
+        //         make_tuple(kargs.stride_k, 1),
+        //         number<FmhaPipeline::kAlignmentK>{},
+        //         number<1>{});
+
+        //     constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
+        //     return pad_tensor_view(
+        //         k_dram_naive,
+        //         make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+        //         sequence<kPadSeqLenK_, kPadHeadDimQ>{});
+        // }();
         const auto k_dram = [&]() {
-            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+            return make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_q),
-                make_tuple(kargs.stride_k, 1),
+                make_tuple(kargs.num_total_pages, kargs.hdim_q / 8, 16, 8),
+                make_tuple(kargs.hdim_q * 16, 256, 8, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
-            constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
-            return pad_tensor_view(
-                k_dram_naive,
-                make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                sequence<kPadSeqLenK_, kPadHeadDimQ>{});
+            // constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
+            // return pad_tensor_view(
+            //     k_dram_naive,
+            //     make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+            //     sequence<kPadSeqLenK_, kPadHeadDimQ>{});
         }();
         const auto v_dram = [&]() {
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
