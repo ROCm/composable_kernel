@@ -68,13 +68,21 @@ struct CShuffleEpilogue
     static constexpr index_t kMPerIteration                = kMPerXdl * kMWave;
     static constexpr index_t kNPerIteration                = kNPerXdl * kNWave;
 
-    using WG = WarpGemmMfmaDispatcher<ADataType,
-                                      BTypeToUse,
-                                      AccDataType,
-                                      kMPerXdl,
-                                      kNPerXdl,
-                                      kKPerXdl,
-                                      isCTransposed>;
+    using WG = std::conditional_t<std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>,
+                                  WarpGemmMfmaDispatcher<ADataType,
+                                                         BTypeToUse,
+                                                         AccDataType,
+                                                         kMPerXdl,
+                                                         kNPerXdl,
+                                                         kKPerXdl,
+                                                         isCTransposed>,
+                                  WarpGemmMfmaDispatcher<ADataType,
+                                                         BTypeToUse,
+                                                         AccDataType,
+                                                         kNPerXdl,
+                                                         kMPerXdl,
+                                                         kKPerXdl,
+                                                         isCTransposed>>;
 
     using CWarpDstr   = typename WG::CWarpDstr;
     using CWarpTensor = typename WG::CWarpTensor;
@@ -219,9 +227,20 @@ struct CShuffleEpilogue
                 }
             }();
 
-            c_warp_in_tensor.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
-                merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+            c_warp_in_tensor.get_thread_buffer() = [&]() {
+                if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return o_acc_tile.get_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+                }
+                else
+                {
+                    return o_acc_tile.get_y_sliced_thread_data(
+                        merge_sequences(sequence<nIter, mIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+                }
+            }();
 
             const auto c_warp_in_tensor_casted = cast_tile<ODataType>(c_warp_in_tensor);
 
@@ -243,7 +262,14 @@ struct CShuffleEpilogue
             if constexpr(iAccess != num_access - 1)
             {
                 constexpr auto step = SFC::get_forward_step(iAccess);
-                move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
+                if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
+                }
+                else
+                {
+                    move_tile_window(out_dram_window, {step.at(number<1>{}), step.at(number<0>{})});
+                };
             }
         });
     }
