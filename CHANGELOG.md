@@ -38,6 +38,7 @@ None
 * Number of instances in instance factory for grouped convolution forward NGCHW/GKYXC/NGKHW has been reduced.
 * Number of instances in instance factory for grouped convolution backward weight NGCHW/GKYXC/NGKHW has been reduced.
 * Number of instances in instance factory for grouped convolution backward data NGCHW/GKYXC/NGKHW has been reduced.
+* Deprecated grouped convolution instances with compute type bf8/fp8 have been removed. 
 
 ### Known issues
 

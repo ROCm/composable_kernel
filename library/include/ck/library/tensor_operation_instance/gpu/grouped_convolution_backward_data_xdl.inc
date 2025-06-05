@@ -452,23 +452,6 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_16_16_inst
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
 #endif
-#if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
-void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_input_f16_comp_bf8f8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
-                                                                  NDHWGK,
-                                                                  GKZYXC,
-                                                                  Empty_Tuple,
-                                                                  NDHWGC,
-                                                                  F16,
-                                                                  F16,
-                                                                  Empty_Tuple,
-                                                                  F16,
-                                                                  PassThrough,
-                                                                  PassThrough,
-                                                                  PassThrough,
-                                                                  BF8,
-                                                                  F8>>>& instances);
-#endif
 #ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_bwd_data_xdl_ngkdhw_gkzyxc_ngcdhw_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,

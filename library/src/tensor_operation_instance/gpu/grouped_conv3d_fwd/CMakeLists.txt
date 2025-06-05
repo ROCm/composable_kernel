@@ -68,11 +68,6 @@ set(GROUPED_CONV3D_FWD
    wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_i8_1x1s1p0_instance.cpp
 )
 
-if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
-    list(APPEND GROUPED_CONV3D_FWD
-      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_fp8_instance.cpp)
-endif()
-
 if((DTYPES MATCHES "fp8") OR NOT DEFINED DTYPES)
     list(APPEND GROUPED_CONV3D_FWD
       xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_instance.cpp)

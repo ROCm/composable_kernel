@@ -22,6 +22,8 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_default_pipe
                                                            PassThrough,
                                                            PassThrough>>>& instances)
 {
+#if CK_BUILD_DEPRECATED
+#pragma message "These instances are getting deprecated"
     add_device_operation_instances(instances,
                                    device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f32_instances<
                                        2,
@@ -31,6 +33,10 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_f32_default_pipe
                                        ConvBwdWeightDefault,
                                        BlockGemmPipelineScheduler::Intrawave,
                                        BlockGemmPipelineVersion::v1>{});
+#else
+#pragma message "These instances were deprecated"
+    std::ignore = instances;
+#endif
 }
 
 } // namespace instance

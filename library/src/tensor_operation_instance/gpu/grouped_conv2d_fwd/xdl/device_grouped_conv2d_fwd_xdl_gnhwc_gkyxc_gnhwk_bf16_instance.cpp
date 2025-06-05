@@ -23,6 +23,8 @@ void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
                                                                 PassThrough,
                                                                 PassThrough>>>& instances)
 {
+#if CK_BUILD_DEPRECATED
+#pragma message "These instances are getting deprecated"
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_bf16_instances<2,
                                                                               GNHWC,
@@ -46,6 +48,10 @@ void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
                                                                               Empty_Tuple,
                                                                               GNHWK,
                                                                               ConvFwd1x1S1P0>{});
+#else
+#pragma message "These instances were deprecated"
+    std::ignore = instances;
+#endif
 }
 
 } // namespace instance
