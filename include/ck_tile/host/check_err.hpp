@@ -191,7 +191,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
  * @param out Output range to check
  * @param ref Reference range to check against
  * @param msg Error message to display if sizes mismatch
- * @return bool True if sizes mismatch, false otherwise
+ * @return True if sizes mismatch, false otherwise
  */
 template <typename Range, typename RefRange>
 bool check_size_mismatch(const Range& out,
