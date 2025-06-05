@@ -514,7 +514,7 @@ struct Tensor
         }
     }
 
-    // Generate random values with multiple threads. Garanteed to give the same sequence with any
+    // Generate random values with multiple threads. Guaranteed to give the same sequence with any
     // number of threads provided.
     template <typename Distribution = std::uniform_real_distribution<float>,
               typename Mapping      = ck::identity,
@@ -556,6 +556,43 @@ struct Tensor
                         return ck::f4x2_pk_t{ck::type_convert<ck::f4x2_t>(
                             ck::float2_t{ck::type_convert<float>(fn(dis_(g_))),
                                          ck::type_convert<float>(fn(dis_(g_)))})};
+                    else if constexpr(ck::is_same_v<T, ck::f6x32_pk_t> ||
+                                      ck::is_same_v<T, ck::bf6x32_pk_t>)
+                    {
+                        return ck::type_convert<T>(
+                            ck::float32_t{ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_)))});
+                    }
                     else
                         static_assert(false, "Unsupported packed size for T");
                 };

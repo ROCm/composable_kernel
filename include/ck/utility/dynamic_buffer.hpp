@@ -34,12 +34,7 @@ struct DynamicBuffer
     ElementSpaceSize element_space_size_;
     T invalid_element_value_ = T{0};
 
-    static constexpr index_t PackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<T>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
+    static constexpr index_t PackedSize = packed_size_v<T>;
 
     __host__ __device__ constexpr DynamicBuffer(T* p_data, ElementSpaceSize element_space_size)
         : p_data_{p_data}, element_space_size_{element_space_size}

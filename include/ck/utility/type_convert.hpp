@@ -1893,6 +1893,12 @@ inline __host__ __device__ f6x32_t type_convert<f6x32_t, float32_t>(float32_t x)
 #endif
 }
 
+template <>
+inline __host__ __device__ f6x32_pk_t type_convert<f6x32_pk_t, float32_t>(float32_t x)
+{
+    return static_cast<f6x32_pk_t>(type_convert<f6x32_t>(x));
+}
+
 /**
  * @brief Specializes the type conversion template for converting the 6-bit float type (f6_t) to
  * float.
@@ -2157,6 +2163,12 @@ inline __host__ __device__ bf6x32_t type_convert<bf6x32_t, float32_t>(float32_t 
 #else
     return bf6_convert_rne(x);
 #endif
+}
+
+template <>
+inline __host__ __device__ bf6x32_pk_t type_convert<bf6x32_pk_t, float32_t>(float32_t x)
+{
+    return static_cast<bf6x32_pk_t>(type_convert<bf6x32_t>(x));
 }
 
 /**

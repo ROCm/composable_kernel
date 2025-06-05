@@ -310,6 +310,20 @@ struct scalar_type<f4x2_pk_t>
 };
 
 template <>
+struct scalar_type<f6x32_pk_t>
+{
+    using type                           = f6x32_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bf6x32_pk_t>
+{
+    using type                           = bf6x32_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
 struct scalar_type<bool>
 {
     using type                           = bool;

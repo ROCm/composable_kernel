@@ -815,11 +815,37 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 std::cout << "b_k_n(:,0):" << std::endl;
                 for(int i = 0; i < K; ++i)
                 {
-                    if(i % 16 == 0)
+                    if(i % (std::max(16, ck::packed_size_v<ADataType>)) == 0)
                     {
                         std::cout << std::endl << "k = " << i << " : ";
                     }
-                    std::cout << type_convert<float>((*b_k_n)(i, 0)) << " ";
+
+                    if constexpr(ck::is_same_v<ADataType, ck::f4x2_pk_t>)
+                    {
+                        if(i % 2 == 0)
+                        {
+                            std::cout
+                                << type_convert<float>(
+                                       ck::f4_t((*b_k_n)(i, 0).template unpack<>(ck::Number<0>{})))
+                                << " "
+                                << type_convert<float>(
+                                       ck::f4_t((*b_k_n)(i, 0).template unpack<>(ck::Number<1>{})))
+                                << " ";
+                        }
+                    }
+                    else if constexpr(ck::is_same_v<ADataType, ck::f6x16_pk_t> ||
+                                      ck::is_same_v<ADataType, ck::bf6x16_pk_t> ||
+                                      ck::is_same_v<ADataType, ck::f6x32_pk_t> ||
+                                      ck::is_same_v<ADataType, ck::bf6x32_pk_t>)
+                    {
+                        std::cout << type_convert<float>(
+                                         (*b_k_n)(i, 0).unpack(i % ck::packed_size_v<ADataType>))
+                                  << " ";
+                    }
+                    else
+                    {
+                        std::cout << type_convert<float>((*b_k_n)(i, 0)) << " ";
+                    }
                 }
                 std::cout << std::endl;
             }
