@@ -127,4 +127,15 @@ struct is_any_of<CompareTo, FirstType, Rest...>
 {
 };
 
+// Helper to check if a type is a specialization of a given template
+template <typename Test, template <typename...> class RefTemplate>
+struct is_specialization_of : std::false_type
+{
+};
+
+template <template <typename...> class RefTemplate, typename... Args>
+struct is_specialization_of<RefTemplate<Args...>, RefTemplate> : std::true_type
+{
+};
+
 } // namespace ck_tile

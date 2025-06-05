@@ -7,6 +7,7 @@
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qs_ks_vs_default_policy.hpp"
+#include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
 
@@ -27,6 +28,7 @@ struct BlockFmhaPipelineQSKSVS
     using PDataType             = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType             = remove_cvref_t<typename Problem::ODataType>;
+    using AttentionVariant      = remove_cvref_t<typename Problem::AttentionVariant>;
     using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
@@ -44,14 +46,21 @@ struct BlockFmhaPipelineQSKSVS
     static constexpr index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
 
-    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr auto BiasEnum     = Problem::BiasEnum;
-    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
-    static constexpr bool kHasDropout  = Problem::kHasDropout;
+    static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
+    static constexpr auto BiasEnum          = Problem::BiasEnum;
+    static constexpr bool kStoreLSE         = Problem::kStoreLSE;
+    static constexpr bool kHasDropout       = Problem::kHasDropout;
+
+    static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
+                   (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
+                    !kHasLogitsSoftCap)) ||
+                  (!CK_TILE_FMHA_FWD_FAST_EXP2 && !kHasLogitsSoftCap));
+
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
     static constexpr index_t kAlignmentQ =
@@ -95,7 +104,9 @@ struct BlockFmhaPipelineQSKSVS
                 return 1;
             }
             else
+            {
                 return 1;
+            }
         }
     }();
 
@@ -122,7 +133,9 @@ struct BlockFmhaPipelineQSKSVS
               typename SAccElementFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -141,6 +154,9 @@ struct BlockFmhaPipelineQSKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
                void* smem_ptr,
                DropoutType& /* unused_dropout */) const
     {
@@ -380,9 +396,28 @@ struct BlockFmhaPipelineQSKSVS
             else
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                if constexpr(kHasLogitsSoftCap)
+                {
+                    auto apply_logits_transform =
+                        [&variant, &variant_params, &block_indices](auto& x) {
+                            x = variant.LogitsTransform(variant_params,
+                                                        variant.QueryTransform(variant_params, x),
+                                                        block_indices.batch_idx,
+                                                        block_indices.qo_head_idx,
+                                                        block_indices.kv_head_idx);
+                        };
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                    tile_elementwise_inout(apply_logits_transform, s_acc);
+#else
+                    tile_elementwise_inout(apply_logits_transform, s_acc);
 #endif
+                }
+                else
+                {
+#if !CK_TILE_FMHA_FWD_FAST_EXP2
+                    tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+#endif
+                }
             }
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
@@ -398,7 +433,12 @@ struct BlockFmhaPipelineQSKSVS
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col);
+                            return !variant.LogitsMask(variant_params,
+                                                       block_indices.batch_idx,
+                                                       row,
+                                                       col,
+                                                       block_indices.qo_head_idx,
+                                                       block_indices.kv_head_idx);
                         });
                 }
             }
@@ -450,7 +490,14 @@ struct BlockFmhaPipelineQSKSVS
                     }
                     else
                     {
-                        p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                        if constexpr(kHasLogitsSoftCap)
+                        {
+                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        }
+                        else
+                        {
+                            p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
+                        }
                     }
 #else
                     p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -481,8 +528,16 @@ struct BlockFmhaPipelineQSKSVS
                     }
                     else
                     {
-                        auto row_max = scale_s * get_validated_m(m[i_idx]);
-                        return exp2(scale_s * m_old[i_idx] - row_max);
+                        if constexpr(kHasLogitsSoftCap)
+                        {
+
+                            return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                        }
+                        else
+                        {
+                            auto row_max = scale_s * get_validated_m(m[i_idx]);
+                            return exp2(scale_s * m_old[i_idx] - row_max);
+                        }
                     }
                 }();
 #else
@@ -571,7 +626,14 @@ struct BlockFmhaPipelineQSKSVS
                 }
                 else
                 {
-                    lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                    if constexpr(kHasLogitsSoftCap)
+                    {
+                        lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+                    }
+                    else
+                    {
+                        lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                    }
                 }
 #else
                 lse(i_idx) = m_[i_idx] + log(l_[i_idx]);
@@ -611,7 +673,9 @@ struct BlockFmhaPipelineQSKSVS
               typename BiasDramBlockWindowTmp,
               typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
-              typename PositionEncoding>
+              typename PositionEncoding,
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
@@ -622,6 +686,9 @@ struct BlockFmhaPipelineQSKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
                void* smem_ptr,
                DropoutType& dropout) const
     {
@@ -642,6 +709,9 @@ struct BlockFmhaPipelineQSKSVS
                           mask,
                           position_encoding,
                           scale_s,
+                          variant,
+                          variant_params,
+                          block_indices,
                           smem_ptr,
                           dropout);
     }

@@ -149,7 +149,9 @@ struct DefaultGemm2DEpilogue : public Default2DEpilogue<Problem_, Policy_>
             else
             {
                 // In this case each thread has just a single item in Ndim
-                return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
+                return (WG::WarpGemmAttribute::Impl::kCNLane *
+                        WG::WarpGemmAttribute::Impl::kBNBlock) /
+                       WG::kN;
             }
         }
         // M is contiguous dimension
@@ -158,7 +160,9 @@ struct DefaultGemm2DEpilogue : public Default2DEpilogue<Problem_, Policy_>
             if constexpr(isCTransposed)
             {
                 // In this case each thread has just a single item in Mdim
-                return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
+                return (WG::WarpGemmAttribute::Impl::kCNLane *
+                        WG::WarpGemmAttribute::Impl::kAMBlock) /
+                       WG::kN;
             }
             else
             {
