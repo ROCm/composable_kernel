@@ -161,7 +161,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 dim3 grid_dim;
                 if(arg.Grid_size < 0)
                 {
-                    printf("grid size is less than 0");
+                    // printf("grid size is less than 0");
                     int occupancy, num_cu;
                     hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
                         &occupancy, kernel, BlockSize, 0));
@@ -175,7 +175,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 }
                 else
                 {
-                    printf("grid size is not 0");
+                    // printf("grid size is not 0");
                     grid_dim = arg.Grid_size;
                 }
                 grid_dim = arg.block_2_ctile_map_streamk.get_grid_dims();
