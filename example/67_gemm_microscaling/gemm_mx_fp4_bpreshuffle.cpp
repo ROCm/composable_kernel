@@ -72,9 +72,9 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     16,               // BBlockTransferDstScalarPerVector_BK1
     true,             // BBlockLdsExtraN
     2,                // CShuffleMXdlPerWavePerShuffle
-    2,                // CShuffleNXdlPerWavePerShuffle
-    S<1, 32, 1, 8>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    8,                // CShuffleBlockTransferScalarPerVector_NPerBlock
+    4,                // CShuffleNXdlPerWavePerShuffle
+    S<1, 8, 1, 32>,   // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+    8,                // CShuffleBlockTransferScalarPerVector_NPerBlockW
     BlkGemmPSched,    // BlkGemmPipeSched
     BlkGemmPVer,      // BlkGemmPipelineVer
     ADataType,        // ComputeTypeA
