@@ -19,6 +19,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_bwd_weight.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -466,7 +467,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads},
-              k_batch_{split_k}
+              k_batch_{get_k_batch_value<MPerBlock, NPerBlock>(split_k, M01, N01, Conv_G_)}
         {
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
