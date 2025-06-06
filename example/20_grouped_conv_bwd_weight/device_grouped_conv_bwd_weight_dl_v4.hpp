@@ -79,6 +79,24 @@ __launch_bounds__(BlockSize, MinimumOccupancy)
     GridwiseConvBwdWeight::template Run(arg, p_share_in, p_share_out);
 }
 
+template <typename WeiDataType, typename AccDataType, index_t FilterSize>
+__global__ void kernel_grouped_conv_bwd_weight_elementwise(
+    WeiDataType* p_wei_grid,
+    const AccDataType* p_acc_grid,
+    std::array<index_t, 2 + 3> wei_g_k_c_xs_strides,
+    std::array<index_t, 2 + 3> acc_g_k_c_xs_strides)
+{
+    const index_t g_idx       = __builtin_amdgcn_readfirstlane(blockIdx.x);
+    if (threadIdx.x < FilterSize * FilterSize)
+    {
+        const index_t x = threadIdx.x % FilterSize;
+        const index_t y = threadIdx.x / FilterSize;
+        auto* p_wei = p_wei_grid + g_idx * wei_g_k_c_xs_strides[0] + y * wei_g_k_c_xs_strides[3] + x * wei_g_k_c_xs_strides[4];
+        auto* p_acc = p_acc_grid + g_idx * acc_g_k_c_xs_strides[0] + y * acc_g_k_c_xs_strides[3] + x * acc_g_k_c_xs_strides[4];
+        *p_wei = type_convert<WeiDataType>(*p_acc);
+    }
+}
+
 namespace tensor_operation {
 namespace device {
 
@@ -413,45 +431,21 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
 
     template <typename Argument>
     static void __device__
-    write_output(const Argument& arg, index_t g, index_t y, index_t x, float acc)
+    write_output(const Argument& arg, index_t g, index_t y, index_t x, AccDataType acc)
     {
         const index_t Wei_G_Stride = arg.wei_g_k_c_xs_strides_[0];
         const index_t Y_Stride     = arg.wei_g_k_c_xs_strides_[3];
         const index_t X_Stride     = arg.wei_g_k_c_xs_strides_[4];
         if(y < Filter_Y && x < Filter_X)
         {
-            auto p_wei = arg.p_wei_grid_ + Wei_G_Stride * g + y * Y_Stride + x * X_Stride;
             if(arg.enable_k_split_)
             {
-                if constexpr(is_same<WeiDataType, bhalf_t>::value ||
-                             is_same<WeiDataType, half_t>::value)
-                {
-                    typename vector_type<WeiDataType, 2>::type pk_acc = {};
-
-                    //    printf("g y x %d %d %d : %lx\n", g, y, x, reinterpret_cast<uint64_t>(p_wei));
-                    if ((reinterpret_cast<uint64_t>(p_wei) & 0x3)  == 0)
-                    {
-                        pk_acc[0] = type_convert<WeiDataType>(acc);
-                        global_atomic_add(
-                        reinterpret_cast<typename vector_type<WeiDataType, 2>::type*>(p_wei),
-                        pk_acc);
-                    }
-                    else
-                    {
-                        pk_acc[1] = type_convert<WeiDataType>(acc);
-                        global_atomic_add(
-                        reinterpret_cast<typename vector_type<WeiDataType, 2>::type*>(p_wei-1),
-                        pk_acc);  
-                    }
-                }
-                else
-                {
-                    global_atomic_add(p_wei, acc);
-                }
+                auto p_acc = arg.p_acc_grid_ + Wei_G_Stride * g + y * Y_Stride + x * X_Stride;
+                global_atomic_add(p_acc, acc);
             }
             else
             {
-
+                auto p_wei = arg.p_wei_grid_ + Wei_G_Stride * g + y * Y_Stride + x * X_Stride;
                 *p_wei = type_convert<WeiDataType>(acc);
             }
         }
@@ -984,6 +978,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
         Argument(const InDataType* p_in_grid,
                  WeiDataType* p_wei_grid,
                  const OutDataType* p_out_grid,
+                 AccDataType* p_acc_grid,
                  const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths, // input
                  const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_strides,
                  const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths, // weight
@@ -994,6 +989,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             : p_in_grid_{p_in_grid},
               p_wei_grid_{p_wei_grid},
               p_out_grid_{p_out_grid},
+              p_acc_grid_{p_acc_grid},
               in_g_n_c_wis_lengths_(in_g_n_c_wis_lengths),
               in_g_n_c_wis_strides_(in_g_n_c_wis_strides),
               wei_g_k_c_xs_lengths_(wei_g_k_c_xs_lengths),
@@ -1009,12 +1005,11 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
             }
         }
 
-        std::size_t GetWorkspaceSizeBytes() const { return 0; }
 
         const InDataType* p_in_grid_;
         WeiDataType* p_wei_grid_;
         const OutDataType* p_out_grid_;
-
+        AccDataType* p_acc_grid_;
         std::array<index_t, NDimSpatial + 3> in_g_n_c_wis_lengths_;
         std::array<index_t, NDimSpatial + 3> in_g_n_c_wis_strides_;
         std::array<index_t, NDimSpatial + 3> wei_g_k_c_xs_lengths_;
@@ -1128,9 +1123,30 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
               input_right_pads_(input_right_pads),
               k_batch_{split_k}
         {
+            // YX
+            acc_g_k_c_xs_strides_[4] = 1;
+            acc_g_k_c_xs_strides_[3] = wei_g_k_c_xs_lengths_[4];
+            // GKC
+            acc_g_k_c_xs_strides_[2] = acc_g_k_c_xs_strides_[3] * wei_g_k_c_xs_lengths_[3];
+            acc_g_k_c_xs_strides_[1] = acc_g_k_c_xs_strides_[2] * wei_g_k_c_xs_lengths_[2];
+            acc_g_k_c_xs_strides_[0] = acc_g_k_c_xs_strides_[1] * wei_g_k_c_xs_lengths_[1];
         }
 
-        std::size_t GetWorkspaceSizeBytes() const { return 0; }
+        std::size_t GetWorkspaceSizeBytes() const
+        {
+            if(k_batch_ > 1)
+            {
+                return math::integer_least_multiple(
+                    sizeof(AccDataType) * wei_g_k_c_xs_lengths_[0] * wei_g_k_c_xs_lengths_[1] *
+                        wei_g_k_c_xs_lengths_[2] * wei_g_k_c_xs_lengths_[3] *
+                        wei_g_k_c_xs_lengths_[4],
+                    128);
+            }
+            else
+            {
+                return 0;
+            }
+        }
 
         const InDataType* p_in_grid_;
         WeiDataType* p_wei_grid_;
@@ -1146,6 +1162,7 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
         std::array<index_t, NDimSpatial + 3> wei_g_k_c_xs_strides_;
         std::array<index_t, NDimSpatial + 3> out_g_n_k_wos_lengths_;
         std::array<index_t, NDimSpatial + 3> out_g_n_k_wos_strides_;
+        std::array<index_t, NDimSpatial + 3> acc_g_k_c_xs_strides_;
         std::array<ck::index_t, NDimSpatial> conv_filter_strides_;
         std::array<ck::index_t, NDimSpatial> conv_filter_dilations_;
         std::array<ck::index_t, NDimSpatial> input_left_pads_;
@@ -1167,15 +1184,17 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             auto gdx = CalculateGridSize(arg);
+            AccDataType* p_acc_grid = type_convert<AccDataType*>(arg.p_workspace_);
 
             float ave_time = 0;
             typename GridwiseConvBwdWeight::Argument conv_arg{arg.p_in_grid_,
-                                                              arg.p_wei_grid_,
+                                                              arg.k_batch_ > 1 ? nullptr : arg.p_wei_grid_,
                                                               arg.p_out_grid_,
+                                                              arg.k_batch_ > 1 ? p_acc_grid : nullptr,
                                                               arg.in_g_n_c_wis_lengths_,
                                                               arg.in_g_n_c_wis_strides_,
                                                               arg.wei_g_k_c_xs_lengths_,
-                                                              arg.wei_g_k_c_xs_strides_,
+                                                              arg.k_batch_ > 1 ? arg.acc_g_k_c_xs_strides_ : arg.wei_g_k_c_xs_strides_,
                                                               arg.out_g_n_k_wos_lengths_,
                                                               arg.out_g_n_k_wos_strides_,
                                                               arg.k_batch_};
@@ -1183,16 +1202,40 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
             constexpr index_t minimum_occupancy =
                 1; // GridwiseConvBwdWeight::TotalLdsSize() > (32 * 1024) ? 1 : 2;
 
-            const auto kernel = kernel_grouped_conv_bwd_weight_dl_v4<GridwiseConvBwdWeight,
+            const auto clear_workspace = [&]() {
+                hip_check_error(hipMemsetAsync(p_acc_grid,
+                                               0,
+                                               arg.GetWorkspaceSizeBytes(),
+                                               stream_config.stream_id_));
+            };
+
+            const auto conv_kernel = kernel_grouped_conv_bwd_weight_dl_v4<GridwiseConvBwdWeight,
                                                                      BlockSize,
                                                                      minimum_occupancy>;
-            const index_t out_buf_size =
-                arg.wei_g_k_c_xs_lengths_[0] * arg.wei_g_k_c_xs_strides_[0] * sizeof(WeiDataType);   
+            auto elementwise_kernel = kernel_grouped_conv_bwd_weight_elementwise<WeiDataType, AccDataType, FilterSize>;
             if(arg.k_batch_ > 1)
-                hipGetErrorString(
-                    hipMemsetAsync(arg.p_wei_grid_, 0, out_buf_size, stream_config.stream_id_));
-            ave_time +=
-                launch_and_time_kernel(stream_config, kernel, gdx, dim3(BlockSize), 0, conv_arg);
+            {
+                ave_time += launch_and_time_kernel_with_preprocess(
+                    stream_config, clear_workspace, conv_kernel, gdx, dim3(BlockSize), 0, conv_arg);
+                    
+                // copy result and convert type to wei type
+                const index_t elementwise_gd = arg.in_g_n_c_wis_lengths_[0];
+                const index_t elementwise_block = FilterSize * FilterSize;
+                ave_time += launch_and_time_kernel(stream_config,
+                                                   elementwise_kernel,
+                                                   dim3(elementwise_gd),
+                                                   dim3(elementwise_block),
+                                                   0,
+                                                   arg.p_wei_grid_,
+                                                   p_acc_grid,
+                                                   arg.wei_g_k_c_xs_strides_,
+                                                   arg.acc_g_k_c_xs_strides_);
+            }
+            else
+            {
+                ave_time += launch_and_time_kernel(
+                    stream_config, conv_kernel, gdx, dim3(BlockSize), 0, conv_arg);
+            }
 
             return ave_time;
         }
@@ -1419,33 +1462,20 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
         return str.str();
     }
 
-    size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
+    size_t GetWorkSpaceSize(const Argument* p_arg) const
     {
-        auto arg = dynamic_cast<const Argument*>(p_arg);
-        if(arg)
-        {
-            return arg->GetWorkspaceSizeBytes();
-        }
-        else
-            throw std::runtime_error(
-                "The argument pointer is not an object of "
-                "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument structure!");
+        return p_arg->GetWorkspaceSizeBytes();
     }
 
-    void SetWorkSpacePointer(BaseArgument* p_arg,
-                             void* p_workspace,
-                             const StreamConfig& = StreamConfig{}) const override
-    {
-        auto p_arg_ = dynamic_cast<Argument*>(p_arg);
-        if(p_arg_)
-        {
-            p_arg_->p_workspace_ = p_workspace;
-        }
-        else
-            throw std::runtime_error(
-                "The argument pointer is not an object of "
-                "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument structure!");
-    }
+    // void SetWorkSpacePointer(Argument* p_arg,
+    //                          void* p_workspace,
+    //                          const StreamConfig& = StreamConfig{}) const
+    // {
+    //     p_arg->p_workspace_ = p_workspace;
+    // }
+    virtual size_t GetWorkSpaceSize(const BaseArgument*) const override { return 0; }
+
+
 };
 } // namespace device
 } // namespace tensor_operation
