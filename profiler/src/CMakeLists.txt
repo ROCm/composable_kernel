@@ -111,7 +111,7 @@ foreach(SOURCE ${PROFILER_OPS})
     list(APPEND PROFILER_SOURCES ${SOURCE})
   endif()
 endforeach()
-message(STATUS "ckProfiler sources: ${PROFILER_SOURCES}")
+#message(STATUS "ckProfiler sources: ${PROFILER_SOURCES}")
 
 set(PROFILER_EXECUTABLE ckProfiler)
 
@@ -228,7 +228,7 @@ foreach(LIB ${DEVICE_INSTANCES})
     list(APPEND PROFILER_LIBS ${LIB})
   endif()
 endforeach()
-message(STATUS "ckProfiler libs: ${PROFILER_LIBS}")
+#message(STATUS "ckProfiler libs: ${PROFILER_LIBS}")
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE ${PROFILER_LIBS})
 
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
