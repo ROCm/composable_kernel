@@ -1330,6 +1330,12 @@ struct nnvb_data_t_selector<pk_i4_t>
     using type = pk_i4_t::type;
 };
 
+template <>
+struct nnvb_data_t_selector<f4x2_pk_t>
+{
+    using type = f4x2_pk_t::type;
+};
+
 template <typename T, index_t N>
 struct non_native_vector_base<
     T,
@@ -2222,6 +2228,7 @@ using f6x32_t = typename vector_type<f6x32_pk_t, 1>::type;
 using bf6x16_t = typename vector_type<bf6x16_pk_t, 1>::type;
 using bf6x32_t = typename vector_type<bf6x32_pk_t, 1>::type;
 
+using e8m0x4_bexp_t = typename vector_type<e8m0_bexp_t, 4>::type;
 // pack int4
 using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
 using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;
