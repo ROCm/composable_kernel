@@ -422,7 +422,40 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     using Block2CTileMap =
         decltype(GridwiseGemm::MakeCBlockClusterAdaptor(CGridDesc_M_N{}, 1, 1, 1));
 
-    struct Argument : public BaseArgument
+    struct MaximumActiveBlocksPerMultiprocessor
+    {
+        MaximumActiveBlocksPerMultiprocessor()
+        {
+            constexpr size_t dynSharedMemPerBlk = GridwiseGemm::GetSharedMemoryNumberOfByte();
+            if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "[SPLIT-K AUTODEDUCE] Dynamic shared memory per block: " << dynSharedMemPerBlk << " bytes" << std::endl;
+            }
+            int max_occupancy = 0;
+            hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                                &max_occupancy,
+                                kernel_batched_gemm_xdlops_bwd_weight<
+                                    GridwiseGemm,
+                                    ADataType,
+                                    BDataType,
+                                    CDataType,
+                                    OutElementwiseOperation,
+                                    InElementwiseOperation,
+                                    WeiElementwiseOperation,
+                                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>, 
+                                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>, 
+                                    remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>, 
+                                    remove_reference_t<DeviceOp::Block2CTileMap>,
+                                    ComputePtrOffsetOfStridedBatch<>,
+                                    true>, // TODO: Do we need to test both true/false for HasMainKBlockLoop?
+                                BlockSize,
+                                dynSharedMemPerBlk));
+            value_ = max_occupancy;
+        }
+        int value_;
+    };
+
+    struct Argument : public BaseArgument, public ArgumentSplitK
     {
         Argument(const InDataType* p_in_grid,
                  WeiDataType* p_wei_grid,
@@ -466,9 +499,17 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
               output_spatial_lengths_{},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
-              input_right_pads_{input_right_pads},
-              k_batch_{get_k_batch_value<MPerBlock, NPerBlock>(split_k, M01, N01, Conv_G_)}
+              input_right_pads_{input_right_pads}
         {
+            static MaximumActiveBlocksPerMultiprocessor max_occupancy;
+
+            k_batch_ = get_k_batch_value<MPerBlock, NPerBlock>(
+                split_k, 
+                max_occupancy.value_,
+                M01, 
+                N01, 
+                Conv_G_);
+
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
@@ -654,13 +695,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& conv_filter_strides_;
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
-        const index_t k_batch_;
     };
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceOp::Argument;
+        using Argument = DeviceOp::Argument; // Refers to the argument defined above.
 
         void ShowInfo(const Argument& arg)
         {
