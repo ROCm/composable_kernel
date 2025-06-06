@@ -295,7 +295,7 @@ check_err(const Range& out,
 }
 
 /**
- * @brief Check errors between floating point ranges with specified tolerances
+ * @brief Check errors between floating point ranges using the specified tolerances
  *
  * Compares two ranges of brain floating point values within specified relative and absolute
  * tolerances.
