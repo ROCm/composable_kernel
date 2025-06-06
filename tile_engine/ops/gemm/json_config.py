@@ -106,6 +106,7 @@ class TraitConfig:
     pad_m: EnumConfigParam
     pad_n: EnumConfigParam
     pad_k: EnumConfigParam
+    persistent: EnumConfigParam
 
 
 @dataclass
@@ -187,7 +188,9 @@ class GemmConfig:
                 pad_n=EnumConfigParam(
                     values=config_dict['trait_config']['pad_n']['values']),
                 pad_k=EnumConfigParam(
-                    values=config_dict['trait_config']['pad_k']['values'])
+                    values=config_dict['trait_config']['pad_k']['values']),
+                persistent=EnumConfigParam(
+                    values=config_dict['trait_config']['persistent']['values']),
             )
 
             return cls(
