@@ -178,6 +178,85 @@ struct fmha_fwd_args
         drop_seed_offset;
 };
 
+struct fmha_fwd_pagedkv_args
+{
+    const void* q_ptr;
+    const void* k_ptr;
+    const void* v_ptr;
+    const void* bias_ptr; // bias or alibi_slope pointer
+    void* lse_ptr;
+    void* o_ptr;
+
+    void* block_table_ptr;
+    ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
+    ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
+    bool is_gappy; // differentiate seqstart_k_ptr usage. only used if 'block_table_ptr' is not
+                   // nullptr.
+
+    const void* cache_batch_idx;
+
+    // the real seqlen_q & seqlen_k are decided by following:
+    // batch mode: seqlen_q = kargs.seqlen_q
+    //             seqlen_k = kargs.seqlen_k
+    // group mode: seqlen_q = kargs.seqstart_q_ptr[b + 1] - kargs.seqstart_q_ptr[b]
+    //             seqlen_k = kargs.seqstart_k_ptr[b + 1] - kargs.seqstart_k_ptr[b]
+    //                      or kargs.seqlen_k_ptr[b]
+    //
+    // batch mode (kvcache):
+    //             seqlen_q = kargs.seqlen_q
+    //             seqlen_k = kargs.seqlen_k_ptr[b]
+    // group mode (kvcache):
+    //             seqlen_q = kargs.seqstart_q_ptr[b + 1] - kargs.seqstart_q_ptr[b]
+    //
+    //     when is_gappy=true:
+    //             seqlen_k = kargs.seqlen_k_ptr[b]
+    //             seqstart_k_ptr[b] now store local offset of each batch
+    //
+    //     when is_gappy=false:
+    //             seqlen_k = kargs.seqstart_k_ptr[b + 1] - kargs.seqstart_k_ptr[b]
+    //                      or kargs.seqlen_k_ptr[b]
+    const void* seqstart_q_ptr;
+    const void* seqstart_k_ptr;
+    const void* seqlen_k_ptr;
+
+    ck_tile::index_t seqlen_q;
+    ck_tile::index_t seqlen_k;
+    ck_tile::index_t batch;
+    ck_tile::index_t max_seqlen_q;
+    ck_tile::index_t hdim_q;
+    ck_tile::index_t hdim_v;
+    ck_tile::index_t nhead_q;
+    ck_tile::index_t nhead_k;
+
+    float scale_s;
+    float scale_p;
+    float scale_o;
+
+    float logits_soft_cap;
+
+    ck_tile::index_t stride_q;
+    ck_tile::index_t stride_k;
+    ck_tile::index_t stride_v;
+    ck_tile::index_t stride_bias; // if alibi, b*h need set this to h, 1*h need set this to 0
+    ck_tile::index_t stride_o;
+    ck_tile::index_t nhead_stride_q;
+    ck_tile::index_t nhead_stride_k;
+    ck_tile::index_t nhead_stride_v;
+    ck_tile::index_t nhead_stride_bias;
+    ck_tile::index_t nhead_stride_lse;
+    ck_tile::index_t nhead_stride_o;
+    ck_tile::index_t batch_stride_q;
+    ck_tile::index_t batch_stride_k;
+    ck_tile::index_t batch_stride_v;
+    ck_tile::index_t batch_stride_bias;
+    ck_tile::index_t batch_stride_lse;
+    ck_tile::index_t batch_stride_o;
+
+    ck_tile::index_t window_size_left;
+    ck_tile::index_t window_size_right;
+    ck_tile::index_t mask_type;
+};
+
 struct fmha_fwd_splitkv_args
 {
     const void* q_ptr;

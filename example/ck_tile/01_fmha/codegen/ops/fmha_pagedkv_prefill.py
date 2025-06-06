@@ -510,8 +510,8 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
         if d == None:
             continue
         #just test fp16
-        # if d != "fp16":
-        #     continue
+        if d != "fp16":
+            continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
             tile = d[hdim_str]
