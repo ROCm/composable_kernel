@@ -63,7 +63,7 @@ class TestBatchedGemm : public ::testing::Test
                                                                                   PassThrough,
                                                                                   PassThrough,
                                                                                   PassThrough>>(
-                            true, 1, false, 1, M, N, K, M * K, K * N, M * N, K, N, N, BatchCount);
+                            true, 1, false, 1, M, N, K, K, N, N, M * K, K * N, M * N, BatchCount);
 
             pass =
                 pass && ck::profiler::profile_batched_gemm_impl<DataType,
@@ -84,7 +84,7 @@ class TestBatchedGemm : public ::testing::Test
                                                                                   PassThrough,
                                                                                   PassThrough,
                                                                                   PassThrough>>(
-                            true, 1, false, 1, M, N, K, M * K, K * N, M * N, K, K, N, BatchCount);
+                            true, 1, false, 1, M, N, K, K, K, N, M * K, K * N, M * N, BatchCount);
 
             pass =
                 pass && ck::profiler::profile_batched_gemm_impl<DataType,
@@ -105,7 +105,7 @@ class TestBatchedGemm : public ::testing::Test
                                                                                   PassThrough,
                                                                                   PassThrough,
                                                                                   PassThrough>>(
-                            true, 1, false, 1, M, N, K, M * K, K * N, M * N, M, N, N, BatchCount);
+                            true, 1, false, 1, M, N, K, M, N, N, M * K, K * N, M * N, BatchCount);
 
             pass =
                 pass && ck::profiler::profile_batched_gemm_impl<DataType,
@@ -126,7 +126,7 @@ class TestBatchedGemm : public ::testing::Test
                                                                                   PassThrough,
                                                                                   PassThrough,
                                                                                   PassThrough>>(
-                            true, 1, false, 1, M, N, K, M * K, K * N, M * N, M, K, N, BatchCount);
+                            true, 1, false, 1, M, N, K, M, K, N, M * K, K * N, M * N, BatchCount);
         }
         EXPECT_TRUE(pass);
     }

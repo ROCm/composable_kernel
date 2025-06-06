@@ -56,7 +56,7 @@ class TestBatchedGemmMultiD : public ::testing::Test
                                                                             PassThrough,
                                                                             PassThrough,
                                                                             PassThrough>>(
-                true, 1, false, 1, M, N, K, M * K, K * N, M * N, K, N, N, BatchCount);
+                true, 1, false, 1, M, N, K, K, N, N, M * K, K * N, M * N, BatchCount);
         EXPECT_TRUE(pass);
     }
 };
