@@ -162,8 +162,8 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     16,   16, 
     16,   16,
     4,     2,
-    S<8, 32, 1>, S<1, 0, 2>,     S<1, 0, 2>,    2, 16, 16, 0,
-    S<8, 32, 1>, S<1, 0, 2>,     S<1, 0, 2>,    2, 16, 16, 0,
+    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
+    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
     2,    2,     S<1, 32, 1, 8>, S<8, 1, 1, 1>,
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, 
     ActOP, Nswizzle, true, MulRoutedWeight, ck::index_t, A0DataType>;
