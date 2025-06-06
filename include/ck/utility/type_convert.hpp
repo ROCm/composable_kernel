@@ -65,7 +65,7 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
         bhalf_t bf16;
         uint16_t int16;
     } uh;
-    uh.int16 = uint16_t(u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16;
+    uh.int16 = uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
     return uh.bf16;
 }
 
