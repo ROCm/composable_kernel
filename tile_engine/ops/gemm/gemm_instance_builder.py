@@ -273,9 +273,52 @@ struct GemmKernel {{
                       << std::endl;
             }}
 
-            ave_time = ck_tile::launch_kernel(stream,
+            if(stream.flush_cache_)
+            {{
+                std::cout << "Flushing cache..." << std::endl;
+                static constexpr ck_tile::index_t APackedSize =
+                    std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+                static constexpr ck_tile::index_t BPackedSize =
+                    std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+                
+                auto is_row_major = [](auto layout_) {{
+                    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
+                                                 ck_tile::tensor_layout::gemm::RowMajor>>{{}};
+                }};
+
+                ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+                    args.M, args.K, args.stride_A, is_row_major(ALayout{{}})));
+                ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+                    args.K, args.N, args.stride_B, is_row_major(BLayout{{}})));
+
+                auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
+                auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
+
+                ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+                    kargs.a_ptr, kargs.b_ptr, stream.rotating_count_, size_a_buffer, size_b_buffer);
+                rotating_mem.Print();
+
+                auto run_flush_cache = [&]() {{
+                    // flush icache
+                    ck_tile::flush_icache();
+                    // rotating mem
+                    rotating_mem.Next();
+                    // clear c mem
+                    if(args.k_batch > 1)
+                        hipGetErrorString(hipMemsetAsync(
+                            args.c_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
+                }};
+                ave_time = ck_tile::launch_kernel_preprocess(
+                    stream,
+                    run_flush_cache,
+                    ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                        Kernel{{}}, grids, blocks, 0, kargs));
+            }}
+            else{{
+                ave_time = ck_tile::launch_kernel(stream,
                                           ck_tile::make_kernel<blocks.x, kBlockPerCu>(
                                               Kernel{{}}, grids, blocks, 0, kargs));
+            }}
             return ave_time;
 
         }};
@@ -377,12 +420,12 @@ struct GemmKernel {{
 
         # LDS capacity verification
         matrix_a_size = (tile_m * tile_k) * \
-            pow(2, element_size(self.config.problem.datatype_map['matrix_a']))
+            element_size(self.config.problem.datatype_map['matrix_a'])
         matrix_b_size = (tile_n * tile_k) * \
-            pow(2, element_size(self.config.problem.datatype_map['matrix_b']))
+            element_size(self.config.problem.datatype_map['matrix_b'])
         total_tile_in_lds = matrix_a_size + matrix_b_size
 
-        max_tile_size = 2**16 if pipeline == "compv4" else 2**15
+        max_tile_size = 2**15 if pipeline == "compv4" else 2**16
         if total_tile_in_lds > max_tile_size:
             logging.debug(
                 f"LDS capacity exceeded [{trait}]: Total required {total_tile_in_lds:,}B ({total_tile_in_lds/1024:.1f}KB) > "
@@ -450,6 +493,9 @@ struct GemmKernel {{
         for trait in self.valid_trait_names:
             tile_valid_params = list(
                 filter(lambda t: self.is_tile_valid(t, trait), tile_params))
+
+            # if len(tile_valid_params) == 0:
+            #     raise RuntimeError(f"No valid kernel instance selected for trait: {trait}")
             if trait not in self.valid_trait_tile_combinations:
                 self.valid_trait_tile_combinations[trait] = []
             self.valid_trait_tile_combinations[trait].append(tile_valid_params)
