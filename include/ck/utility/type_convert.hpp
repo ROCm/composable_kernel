@@ -1899,6 +1899,36 @@ inline __host__ __device__ f6x32_pk_t type_convert<f6x32_pk_t, float32_t>(float3
     return static_cast<f6x32_pk_t>(type_convert<f6x32_t>(x));
 }
 
+template <>
+inline __host__ __device__ f6x16_t type_convert<f6x16_t, float16_t>(float16_t x)
+{
+
+    union
+    {
+        float16_t v16x2[2];
+        float32_t v32;
+    } in{{x, x}};
+
+    union
+    {
+        f6x32_t v32;
+        f6x16_t v16x2[2];
+    } out{};
+
+#if CK_USE_SR_F6_CONVERSION
+    out.v32 = f6_convert_sr(in.v32);
+#else
+    out.v32 = f6_convert_rne(in.v32);
+#endif
+    return out.v16x2[0];
+}
+
+template <>
+inline __host__ __device__ f6x16_pk_t type_convert<f6x16_pk_t, float16_t>(float16_t x)
+{
+    return static_cast<f6x16_pk_t>(type_convert<f6x16_t>(x));
+}
+
 /**
  * @brief Specializes the type conversion template for converting the 6-bit float type (f6_t) to
  * float.
@@ -1933,8 +1963,8 @@ inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
 }
 
 /**
- * @brief Specializes the type conversion template for converting the vector of 32 6-bit float types
- * (f6x32_t) to vector of 32 floats.
+ * @brief Specializes the type conversion template for converting the vector of 32 6-bit float
+ * types (f6x32_t) to vector of 32 floats.
  *
  * Interprets an f6_t values as floats using the default scale factor of 1.
  *
@@ -1967,6 +1997,25 @@ inline __host__ __device__ float32_t type_convert<float32_t, f6x32_t>(f6x32_t x)
 
     return out.float_vector;
 #endif
+}
+
+template <>
+inline __host__ __device__ float16_t type_convert<float16_t, f6x16_t>(f6x16_t x)
+{
+    union
+    {
+        f6x16_t v16x2[2];
+        f6x32_t v32;
+    } in{{x, x}};
+
+    union
+    {
+        float16_t v16x2[2];
+        float32_t v32;
+    } out{};
+
+    out.v32 = type_convert<float32_t>(in.v32);
+    return out.v16x2[0];
 }
 
 /**

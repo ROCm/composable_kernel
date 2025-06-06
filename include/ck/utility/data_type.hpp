@@ -6,6 +6,7 @@
 #include "ck/utility/amd_ck_fp8.hpp"
 #include "ck/utility/e8m0.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
+#include "ck/utility/array.hpp"
 
 /// Definitions from <cstdint>, <cmath> conflict with
 /// /opt/rocm/include/hip/amd_detail/amd_hip_vector_types.h.
@@ -82,11 +83,20 @@ struct f6_pk_t
 
     __host__ __device__ constexpr f6_pk_t() : data{} {}
     __host__ __device__ constexpr f6_pk_t(storage_type init) : data{init} {}
+
+    // Initialize from a vector type with the same size as packed_size
     template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == packed_size>>
     __host__ __device__ f6_pk_t(const T& v) : data{}
     {
         static_for<0, packed_size, 1>{}(
             [&](auto i) { pack(v[static_cast<index_t>(i)], static_cast<index_t>(i)); });
+    }
+
+    // Broadcast single initialization value to all packed elements
+    __host__ __device__ f6_pk_t(const int8_t v)
+    {
+        using array_type = int8_t __attribute__((ext_vector_type(packed_size)));
+        f6_pk_t(array_type(v));
     }
 
     template <typename T>
@@ -319,6 +329,20 @@ template <>
 struct scalar_type<bf6x32_pk_t>
 {
     using type                           = bf6x32_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<f6x16_pk_t>
+{
+    using type                           = f6x16_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bf6x16_pk_t>
+{
+    using type                           = bf6x16_pk_t::storage_type;
     static constexpr index_t vector_size = 1;
 };
 

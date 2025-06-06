@@ -593,6 +593,27 @@ struct Tensor
                                           ck::type_convert<float>(fn(dis_(g_))),
                                           ck::type_convert<float>(fn(dis_(g_)))});
                     }
+                    else if constexpr(ck::is_same_v<T, ck::f6x16_pk_t> ||
+                                      ck::is_same_v<T, ck::bf6x16_pk_t>)
+                    {
+                        return ck::type_convert<T>(
+                            ck::float16_t{ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_))),
+                                          ck::type_convert<float>(fn(dis_(g_)))});
+                    }
                     else
                         static_assert(false, "Unsupported packed size for T");
                 };

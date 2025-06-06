@@ -335,7 +335,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     constexpr auto k_step =
                         k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
 
-#if 1 if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
+#if 1
+                    if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
                     {
                         if constexpr(k == 0)
                         {

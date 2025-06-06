@@ -292,16 +292,20 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     auto a_data_element = [](float x) {
         if constexpr(ck::is_same_v<ADataType, ck::f4x2_pk_t>)
             return ck::type_convert<ADataType>(ck::float2_t(x));
-        else if constexpr(ck::is_same_v<ADataType, ck::f6x32_pk_t>)
+        else if constexpr(ck::packed_size_v<ADataType> == 32)
             return ck::type_convert<ADataType>(ck::float32_t(x));
+        else if constexpr(ck::packed_size_v<ADataType> == 16)
+            return ck::type_convert<ADataType>(ck::float16_t(x));
         else
             return ck::type_convert<ADataType>(x);
     };
     auto b_data_element = [](float x) {
         if constexpr(ck::is_same_v<BDataType, ck::f4x2_pk_t>)
             return ck::type_convert<BDataType>(ck::float2_t(x));
-        else if constexpr(ck::is_same_v<BDataType, ck::f6x32_pk_t>)
+        else if constexpr(ck::packed_size_v<BDataType> == 32)
             return ck::type_convert<BDataType>(ck::float32_t(x));
+        else if constexpr(ck::packed_size_v<BDataType> == 16)
+            return ck::type_convert<BDataType>(ck::float16_t(x));
         else
             return ck::type_convert<BDataType>(x);
     };
@@ -563,7 +567,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Comparing results..." << std::endl;
         }
 
-#if 0 std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
+#if 0 
+std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
         for(int i = 0; i < 16; ++i)
         {
             for(int j = 0; j < 16; ++j)
