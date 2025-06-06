@@ -59,11 +59,11 @@ struct DeviceOperationInstanceFactory<
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, bhalf_t>)
         {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<CLayout, Row>)
             {   
                 printf("*******************Adding f8_f8_bf16 Row instances************************\n");
-                add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_kn_mn_comp_default_instances(
+                add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances(
                     op_ptrs);
             }
         }
