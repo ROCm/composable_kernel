@@ -13,9 +13,9 @@ foreach(api ${FMHA_FWD_ENABLE_APIS})
 endforeach()
 
 # "fwd" is a must-have api for the fmha_fwd example, add it if not specified
-# if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
-#   list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
-# endif()
+if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
+  list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
+endif()
 
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 # generate a list of kernels, but not actually emit files at config sta
