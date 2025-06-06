@@ -1283,9 +1283,6 @@ struct ThreadwiseTensorSliceTransfer_v4
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
 
-        static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
-                      "wrong! Not divisible");
-
         if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
                      is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)
         {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -129,9 +129,6 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         return wave_contiguous && thread_slice_lengths_correct;
     }
 
-// TODO: GFX950 has dwordx3/dowrdx4 direct load while previous architectures only support dword.
-// Currently, this check is broken even on gfx94*.
-#define CK_DIRECT_LOAD_DWORDx1_LIMIT_CHECK 0
     __device__ constexpr ThreadGroupTensorSliceTransfer_DirectLoad(
         const SrcDesc& src_desc,
         const Index& src_block_slice_origin,
@@ -151,13 +148,12 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                       "When loading more than one element per thread at once, the contiguous "
                       "dimension must be the same between source and destination.");
 
-#if CK_DIRECT_LOAD_DWORDx1_LIMIT_CHECK
-        constexpr auto dword_bytes           = 4;
-        constexpr auto bytes_per_thread_load = ScalarPerVector * sizeof(SrcData);
-        static_assert(bytes_per_thread_load == dword_bytes,
-                      "Direct load transfer requires each thread to load exactly a single "
-                      "DWORD of data.");
-#endif
+        // constexpr auto dword_bytes           = 4;
+        // constexpr auto bytes_per_thread_load = ScalarPerVector * sizeof(SrcData);
+        // static_assert(bytes_per_thread_load == dword_bytes,
+        //               "Direct load transfer requires each thread to load exactly a single "
+        //               "DWORD of data.");
+
         static_assert(nDim == remove_cvref_t<SrcDesc>::GetNumOfDimension() &&
                           nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
                           nDim == ThreadClusterLengths::Size(),
@@ -167,12 +163,10 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                       "The number of threads cannot be less than the number of elements in "
                       "thread cluster lengths.");
 
-#if CK_DIRECT_LOAD_DWORDx1_LIMIT_CHECK
-        static_assert(
-            AreThreadClusterLengthsValid(),
-            "Thread cluster lengths are incorrect. They must be set in a way that allows a single "
-            "wavefront to write contiguous DWORDs into LDS memory.");
-#endif
+        // static_assert(
+        //     AreThreadClusterLengthsValid(),
+        //     "Thread cluster lengths are incorrect. They must be set in a way that allows a single
+        //     " "wavefront to write contiguous DWORDs into LDS memory. ");
 
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
@@ -209,7 +203,6 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         // We still need input the wavewise offset.
         SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin);
     }
-#undef CK_DIRECT_LOAD_DWORDx1_LIMIT_CHECK
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
