@@ -169,6 +169,7 @@ struct fmha_fwd_args
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
     ck_tile::index_t mask_type;
+    ck_tile::index_t min_seqlen_q;
 
     float p_drop;
     bool s_randval;
@@ -435,6 +436,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.mask_type,
+                                             args.min_seqlen_q,
                                              args.p_drop,
                                              args.s_randval,
                                              args.drop_seed_offset);
@@ -842,7 +844,8 @@ template <ck_tile::index_t HDim_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
-          bool kPadDv_>
+          bool kPadDv_,
+          bool kSkipMinSeqlenQ_ = false>
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
@@ -866,6 +869,7 @@ struct fmha_fwd_traits_
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
+    static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
 };
 
 template <typename Traits_>
@@ -1000,6 +1004,7 @@ struct fmha_fwd_traits
     bool has_lse;
     bool has_dropout;
     bool do_fp8_static_quant;
+    bool skip_min_seqlen_q = false;
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);

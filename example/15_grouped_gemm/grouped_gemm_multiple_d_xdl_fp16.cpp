@@ -141,8 +141,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     a_tensors_device.reserve(group_count);
     b_tensors_device.reserve(group_count);
-    d_tensors_device.reserve(group_count);
     c_tensors_device.reserve(group_count);
+    d_tensors_device.resize(group_count); // reserve and update vector size
 
     std::size_t flop = 0, num_btype = 0;
 

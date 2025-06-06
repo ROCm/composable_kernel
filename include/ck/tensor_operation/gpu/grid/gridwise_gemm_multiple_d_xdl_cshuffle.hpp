@@ -647,17 +647,19 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             (((is_same<AComputeDataType, half_t>::value ||
                is_same<AComputeDataType, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
-             (is_same<AComputeDataType, int8_t>::value && lcm_AK1_BK1 <= 8))
+             (is_same<AComputeDataType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+             ((is_same<AComputeDataType, f8_t>::value || is_same<AComputeDataType, bf8_t>::value) &&
+              lcm_AK1_BK1 < 32))
                 ? true
                 : false;
-
-        constexpr index_t KPack =
-            math::max(lcm_AK1_BK1,
-                      MfmaSelector<AComputeDataType,
-                                   MPerXdl,
-                                   NPerXdl,
-                                   BComputeDataType,
-                                   is_single_rate_mfma>::selected_mfma.k_per_blk);
+        constexpr auto is_scale_mfma = false;
+        constexpr index_t KPack      = math::max(lcm_AK1_BK1,
+                                            MfmaSelector<AComputeDataType,
+                                                         MPerXdl,
+                                                         NPerXdl,
+                                                         BComputeDataType,
+                                                         is_single_rate_mfma,
+                                                         is_scale_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
