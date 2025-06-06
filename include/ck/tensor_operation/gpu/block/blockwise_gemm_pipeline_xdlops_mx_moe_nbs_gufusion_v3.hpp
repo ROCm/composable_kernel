@@ -203,9 +203,6 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                 ? HotLoopInstList::B_LDS_Read_Inst_Num
                 : HotLoopInstList::B_LDS_Read_Inst_Num / 2 * 2;
 
-        constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
-        constexpr auto num_ds_write_inst_b = HotLoopInstList::B_LDS_Write_Inst_Num * 2;
-
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * 2;
 
@@ -243,29 +240,18 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
         constexpr auto mfma_stages_more =
             num_mfma_stage1 - mfma_perstage_less * num_buffer_load_total;
 
-        constexpr auto num_dswrite_per_issue_a = num_ds_write_inst_a / num_buffer_load_inst_a;
-        constexpr auto num_dswrite_per_issue_b = num_ds_write_inst_b / num_buffer_load_inst_b;
-
         static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
             if constexpr(i < mfma_stages_more)
             {
-                static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
+                static_for<0, mfma_perstage_more, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma < num_dswrite_per_issue_a)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                    }
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
             else
             {
-                static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
+                static_for<0, mfma_perstage_less, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma < num_dswrite_per_issue_a)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                    }
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
@@ -274,23 +260,15 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
             if constexpr((i + num_buffer_load_inst_a) < mfma_stages_more)
             {
-                static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
+                static_for<0, mfma_perstage_more, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma < num_dswrite_per_issue_a)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                    }
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
             else
             {
-                static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
+                static_for<0, mfma_perstage_less, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma < num_dswrite_per_issue_b)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                    }
                 });
                 __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             }
@@ -392,17 +370,17 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
         const ABlockDesc& a_block_desc,
         ABlockTransfer& a_blockwise_copy,
         const AGridBuffer& a_grid_buf,
-        ABlockBuffer& a_block_buf,
+        ABlockBuffer& a_block_bufs,
         const ABlockTransferStep& a_block_copy_step,
-        // B0/B1
+        // Gate and Up
         const BGridDesc& b_grid_desc,
         const BBlockDesc& b_block_desc,
         BBlockTransfer& b_blockwise_copy,
         BBlockTransfer& b_blockwise_copy_up,
         const BGridBuffer& b_grid_buf,
         const BGridBuffer& b_grid_buf_up,
-        BBlockBuffer& b_block_buf,
-        BBlockBuffer& b_block_buf_up,
+        BBlockBuffer& b_block_bufs,
+        BBlockBuffer& b_block_bufs_up,
         const BBlockTransferStep& b_block_copy_step,
         // C
         CThreadBuffer& c_thread_buf,
@@ -411,7 +389,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
         const AScaleGridDesc& a_scale_grid_desc,
         AScaleThreadTransfer& a_scale_thread_copy,
         const AScaleGridBuffer& a_scale_grid_buf,
-        // B0/B1 scale
+        // Gate and Up scale
         const BScaleGridDesc& b_scale_grid_desc,
         BScaleThreadTransfer& b_scale_thread_copy,
         BScaleThreadTransfer& b_scale_thread_copy_up,
@@ -438,9 +416,9 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
         StaticallyIndexedArray<decltype(b_scale_thread_buf_up), Number<2>{}> b_scale_thread_bufs_up;
 
         // Global prefetch 1
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
-        b_blockwise_copy_up.RunRead(b_grid_desc, b_grid_buf_up);
+        a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(I0));
+        b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_bufs(I0));
+        b_blockwise_copy_up.Run(b_grid_desc, b_grid_buf_up, b_block_desc, b_block_bufs_up(I0));
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
@@ -467,7 +445,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
             a_scale_grid_desc,
             make_multi_index(-MWaves * MRepeat / MXdlPack, KRepeat / KXdlPack, 0));
 
-        // Prefetch b_scales
+        // Prefetch b_scales_gate
         static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
             static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                 b_scale_thread_copy.Run(b_scale_grid_desc,
@@ -489,6 +467,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
             b_scale_grid_desc,
             make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
+        // Prefetch b_scales_up
         static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
             static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                 b_scale_thread_copy_up.Run(b_scale_grid_desc,
@@ -510,25 +489,13 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
             b_scale_grid_desc,
             make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
-        // Local prefill 1
-        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
-        b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
-        b_blockwise_copy_up.RunWrite(b_block_desc, b_block_buf_up);
-
-        // Global prefetch 2
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
-        b_blockwise_copy_up.RunRead(b_grid_desc, b_grid_buf_up);
-
-        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-        b_blockwise_copy_up.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+        // Local prefetch 1, sync the async load
+        __builtin_amdgcn_s_waitcnt(3952);
 
         // Local prefetch 1
         block_sync_lds();
         static_for<0, KRepeat, 1>{}([&](auto k) {
-            constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
-                                    (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+            constexpr auto k_step = k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
                     [&](auto chunk) {
@@ -540,7 +507,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                       Number<m0 % MXdlPack>{},
                                                       I0,
                                                       Number<a_k_step_chunk>{}),
-                                           a_block_buf,
+                                           a_block_bufs(I0),
                                            a_thread_desc_,
                                            make_tuple(Number<m0 / MXdlPack>{},
                                                       I0,
@@ -562,7 +529,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                       Number<n0 % NXdlPack>{},
                                                       I0,
                                                       Number<b_k_step_chunk>{}),
-                                           b_block_buf,
+                                           b_block_bufs(I0),
                                            b_thread_desc_,
                                            make_tuple(Number<n0 / NXdlPack>{},
                                                       I0,
@@ -584,7 +551,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                       Number<n0 % NXdlPack>{},
                                                       I0,
                                                       Number<b_k_step_chunk>{}),
-                                           b_block_buf_up,
+                                           b_block_bufs_up(I0),
                                            b_thread_desc_,
                                            make_tuple(Number<n0 / NXdlPack>{},
                                                       I0,
@@ -595,6 +562,15 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                     });
             });
         });
+
+        // Global prefetch 2
+        a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(I1));
+        b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_bufs(I1));
+        b_blockwise_copy_up.Run(b_grid_desc, b_grid_buf_up, b_block_desc, b_block_bufs_up(I1));
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+        b_blockwise_copy_up.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
         // Initialize C
         c_thread_buf.Clear();
@@ -609,16 +585,15 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
             do
             {
                 auto LoopFunc = [&](auto scale_comp_buf, auto scale_mem_buf) {
+                    __builtin_amdgcn_s_waitcnt(3952);
                     block_sync_lds();
 
-                    a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
-                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-
-                    b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
-                    b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
-
-                    b_blockwise_copy_up.RunWrite(b_block_desc, b_block_buf_up);
-                    b_blockwise_copy_up.RunRead(b_grid_desc, b_grid_buf_up);
+                    a_blockwise_copy.Run(
+                        a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(scale_comp_buf));
+                    b_blockwise_copy.Run(
+                        b_grid_desc, b_grid_buf, b_block_desc, b_block_bufs(scale_comp_buf));
+                    b_blockwise_copy_up.Run(
+                        b_grid_desc, b_grid_buf_up, b_block_desc, b_block_bufs_up(scale_comp_buf));
 
                     // Prefetch a_scales
                     static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
@@ -813,10 +788,10 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                     // t32: |32 --> 47 96  --> 111| 160 --> 175 224 --> 239| etc.
                     // t48: |48 --> 63 112 --> 127| 176 --> 191 240 --> 255| etc.
                     //              k = 0                    k = 1
-                    block_sync_lds();
+                    // block_sync_lds();
                     static_for<0, KRepeat, 1>{}([&](auto k) {
-                        constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
-                                                (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+                        constexpr auto k_step =
+                            k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
                         static_for<0, MRepeat, 1>{}([&](auto m0) {
                             static_for<0,
                                        xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk),
@@ -830,7 +805,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                               Number<m0 % MXdlPack>{},
                                                               I0,
                                                               Number<a_k_step_chunk>{}),
-                                                   a_block_buf,
+                                                   a_block_bufs(scale_mem_buf),
                                                    a_thread_desc_,
                                                    make_tuple(Number<m0 / MXdlPack>{},
                                                               I0,
@@ -854,7 +829,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                               Number<n0 % NXdlPack>{},
                                                               I0,
                                                               Number<b_k_step_chunk>{}),
-                                                   b_block_buf,
+                                                   b_block_bufs(scale_mem_buf),
                                                    b_thread_desc_,
                                                    make_tuple(Number<n0 / NXdlPack>{},
                                                               I0,
@@ -878,7 +853,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                               Number<n0 % NXdlPack>{},
                                                               I0,
                                                               Number<b_k_step_chunk>{}),
-                                                   b_block_buf_up,
+                                                   b_block_bufs_up(scale_mem_buf),
                                                    b_thread_desc_,
                                                    make_tuple(Number<n0 / NXdlPack>{},
                                                               I0,
@@ -951,11 +926,6 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                 b_scale_thread_copy_up.MoveSrcSliceWindow(
                     b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
             });
-
-            block_sync_lds();
-            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
-            b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
-            b_blockwise_copy_up.RunWrite(b_block_desc, b_block_buf_up);
 
             static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                 static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
@@ -1057,11 +1027,12 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                 });
             });
 
+            __builtin_amdgcn_s_waitcnt(3952);
             block_sync_lds();
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
-                constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
-                                        (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+                constexpr auto k_step =
+                    k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
                         [&](auto chunk) {
@@ -1074,7 +1045,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                           Number<m0 % MXdlPack>{},
                                                           I0,
                                                           Number<a_k_step_chunk>{}),
-                                               a_block_buf,
+                                               a_block_bufs(I1),
                                                a_thread_desc_,
                                                make_tuple(Number<m0 / MXdlPack>{},
                                                           I0,
@@ -1097,7 +1068,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                           Number<n0 % NXdlPack>{},
                                                           I0,
                                                           Number<b_k_step_chunk>{}),
-                                               b_block_buf,
+                                               b_block_bufs(I1),
                                                b_thread_desc_,
                                                make_tuple(Number<n0 / NXdlPack>{},
                                                           I0,
@@ -1120,7 +1091,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                           Number<n0 % NXdlPack>{},
                                                           I0,
                                                           Number<b_k_step_chunk>{}),
-                                               b_block_buf_up,
+                                               b_block_bufs_up(I1),
                                                b_thread_desc_,
                                                make_tuple(Number<n0 / NXdlPack>{},
                                                           I0,

@@ -2460,10 +2460,26 @@ struct GridwiseMoeGemmMXBNS
 
         if constexpr(IsInputGemm)
         {
-            const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2 / BPackedSize;
+            const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_grid_up + expert_id * expert_stride / BPackedSize,
-                a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+                p_b_grid_up + expert_id * expert_stride,
+                b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+
+            // lds ping pong buffers for up
+            constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
+                b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
+            auto b_block_buf_up_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                bit_cast<BDataType*>(static_cast<char*>(p_shared_0) +
+                                     a_block_space_size_aligned * sizeof(ADataType) +
+                                     b_block_space_size_aligned * sizeof(BDataType)),
+                b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+            auto b_block_buf_up_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                bit_cast<BDataType*>(bit_cast<char*>(p_shared_1) +
+                                     a_block_space_size_aligned * sizeof(ADataType) +
+                                     b_block_space_size_aligned * sizeof(BDataType)),
+                b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+
+            auto b_block_bufs_up = make_tuple(b_block_buf_up_ping, b_block_buf_up_pong);
 
             auto b_blockwise_copy_up = ThreadGroupTensorSliceTransfer_DirectLoad<
                 ThisThreadBlock,
@@ -2482,10 +2498,12 @@ struct GridwiseMoeGemmMXBNS
                                                   b_block_desc_bk0_n_bk1,
                                                   make_multi_index(0, 0, 0));
 
-            const BScaleDataType* p_b_scale_grid_up = p_b_scale_grid + expert_scale_stride / 2;
-            const auto b_scale_grid_buf_up          = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_scale_grid_up + expert_id * expert_scale_stride,
+            const BScaleDataType* p_b_scale_grid_up =
+                p_b_scale_grid + expert_scale_stride / 2 / sizeof(BScaleDataType);
+            const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
+                p_b_scale_grid_up + expert_id * expert_scale_stride / sizeof(BScaleDataType),
                 b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+
             auto b_scale_thread_copy_up = ThreadwiseTensorSliceTransfer_v2<
                 BScaleDataType,
                 BScaleDataType,
@@ -2503,25 +2521,31 @@ struct GridwiseMoeGemmMXBNS
                                  thread_offset_shuffled / scale_pack_size_b));
 
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
+                // A
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
                 a_blockwise_copy,
                 a_grid_buf,
                 a_block_bufs,
                 a_block_slice_copy_step,
-                b_block_desc_bk0_n_bk1,
+                // Gate and Up
+                b_grid_desc_bk0_n_bk1,
                 b_block_desc_bk0_n_bk1,
                 b_blockwise_copy,
                 b_blockwise_copy_up,
                 b_grid_buf,
                 b_grid_buf_up,
                 b_block_bufs,
+                b_block_bufs_up,
                 b_block_slice_copy_step,
+                // C
                 c_thread_buf,
                 c_thread_buf_up,
+                // A scale
                 a_scale_grid_desc_am_ak,
                 a_scale_thread_copy,
                 a_scale_grid_buf,
+                // B scale
                 b_scale_grid_desc_bn_ak,
                 b_scale_thread_copy,
                 b_scale_thread_copy_up,
