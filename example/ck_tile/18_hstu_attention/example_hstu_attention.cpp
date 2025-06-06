@@ -296,6 +296,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     assert(input_max_uih_seqlen <= 0 || input_max_uih_seqlen >= max_uih_seqlen);
     assert(input_max_target <= 0 || input_max_target >= max_target);
 
+    assert(contextual_seqlen >= 0);
+
     max_uih_seqlen = (input_max_uih_seqlen > 0) ? input_max_uih_seqlen : max_uih_seqlen;
     max_target     = (input_max_target > 0) ? input_max_target : max_target;
 
