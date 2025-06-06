@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <unordered_map>
+#include <mutex>
 
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
@@ -77,6 +78,8 @@ struct ReferenceMoeGemm2BlockScale : public device::BaseOperator
 
         float Run(const Argument& arg)
         {
+            std::vector<std::mutex> n_locks(arg.c_t_n_.mDesc.GetLengths()[1]);
+            
             arg.c_t_n_.SetZero();
             auto f_mk_kn_mn = [&](auto m, auto n) {
                 const int K = arg.a_t_k_k_.mDesc.GetLengths()[2];
@@ -142,6 +145,7 @@ struct ReferenceMoeGemm2BlockScale : public device::BaseOperator
                     {
                         arg.c_element_op_(v_c, v_acc, 1.f);
                     }
+                    std::lock_guard<std::mutex> lock(n_locks[n]);
                     arg.c_t_n_(t, n) += v_c;
                 }
             };
