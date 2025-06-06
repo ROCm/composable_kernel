@@ -125,7 +125,7 @@ inline bool parse_cmd_args(int argc,
         config.time_kernel     = std::stoi(argv[3]);
         config.split_k         = std::stoi(argv[4]);
 
-        const ck::index_t num_dim_spatial = std::stoi(argv[4]);
+        const ck::index_t num_dim_spatial = std::stoi(argv[5]);
         conv_param                        = ck::utils::conv::parse_conv_param(
             num_dim_spatial, threshold_to_catch_partial_args + 1, argv);
     }
