@@ -265,9 +265,10 @@ struct HstuBlockMaskWithLocal
                                                        number<TileWidth>,
                                                        number<TileHeight>) const
     {
-        // when local masking used, we assume all tiles need pixel-by-pixel checking
-        std::ignore = i_tile_top;
         std::ignore = i_tile_left;
+
+        if(min_full_attn_seqlen > 0 && i_tile_top >= max_uih_len - min_full_attn_seqlen)
+            return true;
 
         return false;
     }
