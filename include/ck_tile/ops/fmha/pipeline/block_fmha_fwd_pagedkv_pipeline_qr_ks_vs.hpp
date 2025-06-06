@@ -13,7 +13,7 @@ namespace ck_tile {
 
 // This pipeline is qkv all located in LDS
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSDefaultPolicy>
-struct BlockFmhaFwdPagedPipelineQRKSVS
+struct BlockFmhaFwdPagedKVPipelineQRKSVS
 {
     using Problem               = remove_cvref_t<Problem_>;
     using Policy                = remove_cvref_t<Policy_>;
