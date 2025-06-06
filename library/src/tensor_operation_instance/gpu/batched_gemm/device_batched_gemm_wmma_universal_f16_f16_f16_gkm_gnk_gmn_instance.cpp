@@ -24,7 +24,8 @@ using S = Sequence<Is...>;
 
 using PassThrough = element_wise::PassThrough;
 
-static constexpr auto GemmDefault = GemmSpecialization::Default;
+static constexpr auto GemmDefault    = GemmSpecialization::Default;
+static constexpr auto GemmMNKPadding = GemmSpecialization::MNKPadding;
 
 static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
@@ -59,6 +60,10 @@ void add_device_batched_gemm_wmma_universal_f16_f16_f16_gkm_gnk_gmn_instances(
     add_device_operation_instances(
         instances,
         device_batched_gemm_wmma_universal_f16_f16_f16_gkm_gnk_gmn_comp_instances<GemmDefault>{});
+    add_device_operation_instances(
+        instances,
+        device_batched_gemm_wmma_universal_f16_f16_f16_gkm_gnk_gmn_comp_instances<
+            GemmMNKPadding>{});
 }
 
 } // namespace instance
