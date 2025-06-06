@@ -8,9 +8,13 @@
 #include "ck_tile/host.hpp"
 #include "test_gemm_pipeline_util.hpp"
 
+using I8       = ck_tile::int8_t;
+using I32      = ck_tile::int32_t;
+
 using F16       = ck_tile::half_t;
 using F32       = float;
 using F8        = ck_tile::fp8_t;
+
 using Row       = ck_tile::tensor_layout::gemm::RowMajor;
 using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
 using Intrawave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
