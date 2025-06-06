@@ -184,7 +184,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 /**
  * @brief Check for size mismatch between output and reference ranges
  *
- * Verifies that the output and reference ranges have the same size.
+ * Verifies that the output and reference ranges are the same size.
  *
  * @tparam Range Type of output range
  * @tparam RefRange Type of reference range
