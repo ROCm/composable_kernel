@@ -335,7 +335,6 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         }
         else
         {
-            statically_indexed_array<index_t, NRepeat> k_offsets;
             static_for<0, NRepeat, 1>{}([&](auto n0) {
                 int32_t seqlen_k_idx_per_repeat = k_coord[0] + kN0 / NRepeat * n0.value;
                 int32_t i_page = seqlen_k_idx_per_repeat / page_block_size;
@@ -389,7 +388,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 int32_t seqlen_v_idx_per_repeat = v_coord[VPageIndexDim] + k0.value;
                 int32_t i_page = seqlen_v_idx_per_repeat / page_block_size;
                 int32_t i_seq  = seqlen_v_idx_per_repeat % page_block_size;
-                v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_k;
+                v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_v;
             });
         }
 
@@ -467,7 +466,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     int32_t seqlen_v_idx_per_repeat = kK1 + v_coord[VPageIndexDim] + k0.value;
                     int32_t i_page = seqlen_v_idx_per_repeat / page_block_size;
                     int32_t i_seq  = seqlen_v_idx_per_repeat % page_block_size;
-                    v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_k;
+                    v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_v;
                 });
             }
             v_dram_window.update_page_idx(v_offsets);
@@ -636,10 +635,21 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     {0, kK1}); // will have scratch if move this right after load_tile(v_dram)...
                 v_buf = load_tile(
                     v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                    v_offsets[k0] =
-                        page_idx[kK1 * 2 + v_coord[VPageIndexDim] + k0.value] * stride_v;
-                });
+                if constexpr(kIsSglangLayout) {
+                    static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                        v_offsets[k0] =
+                            page_idx[kK1 * 2 + v_coord[VPageIndexDim] + k0.value] * stride_v;
+                    });
+                }
+                else
+                {
+                    static_for<0, V_KRepeat, 1>{}([&](auto k0) {
+                        int32_t seqlen_v_idx_per_repeat = kK1 * 2 + v_coord[VPageIndexDim] + k0.value;
+                        int32_t i_page = seqlen_v_idx_per_repeat / page_block_size;
+                        int32_t i_seq  = seqlen_v_idx_per_repeat % page_block_size;
+                        v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_v;
+                    });
+                }
                 v_dram_window.update_page_idx(v_offsets);
             }
             __builtin_amdgcn_sched_barrier(0);
@@ -771,11 +781,11 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                         else
                         {
                             static_for<0, V_KRepeat, 1>{}([&](auto k0) {
-                                int32_t seqlen_v_idx_per_repeat = kK1 * 2  + i_k1.value * kK1 +
+                                int32_t seqlen_v_idx_per_repeat = kK1 * 2 + i_k1.value * kK1 +
                                                                   v_coord[VPageIndexDim] + k0.value;
                                 int32_t i_page = seqlen_v_idx_per_repeat / page_block_size;
                                 int32_t i_seq  = seqlen_v_idx_per_repeat % page_block_size;
-                                v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_k;
+                                v_offsets[k0] = (page_idx[i_page] * page_block_size + i_seq) * stride_v;
                             });
                         }
                         v_dram_window.update_page_idx(v_offsets);
@@ -831,7 +841,6 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 }
                 else
                 {
-                    statically_indexed_array<index_t, NRepeat> k_offsets;
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         int32_t seqlen_k_idx_per_repeat = k_coord[0] + kN0 / NRepeat * n0.value;
                         int32_t i_page = seqlen_k_idx_per_repeat / page_block_size;

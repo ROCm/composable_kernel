@@ -840,21 +840,22 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                // make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_q),
+                // make_tuple(kargs.num_total_pages, kargs.hdim_q),
+                // make_tuple(kargs.stride_k, 1),
                 make_tuple(kargs.num_total_pages / kargs.page_block_size, kargs.hdim_q / 8, kargs.page_block_size, 8),
                 make_tuple(kargs.stride_k * kargs.page_block_size, kargs.page_block_size * 8, 8, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
             const auto k_dram_transposed = transform_tensor_view(
-	            k_dram_naive,
-	            make_tuple(make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16)),
-	                       make_merge_transform(ck_tile::make_tuple(kargs.hdim_q / 8, 8))),
-	            ck_tile::make_tuple(ck_tile::sequence<0, 2>{}, ck_tile::sequence<1, 3>{}),
-	            ck_tile::make_tuple(ck_tile::sequence<0>{}, ck_tile::sequence<1>{}));
-
+                k_dram_naive,
+                make_tuple(make_merge_transform(ck_tile::make_tuple(kargs.seqlen_k /16, 16)),
+                           make_merge_transform(ck_tile::make_tuple(kargs.hdim_q / 8, 8))),
+                ck_tile::make_tuple(ck_tile::sequence<0, 2>{}, ck_tile::sequence<1, 3>{}),
+                ck_tile::make_tuple(ck_tile::sequence<0>{}, ck_tile::sequence<1>{}));
             constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
             return pad_tensor_view(
+                // k_dram_naive,
                 k_dram_transposed,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                 sequence<kPadSeqLenK_, kPadHeadDimQ>{});
@@ -864,20 +865,30 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    // make_tuple(kargs.num_total_pages * kargs.page_block_size, kargs.hdim_v),
+                    // make_tuple(kargs.num_total_pages, kargs.hdim_v),
+                    // make_tuple(kargs.stride_v, 1),
                     make_tuple(kargs.num_total_pages / kargs.page_block_size, kargs.hdim_v, kargs.page_block_size),
                     make_tuple(kargs.stride_k * kargs.page_block_size, kargs.page_block_size, 1),
                     number<FmhaPipeline::kAlignmentK>{},
                     number<1>{});
 
                 const auto v_dram_transposed =
-					transform_tensor_view(v_dram_naive,
-										  make_tuple(make_pass_through_transform(kargs.hdim_v),
-								                     make_merge_transform(
+                    transform_tensor_view(v_dram_naive,
+                                          make_tuple(make_pass_through_transform(kargs.hdim_v),
+                                                     make_merge_transform(
                                                          ck_tile::make_tuple(kargs.num_total_pages / kargs.page_block_size,
                                                                              kargs.page_block_size))),
-										  make_tuple(sequence<1>{}, sequence<0, 2>{}),
-										  make_tuple(sequence<0>{}, sequence<1>{}));
+                                          make_tuple(sequence<1>{}, sequence<0, 2>{}),
+                                          make_tuple(sequence<0>{}, sequence<1>{}));
+                
+                // const auto v_dram_transposed = transform_tensor_view(
+                //     v_dram_naive,
+                //     make_tuple(
+                //         make_pass_through_transform(kargs.hdim_v),
+                //         // make_pass_through_transform(kargs.num_total_pages * kargs.page_block_size)),
+                //         make_pass_through_transform(kargs.num_total_pages)),
+                //     make_tuple(sequence<1>{}, sequence<0>{}),
+                //     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
                 return pad_tensor_view(
