@@ -229,7 +229,7 @@ void report_error_stats(int err_count, double max_err, std::size_t total_size)
  * @brief Check errors between floating point ranges using the specified tolerances.
  *
  * Compares two ranges of floating point values within specified relative and absolute tolerances.
- * This overload handles standard floating point types except half precision.
+ * This overload handles standard floating point types except half precision floating point.
  *
  * @tparam Range Type of output range
  * @tparam RefRange Type of reference range
