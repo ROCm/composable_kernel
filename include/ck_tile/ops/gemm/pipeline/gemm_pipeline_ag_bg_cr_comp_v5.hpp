@@ -26,7 +26,7 @@ struct BaseGemmPipelineAgBgCrCompV5
     }
 };
 
-template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV5DefaultPolicy>
+template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV4DefaultPolicy>
 struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV5<Problem>;
@@ -170,7 +170,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
             using AGemmTile = decltype(make_static_distributed_tensor<ADataType>(AGemmTileDistr));
             using BGemmTile = decltype(make_static_distributed_tensor<BDataType>(BGemmTileDistr));
-            AGemmTile a_tile_0, a_tile_1; 
+            AGemmTile a_tile_0, a_tile_1;
             BGemmTile b_tile_0, b_tile_1;
 
             // Register tile for A and B.

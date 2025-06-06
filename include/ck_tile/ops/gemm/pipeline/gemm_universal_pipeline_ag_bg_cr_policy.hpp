@@ -439,8 +439,8 @@ struct UniversalGemmBasePolicy
                                                                           MPerBlock,
                                                                           KPerBlock,
                                                                           VecLoadSize,
-                                                                          kNumWaveGroups,
-                                                                          ATileAccessPattern>;
+                                                                          ATileAccessPattern,
+                                                                          kNumWaveGroups>;
             return TileEncodingPattern::Make2DStaticTileDistribution();
         }
         // Tile: KPerBlock X MPerBlock
@@ -450,8 +450,8 @@ struct UniversalGemmBasePolicy
                                                                           KPerBlock,
                                                                           MPerBlock,
                                                                           VecLoadSize,
-                                                                          kNumWaveGroups,
-                                                                          ATileAccessPattern>;
+                                                                          ATileAccessPattern,
+                                                                          kNumWaveGroups>;
             return TileEncodingPattern::Make2DStaticTileDistribution();
         }
     }
@@ -474,8 +474,8 @@ struct UniversalGemmBasePolicy
                                                                           KPerBlock,
                                                                           NPerBlock,
                                                                           VecLoadSize,
-                                                                          kNumWaveGroups,
-                                                                          BTileAccessPattern>;
+                                                                          BTileAccessPattern,
+                                                                          kNumWaveGroups>;
             return TileEncodingPattern::Make2DStaticTileDistribution();
         }
         // Tile: NPerBlock X KPerBlock
@@ -485,8 +485,8 @@ struct UniversalGemmBasePolicy
                                                                           NPerBlock,
                                                                           KPerBlock,
                                                                           VecLoadSize,
-                                                                          kNumWaveGroups,
-                                                                          BTileAccessPattern>;
+                                                                          BTileAccessPattern,
+                                                                          kNumWaveGroups>;
             return TileEncodingPattern::Make2DStaticTileDistribution();
         }
     }
@@ -506,8 +506,8 @@ struct UniversalGemmBasePolicy
                                                                       KPerBlock,
                                                                       MPerBlock,
                                                                       VecLoadSize,
-                                                                      kNumWaveGroups,
-                                                                      ATileAccessPattern>;
+                                                                      ATileAccessPattern,
+                                                                      kNumWaveGroups>;
         return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
     }
 
@@ -526,8 +526,8 @@ struct UniversalGemmBasePolicy
                                                                       KPerBlock,
                                                                       NPerBlock,
                                                                       VecLoadSize,
-                                                                      kNumWaveGroups,
-                                                                      BTileAccessPattern>;
+                                                                      BTileAccessPattern,
+                                                                      kNumWaveGroups>;
         return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
     }
 

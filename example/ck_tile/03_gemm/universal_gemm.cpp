@@ -79,9 +79,9 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     const auto Run = [&](const auto has_hot_loop_,
                          const auto tail_number_,
                          const auto memory_operation_) {
-        constexpr bool has_hot_loop_v = has_hot_loop_.value;
-        constexpr auto tail_number_v  = tail_number_.value;
-        constexpr auto scheduler      = GEMM_PIPELINE_SCHEDULER;
+        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
+        constexpr auto tail_number_v    = tail_number_.value;
+        constexpr auto scheduler        = GEMM_PIPELINE_SCHEDULER;
         constexpr auto memory_operation = memory_operation_.value;
 
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
