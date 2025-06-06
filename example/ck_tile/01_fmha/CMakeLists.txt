@@ -13,9 +13,9 @@ foreach(api ${FMHA_FWD_ENABLE_APIS})
 endforeach()
 
 # "fwd" is a must-have api for the fmha_fwd example, add it if not specified
-if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
-  list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
-endif()
+# if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
+#   list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
+# endif()
 
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 # generate a list of kernels, but not actually emit files at config sta
@@ -100,6 +100,13 @@ if("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
 else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
+endif()
+
+# conditionally enable call to the pagedkv_prefill API in fmha_fwd example
+if("pagedkv_prefill" IN_LIST FMHA_FWD_ENABLE_APIS)
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=1)
+else()
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=0)
 endif()
 
 # conditionally specify the use of OCP_FP8
