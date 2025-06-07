@@ -48,7 +48,6 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kHasDropout_,
           bool kIsPagedKV_,
           bool kDoFp8StaticQuant_,
-          bool kMergeNumHeadGroupsSeqLenQ_ = false,
           index_t kBlockPerCu_             = -1, /* overwrite occupancy if not -1 */
           bool kSkipMinSeqlenQ_ = false /* skip min seqlen q while chunked prefill */>
 struct TileFmhaFwdPagedKVTraits
@@ -64,9 +63,8 @@ struct TileFmhaFwdPagedKVTraits
     static constexpr bool kHasDropout       = kHasDropout_;
     static constexpr bool kIsPagedKV        = kIsPagedKV_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
-    // determine if some split (length) is not divisible by tile size
-    static constexpr bool kMergeNumHeadGroupsSeqLenQ = kMergeNumHeadGroupsSeqLenQ_;
-    static constexpr index_t kBlockPerCu             = kBlockPerCu_;
+    static constexpr index_t kBlockPerCu    = kBlockPerCu_;
+    static constexpr bool kSkipMinSeqlenQ   = kSkipMinSeqlenQ_;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
