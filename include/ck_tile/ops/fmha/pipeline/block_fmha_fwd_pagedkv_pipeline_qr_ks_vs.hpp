@@ -110,7 +110,7 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
         }
     }();
 
-    static constexpr const char* name = "qr";
+    static constexpr const char* name = "qr_pagedkv";
 
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()

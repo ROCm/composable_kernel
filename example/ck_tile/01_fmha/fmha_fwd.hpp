@@ -1061,7 +1061,6 @@ template <ck_tile::index_t HDim_,
           typename FmhaMask_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kStoreLse_,
-          bool kHasDropout_,
           bool kIsPagedKV_,
           bool kDoFp8StaticQuant_,
           bool kPadS_,
@@ -1086,7 +1085,6 @@ struct fmha_fwd_pagedkv_traits_
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
     static constexpr auto BiasEnum                   = BiasEnum_;
     static constexpr bool kStoreLse                  = kStoreLse_;
-    static constexpr bool kHasDropout                = kHasDropout_;
     static constexpr bool kIsPagedKV                 = kIsPagedKV_;
     static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
     static constexpr bool kPadS                      = kPadS_;
