@@ -51,7 +51,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                  GemmConfig::TransposeC,
                                                                  GemmConfig::UseStructuredSparsity,
                                                                  false,
-                                                                 Persistent, 
+                                                                 Persistent,
                                                                  GemmConfig::NumWaveGroups>;
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -82,28 +82,27 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                                has_hot_loop_v,
                                                                                tail_number_v>;
 
-        using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             AccDataType,
-                                             CDataType,
-                                             CLayout,
-                                             GemmPipelineProblem::kBlockSize,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             memory_operation,
-                                             GemmConfig::NumWaveGroups>>;
+            using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<
+                ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                 BDataType,
+                                                 AccDataType,
+                                                 CDataType,
+                                                 CLayout,
+                                                 GemmPipelineProblem::kBlockSize,
+                                                 TilePartitioner::MPerBlock,
+                                                 TilePartitioner::NPerBlock,
+                                                 GemmConfig::M_Warp,
+                                                 GemmConfig::N_Warp,
+                                                 GemmConfig::M_Warp_Tile,
+                                                 GemmConfig::N_Warp_Tile,
+                                                 GemmConfig::K_Warp_Tile,
+                                                 UniversalGemmProblem::TransposeC,
+                                                 memory_operation,
+                                                 GemmConfig::NumWaveGroups>>;
 
-        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs   = Kernel::MakeKernelArgs(args);
-
+            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            auto kargs   = Kernel::MakeKernelArgs(args);
 
             dim3 grids;
             if constexpr(Persistent)
