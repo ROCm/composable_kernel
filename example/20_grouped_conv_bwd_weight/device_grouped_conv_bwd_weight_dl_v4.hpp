@@ -1,20 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "common.hpp"
+#include "ck/utility/common_header.hpp"
 
-// #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
-#include "ck/utility/blkgemmpipe_scheduler.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_two_stage_xdl_cshuffle.hpp"
-
-using InDataType  = F16;
-using WeiDataType = F16;
-using OutDataType = F16;
-using AccDataType = F32;
-
-using InElementOp  = PassThrough;
-using WeiElementOp = PassThrough;
-using OutElementOp = PassThrough;
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 #define ENABLE_PIPELINE_V2 1
 
@@ -104,6 +95,7 @@ template <index_t BlockSize,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
+          typename AccDataType,
           typename BlockTileSize, // input, without padding
           index_t FilterSize,     //
           typename FilterParam,   // tuple<dilation, stride, padding>
@@ -186,7 +178,7 @@ struct GridwiseGroupedConv2DBwdWeightDlV4
     static constexpr index_t SubTileIn_Stride  = SubTileIn_Max_W;
     static constexpr index_t SubTileOut_Stride = SubTileOut_W;
 
-    static constexpr index_t SubTileIn_Pack_W  = GetAlignedPackW<SubTileIn_Max_W, InScalarPerVector>();
+    static constexpr index_t SubTileIn_Pack_W  = (WSplit == 1) ?  GetAlignedPackW<Tile_W, InScalarPerVector>() :  GetAlignedPackW<SubTileIn_Max_W, InScalarPerVector>();
     static constexpr index_t TileIn_Pack_Group = WaveSize / SubTileIn_Pack_W;
     static constexpr index_t TileIn_Pack_H = math::integer_divide_ceil(Tile_H, TileIn_Pack_Group);
     static constexpr index_t TileIn_Align_H =
@@ -1028,6 +1020,7 @@ template <index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
+          typename AccDataType,
           typename BlockTileSize, // input, without include pading
           index_t FilterSize,     // seqence<x, y, [z]>
           typename FilterParam,   // tuple<dilation, stride, padding>
@@ -1072,6 +1065,7 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
                                                                      InDataType,
                                                                      WeiDataType,
                                                                      OutDataType,
+                                                                     AccDataType,
                                                                      BlockTileSize,
                                                                      FilterSize,
                                                                      FilterParam,
