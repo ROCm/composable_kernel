@@ -98,9 +98,9 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
     }
 
 #if ENABLE_CONV_FACTORY
-    std::size_t best_tflops = 0;
-    std::size_t best_gb_per_sec = 0;
-    std::size_t best_avg_time = 0;
+    float best_tflops = 0;
+    float best_gb_per_sec = 0;
+    float best_avg_time = 0;
     std::string best_kernel = "";
     ck::index_t split_k_array[] = {1, 2, 4, 8, 16, 32};
     ck::index_t split_k_count = 6;

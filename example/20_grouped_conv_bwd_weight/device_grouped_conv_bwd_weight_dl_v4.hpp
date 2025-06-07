@@ -1444,12 +1444,13 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
             << "Dilation<" << Dilation_Y << ", " << Dilation_X << ">, "
             << "Stride<" << Stride_H << ", " << Stride_W<< ">, "
             << "Pad<" << Pad_H << ", " << Pad_W<< ">, "
-            << "NBatch: " << NBatch<< ", "
-            << "NumWavePerTile: " << NumWavePerTile<< ", "
-            << "InScalarPerVector: " << InScalarPerVector<< ", "
-            << "OutScalarPerVector: " << OutScalarPerVector<< ", "
-            << "DstScalarPerVector: " << DstScalarPerVector<< ", "
-            << "RequirePadding: " << RequirePadding << ">"
+            << "NBatch: " << NBatch << ", "
+            << "NumWavePerTile: " << NumWavePerTile << ", "
+            << "InScalarPerVector: " << InScalarPerVector << ", "
+            << "OutScalarPerVector: " << OutScalarPerVector << ", "
+            << "DstScalarPerVector: " << DstScalarPerVector << ", "
+            << "RequirePadding: " << RequirePadding << ", "
+            << "WSplit: " << WSplit << ">"
             << std::endl;
         // clang-format on
 
