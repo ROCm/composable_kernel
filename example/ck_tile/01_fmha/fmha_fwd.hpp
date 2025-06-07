@@ -964,6 +964,59 @@ template <ck_tile::index_t HDim_,
           typename FmhaMask_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kStoreLse_,
+          bool kHasDropout_,
+          bool kIsPagedKV_,
+          bool kDoFp8StaticQuant_,
+          bool kPadS_,
+          bool kPadSK_,
+          bool kPadD_,
+          bool kPadDv_,
+          bool kSkipMinSeqlenQ_ = false>
+struct fmha_fwd_pagedkv_traits_
+{
+    static constexpr ck_tile::index_t HDim           = HDim_;
+    using DataType                                   = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode               = kIsGroupMode_;
+    static constexpr ck_tile::index_t kM0            = kM0_;
+    static constexpr ck_tile::index_t kN0            = kN0_;
+    static constexpr ck_tile::index_t kK0            = kK0_;
+    static constexpr ck_tile::index_t kN1            = kN1_;
+    static constexpr ck_tile::index_t kK1            = kK1_;
+    static constexpr ck_tile::index_t kK0BlockLength = kK0BlockLength_;
+    static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
+    static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
+    static constexpr bool kHasLogitsSoftCap          = kHasLogitsSoftCap_;
+    using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
+    static constexpr auto BiasEnum                   = BiasEnum_;
+    static constexpr bool kStoreLse                  = kStoreLse_;
+    static constexpr bool kHasDropout                = kHasDropout_;
+    static constexpr bool kIsPagedKV                 = kIsPagedKV_;
+    static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
+    static constexpr bool kPadS                      = kPadS_;
+    static constexpr bool kPadSK                     = kPadSK_;
+    static constexpr bool kPadD                      = kPadD_;
+    static constexpr bool kPadDv                     = kPadDv_;
+    static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
+};
+
+template <typename Traits_>
+float fmha_fwd_pagedkv_(const ck_tile::stream_config&, fmha_fwd_pagedkv_args);
+
+template <ck_tile::index_t HDim_,
+          typename DataType_,
+          bool kIsGroupMode_,
+          ck_tile::index_t kM0_,
+          ck_tile::index_t kN0_,
+          ck_tile::index_t kK0_,
+          ck_tile::index_t kN1_,
+          ck_tile::index_t kK1_,
+          ck_tile::index_t kK0BlockLength_,
+          bool kIsVLayoutRowMajor_,
+          ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
+          bool kHasLogitsSoftCap_,
+          typename FmhaMask_,
+          ck_tile::BlockAttentionBiasEnum BiasEnum_,
+          bool kStoreLse_,
           bool kDoFp8StaticQuant_,
           bool kIsPagedKV_,
           bool kPadS_,
@@ -1082,7 +1135,26 @@ struct fmha_fwd_traits
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
-float fmha_fwd_pagedkv(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
+
+struct fmha_fwd_pagedkv_traits
+{
+    int hdim_q;
+    int hdim_v;
+    std::string data_type;
+    bool is_group_mode;
+    bool is_v_rowmajor;
+    bool has_logits_soft_cap;
+    mask_enum mask_type;
+    bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
+    bool has_lse;
+    bool has_dropout;
+    bool use_pagedkv;
+    bool do_fp8_static_quant;
+    bool skip_min_seqlen_q = false;
+    // TODO: padding check is inside this api
+};
+
+float fmha_fwd_pagedkv(fmha_fwd_pagedkv_traits, fmha_fwd_pagedkv_args, const ck_tile::stream_config&);
 
 struct fmha_fwd_splitkv_traits
 {

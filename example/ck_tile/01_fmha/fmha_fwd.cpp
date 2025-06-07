@@ -851,6 +851,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                                         : rope_enum::half_rotated)
                                                : rope_enum::none);
         }
+        else if constexpr(std::is_same_v<fmha_fwd_appendkv_traits, std::decay_t<decltype(traits)>>)
+        {
+            traits.use_pagedkv = use_kvcache;
+        }
         else // fmha_fwd_traits or fmha_splitkv_traits
         {
             traits.is_group_mode       = (mode == mode_enum::group);
@@ -1072,6 +1076,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 args.split_stride_lse_acc = split_stride_lse_acc;
                 args.split_stride_o_acc   = split_stride_o_acc;
             }
+            else if constexpr(std::is_same_v<fmha_fwd_pagedkv_args, std::decay_t<decltype(args)>>)
+            {
+                args.block_table_ptr =
+                    (0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr);
+                args.batch_stride_block_table = batch_stride_block_table;
+                args.page_block_size          = page_block_size;
+                args.is_gappy = false; // use 'false' for flash-attention integration
+
+                args.cache_batch_idx =
+                    (use_cache_batch_idx ? cache_batch_idx_buf.GetDeviceBuffer() : nullptr);
+
+            }
         }
     };
 
@@ -1106,15 +1122,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
 #endif
 #if CK_TILE_FMHA_FWD_PAGEDKV_API
         {
-            fmha_fwd_traits fmha_traits;
-            init_traits(fmha_traits);
+            fmha_fwd_pagedkv_traits fmha_pagedkv_traits;
+            init_traits(fmha_pagedkv_traits);
 
-            fmha_fwd_args fmha_args;
-            init_args(fmha_args);
+            fmha_fwd_pagedkv_args fmha_pagedkv_args;
+            init_args(fmha_pagedkv_args);
 
-            return fmha_fwd_pagedkv(fmha_traits, fmha_args, stream_config);
+            return fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
         }
-#endif
+#else
         fmha_fwd_traits fmha_traits;
         init_traits(fmha_traits);
 
@@ -1122,6 +1138,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         init_args(fmha_args);
 
         return fmha_fwd(fmha_traits, fmha_args, stream_config);
+#endif
     }();
 
     if(appendkv_ave_time < 0.0f || fwd_ave_time < 0.0f)
