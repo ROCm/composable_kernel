@@ -97,6 +97,14 @@ TYPED_TEST(TestGroupedConvndBwdDataXdl2d, Test2D)
     this->conv_params.clear();
 
     this->conv_params.push_back(
+        {2, 2, 2, 16, 16, {3, 3}, {28, 28}, {2, 2}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back(
+        {2, 2, 2, 16, 16, {3, 3}, {28, 28}, {6, 6}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back(
+        {2, 2, 2, 16, 16, {6, 6}, {28, 28}, {6, 6}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back(
+        {2, 2, 2, 16, 16, {4, 8}, {28, 28}, {4, 8}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back(
         {2, 2, 2, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
         {2, 2, 2, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
