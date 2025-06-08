@@ -777,7 +777,7 @@ struct GemmKernel
                            EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                            is_any_of<CDataType, fp16_t, bf16_t>::value))
             {
-                constexpr auto scheduler_type = (GemmPipeline::kNumWaveGroups == 1);
+                constexpr auto scheduler_type = (GemmPipeline::NumWaveGroups == 1);
                 RunGemm<scheduler_type>(
                     a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }

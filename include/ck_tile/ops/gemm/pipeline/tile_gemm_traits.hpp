@@ -40,7 +40,7 @@ template <bool kPadM_,
           bool TransposeC_            = false,
           bool UseStructuredSparsity_ = false,
           bool UsePersistentKernel_   = false,
-          index_t kNumWaveGroups_     = 1>
+          index_t NumWaveGroups_      = 1>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -56,7 +56,7 @@ struct TileGemmUniversalTraits
     static constexpr bool TransposeC            = TransposeC_;
     static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
-    static constexpr index_t kNumWaveGroups     = kNumWaveGroups_;
+    static constexpr index_t NumWaveGroups      = NumWaveGroups_;
 };
 
 template <bool kPadM_,

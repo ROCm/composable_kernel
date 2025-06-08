@@ -62,7 +62,7 @@ struct BlockGemmARegBRegCRegV1
 
     static constexpr index_t MWarp            = Traits::MWarp;
     static constexpr index_t NWarp            = Traits::NWarp;
-    static constexpr bool UseDefaultScheduler = (Problem::kNumWaveGroups != 1);
+    static constexpr bool UseDefaultScheduler = (Problem::NumWaveGroups != 1);
 
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {

@@ -42,7 +42,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
-    static constexpr index_t kNumWaveGroups = Problem::kNumWaveGroups;
+    static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
     using I0        = number<0>;
@@ -291,7 +291,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             while(num_compute_steps > 1)
             {
                 block_sync_lds();
-                operation_id = (operation_id + 1) % kNumWaveGroups;
+                operation_id = (operation_id + 1) % NumWaveGroups;
 
                 if(operation_id == 0)
                 {

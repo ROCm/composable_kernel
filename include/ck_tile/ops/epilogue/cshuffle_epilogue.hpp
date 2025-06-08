@@ -24,7 +24,7 @@ template <typename ADataType_,
           index_t kKPerXdl_,
           bool isCTransposed_,
           memory_operation_enum MemoryOperation_,
-          index_t kNumWaveGroups_>
+          index_t kNumWaveGroups_ = 1>
 struct CShuffleEpilogueProblem
 {
     using ADataType                                        = remove_cvref_t<ADataType_>;

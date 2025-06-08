@@ -50,7 +50,6 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                  CLayout,
                                                                  GemmConfig::TransposeC,
                                                                  GemmConfig::UseStructuredSparsity,
-                                                                 false,
                                                                  Persistent,
                                                                  GemmConfig::NumWaveGroups>;
     using GemmPipelineProblem =
