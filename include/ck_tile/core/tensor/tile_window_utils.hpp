@@ -18,6 +18,13 @@
 #pragma once
 namespace ck_tile {
 
+template <typename TileWindow_>
+CK_TILE_DEVICE void move_tile_window(TileWindow_& window,
+                                     const typename TileWindow_::BottomTensorIndex& step)
+{
+    window.move(step);
+}
+
 // input a lds store tile, extract some information from it
 // used to set m0 value for gfx9 serious
 template <typename LdsTileWindow_>
