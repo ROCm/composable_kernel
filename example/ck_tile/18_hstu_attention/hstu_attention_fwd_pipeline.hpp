@@ -480,7 +480,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                 {
                     auto v_shuffle_tmp = make_static_distributed_tensor<QKVDataType>(
-                        Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
+                        Policy::template MakeShuffledVRegTileDistribution<Problem>());
                     shuffle_tile(v_shuffle_tmp, v_tile);
 
                     // if K in this unroll uses Lds-buffer i, then V in this uroll uses Lds-buffer
