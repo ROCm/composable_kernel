@@ -69,7 +69,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         return a_lds_block_desc;
 #endif
 /*xor*/
-#if 0
+#if 1
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t kKPack     = GetSmemPackA<Problem>();
