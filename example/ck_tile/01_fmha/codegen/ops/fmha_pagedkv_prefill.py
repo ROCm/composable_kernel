@@ -53,17 +53,17 @@ using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
                                       {F_vlayout}>;
 
 using fmha_trait_{F_idx} = ck_tile::TileFmhaFwdPagedKVTraits<{F_spad},
-                                                    {F_skpad},
-                                                    {F_dpad},
-                                                    {F_dvpad},
-                                                    {F_logits},
-                                                    {F_bias},
-                                                    false,
-                                                    {F_lse},      //lse
-                                                    {F_pagedkv},  //pagedkv
-                                                    {F_squant},
-                                                    {F_occupancy},
-                                                    {F_skip}>;
+                                                             {F_skpad},
+                                                             {F_dpad},
+                                                             {F_dvpad},
+                                                             {F_logits},
+                                                             {F_bias},
+                                                             false,
+                                                             {F_lse},      //lse
+                                                             {F_pagedkv},  //pagedkv
+                                                             {F_squant},
+                                                             {F_occupancy},
+                                                             {F_skip}>;
 
 using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
 
@@ -465,36 +465,14 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            for logits, mask, bias, lse,  pagedkv, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"]):
-                if hdim == 256:
-                # if True:
-                    pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-                    pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-                    # the below two is used for hdim vectorize load
-                    pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-                    pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-
-                    pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse,  pagedkv, squant, mask, skip))
-                    pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, lse,  pagedkv, squant, mask, skip))
-                else:
-                    if bias == "bias":
-                        # TODO: rocm 6.2 compiler problem if using qr_async for bias case
-                        pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-                        pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse,  pagedkv, squant, mask, skip))
-                        pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-                        pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, lse,  pagedkv, squant, mask, skip))
-                    else:
-                        pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 'f', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-                        pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-                        pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 'f', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-                        pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, lse,  pagedkv, squant, mask, skip))
-                    if receipt == 1 and bias != "bias":
-                        pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse,  pagedkv, squant, mask, skip)) # TODO: cover arbitraty hdim
-                        pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 'f', 't', 't', logits, bias, lse,  pagedkv, squant, mask, skip)) # TODO: cover arbitraty hdim
+            for logits, mask, bias,  pagedkv, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(),  ["t", "f"], ["t", "f"]):
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))  
         elif dtype in ['fp8', 'bf8']:
-            # no need lse kernels
-            for logits, mask, bias in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 'f', 't', squant, mask, 'f'))
+            # TODO
+            None
         elif dtype in ['fp8fp16', 'fp8bf16']:
             # TODO
             None

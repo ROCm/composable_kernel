@@ -1086,7 +1086,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
                 args.cache_batch_idx =
                     (use_cache_batch_idx ? cache_batch_idx_buf.GetDeviceBuffer() : nullptr);
-
             }
         }
     };

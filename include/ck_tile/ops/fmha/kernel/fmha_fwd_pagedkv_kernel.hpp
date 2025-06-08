@@ -51,7 +51,7 @@ struct FmhaFwdPagedKVKernel
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
     static constexpr bool kSkipMinSeqlenQ   = FmhaPipeline::Problem::kSkipMinSeqlenQ;
-    static constexpr bool kIsPagedKV        = false;//FmhaPipeline::Problem::kIsPagedKV;
+    static constexpr bool kIsPagedKV        = false; // FmhaPipeline::Problem::kIsPagedKV;
 
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
@@ -422,45 +422,43 @@ struct FmhaFwdPagedKVKernel
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type)
     {
-        return MakeKargsImpl(
-            q_ptr,
-            k_ptr,
-            v_ptr,
-            bias_ptr,
-            lse_ptr,
-            o_ptr,
-            seqlen_q,
-            seqlen_k,
-            hdim_q,
-            hdim_v,
-            num_head_q,
-            nhead_ratio_qk,
-            scale_s,
-            scale_p,
-            scale_o,
-            logits_soft_cap,
-            stride_q,
-            stride_k,
-            stride_v,
-            stride_bias,
-            stride_o,
-            nhead_stride_q,
-            nhead_stride_k,
-            nhead_stride_v,
-            nhead_stride_bias,
-            nhead_stride_lse,
-            nhead_stride_o,
-            batch_stride_q,
-            batch_stride_k,
-            batch_stride_v,
-            batch_stride_bias,
-            batch_stride_lse,
-            batch_stride_o,
-            window_size_left,
-            window_size_right,
-            mask_type);
+        return MakeKargsImpl(q_ptr,
+                             k_ptr,
+                             v_ptr,
+                             bias_ptr,
+                             lse_ptr,
+                             o_ptr,
+                             seqlen_q,
+                             seqlen_k,
+                             hdim_q,
+                             hdim_v,
+                             num_head_q,
+                             nhead_ratio_qk,
+                             scale_s,
+                             scale_p,
+                             scale_o,
+                             logits_soft_cap,
+                             stride_q,
+                             stride_k,
+                             stride_v,
+                             stride_bias,
+                             stride_o,
+                             nhead_stride_q,
+                             nhead_stride_k,
+                             nhead_stride_v,
+                             nhead_stride_bias,
+                             nhead_stride_lse,
+                             nhead_stride_o,
+                             batch_stride_q,
+                             batch_stride_k,
+                             batch_stride_v,
+                             batch_stride_bias,
+                             batch_stride_lse,
+                             batch_stride_o,
+                             window_size_left,
+                             window_size_right,
+                             mask_type);
     }
-
 
     template <bool Cond = kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
@@ -605,40 +603,38 @@ struct FmhaFwdPagedKVKernel
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type)
     {
-        return MakeKargsImpl(
-            q_ptr,
-            k_ptr,
-            v_ptr,
-            bias_ptr,
-            lse_ptr,
-            o_ptr,
-            seqstart_q_ptr,
-            seqstart_k_ptr,
-            seqlen_k_ptr,
-            hdim_q,
-            hdim_v,
-            num_head_q,
-            nhead_ratio_qk,
-            scale_s,
-            scale_p,
-            scale_o,
-            logits_soft_cap,
-            stride_q,
-            stride_k,
-            stride_v,
-            stride_bias,
-            stride_o,
-            nhead_stride_q,
-            nhead_stride_k,
-            nhead_stride_v,
-            nhead_stride_bias,
-            nhead_stride_lse,
-            nhead_stride_o,
-            window_size_left,
-            window_size_right,
-            mask_type);
+        return MakeKargsImpl(q_ptr,
+                             k_ptr,
+                             v_ptr,
+                             bias_ptr,
+                             lse_ptr,
+                             o_ptr,
+                             seqstart_q_ptr,
+                             seqstart_k_ptr,
+                             seqlen_k_ptr,
+                             hdim_q,
+                             hdim_v,
+                             num_head_q,
+                             nhead_ratio_qk,
+                             scale_s,
+                             scale_p,
+                             scale_o,
+                             logits_soft_cap,
+                             stride_q,
+                             stride_k,
+                             stride_v,
+                             stride_bias,
+                             stride_o,
+                             nhead_stride_q,
+                             nhead_stride_k,
+                             nhead_stride_v,
+                             nhead_stride_bias,
+                             nhead_stride_lse,
+                             nhead_stride_o,
+                             window_size_left,
+                             window_size_right,
+                             mask_type);
     }
-
 
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
@@ -748,12 +744,12 @@ struct FmhaFwdPagedKVKernel
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
-        long_index_t batch_offset_q       = 0;
-        long_index_t batch_offset_k       = 0;
-        long_index_t batch_offset_v       = 0;
-        long_index_t batch_offset_bias    = 0;
-        long_index_t batch_offset_lse     = 0;
-        long_index_t batch_offset_o       = 0;
+        long_index_t batch_offset_q    = 0;
+        long_index_t batch_offset_k    = 0;
+        long_index_t batch_offset_v    = 0;
+        long_index_t batch_offset_bias = 0;
+        long_index_t batch_offset_lse  = 0;
+        long_index_t batch_offset_o    = 0;
 
         if constexpr(kIsGroupMode)
         {
@@ -779,7 +775,7 @@ struct FmhaFwdPagedKVKernel
             {
                 batch_offset_lse = query_start;
             }
-            
+
             batch_offset_o = query_start * kargs.stride_o;
 
             // get real # queries & # keys under group mode
@@ -824,7 +820,7 @@ struct FmhaFwdPagedKVKernel
             {
                 batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
             }
-            
+
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
 
@@ -1000,7 +996,6 @@ struct FmhaFwdPagedKVKernel
                 return make_null_tile_window(lse_dram_window_lengths);
             }
         }();
-
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
