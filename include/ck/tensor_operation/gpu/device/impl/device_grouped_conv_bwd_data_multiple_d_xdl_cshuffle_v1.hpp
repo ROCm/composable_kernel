@@ -74,28 +74,28 @@ template <typename GridwiseGemm,
           InMemoryDataOperationEnum OutElementOp>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle(
-            const ABDataType* __restrict__ p_a_grid,
-            const ABDataType* __restrict__ p_b_grid,
-            DsPointer p_ds_grid,
-            EDataType* __restrict__ p_e_grid,
-            const AElementwiseOp a_element_op,
-            const BElementwiseOp b_element_op,
-            const CDEElementwiseOp cde_element_op,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                e_grid_desc_mblock_mperblock_nblock_nperblock_,
-            const Block2ETileMap block_2_ctile_map,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-            const ComputePtrOffsetOfN compute_ptr_offset_of_n,
-            const index_t KBatch)
+    kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle(
+        const ABDataType* __restrict__ p_a_grid,
+        const ABDataType* __restrict__ p_b_grid,
+        DsPointer p_ds_grid,
+        EDataType* __restrict__ p_e_grid,
+        const AElementwiseOp a_element_op,
+        const BElementwiseOp b_element_op,
+        const CDEElementwiseOp cde_element_op,
+        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+        const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+        const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+            e_grid_desc_mblock_mperblock_nblock_nperblock_,
+        const Block2ETileMap block_2_ctile_map,
+        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+        const ComputePtrOffsetOfN compute_ptr_offset_of_n,
+        const index_t KBatch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z / KBatch);
@@ -395,8 +395,8 @@ enum DepthwiseConv2dDirection
 
 template <typename Argument,
           DepthwiseConv2dDirection direction,
-          index_t BatchPerBlk,
-          index_t GroupPerBlk,
+          index_t BatchPerBlock,
+          index_t GroupPerBlock,
           index_t TileOutW, // output tile width; this is the tile size in the gradientIn
           index_t TileOutH, // output tile height
           index_t up_w,
@@ -411,13 +411,20 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
 
     constexpr index_t ElementPerFP4 = 16 / sizeof(ABDataType);
 
-    static_assert(GroupPerBlk == 32, "Currently only support GroupPerWave == 32");
-    constexpr index_t TileInW = ((TileOutW - 1) * down_w + kernelW - 1) / up_w + 1;
-    constexpr index_t TileInH = ((TileOutH - 1) * down_h + kernelH - 1) / up_h + 1;
+    constexpr index_t WaveNum = BlockSize / warpSize;
+
+    static_assert(GroupPerBlock == 32, "Currently only support GroupPerBlock == 32");
+    static_assert(BatchPerBlock % WaveNum == 0,
+                  "Currently BatchPerBlock should be dividable by WaveNum");
+    constexpr index_t BatchIter = BatchPerBlock / WaveNum;
+    constexpr index_t TileInW   = ((TileOutW - 1) * down_w + kernelW - 1) / up_w + 1;
+    constexpr index_t TileInH   = ((TileOutH - 1) * down_h + kernelH - 1) / up_h + 1;
+    // WaveNum * GroupPerBlk * TileInH * TileInW
+    constexpr index_t GroupPerBlockInFP4 = GroupPerBlock / ElementPerFP4;
 
     constexpr index_t WaveNum = BlockSize / warpSize;
-    __shared__ volatile ABDataType shmem_k[GroupPerBlk * kernelH * kernelW]; // layout : H->W->G
-    __shared__ volatile ABDataType shmem_x[2][WaveNum * GroupPerBlk * TileInH * TileInW];
+    __shared__ volatile float4 shmem_k[kernelH][kernelW][GroupPerBlockInFP4]; // layout : H->W->G
+    __shared__ volatile float4 shmem_x[2][WaveNum * GroupPerBlockInFP4 * TileInH * TileInW];
     // layout : B->H->W->G will use double buffer to go through BatchPerBlock
     // when backward data, will be gradOut, when forward, will be x
 
@@ -429,7 +436,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
         return; // out of bound
     }
 
-    const int GroupBatchNum = WholeGroupNum / GroupPerBlk;
+    const int GroupBatchNum = WholeGroupNum / GroupPerBlock;
 
     // NHWGK todo use the stride
     const int outgrad_group_stride = 1;
@@ -445,8 +452,8 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
     int tid = threadIdx.x;
 
     // this offset is used to calculate the start offset of the group and batch
-    const int group_start_id_per_blk = (blockIdx.z % GroupBatchNum) * GroupPerBlk;
-    const int batch_start_id_per_blk = (blockIdx.z / GroupBatchNum) * BatchPerBlk;
+    const int group_start_id_per_blk = (blockIdx.z % GroupBatchNum) * GroupPerBlock;
+    const int batch_start_id_per_blk = (blockIdx.z / GroupBatchNum) * BatchPerBlock;
 
     int wave_id = __builtin_amdgcn_readfirstlane(tid / warpSize);
 
@@ -454,9 +461,6 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
     int tile_mid_h = tileOutH * down_h + up_h - 1 - pad_h;
     int tile_in_x  = tile_mid_w / up_w;
     int tile_in_y  = tile_mid_h / up_h;
-
-    // WaveNum * GroupPerBlk * TileInH * TileInW
-    constexpr index_t GroupPerBlockInFP4 = GroupPerBlk / ElementPerFP4;
 
     int group_id = tid % GroupPerBlockInFP4;
     int rel_in_w = (tid / GroupPerBlockInFP4) % TileInW;
