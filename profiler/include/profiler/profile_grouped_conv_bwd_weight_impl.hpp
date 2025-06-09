@@ -502,7 +502,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     std::cout << "Best configuration parameters:"
               << perf_results_global.print_best_op() << std::endl;
 
-    if (profile_all)
+    if (profile_all && perf_results_list.size() > 0)
     {
         std::cout << "Optimized split-K results:"
                   << perf_results_global.print_best_split_k() << std::endl;
