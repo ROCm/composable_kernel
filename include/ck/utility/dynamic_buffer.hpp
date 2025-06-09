@@ -279,7 +279,7 @@ struct DynamicBuffer
             using vector_t = typename vector_type_maker<remove_cvref_t<T>, t_per_x>::type::type;
             vector_t tmp;
 
-            if constexpr(std::is_same_v<remove_cvref_t<X>, vector_t>)
+            if constexpr(is_same_v<remove_cvref_t<X>, vector_t>)
             {
                 tmp = x;
             }
