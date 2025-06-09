@@ -1450,7 +1450,18 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             }
                         }
 
-                        return nullptr;
+                        auto default_kernel = &kernel_grouped_conv_bwd_data_optimized<ADataType,
+                                                                                      EDataType,
+                                                                                      GroupPerBlock,
+                                                                                      BatchPerBlock,
+                                                                                      BlockDim,
+                                                                                      5,
+                                                                                      5,
+                                                                                      1,
+                                                                                      1,
+                                                                                      2,
+                                                                                      2>;
+                        return static_cast<decltype(default_kernel)>(nullptr);
                     };
                     const auto kernel = kernel_selector();
 
