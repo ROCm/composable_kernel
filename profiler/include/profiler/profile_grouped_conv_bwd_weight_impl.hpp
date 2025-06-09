@@ -265,7 +265,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                             max_accumulated_value, num_accums_split_k);
                     // Use higher threshold
                     rtol      = std::max(rtol, rtol_split_k);
-                    atol      = std::max(atol, atol_split_k);
+                    atol      = num_accums_split_k == 1 ? 0 : std::max(atol, atol_split_k);
                     bool pass = ck::utils::check_err(weight_device_result,
                                                      weight_host_result,
                                                      "Error: Incorrect results!",

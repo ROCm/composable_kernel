@@ -190,7 +190,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                         max_accumulated_value, split_k_for_run);
                 // Use higher threshold
                 rtol = std::max(rtol, rtol_split_k);
-                atol = std::max(atol, atol_split_k);
+                atol = split_k_for_run == 1 ? 0 : std::max(atol, atol_split_k);
 
                 pass = pass & ck::utils::check_err(
                                   in_device, in_host, "Error: Incorrect results!", rtol, atol);

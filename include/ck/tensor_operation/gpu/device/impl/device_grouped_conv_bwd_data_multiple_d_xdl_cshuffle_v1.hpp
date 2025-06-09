@@ -410,8 +410,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     using BGridDesc_N_K = decltype(transform_k0_m_k1_to_m_k(BGridDesc_BK0_N_BK1{}));
 
     using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        decltype(GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmMultiDTemplateParams>::
-                     MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}));
+        decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            DsGridDesc_M_N{}));
     using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
         decltype(MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}));
 
@@ -808,17 +808,18 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         const bool HasMainKBlockLoop =
                             GridwiseGemm::CalculateHasMainKBlockLoop(GemmK, k_batch_);
 
-                        gemm_kernel_args_[gemms_count_ / MaxKernelArgsNum][gemms_count_ %
-                                                                           MaxKernelArgsNum] =
-                            GemmArgs{a_grid_desc_ak0_m_ak1,
-                                     b_grid_desc_bk0_n_bk1,
-                                     ds_grid_desc_m_n,
-                                     MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                         e_grid_desc_m_n),
-                                     block_2_etile_map,
-                                     BlockStart,
-                                     BlockEnd,
-                                     HasMainKBlockLoop};
+                        gemm_kernel_args_[gemms_count_ /
+                                          MaxKernelArgsNum][gemms_count_ %
+                                                            MaxKernelArgsNum] = GemmArgs{
+                            a_grid_desc_ak0_m_ak1,
+                            b_grid_desc_bk0_n_bk1,
+                            GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                ds_grid_desc_m_n),
+                            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n),
+                            block_2_etile_map,
+                            BlockStart,
+                            BlockEnd,
+                            HasMainKBlockLoop};
                         gemms_count_++;
                         if(gemms_count_ % MaxKernelArgsNum == 0)
                         {
@@ -958,8 +959,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         // pointers
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        typename GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmMultiDTemplateParams>::DsGridPointer
-            p_ds_grid_;
+        typename GridwiseGemm::DsGridPointer p_ds_grid_;
         EDataType* p_e_grid_;
 
         // tensor descriptor for problem definition
