@@ -442,7 +442,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
     const int output_tile_w = blockIdx.x * TileOutW;
     const int output_tile_h = blockIdx.y * TileOutH;
 
-    if(output_tile_w >= outWidth || output_tile_h >= outHeight)
+    if(output_tile_w >= out_width || output_tile_h >= out_height)
     {
         return; // out of bound
     }
@@ -468,8 +468,8 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
 
     int wave_id = __builtin_amdgcn_readfirstlane(tid / warpSize);
 
-    int tile_mid_x = tileOutW * down_w + up_w - 1 - pad_w;
-    int tile_mid_y = tileOutH * down_h + up_h - 1 - pad_h;
+    int tile_mid_x = TileOutW * down_w + up_w - 1 - pad_w;
+    int tile_mid_y = TileOutH * down_h + up_h - 1 - pad_h;
     int tile_in_x  = tile_mid_x / up_w;
     int tile_in_y  = tile_mid_y / up_h;
 
@@ -484,12 +484,14 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
 
         if constexpr(direction == DIRECTION_FORWARD)
         {
-            shmem_k[kernel_h * kernelW * GroupPerBlk + kernel_w * GroupPerBlk + local_group_id] =
+            shmem_k[kernel_h * kernelW * GroupPerBlock + kernel_w * GroupPerBlock +
+                    local_group_id] =
                 arg.p_b_grid_[glb_group_id * kernelH * kernelW + kernel_h * kernelW + kernel_w];
         }
         else
         {
-            shmem_k[kernel_h * kernelW * GroupPerBlk + kernel_w * GroupPerBlk + local_group_id] =
+            shmem_k[kernel_h * kernelW * GroupPerBlock + kernel_w * GroupPerBlock +
+                    local_group_id] =
                 arg.p_b_grid_[glb_group_id * kernelH * kernelW +
                               (kernelH - 1 - kernel_h) * kernelW + (kernelW - 1 - kernel_w)];
         }
