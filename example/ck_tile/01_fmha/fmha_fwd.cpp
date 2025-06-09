@@ -344,7 +344,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
-#if !CK_TILE_FMHA_FWD_APPENDKV_API && !CK_TILE_FMHA_FWD_SPLITKV_API
+#if(!(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || \
+      CK_TILE_FMHA_FWD_PAGEDKV_API))
     if(0 < page_block_size)
     {
         std::cerr << "paged-kvcache is not supported. ignoring the 'page_block_size' option"
@@ -851,10 +852,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                                         : rope_enum::half_rotated)
                                                : rope_enum::none);
         }
-        else if constexpr(std::is_same_v<fmha_fwd_appendkv_traits, std::decay_t<decltype(traits)>>)
-        {
-            traits.use_pagedkv = use_kvcache;
-        }
         else // fmha_fwd_traits or fmha_splitkv_traits
         {
             traits.is_group_mode       = (mode == mode_enum::group);
@@ -867,6 +864,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
             if constexpr(std::is_same_v<fmha_fwd_traits, std::decay_t<decltype(traits)>>)
             {
                 traits.has_dropout = (p_drop > 0.0f);
+            }
+            else if constexpr(std::is_same_v<fmha_fwd_pagedkv_traits,
+                                             std::decay_t<decltype(traits)>>)
+            {
+                traits.use_pagedkv = use_kvcache;
             }
         }
     };
@@ -1120,6 +1122,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 #endif
 #if CK_TILE_FMHA_FWD_PAGEDKV_API
+        // if(use_kvcache)
         {
             fmha_fwd_pagedkv_traits fmha_pagedkv_traits;
             init_traits(fmha_pagedkv_traits);
@@ -1129,6 +1132,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             return fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
         }
+        // else
+        //     return 0.0f;
 #else
         fmha_fwd_traits fmha_traits;
         init_traits(fmha_traits);

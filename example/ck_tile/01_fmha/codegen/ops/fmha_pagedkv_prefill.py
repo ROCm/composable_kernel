@@ -117,7 +117,7 @@ float fmha_fwd_pagedkv_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd
 
 FMHA_FWD_API_FILENAME="fmha_fwd_pagedkv_api.cpp"
 FMHA_FWD_API="""
-float fmha_fwd_pagedkv(fmha_fwd_pagedkv_traits t, fmha_fwd_pagedkv_args a, const ck_tile::stream_config& s){{
+float fmha_fwd_pagedkv(fmha_fwd_pagedkv_traits& t, fmha_fwd_pagedkv_args& a, const ck_tile::stream_config& s){{
     float r = -1;
 {F_dispatch}
     return r;
@@ -465,7 +465,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            for logits, mask, bias,  pagedkv, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(),  ["t", "f"], ["t", "f"]):
+            for logits, mask, bias,  pagedkv, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(),  ["t"], ["t", "f"]):
                 pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
                 pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
                 pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))

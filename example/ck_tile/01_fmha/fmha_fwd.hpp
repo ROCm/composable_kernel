@@ -1241,16 +1241,15 @@ struct fmha_fwd_pagedkv_traits
     bool has_logits_soft_cap;
     mask_enum mask_type;
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
-    bool has_lse;
-    bool has_dropout;
-    bool use_pagedkv;
-    bool do_fp8_static_quant;
-    bool skip_min_seqlen_q = false;
+    bool has_lse             = false;
+    bool use_pagedkv         = true;
+    bool do_fp8_static_quant = false;
+    bool skip_min_seqlen_q   = false;
     // TODO: padding check is inside this api
 };
 
-float fmha_fwd_pagedkv(fmha_fwd_pagedkv_traits,
-                       fmha_fwd_pagedkv_args,
+float fmha_fwd_pagedkv(fmha_fwd_pagedkv_traits&,
+                       fmha_fwd_pagedkv_args&,
                        const ck_tile::stream_config&);
 
 struct fmha_fwd_splitkv_traits
