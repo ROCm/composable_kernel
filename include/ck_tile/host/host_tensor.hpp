@@ -19,6 +19,22 @@
 
 namespace ck_tile {
 
+/**
+ * @brief Writes elements of a range to an output stream with custom formatting
+ * 
+ * @tparam Range Type of the range to be logged (must be iterable)
+ * @param os Output stream to write to
+ * @param range Range of elements to write
+ * @param delim Delimiter string to insert between elements
+ * @param precision Number of decimal places for floating point values (defaults to cout's precision)
+ * @param width Field width for each element (defaults to 0 meaning no padding)
+ * 
+ * @return Reference to the output stream
+ * 
+ * @details This function iterates through the range and writes each element to the stream,
+ * inserting the specified delimiter between elements (but not before the first or after 
+ * the last element). Each element is formatted according to the specified precision and width.
+ */
 template <typename Range>
 CK_TILE_HOST std::ostream& LogRange(std::ostream& os,
                                     Range&& range,
@@ -38,6 +54,23 @@ CK_TILE_HOST std::ostream& LogRange(std::ostream& os,
     return os;
 }
 
+/**
+ * @brief Writes elements of a range to an output stream with type conversion and custom formatting
+ * 
+ * @tparam T Target type to convert elements to before writing
+ * @tparam Range Type of the range to be logged (must be iterable)
+ * @param os Output stream to write to
+ * @param range Range of elements to write
+ * @param delim Delimiter string to insert between elements
+ * @param precision Number of decimal places for floating point values (defaults to cout's precision)
+ * @param width Field width for each element (defaults to 0 meaning no padding)
+ * 
+ * @return Reference to the output stream
+ * 
+ * @details Similar to LogRange, but each element is statically cast to type T before writing.
+ * This is useful when you want to display elements in a different type than their storage type,
+ * for example displaying integer values as floating point numbers.
+ */
 template <typename T, typename Range>
 CK_TILE_HOST std::ostream& LogRangeAsType(std::ostream& os,
                                           Range&& range,
