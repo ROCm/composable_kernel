@@ -700,4 +700,44 @@ void compare_vector_range(const Range1& vec1,
     }
 }
 
+/**
+ * @brief Calculates relative and absolute error thresholds for numerical comparisons
+ * 
+ * @tparam ADataType Type of first input data (typically matrix A)
+ * @tparam BDataType Type of second input data (typically matrix B)
+ * @tparam AccDataType Type used for accumulation
+ * @tparam CDataType Type of output data (typically matrix C)
+ * 
+ * @param K Size of reduction dimension (e.g., common dimension in matrix multiplication)
+ * @param kbatch Batch size for split-K algorithm
+ * @param max_accumulated_value Maximum value that can be accumulated
+ * 
+ * @return Tuple containing (relative_tolerance, absolute_tolerance)
+ * 
+ * @details Calculates both standard and split-K thresholds and returns the maximum of both:
+ * - Standard thresholds account for numerical error in basic computation
+ * - Split-K thresholds account for additional error from batch accumulation
+ * The function uses the smaller of ADataType and BDataType as the compute type
+ */
+template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
+auto calculate_rtol_atol(const ck_tile::index_t K,
+                         const ck_tile::index_t kbatch,
+                         const float max_accumulated_value)
+{
+    using ComputeType =
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+    // Calculate thresholds
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+        ck_tile::integer_divide_ceil(K, kbatch));
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+    // Calculate error due to split_k accumulation
+    const auto rtol_split_k =
+        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
+    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
+        max_accumulated_value, kbatch);
+    // Use higher threshold
+    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
+
 } // namespace ck_tile
