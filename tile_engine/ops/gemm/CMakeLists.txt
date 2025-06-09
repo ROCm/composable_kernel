@@ -36,6 +36,8 @@ add_custom_command(
 )
 
 add_library(gemm_template_instances OBJECT EXCLUDE_FROM_ALL ${GEMM_CODEGEN_CPP_FILES})
+# Explicitly set LINKER_LANGUAGE to avoid build config failures with Ninja.
+set_target_properties(gemm_template_instances PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(gemm_template_instances PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(gemm_template_instances PRIVATE ${GEMM_CODEGEN_HPP_FILES})
 

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/functional.hpp"
 #include "ck/utility/sequence.hpp"
+#include "ck/utility/tuple.hpp"
 
 namespace ck {
 
@@ -68,6 +69,46 @@ template <index_t N>
 struct static_for<0, N, 1> : detail::make_applier<N>
 {
     using detail::make_applier<N>::operator();
+};
+
+template <typename... Is>
+struct static_for_range
+{
+    template <typename F>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        // tweak -fbracket-depth if compilation fails. Clang default limit is 256
+        (f(Is{}), ...);
+    }
+};
+
+template <typename... Ts>
+struct static_for_product;
+template <typename... Is>
+struct static_for_product<Tuple<Is...>> : public static_for_range<Is...>
+{
+};
+template <typename... Is, typename... Rest>
+struct static_for_product<Tuple<Is...>, Rest...>
+{
+    template <typename F>
+    __host__ __device__ constexpr void operator()(F f) const
+    {
+        static_for_product<Tuple<Is...>>{}([&](auto i0) {   //
+            static_for_product<Rest...>{}([&](auto... is) { //
+                f(i0, is...);
+            });
+        });
+    }
+};
+
+struct identity
+{
+    template <typename T>
+    __host__ __device__ constexpr T&& operator()(T&& arg) const noexcept
+    {
+        return forward<T>(arg);
+    }
 };
 
 } // namespace ck
