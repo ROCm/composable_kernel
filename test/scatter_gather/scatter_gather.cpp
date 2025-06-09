@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <vector>
-#include <iostream>
-#include <numeric>
 #include <cassert>
 #include <cstdlib>
-#include <iostream>
-#include <time.h>
 #include <unordered_set>
+#include <ctime>
 
 #include "ck_tile/core.hpp"
 
