@@ -568,11 +568,18 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeC()
     {
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        if constexpr(Problem::NumWaveGroups == 1)
+        {
+            constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+            constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
 
-        return integer_least_multiple(sizeof(typename Problem::CDataType) * MPerBlock * NPerBlock,
-                                      16);
+            return integer_least_multiple(
+                sizeof(typename Problem::CDataType) * MPerBlock * NPerBlock, 16);
+        }
+        else
+        {
+            return 0;
+        }
     }
 
     template <typename Problem>
