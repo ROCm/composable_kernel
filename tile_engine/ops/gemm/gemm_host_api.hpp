@@ -133,9 +133,7 @@ inline auto create_args(int argc, char* argv[])
                 "false",
                 "Whether pad or not in k direction. Possible values are true or false. Default is "
                 "false.")
-        .insert("persistent",
-                "false",
-                "Whether to use persistent kernel. Default is false.");
+        .insert("persistent", "false", "Whether to use persistent kernel. Default is false.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
