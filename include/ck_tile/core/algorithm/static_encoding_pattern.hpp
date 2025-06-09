@@ -57,7 +57,7 @@ template <index_t BlockSize,
           index_t XPerTile,
           index_t VecSize,
           tile_distribution_pattern DistributionPattern,
-          index_t NumWaveGroups>
+          index_t NumWaveGroups = 1>
 struct TileDistributionEncodingPattern2D : public TileDistributionEncodingPattern
 {
 };
@@ -147,13 +147,17 @@ struct TileDistributionEncodingPattern2D<BlockSize,
 };
 
 // Warp raked
-template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize>
+template <index_t BlockSize,
+          index_t YPerTile,
+          index_t XPerTile,
+          index_t VecSize,
+          index_t NumWaveGroups>
 struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
                                          tile_distribution_pattern::warp_raked,
-                                         1> : public TileDistributionEncodingPattern
+                                         NumWaveGroups> : public TileDistributionEncodingPattern
 {
 
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -196,13 +200,17 @@ struct TileDistributionEncodingPattern2D<BlockSize,
 };
 
 // Block raked
-template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize>
+template <index_t BlockSize,
+          index_t YPerTile,
+          index_t XPerTile,
+          index_t VecSize,
+          index_t NumWaveGroups>
 struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
                                          tile_distribution_pattern::block_raked,
-                                         1> : public TileDistributionEncodingPattern
+                                         NumWaveGroups> : public TileDistributionEncodingPattern
 {
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!

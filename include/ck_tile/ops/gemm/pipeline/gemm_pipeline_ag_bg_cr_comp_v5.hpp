@@ -139,19 +139,23 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             auto a_offset = (warp_id == 0) ? make_array(0, 0) : make_array(0, KPerBlock);
             auto b_offset = (warp_id == 0) ? make_array(0, 0) : make_array(0, KPerBlock);
 
-            // global memory structures here.
-            auto a_copy_dram_window =
-                make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 a_dram_block_window_tmp.get_window_origin() + a_offset,
-                                 Policy::template MakeADramTileDistribution<Problem>());
+            auto&& [a_lds_block, b_lds_block] =
+                Base::GetABLdsTensorViews(static_cast<void*>(static_cast<char*>(p_smem_0)));
 
-            // B DRAM tile window for load
-            auto b_copy_dram_window =
-                make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 b_dram_block_window_tmp.get_window_origin() + b_offset,
-                                 Policy::template MakeBDramTileDistribution<Problem>());
+            constexpr auto a_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
+            constexpr auto b_lds_load_tile_distr =
+                make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
+
+            auto&& [a_copy_dram_window, a_copy_lds_window, a_lds_window] =
+                Base::GetAWindowsWithOffset(
+                    a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr, a_offset);
+            auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_window] =
+                Base::GetBWindowsWithOffset(
+                    b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr, b_offset);
+
+            a_copy_dram_window += a_offset;
+            b_copy_dram_window += b_offset;
 
             // DRAM window steps.
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
@@ -197,25 +201,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                                                make_tuple(number<MPerBlock>{}, number<NPerBlock>{}),
                                                {0, 0},
                                                c_block_tile_1.get_tile_distribution());
-
-            auto&& [a_lds_block, b_lds_block] =
-                Base::GetABLdsTensorViews(static_cast<void*>(static_cast<char*>(p_smem_0)));
-
-            auto a_copy_lds_window = make_tile_window(
-                a_lds_block, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
-            auto b_copy_lds_window = make_tile_window(
-                b_lds_block, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
-
-            auto a_lds_window =
-                make_tile_window(a_lds_block,
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 AGemmTileDistr);
-            auto b_lds_window =
-                make_tile_window(b_lds_block,
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 {0, 0},
-                                 BGemmTileDistr);
 
             // initialize C
             if(warp_id == 0)
