@@ -623,7 +623,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         BlockToCTileMap_GemmStreamK_v2<MPerBlock,
                                        NPerBlock,
                                        KPerBlock,
-                                       //    StreamKReductionStrategy::Atomic,
+                                       StreamKReductionStrategy::Atomic,
                                        8,
                                        4>
             block_2_ctile_map_streamk;
@@ -1257,13 +1257,12 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         }();
         return c_partial_acc_block_m_n;
     }
-    using Block2CTileMap_streamk =
-        BlockToCTileMap_GemmStreamK_v2<MPerBlock,
-                                       NPerBlock,
-                                       KPerBlock,
-                                       //   StreamKReductionStrategy::Atomic,
-                                       8,
-                                       4>;
+    using Block2CTileMap_streamk = BlockToCTileMap_GemmStreamK_v2<MPerBlock,
+                                                                  NPerBlock,
+                                                                  KPerBlock,
+                                                                  StreamKReductionStrategy::Atomic,
+                                                                  8,
+                                                                  4>;
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -1326,7 +1325,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end);
             num_k_block_main_loop = iter_end - iter_start;
 
-            // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+            // if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
             //              StreamKReductionStrategy::Reduction)
             if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
             {
@@ -1916,7 +1915,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         }
                         else if(is_sk_block)
                         {
-                            // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                            // if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
                             //              StreamKReductionStrategy::Atomic)
                             if(problem.reduction_strategy == StreamKReductionStrategy::Atomic)
                             {
@@ -1930,7 +1929,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
                                         c_grid_buf);
                             }
-                            // else if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                            // else if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
                             //                   StreamKReductionStrategy::Reduction)
                             else if(problem.reduction_strategy ==
                                     StreamKReductionStrategy::Reduction)
@@ -1965,7 +1964,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         }
                     });
 
-                    // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                    // if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
                     //              StreamKReductionStrategy::Reduction)
                     if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
                     {
@@ -1982,7 +1981,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 iter_end -= current_iter_length;
                 if(iter_end <= iter_start)
                     break;
-                // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                // if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
                 //              StreamKReductionStrategy::Reduction)
                 if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
                 {
@@ -2039,7 +2038,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                                          problem.N,
                                                          AK0Number * problem.KPadded,
                                                          problem.Grid_size,
-                                                         problem.Streamk_sel);
+                                                         problem.Streamk_sel,
+                                                         problem.reduction_strategy);
         for(auto block_idx = get_block_1d_id();
             block_idx < block_2_ctile_map_streamk.get_grid_dims();
             block_idx += gridDim.x)
@@ -2058,7 +2058,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 reinterpret_cast<char*>(p_workspace) +
                 block_2_ctile_map_streamk.get_workspace_size_for_acc(sizeof(AccDataType)));
 
-            // if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+            // if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
             //              StreamKReductionStrategy::Reduction)
             if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
             {
@@ -2676,8 +2676,9 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         }
                         else if(is_sk_block)
                         {
-                            if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
-                                         StreamKReductionStrategy::Atomic)
+                            // if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
+                            //              StreamKReductionStrategy::Atomic)
+                            if(problem.reduction_strategy == StreamKReductionStrategy::Atomic)
                             {
                                 // each block copy its data from LDS to global
                                 c_shuffle_block_copy_lds_to_global
@@ -2689,8 +2690,10 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
                                         c_grid_buf);
                             }
-                            else if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
-                                              StreamKReductionStrategy::Reduction)
+                            // else if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
+                            //                   StreamKReductionStrategy::Reduction)
+                            else if(problem.reduction_strategy ==
+                                    StreamKReductionStrategy::Reduction)
                             {
                                 // constexpr offset
                                 c_block_copy_lds_to_partial_acc.SetSrcSliceOrigin(
@@ -2725,16 +2728,18 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 iter_end -= current_iter_length;
                 if(iter_end <= iter_start)
                     break;
-                if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
-                             StreamKReductionStrategy::Reduction)
+                // if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
+                //              StreamKReductionStrategy::Reduction)
+                if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
                 {
                     block_acc_offset -= MPerBlock * NPerBlock;
                 }
                 // make sure next loop LDS is ready for use
                 block_sync_lds();
             }
-            if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
-                         StreamKReductionStrategy::Reduction)
+            // if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
+            //              StreamKReductionStrategy::Reduction)
+            if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
             {
                 if(is_sk_block)
                 {

@@ -4,16 +4,9 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
-#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp" // Include for StreamKReductionStrategy enum
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
 namespace ck {
-
-// enum StreamKReductionStrategy
-// {
-//     Atomic = 0, // sk block use atomic to do reduction
-//     Reduction,  // let some workgroup responsible for doing the reduction operation
-// };
-
 namespace tensor_operation {
 namespace device {
 
