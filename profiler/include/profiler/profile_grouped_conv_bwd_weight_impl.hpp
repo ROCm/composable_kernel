@@ -12,7 +12,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
-#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_backward_weight.hpp"

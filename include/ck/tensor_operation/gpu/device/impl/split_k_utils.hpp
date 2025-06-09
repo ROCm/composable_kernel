@@ -2,14 +2,10 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#include <optional>
 #include <hip/hip_runtime.h>
 #include "ck/utility/env.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/ck.hpp"
-
-// TODO: Remove this when the feature is stable.
-CK_DECLARE_ENV_VAR_BOOL(CK_AUTO_DEDUCE_SPLIT_K);
 
 namespace ck {
 namespace tensor_operation {
@@ -52,13 +48,6 @@ ck::index_t get_k_batch_value(ck::index_t split_k, int max_occupancy, ck::index_
     }
     return split_k;
 }
-
-struct ArgumentSplitK
-{
-  index_t k_batch() const { return k_batch_; }
-  protected:
-        index_t k_batch_;
-};
 
 } // namespace device
 } // namespace tensor_operation
