@@ -645,4 +645,59 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     return res;
 }
 
+/**
+ * @brief Compares and prints elements from two ranges within specified bounds
+ * 
+ * @tparam Range1 Type of the first range (must be iterable and have size() method)
+ * @tparam Range2 Type of the second range (must be iterable and have size() method)
+ * 
+ * @param vec1 First range to compare
+ * @param vec2 Second range to compare
+ * @param start_index Starting index for comparison
+ * @param num_elements Number of elements to compare
+ * @param msg Optional message to display before comparison results (defaults to "Comparing Results:")
+ * 
+ * @details This function compares elements from two ranges and prints them side by side.
+ * It performs bounds checking to ensure safe access and converts values to float for display.
+ * The output format is:
+ * ```
+ * [Message]
+ * Index [i]: value1 | value2
+ * ```
+ * 
+ * @note 
+ * - Both ranges must support std::begin() and size()
+ * - Elements must be convertible to float for display
+ * - If bounds checking fails, error message is printed to stderr and function returns early
+ * - Output is formatted with width 12 and 7 decimal places precision
+ */
+template <typename Range1, typename Range2>
+void compare_vector_range(const Range1& vec1,
+                       const Range2& vec2,
+                       size_t start_index,
+                       size_t num_elements,
+                       const std::string& msg = "Comparing Results:")
+{
+    if (start_index >= vec1.size() || start_index >= vec2.size()) {
+        std::cerr << "Error: Start index " << start_index << " out of bounds" << std::endl;
+        return;
+    }
+
+    if (num_elements + start_index > vec1.size() || num_elements + start_index > vec2.size())
+    {
+        std::cerr << "Error: Length " << num_elements << " + start index " << start_index << " out of bounds" << std::endl;
+        return;
+    }
+
+    std::cout << msg << std::endl;
+    std::cout << std::setw(12) << std::setprecision(7);
+
+    for (size_t i = 0; i < num_elements; ++i) {
+        const auto v1 = *std::next(std::begin(vec1), start_index + i);
+        const auto v2 = *std::next(std::begin(vec2), start_index + i);
+        std::cout << "Index [" << (start_index + i) << "]: "
+                  << static_cast<float>(v1) << " | " << static_cast<float>(v2) << std::endl;
+    }
+}
+
 } // namespace ck_tile
