@@ -402,6 +402,8 @@ template <typename ABDataType,
           index_t GroupPerBlock,
           index_t TileOutW, // output tile width; this is the tile size in the gradientIn
           index_t TileOutH, // output tile height
+          index_t kernelW,
+          index_t kernelH,
           index_t up_h,
           index_t up_w,
           index_t down_h,
@@ -1411,6 +1413,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                                                  GroupPerBlock,
                                                                                  4,
                                                                                  4,
+                                                                                 3,
+                                                                                 3,
                                                                                  1,
                                                                                  1,
                                                                                  1,
