@@ -42,7 +42,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                           bool do_log,
                                           bool time_kernel,
                                           const ck::utils::conv::ConvParam& conv_param,
-                                          ck::index_t split_k)
+                                          const std::string& split_k)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -145,6 +145,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     float best_gb_per_sec    = 0;
     ck::index_t best_split_k = 1;
     ck::index_t best_split_k_arg = 1;
+    std::string opt_split_k_best_op_name;
+    float opt_split_k_avg_time      = 0;
+    float opt_split_k_tflops        = 0;
+    float opt_split_k_gb_per_sec    = 0;
+    ck::index_t opt_split_k_best_arg = 1;
 
     // profile device Conv instances
     bool all_pass = true;
@@ -174,21 +179,16 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     range_copy(conv_param.input_right_pads_, begin(input_right_pads));
 
     std::vector<ck::index_t> split_k_list = {/*Split-k parameter autodeduction*/-1, 1, 2, 4, 8, 16, 32, 64, 128};
-
-    if(split_k > 0)
+    bool profile_all = true;
+    if(split_k != "all")
     {
-        split_k_list = {split_k};
-    }
-
-    // Special value for running with optimized split-k.
-    // Negative values mean that profiler runs all possible combinations.
-    if (split_k == 0)
-    {
-        split_k_list = {-1};
+        const auto split_k_val = std::stoi(split_k);
+        split_k_list = {split_k_val};
+        profile_all = false;
     }
 
     const auto& split_k_str = [](ck::index_t split_k_value, ck::index_t split_k_arg_value) {
-        return split_k_value > 0 ? std::to_string(split_k_value) : std::to_string(split_k_arg_value) + "(optimized)";
+        return split_k_value > 0 ? std::to_string(split_k_value) : std::to_string(split_k_arg_value) + " (optimized)";
     };
 
     for(auto& op_ptr : op_ptrs)
@@ -265,6 +265,15 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     best_split_k_arg = split_k_arg_value;
                 }
 
+                if (split_k_list[split_k_id] == -1 && tflops > opt_split_k_tflops)
+                {
+                    opt_split_k_best_op_name    = op_name;
+                    opt_split_k_avg_time = avg_time;
+                    opt_split_k_tflops = tflops;
+                    opt_split_k_gb_per_sec = gb_per_sec;
+                    opt_split_k_best_arg = split_k_arg_value;
+                }
+
                 if(do_verification)
                 {
                     wei_device_buf.FromDevice(weight_device_result.mData.data());
@@ -337,6 +346,15 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
               << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
               << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << ", SplitK "
               << split_k_str(best_split_k, best_split_k_arg) << std::endl;
+
+    if (profile_all)
+    {
+        std::cout << "Optimized split-K results:"
+                  << "\nname: " << opt_split_k_best_op_name << "\navg_time: " << opt_split_k_avg_time
+                  << "\ntflops: " << opt_split_k_tflops
+                  << "\nGB/s: " << opt_split_k_gb_per_sec
+                  << ", SplitK " << split_k_str(-1, opt_split_k_best_arg) << std::endl;
+    }
 
     return all_pass;
 }

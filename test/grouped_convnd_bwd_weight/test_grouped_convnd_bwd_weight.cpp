@@ -108,7 +108,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                                        false, // do_log
                                        false, // time_kernel
                                        param,
-                                       split_k);
+                                       std::to_string(split_k));
                 }
             }
         }

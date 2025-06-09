@@ -31,7 +31,7 @@ template<
 ck::index_t get_k_batch_value(ck::index_t split_k, int max_occupancy, ck::index_t M, ck::index_t N, ck::index_t conv_G)
 {
     static DeviceProperties device_properties;
-    // For now, assume that negative (or zero) value signals automatic computation of the split_k value.
+    // For now, assume that negative value signals automatic computation of the split_k value.
     if(split_k <= 0)
     {
       const int num_cu = device_properties.num_cu_;
@@ -42,7 +42,7 @@ ck::index_t get_k_batch_value(ck::index_t split_k, int max_occupancy, ck::index_
       if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
       {
         std::cout << "[SPLIT-K AUTODEDUCE] Max active thread blocks per CU for GEMM kernel:  " << max_occupancy << std::endl;
-        std::cout << "[SPLIT-K AUTODEDUCE] Overriding user deinfed split_k value " << split_k << " to optimal value " << k_batch << " for K-batch."<< std::endl;
+        std::cout << "[SPLIT-K AUTODEDUCE] Using optimized split-k value " << k_batch << " for K-batch."<< std::endl;
       }
       return k_batch;
     }
