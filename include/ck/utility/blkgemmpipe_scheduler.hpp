@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -71,7 +71,8 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t MPerXDL,
           index_t NPerXDL,
-          index_t KPerXDL>
+          index_t KPerXDL,
+          bool IsF4F6 = false>
 struct BlockwiseGemmXdlops_pipeline_hotloop_inst
 {
     static constexpr index_t WaveSize = 64;
@@ -99,14 +100,16 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t C_MFMA_Inst_Num =
         MPerBlock * NPerBlock * KPerBlock / (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
 
+    static constexpr index_t C_MFMA_SpeedUp = IsF4F6 ? 2 : 1;
+
     static constexpr index_t C_MFMA_Inst_Cycle = []() {
         if constexpr(NPerXDL == 16)
         {
-            return KPerXDL == 128 ? 32 : 16;
+            return KPerXDL == 128 ? 32 / C_MFMA_SpeedUp : 16 / C_MFMA_SpeedUp;
         }
         else if constexpr(NPerXDL == 32)
         {
-            return KPerXDL == 64 ? 64 : 32;
+            return KPerXDL == 64 ? 64 / C_MFMA_SpeedUp : 32 / C_MFMA_SpeedUp;
         }
     }();
 
@@ -123,7 +126,7 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
                KPerXDL);
 
         printf(" A/B buffer load inst: %d, %d\n A/B LDS write inst: %d, %d\n A/B LDS read inst: "
-               "%d, %d\n C MFMA inst: %d\n"
+               "%d, %d\n C MFMA inst: %d C MFMA cycle: %d\n"
                "A/B LDS read width: %d, %d, A/B LDS write width: %d, %d, A/B buffer load width: "
                "%d/ %d\n",
                A_Buffer_Load_Inst_Num,
@@ -133,6 +136,7 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
                A_LDS_Read_Inst_Num,
                B_LDS_Read_Inst_Num,
                C_MFMA_Inst_Num,
+               C_MFMA_Inst_Cycle,
                A_LDS_Read_Width,
                B_LDS_Read_Width,
                ALDSWriteWidth,
