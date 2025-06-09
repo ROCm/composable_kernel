@@ -179,7 +179,13 @@ template <typename ABDataType,
           typename EDataType,
           index_t GroupPerBlock,
           index_t BatchPerBlock,
-          index_t BlockSize>
+          index_t BlockSize,
+          index_t filter_y,
+          index_t filter_x,
+          index_t stride_y,
+          index_t stride_x,
+          index_t pad_y,
+          index_t pad_x>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(512, CK_MIN_BLOCK_PER_CU)
@@ -187,30 +193,24 @@ __global__ void
         kernel_grouped_conv_bwd_data_optimized(const ABDataType* __restrict__ p_gradOut,
                                                const ABDataType* __restrict__ p_weight,
                                                EDataType* __restrict__ p_gradIn,
-                                               const index_t filter_y,
-                                               const index_t filter_x,
-                                               const index_t stride_y,
-                                               const index_t stride_x,
-                                               const index_t pad_y,
-                                               const index_t pad_x,
                                                const index_t out_width,
                                                const index_t out_height,
                                                const index_t in_width,
                                                const index_t in_height,
                                                const index_t group_num,
-                                               const index_t whole_batch_num,
-                                               const index_t filter_size)
+                                               const index_t whole_batch_num)
 {
+    constexpr int filter_size    = filter_x * filter_y;
     const int blockNumPerGroup   = whole_batch_num / BatchPerBlock;
     int grp_idx                  = GroupPerBlock * (blockIdx.x / blockNumPerGroup);
     const ABDataType* weight_ptr = p_weight + grp_idx * filter_size;
     int tid                      = threadIdx.x;
 
-    const int filter_height = filter_y;
-    const int filter_width  = filter_x;
+    constexpr int filter_height = filter_y;
+    constexpr int filter_width  = filter_x;
 
-    const int pad_height = pad_y;
-    const int pad_width  = pad_x;
+    constexpr int pad_height = pad_y;
+    constexpr int pad_width  = pad_x;
 
     constexpr int batch_num = BatchPerBlock;
     static_assert(batch_num == BlockSize / warpSize,
@@ -387,6 +387,7 @@ __global__ void
   when foward, up means dilate, down means stride
   when backward, up means stride, down means dilate
 */
+/*
 enum DepthwiseConv2dDirection
 {
     DIRECTION_FORWARD,
@@ -589,6 +590,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
         }
     }
 }
+*/
 } // namespace
 
 // Conv backward data multiple D:
@@ -1376,11 +1378,80 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     constexpr index_t GroupPerBlock = 64;
                     constexpr index_t BatchPerBlock = 8;
                     constexpr index_t BlockDim      = 512;
-                    const auto kernel = kernel_grouped_conv_bwd_data_optimized<ADataType,
-                                                                               EDataType,
-                                                                               GroupPerBlock,
-                                                                               BatchPerBlock,
-                                                                               BlockDim>;
+
+                    auto kernel_selector = [&]() {
+                        const index_t filter_y = arg.b_g_k_c_xs_lengths_[NDimSpatial + 1];
+                        const index_t filter_x = arg.b_g_k_c_xs_lengths_[NDimSpatial + 2];
+                        const index_t stride_y = arg.conv_filter_strides_[0];
+                        const index_t stride_x = arg.conv_filter_strides_[1];
+                        const index_t pad_y    = arg.input_left_pads_[0];
+                        const index_t pad_x    = arg.input_left_pads_[1];
+
+                        if(filter_y == 3 && filter_x == 3)
+                        {
+                            if(stride_y == 1 && stride_x == 1 && pad_y == 1 && pad_x == 1)
+                            {
+                                return kernel_grouped_conv_bwd_data_optimized<ADataType,
+                                                                              EDataType,
+                                                                              GroupPerBlock,
+                                                                              BatchPerBlock,
+                                                                              BlockDim,
+                                                                              3,
+                                                                              3,
+                                                                              1,
+                                                                              1,
+                                                                              1,
+                                                                              1>;
+                            }
+                            else if(stride_y == 2 && stride_x == 2 && pad_y == 1 && pad_x == 1)
+                            {
+                                return kernel_grouped_conv_bwd_data_optimized<ADataType,
+                                                                              EDataType,
+                                                                              GroupPerBlock,
+                                                                              BatchPerBlock,
+                                                                              BlockDim,
+                                                                              3,
+                                                                              3,
+                                                                              2,
+                                                                              2,
+                                                                              1,
+                                                                              1>;
+                            }
+                        }
+                        else if(filter_y == 5 && filter_x == 5)
+                        {
+                            if(stride_y == 1 && stride_x == 1 && pad_y == 2 && pad_x == 2)
+                            {
+                                return kernel_grouped_conv_bwd_data_optimized<ADataType,
+                                                                              EDataType,
+                                                                              GroupPerBlock,
+                                                                              BatchPerBlock,
+                                                                              BlockDim,
+                                                                              5,
+                                                                              5,
+                                                                              1,
+                                                                              1,
+                                                                              2,
+                                                                              2>;
+                            }
+                            else if(stride_y == 2 && stride_x == 2 && pad_y == 2 && pad_x == 2)
+                            {
+                                return kernel_grouped_conv_bwd_data_optimized<ADataType,
+                                                                              EDataType,
+                                                                              GroupPerBlock,
+                                                                              BatchPerBlock,
+                                                                              BlockDim,
+                                                                              5,
+                                                                              5,
+                                                                              2,
+                                                                              2,
+                                                                              2,
+                                                                              2>;
+                            }
+                        }
+                    };
+                    const auto kernel = kernel_selector();
+
                     return launch_and_time_kernel(
                         stream_config,
                         kernel,
@@ -1393,20 +1464,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         p_a_grid,
                         p_b_grid,
                         p_e_grid,
-                        arg.b_g_k_c_xs_lengths_[NDimSpatial + 1],
-                        arg.b_g_k_c_xs_lengths_[NDimSpatial + 2],
-                        arg.conv_filter_strides_[0],
-                        arg.conv_filter_strides_[1],
-                        arg.input_left_pads_[0],
-                        arg.input_left_pads_[1],
                         arg.a_g_n_k_wos_lengths_[NDimSpatial + 1],
                         arg.a_g_n_k_wos_lengths_[NDimSpatial + 2],
                         arg.e_g_n_c_wis_lengths_[NDimSpatial + 1],
                         arg.e_g_n_c_wis_lengths_[NDimSpatial + 2],
                         arg.a_g_n_k_wos_lengths_[0],
-                        arg.a_g_n_k_wos_lengths_[1],
-                        arg.b_g_k_c_xs_lengths_[NDimSpatial + 1] *
-                            arg.b_g_k_c_xs_lengths_[NDimSpatial + 2]);
+                        arg.a_g_n_k_wos_lengths_[1]);
                     // const auto kernel =
                     // kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle<
                     //     GridwiseGemm,
