@@ -74,28 +74,28 @@ template <typename GridwiseGemm,
           InMemoryDataOperationEnum OutElementOp>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle(
-        const ABDataType* __restrict__ p_a_grid,
-        const ABDataType* __restrict__ p_b_grid,
-        DsPointer p_ds_grid,
-        EDataType* __restrict__ p_e_grid,
-        const AElementwiseOp a_element_op,
-        const BElementwiseOp b_element_op,
-        const CDEElementwiseOp cde_element_op,
-        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-        const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-        const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-            e_grid_desc_mblock_mperblock_nblock_nperblock_,
-        const Block2ETileMap block_2_ctile_map,
-        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-        const ComputePtrOffsetOfN compute_ptr_offset_of_n,
-        const index_t KBatch)
+        kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle(
+            const ABDataType* __restrict__ p_a_grid,
+            const ABDataType* __restrict__ p_b_grid,
+            DsPointer p_ds_grid,
+            EDataType* __restrict__ p_e_grid,
+            const AElementwiseOp a_element_op,
+            const BElementwiseOp b_element_op,
+            const CDEElementwiseOp cde_element_op,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            const Block2ETileMap block_2_ctile_map,
+            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+            const ComputePtrOffsetOfN compute_ptr_offset_of_n,
+            const index_t KBatch)
 {
-#if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z / KBatch);
@@ -230,7 +230,7 @@ __global__ void
 
     constexpr index_t ElementPerFP4 = 16 / sizeof(ABDataType);
 
-    for(int index = tid; index < 64 * filter_size / ElementPerFP4; index += BlockSize)
+    for(int index = tid; index < GroupPerBlock * filter_size / ElementPerFP4; index += BlockSize)
     {
         reinterpret_cast<float4*>(shmem_weight)[index] =
             reinterpret_cast<const float4*>(weight_ptr)[index];
@@ -417,14 +417,19 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
     static_assert(BatchPerBlock % WaveNum == 0,
                   "Currently BatchPerBlock should be dividable by WaveNum");
     constexpr index_t BatchIter = BatchPerBlock / WaveNum;
-    constexpr index_t TileInW   = ((TileOutW - 1) * down_w + kernelW - 1) / up_w + 1;
-    constexpr index_t TileInH   = ((TileOutH - 1) * down_h + kernelH - 1) / up_h + 1;
+
+    // static_assert(BatchIter % 2 == 0,
+    //               "Currently BatchIter should be dividable by 2, so that we can use double
+    //               buffer");
+
+    constexpr index_t TileInW = ((TileOutW - 1) * down_w + kernelW - 1) / up_w + 1;
+    constexpr index_t TileInH = ((TileOutH - 1) * down_h + kernelH - 1) / up_h + 1;
     // WaveNum * GroupPerBlk * TileInH * TileInW
     constexpr index_t GroupPerBlockInFP4 = GroupPerBlock / ElementPerFP4;
 
     constexpr index_t WaveNum = BlockSize / warpSize;
-    __shared__ volatile float4 shmem_k[kernelH][kernelW][GroupPerBlockInFP4]; // layout : H->W->G
-    __shared__ volatile float4 shmem_x[2][WaveNum * GroupPerBlockInFP4 * TileInH * TileInW];
+    __shared__ volatile ABDataType shmem_k[kernelH * kernelW * GroupPerBlock]; // layout : H->W->G
+    __shared__ volatile ABDataType shmem_x[WaveNum * TileInH * TileInW * GroupPerBlock];
     // layout : B->H->W->G will use double buffer to go through BatchPerBlock
     // when backward data, will be gradOut, when forward, will be x
 
@@ -436,7 +441,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
         return; // out of bound
     }
 
-    const int GroupBatchNum = WholeGroupNum / GroupPerBlock;
+    const int GroupBatchNum = group_num / GroupPerBlock;
 
     // NHWGK todo use the stride
     const int outgrad_group_stride = 1;
@@ -457,112 +462,126 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
 
     int wave_id = __builtin_amdgcn_readfirstlane(tid / warpSize);
 
-    int tile_mid_w = tileOutW * down_w + up_w - 1 - pad_w;
-    int tile_mid_h = tileOutH * down_h + up_h - 1 - pad_h;
-    int tile_in_x  = tile_mid_w / up_w;
-    int tile_in_y  = tile_mid_h / up_h;
-
-    int group_id = tid % GroupPerBlockInFP4;
-    int rel_in_w = (tid / GroupPerBlockInFP4) % TileInW;
-    int rel_in_h = (tid / (GroupPerBlockInFP4 * TileInW)) % TileInH;
-
-    int in_x = rel_in_w + tile_in_x;
-    int in_y = rel_in_h + tile_in_y;
-
-    int local_batch_id = wave_id;
-    int ingrad_offset  = (group_start_id_per_blk + group_id * ElementPerFP4) * ingrad_group_stride +
-                        (batch_start_id_per_blk + local_batch_id) * ingrad_batch_stride +
-                        in_y * ingrad_row_stride + in_x * ingrad_col_stride;
-
-    int shmem_offset = wave_id * GroupPerBlockInFP4 * TileInH * TileInW +
-                       rel_in_h * TileInW * GroupPerBlockInFP4 + rel_in_w * GroupPerBlockInFP4 +
-                       group_id * ElementPerFP4;
-
-    bool is_in_bound = (in_x >= 0 && in_x < inWidth) && (in_y >= 0 && in_y < inHeight);
-
-    // static_assert(
-    //     WaveNum * GroupPerBlockInFP4 * TileInH * TileInW % BlockSize == 0,
-    //     "WaveNum * GroupPerBlockInFP4 * TileInH * TileInW must be divisible by BlockSize");
-    constexpr int InLoopNum = WaveNum * GroupPerBlockInFP4 * TileInH * TileInW;
-
-#pragma unroll
-    for(int i = tid; i < InLoopNum; i += BlockSize)
-    {
-        float4_t v_0{0.f, 0.f, 0.f, 0.f};
-        if(is_in_bound)
-        {
-            v_0 = reinterpret_cast<const float4_t*>(p_in)[ingrad_offset / ElementPerFP4];
-        }
-
-        reinterpret_cast<float4_t*>(shmem_x)[shmem_offset] = v;
-    }
+    int tile_mid_x = tileOutW * down_w + up_w - 1 - pad_w;
+    int tile_mid_y = tileOutH * down_h + up_h - 1 - pad_h;
+    int tile_in_x  = tile_mid_x / up_w;
+    int tile_in_y  = tile_mid_y / up_h;
 
     // load weight to shared memory
     // global weight layout : GKYXC; shared weight layout : Y->X->G
-    for(int i = tid; i < GroupPerBlk * kernelH * kernelW; i += BlockSize)
+    for(int i = tid; i < GroupPerBlock * kernelH * kernelW; i += BlockSize)
     {
         int local_group_id = i / (kernelH * kernelW);
         int glb_group_id   = local_group_id + group_start_id_per_blk;
         int kernel_h       = (i % (kernelH * kernelW)) / kernelW;
         int kernel_w       = i % kernelW;
 
-        shmem_k[kernel_h * kernelW * GroupPerBlk + kernel_w * GroupPerBlk + local_group_id] =
-            p_weight[glb_group_id * kernelH * kernelW + kernel_h * kernelW + kernel_w];
+        if constexpr(direction == DIRECTION_FORWARD)
+        {
+            shmem_k[kernel_h * kernelW * GroupPerBlk + kernel_w * GroupPerBlk + local_group_id] =
+                p_weight[glb_group_id * kernelH * kernelW + kernel_h * kernelW + kernel_w];
+        }
+        else
+        {
+            shmem_k[kernel_h * kernelW * GroupPerBlk + kernel_w * GroupPerBlk + local_group_id] =
+                p_weight[glb_group_id * kernelH * kernelW + (kernelH - 1 - kernel_h) * kernelW +
+                         (kernelW - 1 - kernel_w)];
+        }
     }
 
-    int ping = 0;
-    for(int i = 1; i < BatchPerBlk; i++)
-    {
-        ingrad_offset += ingrad_batch_stride / ElementPerFP4;
+    // load input to shared memory
+    constexpr int InLoopNum = WaveNum * GroupPerBlockInFP4 * TileInH * TileInW;
 
-        block_sync_lds();
 #pragma unroll
+    for(int batch_id = 0; batch_id < BatchPerBlock; batch_id += WaveNum)
+    {
         for(int i = tid; i < InLoopNum; i += BlockSize)
         {
-            float4_t v{0.f, 0.f, 0.f, 0.f};
+            int group_id          = i % GroupPerBlockInFP4;
+            int rel_in_w          = (i / GroupPerBlockInFP4) % TileInW;
+            int rel_in_h          = (i / (GroupPerBlockInFP4 * TileInW)) % TileInH;
+            int batch_id_per_wave = (i / (GroupPerBlockInFP4 * TileInW * TileInH)) % WaveNum;
+
+            int in_x = rel_in_w + tile_in_x;
+            int in_y = rel_in_h + tile_in_y;
+
+            // int local_batch_id = wave_id;
+            int ingrad_offset =
+                (group_start_id_per_blk + group_id * ElementPerFP4) * ingrad_group_stride +
+                (batch_start_id_per_blk + batch_id + batch_id_per_wave) * ingrad_batch_stride +
+                in_y * ingrad_row_stride + in_x * ingrad_col_stride;
+
+            int shmem_offset = batch_id_per_wave * GroupPerBlockInFP4 * TileInH * TileInW +
+                               rel_in_h * TileInW * GroupPerBlockInFP4 +
+                               rel_in_w * GroupPerBlockInFP4 + group_id * ElementPerFP4;
+
+            bool is_in_bound = (in_x >= 0 && in_x < inWidth) && (in_y >= 0 && in_y < inHeight);
+            float4_t v_0{0.f, 0.f, 0.f, 0.f};
             if(is_in_bound)
             {
-                v = reinterpret_cast<const float4*>(p_in)[ingrad_offset / ElementPerFP4];
+                v_0 = reinterpret_cast<const float4_t*>(p_in)[ingrad_offset / ElementPerFP4];
             }
-            reinterpret_cast<float4*>(shmem_x[1 - ping])[shmem_offset] = v;
+
+            reinterpret_cast<float4_t*>(shmem_x)[shmem_offset] = v;
         }
+
+        block_sync_lds();
+
         constexpr int OutLoopNum = WaveNum * GroupPerBlockInFP4 * TileOutW * TileOutH;
 
         for(int out_idx = tid; out_idx < OutLoopNum; out_idx += BlockSize)
         {
-            int rel_out_y = out_idx / TileOutW;
-            int rel_out_x = out_idx - rel_out_y * TileOutW;
-            int out_y     = rel_out_y + tile_out_y;
-            int out_x     = rel_out_x + tile_out_x;
+            int group_out_id = out_idx % GroupPerBlockInFP4;
+            int rel_out_x    = (out_idx / GroupPerBlockInFP4) % TileOutW;
+            int rel_out_y    = (out_idx / (GroupPerBlockInFP4 * TileOutW)) % TileOutH;
+            int batch_id_per_wave =
+                (out_idx / (GroupPerBlockInFP4 * TileOutW * TileOutH)) % WaveNum;
+
+            int out_y = rel_out_y + tile_out_y;
+            int out_x = rel_out_x + tile_out_x;
 
             int mid_x    = tile_mid_x + rel_out_x * down_x;
             int mid_y    = tile_mid_y + rel_out_y * down_y;
-            int in_x     = floor_div(mid_x, up_x);
-            int in_y     = floor_div(mid_y, up_y);
+            int in_x     = mid_x / up_x;
+            int in_y     = mid_y / up_y;
             int rel_in_x = in_x - tile_in_x;
             int rel_in_y = in_y - tile_in_y;
             int kernel_x = (in_x + 1) * up_x - mid_x - 1;
             int kernel_y = (in_y + 1) * up_y - mid_y - 1;
-            if(in_x < 0 || in_x >= inWidth || in_y < 0 || in_y >= inHeight)
-                continue;
+
+            using ABDTypeVec_t = typename vector_type<ABDataType, ElementPerFP4>::type;
+
+            ABDTypeVec_t v{};
 
 #pragma unroll
-            for(int y = 0; y < kernel_h / up_y; y++)
+            for(int y = 0; y < kernelH / up_y; y++)
 #pragma unroll
-                for(int x = 0; x < kernel_w / up_x; x++)
+                for(int x = 0; x < kernelW / up_x; x++)
                 {
-                    v += sx[rel_in_y + y][rel_in_x + x] *
-                         sk[kernel_y + y * up_y][kernel_x + x * up_x];
+                    // v += shmem_x[rel_in_y + y][rel_in_x + x] *
+                    //      shmem_k[kernel_y + y * up_y][kernel_x + x * up_x];
+                    v += reinterpret_cast<const ABDTypeVec_t*>(
+                             shmem_x)[(batch_id_per_wave * GroupPerBlockInFP4 * TileInH * TileInW) +
+                                      (rel_in_y + y) * TileInW * GroupPerBlockInFP4 +
+                                      (rel_in_x + x) * GroupPerBlockInFP4 + group_out_id] *
+                         reinterpret_cast<const ABDTypeVec_t*>(
+                             shmem_k)[(kernel_y + y * up_y) * kernelW * GroupPerBlock +
+                                      (kernel_x + x * up_x) * GroupPerBlock + group_out_id];
                 }
 
             if(out_x < p.out_w & out_y < p.out_h)
             {
-                out[((major_idx * p.out_h + out_y) * p.out_w + out_x) + minor_idx] = v;
+                // global outgrad layout : NHWGK; shared outgrad layout : H->W->G
+                int outgrad_offset =
+                    (group_start_id_per_blk + group_out_id * ElementPerFP4) * outgrad_group_stride +
+                    (batch_start_id_per_blk + batch_id_per_wave) * outgrad_batch_stride +
+                    out_y * outgrad_row_stride + out_x * outgrad_col_stride;
+
+                reinterpret_cast<float4_t*>(p_gradOut)[outgrad_offset / ElementPerFP4] = v;
             }
         }
-
-        ping = 1 - ping;
     }
+}
 } // namespace
 
 // Conv backward data multiple D:
