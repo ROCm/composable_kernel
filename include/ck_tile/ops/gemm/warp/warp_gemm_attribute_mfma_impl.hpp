@@ -1320,9 +1320,67 @@ struct WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base
     }
 };
 
+template <typename AType_, typename BType_, WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+struct WarpGemmAttributeMfmaImpl_f32_32x32x8_f8_base
+{
+    static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
+    using ADataType                     = AType_;
+    using BDataType                     = BType_;
+    using CDataType                     = float;
+
+    using AVecType = ext_vector_t<ADataType, 8>;
+    using BVecType = ext_vector_t<BDataType, 8>;
+    using CVecType = ext_vector_t<CDataType, 16>;
+
+    static constexpr index_t kM = 32;
+    static constexpr index_t kN = 32;
+    static constexpr index_t kK = 8;
+
+    static constexpr index_t kAMBlock = 1;
+    static constexpr index_t kBNBlock = 1;
+
+    static constexpr index_t kAMLane     = 32;
+    static constexpr index_t kBNLane     = 32;
+    static constexpr index_t kABKLane    = 2;
+    static constexpr index_t kABKPerLane = 4;
+
+    static constexpr index_t kCMLane     = 2;
+    static constexpr index_t kCNLane     = 32;
+    static constexpr index_t kCM0PerLane = 4;
+    static constexpr index_t kCM1PerLane = 4;
+
+    // c_vec += a_vec * b_vec
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        // print function name using printf
+        // printf("WarpGemmAttributeMfmaImpl_f32_32x32x8_f8_base\n");
+        ck_tile::ignore = c_vec;
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+    }
+
+    // c_vec = a_vec * b_vec
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+        return CVecType{0.f};
+    }
+};
+
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, fp8_t, Ctrl_>;
+
+// Aviral Created
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+using WarpGemmAttributeMfmaImpl_f32_32x32x8_fp8_fp8 =
+    WarpGemmAttributeMfmaImpl_f32_32x32x8_f8_base<fp8_t, fp8_t, Ctrl_>;
+
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_16x16x32_fp8_fp8 =
     WarpGemmAttributeMfmaImpl_f32_16x16x32_f8_base<fp8_t, fp8_t, Ctrl_>;
@@ -1341,6 +1399,10 @@ using WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_fp8 =
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<bf8_t, bf8_t, Ctrl_>;
+
+template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
+using WarpGemmAttributeMfmaImpl_f32_32x32x8_bf8_bf8 =
+    WarpGemmAttributeMfmaImpl_f32_32x32x8_f8_base<bf8_t, bf8_t, Ctrl_>;
 
 template <typename AType_, typename BType_, WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8_bf8_base
