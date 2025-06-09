@@ -409,7 +409,8 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
     using ABDataType = typename Argument::ABDataType;
     using EDataType  = typename Argument::EDataType;
 
-    constexpr index_t ElementPerFP4 = 16 / sizeof(ABDataType);
+    constexpr index_t ElementPerInFP4  = 16 / sizeof(ABDataType);
+    constexpr index_t ElementPerOutFP4 = 16 / sizeof(EDataType);
 
     constexpr index_t WaveNum = BlockSize / warpSize;
 
@@ -425,7 +426,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
     constexpr index_t TileInW = ((TileOutW - 1) * down_w + kernelW - 1) / up_w + 1;
     constexpr index_t TileInH = ((TileOutH - 1) * down_h + kernelH - 1) / up_h + 1;
     // WaveNum * GroupPerBlk * TileInH * TileInW
-    constexpr index_t GroupPerBlockInFP4 = GroupPerBlock / ElementPerFP4;
+    constexpr index_t GroupPerBlockInFP4 = GroupPerBlock / ElementPerInFP4;
 
     constexpr index_t WaveNum = BlockSize / warpSize;
     __shared__ volatile ABDataType shmem_k[kernelH * kernelW * GroupPerBlock]; // layout : H->W->G
@@ -479,13 +480,13 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
         if constexpr(direction == DIRECTION_FORWARD)
         {
             shmem_k[kernel_h * kernelW * GroupPerBlk + kernel_w * GroupPerBlk + local_group_id] =
-                p_weight[glb_group_id * kernelH * kernelW + kernel_h * kernelW + kernel_w];
+                arg.p_b_grid_[glb_group_id * kernelH * kernelW + kernel_h * kernelW + kernel_w];
         }
         else
         {
             shmem_k[kernel_h * kernelW * GroupPerBlk + kernel_w * GroupPerBlk + local_group_id] =
-                p_weight[glb_group_id * kernelH * kernelW + (kernelH - 1 - kernel_h) * kernelW +
-                         (kernelW - 1 - kernel_w)];
+                arg.p_b_grid_[glb_group_id * kernelH * kernelW +
+                              (kernelH - 1 - kernel_h) * kernelW + (kernelW - 1 - kernel_w)];
         }
     }
 
@@ -507,19 +508,20 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
 
             // int local_batch_id = wave_id;
             int ingrad_offset =
-                (group_start_id_per_blk + group_id * ElementPerFP4) * ingrad_group_stride +
+                (group_start_id_per_blk + group_id * ElementPerInFP4) * ingrad_group_stride +
                 (batch_start_id_per_blk + batch_id + batch_id_per_wave) * ingrad_batch_stride +
                 in_y * ingrad_row_stride + in_x * ingrad_col_stride;
 
             int shmem_offset = batch_id_per_wave * GroupPerBlockInFP4 * TileInH * TileInW +
                                rel_in_h * TileInW * GroupPerBlockInFP4 +
-                               rel_in_w * GroupPerBlockInFP4 + group_id * ElementPerFP4;
+                               rel_in_w * GroupPerBlockInFP4 + group_id * ElementPerInFP4;
 
             bool is_in_bound = (in_x >= 0 && in_x < inWidth) && (in_y >= 0 && in_y < inHeight);
             float4_t v_0{0.f, 0.f, 0.f, 0.f};
             if(is_in_bound)
             {
-                v_0 = reinterpret_cast<const float4_t*>(p_in)[ingrad_offset / ElementPerFP4];
+                v_0 = reinterpret_cast<const float4_t*>(
+                    arg.p_a_grid_)[ingrad_offset / ElementPerInFP4];
             }
 
             reinterpret_cast<float4_t*>(shmem_x)[shmem_offset] = v;
@@ -549,9 +551,12 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
             int kernel_x = (in_x + 1) * up_x - mid_x - 1;
             int kernel_y = (in_y + 1) * up_y - mid_y - 1;
 
-            using ABDTypeVec_t = typename vector_type<ABDataType, ElementPerFP4>::type;
+            using ABDTypeVec_t   = typename vector_type<ABDataType, ElementPerInFP4>::type;
+            using EDataTypeVec_t = typename vector_type<float, ElementPerInFP4>::type;
 
-            ABDTypeVec_t v{};
+            using ETypeDstVec_t = typename vector_type<EDataType, ElementPerInFP4>::type;
+
+            EDataTypeVec_t v{};
 
 #pragma unroll
             for(int y = 0; y < kernelH / up_y; y++)
@@ -573,11 +578,13 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(Argument& arg)
             {
                 // global outgrad layout : NHWGK; shared outgrad layout : H->W->G
                 int outgrad_offset =
-                    (group_start_id_per_blk + group_out_id * ElementPerFP4) * outgrad_group_stride +
+                    (group_start_id_per_blk + group_out_id * ElementPerInFP4) *
+                        outgrad_group_stride +
                     (batch_start_id_per_blk + batch_id_per_wave) * outgrad_batch_stride +
                     out_y * outgrad_row_stride + out_x * outgrad_col_stride;
 
-                reinterpret_cast<float4_t*>(p_gradOut)[outgrad_offset / ElementPerFP4] = v;
+                reinterpret_cast<ETypeDstVec_t*>(p_gradOut)[outgrad_offset / ElementPerFP4] =
+                    type_convert<ETypeDstVec_t>(v);
             }
         }
     }
