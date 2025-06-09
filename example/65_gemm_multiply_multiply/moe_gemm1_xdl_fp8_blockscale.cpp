@@ -37,8 +37,8 @@ using A0DataType = F8;
 using A1DataType = F32;
 using B0DataType = F8;
 using B1DataType = F32;
-// using EDataType        = F16;
-using EDataType        = BF16;
+using EDataType        = F16;
+// using EDataType        = BF16;
 using AccDataType      = F32;
 using CShuffleDataType = EDataType;
 using D2DataType       = F32;
@@ -177,10 +177,10 @@ static constexpr ck::index_t MPerBlock = 64; using DeviceOpInstance = ck::tensor
                16,   16,
                16,   16,
                4,    2,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
                4,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, true, MulRoutedWeight, int32_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, true, MulRoutedWeight, int32_t, A0DataType>;
 #endif
 // clang-format on
 
@@ -200,8 +200,8 @@ int main(int argc, char* argv[])
     // ck::index_t tokens          = 8192;
     // ck::index_t sorted_tile_num = 15;
     // ck::index_t valid_tile_num  = 13;
-    ck::index_t sorted_tile_num = 259;
-    ck::index_t valid_tile_num  = 256;
+    ck::index_t sorted_tile_num = 131;
+    ck::index_t valid_tile_num  = 128;
     ck::index_t tokens          = 4096;
 #else
     // deepseek
@@ -255,6 +255,8 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+    valid_tile_num = tokens * topk / MPerBlock;
+    sorted_tile_num = valid_tile_num + 3;
     ck::index_t sorted_size = sorted_tile_num * MPerBlock;
     ck::index_t valid_size  = valid_tile_num * MPerBlock;
     if(tokens * topk > valid_size)
@@ -339,11 +341,11 @@ int main(int argc, char* argv[])
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
         break;
     case 3:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
-        a1_t_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0.0, 1.0});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{0.5});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{0.5});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{0.5});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<B1DataType>{0.5});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.5});
         break;
     case 4:
         a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
@@ -535,6 +537,28 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
+
+#if 0
+        printf("e_t_n_device_result: \n");
+        for(int t = 0; t < 5; ++t)
+        {
+            for(int n = 0; n < 5; ++n)
+            {
+                printf("%.2f ", ck::type_convert<float>(e_t_n_device_result(t, n)));
+            }
+            printf("\n");
+        }
+
+        printf("e_t_n_host_result: \n");
+        for(int t = 0; t < 5; ++t)
+        {
+            for(int n = 0; n < 5; ++n)
+            {
+                printf("%.2f ", ck::type_convert<float>(e_t_n_host_result(t, n)));
+            }
+            printf("\n");
+        }
+#endif
         auto status =
             ck::utils::check_err(
                 e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-1)

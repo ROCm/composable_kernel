@@ -217,7 +217,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
         static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+            // __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         });
@@ -320,7 +320,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
             c_scale_thread_desc.GetElementSpaceSize());
 
         // Global prefetch A1 B1
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
+        a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
         b_blockwise_copy.Run(b_grid_desc,
                              b_grid_buf,
                              b_block_desc_n0_n1_k0_k1,
@@ -394,12 +394,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
             });
         });
 
-        // Local prefill A1
-        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I0);
-
-        // Global prefetch A2
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
-        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
         a_scale_thread_copy.Run(a_scale_grid_desc,
                                 a_scale_grid_buf,
@@ -448,7 +442,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
             c_thread_buf_per_scale_up;
 
         // Local prefetch A1
-        block_sync_lds();
+        __builtin_amdgcn_s_waitcnt(3952);
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
@@ -490,9 +484,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                                             b_thread_bufs_up(local_read_buf));
                     b_blockwise_copy_up.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
                     block_sync_lds();
-                    a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, mfma_reg_buf);
-
-                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, local_read_buf);
+                    a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -599,7 +591,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                             });
                         });
                     });
-
+                    __builtin_amdgcn_s_waitcnt(3952);
                     block_sync_lds();
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -695,8 +687,9 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                                     b_block_desc_n0_n1_k0_k1,
                                     b_block_origin_idx,
                                     b_thread_bufs_up(I1));
+            __builtin_amdgcn_s_waitcnt(3952);
             block_sync_lds();
-            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
+            a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -806,7 +799,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                     });
                 });
             });
-
+            __builtin_amdgcn_s_waitcnt(3952);
             block_sync_lds();
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
