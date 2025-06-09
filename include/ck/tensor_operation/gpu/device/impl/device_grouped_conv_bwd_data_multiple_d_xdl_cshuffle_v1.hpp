@@ -420,6 +420,8 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
                                                           const index_t group_num,
                                                           const index_t batch_num)
 {
+    ignore = batch_num;
+
     constexpr index_t ElementPerInFP4  = 16 / sizeof(ABDataType);
     constexpr index_t ElementPerOutFP4 = 16 / sizeof(EDataType);
 
@@ -560,7 +562,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
             using ABDTypeVec_t   = typename vector_type<ABDataType, ElementPerInFP4>::type;
             using EDataTypeVec_t = typename vector_type<float, ElementPerInFP4>::type;
 
-            using ETypeDstVec_t = typename vector_type<EDataType, ElementPerInFP4>::type;
+            using ETypeDstVec_t = typename vector_type<EDataType, ElementPerOutFP4>::type;
 
             EDataTypeVec_t v{};
 
@@ -571,11 +573,11 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
                 {
                     // v += shmem_x[rel_in_y + y][rel_in_x + x] *
                     //      shmem_k[kernel_y + y * up_y][kernel_x + x * up_x];
-                    v += reinterpret_cast<const ABDTypeVec_t*>(
+                    v += reinterpret_cast<ABDTypeVec_t*>(
                              shmem_x)[(batch_id_per_wave * GroupPerBlockInFP4 * TileInH * TileInW) +
                                       (rel_in_y + y) * TileInW * GroupPerBlockInFP4 +
                                       (rel_in_x + x) * GroupPerBlockInFP4 + group_out_id] *
-                         reinterpret_cast<const ABDTypeVec_t*>(
+                         reinterpret_cast<ABDTypeVec_t*>(
                              shmem_k)[(kernel_y + y * up_h) * kernelW * GroupPerBlock +
                                       (kernel_x + x * up_w) * GroupPerBlock + group_out_id];
                 }
@@ -584,12 +586,12 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
             {
                 // global outgrad layout : NHWGK; shared outgrad layout : H->W->G
                 int outgrad_offset =
-                    (group_start_id_per_blk + group_out_id * ElementPerInFP4) *
+                    (group_start_id_per_blk + group_out_id * ElementPerOutFP4) *
                         outgrad_group_stride +
                     (batch_start_id_per_blk + batch_id + batch_id_per_wave) * outgrad_batch_stride +
                     out_y * outgrad_row_stride + out_x * outgrad_col_stride;
 
-                reinterpret_cast<ETypeDstVec_t*>(p_gradIn)[outgrad_offset / ElementPerInFP4] =
+                reinterpret_cast<ETypeDstVec_t*>(p_gradIn)[outgrad_offset / ElementPerOutFP4] =
                     type_convert<ETypeDstVec_t>(v);
             }
         }
