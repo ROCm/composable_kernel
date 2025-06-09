@@ -111,35 +111,38 @@ struct TransposePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
-        // one xdl implement kSecond x kLead
-        constexpr index_t kLead   = Problem::kLeadSizePerXdl;
+        using DataType = typename Problem::DataType;
+        constexpr auto xdllevel_dstr_encoding = make_transposed_distr_encode<DataType>();
+
+        // Extract base dimensions from the traits
+        constexpr index_t kBaseLeadDim = LaneGroupTransposeTraits<DataType>::kleadDim;
+        constexpr index_t kBaseSecondDim = LaneGroupTransposeTraits<DataType>::ksecondDim;
+        
+        // Calculate block-level dimensions
+        constexpr index_t kLead = Problem::kLeadSizePerXdl;
         constexpr index_t kSecond = Problem::kSecondSizePerXdl;
-        constexpr index_t kLeadDimstr =
-            kLead / LaneGroupTransposeTraits<typename Problem::DataType>::kleadDim;
-        constexpr index_t kSecondDimstr =
-            kSecond / LaneGroupTransposeTraits<typename Problem::DataType>::ksecondDim;
-        constexpr index_t kSecondDimIterations = Problem::kIterationsInSecondDim;
-        constexpr index_t kSecondDimStrSub     = kSecondDimstr / kSecondDimIterations;
-        constexpr auto xdllevel_dstr_encoding =
-            make_transposed_distr_encode<typename Problem::DataType,
-                                         kSecondDimStrSub,
-                                         kSecondDimIterations,
-                                         kLeadDimstr,
-                                         1>();
-        constexpr index_t kLeadIterPerWarp   = Problem::kLeadXdlNumPerWarp;
+        constexpr index_t kLeadIterPerWarp = Problem::kLeadXdlNumPerWarp;
         constexpr index_t kSecondIterPerWarp = Problem::kSecondXdlNumPerWarp;
-        constexpr index_t kLeadNumWarps      = Problem::kLeadNumWarps;
-        constexpr index_t kSecondNumWarps    = Problem::kSecondNumWarps;
-        constexpr auto block_outer_dst_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<kSecondIterPerWarp, kSecondNumWarps>,
-                                             sequence<kLeadIterPerWarp, kLeadNumWarps>>,
-                                       tuple<sequence<2, 1>>,
-                                       tuple<sequence<1, 1>>,
-                                       sequence<2, 1>,
-                                       sequence<0, 0>>{};
-        constexpr auto blk_distr_encode = detail::make_embed_tile_distribution_encoding(
-            block_outer_dst_encoding, xdllevel_dstr_encoding);
+        constexpr index_t kLeadNumWarps = Problem::kLeadNumWarps;
+        constexpr index_t kSecondNumWarps = Problem::kSecondNumWarps;
+        
+        // Calculate repetitions of base pattern
+        constexpr index_t kLeadRepetitions = kLead / kBaseLeadDim;
+        constexpr index_t kSecondRepetitions = kSecond / kBaseSecondDim;
+        constexpr index_t kSecondDimIterations = Problem::kIterationsInSecondDim;
+        constexpr index_t kSecondDimStrSub = kSecondRepetitions / kSecondDimIterations;
+        
+        
+        // Create block-level outer distribution
+        constexpr auto block_outer_dst_encoding = 
+                tile_distribution_encoding<sequence<>, 
+                                           tuple<sequence<kSecondIterPerWarp, kSecondNumWarps, kSecondDimStrSub, kSecondDimIterations>,
+                                                    sequence<kLeadIterPerWarp, kLeadNumWarps, kLeadRepetitions, 1>>,
+                                                    tuple<sequence<2, 1, 1, 2>>,
+                                                    tuple<sequence<1, 1, 2, 2>>,
+                                                    sequence<2, 1, 2, 1>,
+                                                    sequence<0, 0, 3, 3>>{};
+        constexpr auto blk_distr_encode = detail::make_embed_tile_distribution_encoding(block_outer_dst_encoding, xdllevel_dstr_encoding);
         constexpr auto block_dstr = make_static_tile_distribution(blk_distr_encode);
         return block_dstr;
     }

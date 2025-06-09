@@ -41,152 +41,171 @@ constexpr bool is_sequence_suffix_v = is_sequence_suffix<Suffix, Sequence>::valu
 
 } // namespace util
 
-template <typename T, typename = void>
-struct valid_lanegroup_tile_dstr_encode_for_transpose;
-
-template <typename T>
-struct valid_lanegroup_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) == 2>>
+// Default policy: Retains original 2D transpose behavior
+template <typename DataType>
+struct DefaultTranspose
 {
-    using TileDistrEncode = tile_distribution_encoding<sequence<>,
-                                                       tuple<sequence<4>, sequence<4, 4>>,
-                                                       tuple<sequence<1, 2>>,
-                                                       tuple<sequence<0, 0>>,
-                                                       sequence<2>,
-                                                       sequence<1>>;
+    struct Quad16
+    {
+        using InputEncoding = tile_distribution_encoding<sequence<>,
+                                                         tuple<sequence<4>, sequence<4, 4>>,
+                                                         tuple<sequence<1, 2>>,
+                                                         tuple<sequence<0, 0>>,
+                                                         sequence<2>,
+                                                         sequence<1>>;
 
-    using TransposedTileDistrEncode = tile_distribution_encoding<sequence<>,
-                                                                 tuple<sequence<16>, sequence<4>>,
-                                                                 tuple<sequence<1>>,
-                                                                 tuple<sequence<0>>,
-                                                                 sequence<2>,
-                                                                 sequence<0>>;
+        using OutputEncoding = tile_distribution_encoding<sequence<>,
+                                                          tuple<sequence<16>, sequence<4>>,
+                                                          tuple<sequence<1>>,
+                                                          tuple<sequence<0>>,
+                                                          sequence<2>,
+                                                          sequence<0>>;
+    };
+
+    struct Quad8
+    {
+        using InputEncoding = tile_distribution_encoding<sequence<>,
+                                                         tuple<sequence<8>, sequence<2, 8>>,
+                                                         tuple<sequence<1, 2>>,
+                                                         tuple<sequence<0, 0>>,
+                                                         sequence<2>,
+                                                         sequence<1>>;
+
+        using OutputEncoding = tile_distribution_encoding<sequence<>,
+                                                          tuple<sequence<16>, sequence<8>>,
+                                                          tuple<sequence<1>>,
+                                                          tuple<sequence<0>>,
+                                                          sequence<2>,
+                                                          sequence<0>>;
+    };
+
+    // Select based on data size
+    using QuadInputEncoding = std::conditional_t<sizeof(DataType) == 2,
+                                                 typename Quad16::InputEncoding,
+                                                 typename Quad8::InputEncoding>;
+
+    using QuadOutputEncoding = std::conditional_t<sizeof(DataType) == 2,
+                                                  typename Quad16::OutputEncoding,
+                                                  typename Quad8::OutputEncoding>;
+
+    // Always swap last two dimensions
+    static constexpr auto transpose_dims = sequence<1, 0>{};
+
+    // Programmable: Element grouping function
+    static constexpr auto group_func = [](auto idx) {
+        return idx; // Identity mapping
+    };
+
+    template <typename InDstrEncode>
+    struct ValidationTraits
+    {
+        static constexpr auto input_hs_lengthss = InDstrEncode::hs_lengthss_;
+        static constexpr auto quad_hs_lengthss  = QuadInputEncoding::hs_lengthss_;
+        // 1. Must be 2D tensor
+        static constexpr bool dims_valid = (InDstrEncode::NDimX == 2);
+        // 2. Quad pattern must be suffix of input pattern
+        static constexpr bool suffix_valid_dim0 =
+            util::is_sequence_suffix_v<decltype(quad_hs_lengthss.template get<0>()),
+                                       decltype(input_hs_lengthss.template get<0>())>;
+        static constexpr bool suffix_valid_dim1 =
+            util::is_sequence_suffix_v<decltype(quad_hs_lengthss.template get<1>()),
+                                       decltype(input_hs_lengthss.template get<1>())>;
+
+        // 3. PS→RHS mapping constraints
+        static constexpr auto input_ps_to_rhss_major = InDstrEncode::ps_to_rhss_major_;
+        static constexpr auto input_ps_to_rhss_minor = InDstrEncode::ps_to_rhss_minor_;
+
+        static constexpr index_t ndimp_outer = input_ps_to_rhss_major.size() - 1;
+        static constexpr index_t ndimp_inner =
+            input_ps_to_rhss_major[number<ndimp_outer>{}].size() - 1;
+
+        static constexpr bool ps_mapping_valid =
+            (input_ps_to_rhss_major[number<ndimp_outer>{}][number<ndimp_inner>{}] == 2) &&
+            (input_ps_to_rhss_minor[number<ndimp_outer>{}][number<ndimp_inner>{}] ==
+             input_hs_lengthss[number<1>{}].size() - 2) &&
+            (input_ps_to_rhss_major[number<ndimp_outer>{}][number<ndimp_inner - 1>{}] == 1) &&
+            (input_ps_to_rhss_minor[number<ndimp_outer>{}][number<ndimp_inner - 1>{}] ==
+             input_hs_lengthss[number<0>{}].size() - 1);
+
+        // 4. YS→RHS mapping constraints
+        static constexpr auto input_ys_to_rhs_major = InDstrEncode::ys_to_rhs_major_;
+        static constexpr auto input_ys_to_rhs_minor = InDstrEncode::ys_to_rhs_minor_;
+
+        static constexpr bool ys_mapping_valid =
+            (input_ys_to_rhs_major.back() == 2) &&
+            (input_ys_to_rhs_minor.back() == input_hs_lengthss[number<1>{}].size() - 1) &&
+            (input_ys_to_rhs_major[input_ys_to_rhs_major.size() - 2] == 1) &&
+            (input_ys_to_rhs_minor[input_ys_to_rhs_minor.size() - 2] ==
+             input_hs_lengthss[number<0>{}].size() - 2);
+
+        static constexpr bool value = dims_valid && suffix_valid_dim0 && suffix_valid_dim1 &&
+                                      ps_mapping_valid && ys_mapping_valid;
+    };
 };
-
-template <typename T>
-struct valid_lanegroup_tile_dstr_encode_for_transpose<T, std::enable_if_t<sizeof(T) == 1>>
-{
-    using TileDistrEncode = tile_distribution_encoding<sequence<>,
-                                                       tuple<sequence<8>, sequence<2, 8>>,
-                                                       tuple<sequence<1, 2>>,
-                                                       tuple<sequence<0, 0>>,
-                                                       sequence<2>,
-                                                       sequence<1>>;
-
-    using TransposedTileDistrEncode = tile_distribution_encoding<sequence<>,
-                                                                 tuple<sequence<16>, sequence<8>>,
-                                                                 tuple<sequence<1>>,
-                                                                 tuple<sequence<0>>,
-                                                                 sequence<2>,
-                                                                 sequence<0>>;
-};
-
-template <typename TileDistribution_, typename DataType_>
+template <typename TileDistribution_, typename DataType_, typename Policy>
 struct TransposeTileDistrChecker
 {
     using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
 
-    static constexpr auto input_hs_lengthss = InDstrEncode::hs_lengthss_;
+    using Validator = typename Policy::template ValidationTraits<InDstrEncode>;
 
-    using ValidQuadDstrEncode =
-        typename valid_lanegroup_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
+    static constexpr bool distr_encoding_valid = Validator::value;
+};
 
-    static constexpr auto quad_hs_lengthss = ValidQuadDstrEncode::hs_lengthss_;
+template <typename TileDistribution_,
+          typename DataType_,
+          typename Policy = DefaultTranspose<DataType_>>
+struct OutputTileDistributionTraits
+{
+    using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
+    static constexpr auto input_hs_lengthss       = InDstrEncode::hs_lengthss_;
+    static constexpr auto quad_input_hs_lengthss  = Policy::QuadInputEncoding::hs_lengthss_;
+    static constexpr auto quad_output_hs_lengthss = Policy::QuadOutputEncoding::hs_lengthss_;
 
     static constexpr auto input_ps_to_rhss_major = InDstrEncode::ps_to_rhss_major_;
     static constexpr auto input_ps_to_rhss_minor = InDstrEncode::ps_to_rhss_minor_;
     static constexpr auto input_ys_to_rhs_major  = InDstrEncode::ys_to_rhs_major_;
     static constexpr auto input_ys_to_rhs_minor  = InDstrEncode::ys_to_rhs_minor_;
 
-    // only support 2D transpose
-    static constexpr bool hs_lengthss_size_valid =
-        (InDstrEncode::NDimX == ValidQuadDstrEncode::NDimX);
+    static constexpr auto quad_ps_to_rhss_major = Policy::QuadInputEncoding::ps_to_rhss_major_;
+    static constexpr auto quad_ps_to_rhss_minor = Policy::QuadInputEncoding::ps_to_rhss_minor_;
 
-    static constexpr bool hs_lengthss_size_dim_valid = (InDstrEncode::NDimX == 2);
-
-    // each element of quad_hs_lengthss is suffix of input_hs_lengthss
-    template <index_t I = 0>
-    struct check_hs_lengthss_suffixes
-    {
-        static constexpr bool value =
-            util::is_sequence_suffix_v<decltype(quad_hs_lengthss.template get<I>()),
-                                       decltype(input_hs_lengthss.template get<I>())> &&
-            check_hs_lengthss_suffixes<I + 1>::value;
-    };
-
-    template <>
-    struct check_hs_lengthss_suffixes<input_hs_lengthss.size()>
-    {
-        static constexpr bool value = true;
-    };
-
-    static constexpr bool all_hs_lengthss_are_suffixes = check_hs_lengthss_suffixes<>::value;
-
-    static constexpr index_t ndimp_outer_size = input_ps_to_rhss_major.size();
-
-    static constexpr index_t ndimp_inner_size =
-        input_ps_to_rhss_major[number<ndimp_outer_size - 1>{}].size();
-
-    // make sure ps_to_rhss_major[ndimp-1] == 2
-    // make sure ps_to_rhss_minor[ndimp-1] == input_hs_lengthss[1].size - 2;
-    static constexpr bool ps_to_rhss_index0_valid =
-        (input_ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] == 2) &&
-        (input_ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 1] ==
-         input_hs_lengthss[number<1>{}].size() - 2);
-
-    // make sure ps_to_rhss_major[ndimp-2] == 1
-    // make sure ps_to_rhss_minor[ndimp-2] == input_hs_lengthss[0].size - 1;
-    static constexpr bool ps_to_rhss_index1_valid =
-        (input_ps_to_rhss_major[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] == 1) &&
-        (input_ps_to_rhss_minor[number<ndimp_outer_size - 1>{}][ndimp_inner_size - 2] ==
-         input_hs_lengthss[number<0>{}].size() - 1);
-
-    static constexpr index_t ndimy_size = input_ys_to_rhs_major.size();
-    static constexpr bool ys_to_rhs_major_valid =
-        ((input_ys_to_rhs_major[ndimy_size - 1] == 2) &&
-         (input_ys_to_rhs_minor[ndimy_size - 1] == input_hs_lengthss[number<1>{}].size() - 1)) &&
-        ((input_ys_to_rhs_major[ndimy_size - 2] == 1) &&
-         (input_ys_to_rhs_minor[ndimy_size - 2] == input_hs_lengthss[number<0>{}].size() - 2));
-
-    static constexpr bool distr_encoding_valid =
-        hs_lengthss_size_valid && hs_lengthss_size_dim_valid && all_hs_lengthss_are_suffixes &&
-        ps_to_rhss_index0_valid && ps_to_rhss_index1_valid && ys_to_rhs_major_valid;
-};
-
-template <typename TileDistribution_, typename DataType_>
-struct OutputTileDistributionTraits
-{
-    using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
-    static constexpr auto input_hs_lengthss = InDstrEncode::hs_lengthss_;
-    using ValidQuadDstrEncode =
-        typename valid_lanegroup_tile_dstr_encode_for_transpose<DataType_>::TileDistrEncode;
-    using ValidOutQuadDstrEncode = typename valid_lanegroup_tile_dstr_encode_for_transpose<
-        DataType_>::TransposedTileDistrEncode;
-
-    static constexpr auto quad_input_hs_lengthss  = ValidQuadDstrEncode::hs_lengthss_;
-    static constexpr auto quad_output_hs_lengthss = ValidOutQuadDstrEncode::hs_lengthss_;
-    static constexpr auto input_ps_to_rhss_major  = InDstrEncode::ps_to_rhss_major_;
-    static constexpr auto input_ps_to_rhss_minor  = InDstrEncode::ps_to_rhss_minor_;
-    static constexpr auto input_ys_to_rhs_major   = InDstrEncode::ys_to_rhs_major_;
-    static constexpr auto input_ys_to_rhs_minor   = InDstrEncode::ys_to_rhs_minor_;
-
-    static constexpr auto quad_ps_to_rhss_major = ValidQuadDstrEncode::ps_to_rhss_major_;
-    static constexpr auto quad_ps_to_rhss_minor = ValidQuadDstrEncode::ps_to_rhss_minor_;
+    static constexpr index_t dim0 = Policy::transpose_dims[0];
+    static constexpr index_t dim1 = Policy::transpose_dims[1];
 
     // for transpose load
-    static constexpr auto reversed_quad_output_hs_lengthss = tuple_reverse(quad_output_hs_lengthss);
+    static constexpr auto quad_output_dim0 = quad_output_hs_lengthss.get(number<0>{});
+    static constexpr auto quad_output_dim1 = quad_output_hs_lengthss.get(number<1>{});
 
     static constexpr auto full_out_hs_lengthss = generate_tuple(
         [](auto i) {
-            return input_hs_lengthss[i]
-                .extract(typename arithmetic_sequence_gen<0,
-                                                          input_hs_lengthss[i].size() -
-                                                              quad_input_hs_lengthss[i].size(),
-                                                          1>::type{})
-                .push_back(reversed_quad_output_hs_lengthss[i]);
+            if constexpr(i == dim0)
+            {
+                return input_hs_lengthss[i]
+                    .extract(typename arithmetic_sequence_gen<0,
+                                                              input_hs_lengthss[i].size() -
+                                                                  quad_input_hs_lengthss[i].size(),
+                                                              1>::type{})
+                    .push_back(quad_output_dim1); // Swapped!
+            }
+            else if constexpr(i == dim1)
+            {
+                return input_hs_lengthss[i]
+                    .extract(typename arithmetic_sequence_gen<0,
+                                                              input_hs_lengthss[i].size() -
+                                                                  quad_input_hs_lengthss[i].size(),
+                                                              1>::type{})
+                    .push_back(quad_output_dim0); // Swapped!
+            }
+            else
+            {
+                // Untouched dimensions
+                return input_hs_lengthss[i];
+            }
         },
         number<InDstrEncode::NDimX>{});
 
-    static constexpr auto dst_out_hs_lengthss = tuple_reverse(full_out_hs_lengthss);
+    static constexpr auto dst_out_hs_lengthss = full_out_hs_lengthss;
 
     static constexpr auto modified_ps_to_rhss_major = generate_tuple(
         [](auto i) {
@@ -210,7 +229,7 @@ struct OutputTileDistributionTraits
         full_out_hs_lengthss[number<InDstrEncode::NDimX - 1>{}].size() - 1;
     static constexpr auto major_last_index = full_out_hs_lengthss[number<0>{}].size() - 1;
 
-    static constexpr auto dst_ps_to_rhss_minor = generate_tuple(
+    static constexpr auto modified_ps_to_rhss_minor = generate_tuple(
         [](auto i) {
             if constexpr(i == input_ps_to_rhss_minor.size() - 1)
             {
@@ -244,6 +263,15 @@ struct OutputTileDistributionTraits
         },
         number<modified_ps_to_rhss_major.size()>{});
 
+    static constexpr auto dst_ps_to_rhss_minor = generate_tuple(
+        [](auto i) {
+            constexpr auto seq = modified_ps_to_rhss_minor[i];
+            return generate_sequence_v2(
+                [&](auto j) { return number<swap_one_and_two<seq[j]>::value>{}; },
+                number<seq.size()>{});
+        },
+        number<modified_ps_to_rhss_minor.size()>{});
+
     static constexpr auto modified_input_ys_to_rhs_major =
         input_ys_to_rhs_major.pop_back().push_back(number<1>{});
 
@@ -262,13 +290,16 @@ struct OutputTileDistributionTraits
                                                      remove_cvref_t<decltype(dst_ys_to_rhs_minor)>>;
 };
 
-template <typename BottomTensorView_,
-          typename WindowLengths_,
-          typename TileDistribution_,
-          index_t NumCoord,
-          typename = std::enable_if_t<TransposeTileDistrChecker<
-              TileDistribution_,
-              typename BottomTensorView_::DataType>::distr_encoding_valid>>
+template <
+    typename BottomTensorView_,
+    typename WindowLengths_,
+    typename TileDistribution_,
+    index_t NumCoord,
+    typename Policy = DefaultTranspose<typename BottomTensorView_::DataType>,
+    typename        = std::enable_if_t<TransposeTileDistrChecker<TileDistribution_,
+                                                          typename BottomTensorView_::DataType,
+                                                          Policy>::distr_encoding_valid,
+                                Policy>>
 CK_TILE_DEVICE auto
 load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_,
                                                                WindowLengths_,
@@ -280,7 +311,7 @@ load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_
                                               typename BottomTensorView_::DataType>::OutDstrEncode;
     auto out_tensor = make_static_distributed_tensor<typename BottomTensorView_::DataType>(
         make_static_tile_distribution(OutTileDstrEncode{}));
-    auto trans_tensor           = tile_window.load_transpose();
+    auto trans_tensor           = tile_window.template load_transpose<Policy>();
     constexpr auto input_distr  = TileDistribution_{};
     constexpr auto output_distr = make_static_tile_distribution(OutTileDstrEncode{});
 

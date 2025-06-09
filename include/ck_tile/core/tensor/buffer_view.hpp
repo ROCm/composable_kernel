@@ -145,9 +145,9 @@ struct buffer_view<address_space_enum::generic,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
     CK_TILE_DEVICE constexpr auto transpose_get(index_t i,
-                                               index_t linear_offset,
-                                               bool is_valid_element,
-                                               bool_constant<oob_conditional_check> = {}) const
+                                                index_t linear_offset,
+                                                bool is_valid_element,
+                                                bool_constant<oob_conditional_check> = {}) const
     {
         static_assert(false, "Error: transpose load not supported in global memory space.");
         ignore = i;
@@ -393,9 +393,9 @@ struct buffer_view<address_space_enum::global,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
     CK_TILE_DEVICE constexpr auto transpose_get(index_t i,
-                                               index_t linear_offset,
-                                               bool is_valid_element,
-                                               bool_constant<oob_conditional_check> = {}) const
+                                                index_t linear_offset,
+                                                bool is_valid_element,
+                                                bool_constant<oob_conditional_check> = {}) const
     {
         static_assert(false, "Error: transpose load not supported in global memory space.");
         ignore = i;
@@ -403,7 +403,6 @@ struct buffer_view<address_space_enum::global,
         ignore = is_valid_element;
         return;
     }
-
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
@@ -934,7 +933,7 @@ struct buffer_view<address_space_enum::lds,
             }
         }
     }
-    
+
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,

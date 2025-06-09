@@ -609,22 +609,31 @@ struct tile_window_with_static_distribution
         });
     }
 
+    template <typename Policy, index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE auto load_transpose() const
     {
         constexpr auto tile_dstr = TileDstr{};
         auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
-        load_transpose(dst_tensor);
+        this->template load_transpose<Policy>(
+            dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
         return dst_tensor;
     }
 
-    template <typename DistributedTensor>
-    CK_TILE_DEVICE auto load_transpose(DistributedTensor& dst_tensor) const
+    template <typename Policy,
+              typename DistributedTensor,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true>
+    CK_TILE_DEVICE auto load_transpose(DistributedTensor& dst_tensor,
+                                       number<i_access_unsupport_>          = {},
+                                       bool_constant<oob_conditional_check> = {}) const
     {
         using Traits   = load_store_traits;
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
         constexpr auto tile_dstr = TileDstr{};
+
+        constexpr auto group_func = Policy::group_func;
 
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -644,17 +653,19 @@ struct tile_window_with_static_distribution
                         bottom_tensor_thread_coord, 0);
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
-                    constexpr auto idx_ys = generate_tuple(
+                    constexpr auto orig_idx_ys = generate_tuple(
                         [&](auto jj) {
                             return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
                                                             : idx_ys_start[jj];
                         },
                         number<NDimY>{});
 
-                    constexpr index_t d =
-                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                    constexpr auto grouped_idx_ys = group_func(orig_idx_ys);
 
-                    dst_tensor.get_thread_buffer().template at<d>() =
+                    constexpr index_t linear_distributed_index =
+                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(grouped_idx_ys);
+
+                    dst_tensor.get_thread_buffer().template at<linear_distributed_index>() =
                         vec_value.template get_as<DataType>()[j];
                 });
                 // move thread coordinate
@@ -680,7 +691,6 @@ struct tile_window_with_static_distribution
     {
         using Traits = load_store_traits;
 
-        // using vector_type_t = typename Traits::vector_type_t;
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
