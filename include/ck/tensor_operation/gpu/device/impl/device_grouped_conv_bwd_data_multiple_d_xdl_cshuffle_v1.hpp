@@ -486,14 +486,14 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
         {
             shmem_k[kernel_h * kernelW * GroupPerBlock + kernel_w * GroupPerBlock +
                     local_group_id] =
-                arg.p_b_grid_[glb_group_id * kernelH * kernelW + kernel_h * kernelW + kernel_w];
+                p_weight[glb_group_id * kernelH * kernelW + kernel_h * kernelW + kernel_w];
         }
         else
         {
             shmem_k[kernel_h * kernelW * GroupPerBlock + kernel_w * GroupPerBlock +
                     local_group_id] =
-                arg.p_b_grid_[glb_group_id * kernelH * kernelW +
-                              (kernelH - 1 - kernel_h) * kernelW + (kernelW - 1 - kernel_w)];
+                p_weight[glb_group_id * kernelH * kernelW + (kernelH - 1 - kernel_h) * kernelW +
+                         (kernelW - 1 - kernel_w)];
         }
     }
 
@@ -527,8 +527,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
             float4_t v{0.f, 0.f, 0.f, 0.f};
             if(is_in_bound)
             {
-                v = reinterpret_cast<const float4_t*>(
-                    arg.p_a_grid_)[ingrad_offset / ElementPerInFP4];
+                v = reinterpret_cast<const float4_t*>(p_gradOut)[ingrad_offset / ElementPerInFP4];
             }
 
             reinterpret_cast<float4_t*>(shmem_x)[shmem_offset] = v;
@@ -546,17 +545,17 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
             int batch_id_per_wave =
                 (out_idx / (GroupPerBlockInFP4 * TileOutW * TileOutH)) % WaveNum;
 
-            int out_y = rel_out_y + tile_out_y;
-            int out_x = rel_out_x + tile_out_x;
+            int out_y = rel_out_y + output_tile_h;
+            int out_x = rel_out_x + output_tile_w;
 
-            int mid_x    = tile_mid_x + rel_out_x * down_x;
-            int mid_y    = tile_mid_y + rel_out_y * down_y;
-            int in_x     = mid_x / up_x;
-            int in_y     = mid_y / up_y;
+            int mid_x    = tile_mid_x + rel_out_x * down_w;
+            int mid_y    = tile_mid_y + rel_out_y * down_h;
+            int in_x     = mid_x / up_w;
+            int in_y     = mid_y / up_h;
             int rel_in_x = in_x - tile_in_x;
             int rel_in_y = in_y - tile_in_y;
-            int kernel_x = (in_x + 1) * up_x - mid_x - 1;
-            int kernel_y = (in_y + 1) * up_y - mid_y - 1;
+            int kernel_x = (in_x + 1) * up_w - mid_x - 1;
+            int kernel_y = (in_y + 1) * up_h - mid_y - 1;
 
             using ABDTypeVec_t   = typename vector_type<ABDataType, ElementPerInFP4>::type;
             using EDataTypeVec_t = typename vector_type<float, ElementPerInFP4>::type;
@@ -566,9 +565,9 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
             EDataTypeVec_t v{};
 
 #pragma unroll
-            for(int y = 0; y < kernelH / up_y; y++)
+            for(int y = 0; y < kernelH / up_h; y++)
 #pragma unroll
-                for(int x = 0; x < kernelW / up_x; x++)
+                for(int x = 0; x < kernelW / up_w; x++)
                 {
                     // v += shmem_x[rel_in_y + y][rel_in_x + x] *
                     //      shmem_k[kernel_y + y * up_y][kernel_x + x * up_x];
@@ -577,8 +576,8 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
                                       (rel_in_y + y) * TileInW * GroupPerBlockInFP4 +
                                       (rel_in_x + x) * GroupPerBlockInFP4 + group_out_id] *
                          reinterpret_cast<const ABDTypeVec_t*>(
-                             shmem_k)[(kernel_y + y * up_y) * kernelW * GroupPerBlock +
-                                      (kernel_x + x * up_x) * GroupPerBlock + group_out_id];
+                             shmem_k)[(kernel_y + y * up_h) * kernelW * GroupPerBlock +
+                                      (kernel_x + x * up_w) * GroupPerBlock + group_out_id];
                 }
 
             if(out_x < p.out_w & out_y < p.out_h)
