@@ -122,6 +122,7 @@ PIPELINE_ENUM_MAP = {
     "qr_async" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
     "qr_nwarp_sshuffle" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
     "qs" : "ck_tile::BlockFmhaPipelineEnum::QSKSVS",
+    "qr_pagedkv" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
 }
 
 BOOL_MAP = {

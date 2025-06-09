@@ -393,7 +393,8 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
             }
             else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
             {
-                const auto k_origin    = k_dram_block_window.get_window_origin();
+                const auto k_origin = k_page_block_navigator.to_global_window_origin(
+                    i_page_block_k, k_dram_block_window.get_window_origin());
                 constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
                 s_acc                  = tile_elementwise_in(s_acc_element_func, s_acc);
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {

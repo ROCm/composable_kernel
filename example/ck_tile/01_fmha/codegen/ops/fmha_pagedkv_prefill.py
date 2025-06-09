@@ -30,7 +30,7 @@ K0_MAX_SUBMAX_MAP = {
 }
 
 FMHA_FWD_PAGEDKV_PIPELINE_MAP = {
-    "qr" : "ck_tile::BlockFmhaFwdPagedKVPipelineQRKSVS"
+    "qr_pagedkv" : "ck_tile::BlockFmhaFwdPagedKVPipelineQRKSVS"
 }
 
 FMHA_FWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
@@ -177,7 +177,7 @@ class FmhaFwdApiTrait:
         if self.pipeline_tag == 'qr_async':
             if self.spad == 't' : return 'true' # always support
             else :                return 'true'
-        elif self.pipeline_tag in ['qr', 'qs']:
+        elif self.pipeline_tag in ['qr_pagedkv', 'qs']:
             if self.spad == 't' : return f'true /*a.seqlen_q % {self.bm0} != 0*/'  # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.seqlen_q % {self.bm0} == 0'
         else: assert False
@@ -188,7 +188,7 @@ class FmhaFwdApiTrait:
         if self.pipeline_tag == 'qr_async':
             if self.skpad == 't' : return f'a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0'
             else :                 return f'a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0'
-        elif self.pipeline_tag in ['qr', 'qs']:
+        elif self.pipeline_tag in ['qr_pagedkv', 'qs']:
             if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.seqlen_k % {self.bn0} == 0'
         else: assert False
@@ -199,7 +199,7 @@ class FmhaFwdApiTrait:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
             else :               assert False
-        elif self.pipeline_tag in ['qr', 'qs']:
+        elif self.pipeline_tag in ['qr_pagedkv', 'qs']:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == 't': return f'true /*a.hdim_q % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :               return f'a.hdim_q % {bk0submax} == 0'
@@ -211,7 +211,7 @@ class FmhaFwdApiTrait:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dvpad == 't': return f'a.hdim_v % {vec} == 0'
             else :                assert False
-        elif self.pipeline_tag in ['qr', 'qs']:
+        elif self.pipeline_tag in ['qr_pagedkv', 'qs']:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == 't': return f'true /*a.hdim_v % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.hdim_v % {bk0submax} == 0'
@@ -460,16 +460,16 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
     def get_pipelines(dtype, hdim) -> List[FmhaFwdPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
-        # TODO: currently for qr pipeline, let 't' padding to appear later!!
+        # TODO: currently for qr_pagedkv pipeline, let 't' padding to appear later!!
         # TODO: how to design this more generic?
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            for logits, mask, bias,  pagedkv, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(),  ["t"], ["t", "f"]):
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
-                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
-                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))  
+            for logits, mask, bias,  pagedkv, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(),  ["t", "f"], ["t", "f"]):
+                pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'col', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'col', 't', 't', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'row', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'row', 't', 't', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
         elif dtype in ['fp8', 'bf8']:
             # TODO
             None
