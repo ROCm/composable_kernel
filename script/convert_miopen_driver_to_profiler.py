@@ -102,8 +102,7 @@ def add_conv_params_to_cmd(args, cmd):
         print('Not supported spatial dim (supported: 1, 2, 3)')
         exit(1)
 
-
-def run_ck_grouped_conv_fwd(args):
+def get_ck_grouped_conv_fwd_cmd(args):
     args.ck_profier_op = "grouped_conv_fwd"
     parse_data_type(args)
     parse_layouts(args)
@@ -119,15 +118,18 @@ def run_ck_grouped_conv_fwd(args):
     cmd += [str(args.in_channels)]
     add_conv_params_to_cmd(args, cmd)
 
+    return cmd
+
+def run_ck_grouped_conv_fwd(args):
+    cmd = get_ck_grouped_conv_fwd_cmd(args)
     run_ck_profiler_cmd(cmd)
 
-
-def run_ck_grouped_conv_bwd_data(args):
+def get_ck_grouped_conv_bwd_data_cmd(args):
     args.ck_profier_op = "grouped_conv_bwd_data"
     parse_data_type(args)
     parse_layouts(args)
-    # Test all split K value from the list {1, 2, 4, 8, 32, 64, 128}
-    args.split_k_value = -1
+    # Test all split K value from the list {-1, 1, 2, 4, 8, 32, 64, 128}
+    args.split_k_value = "all"
 
     cmd = [str(args.ck_profiler_cmd), str(args.ck_profier_op)]
     cmd += [str(args.data_type), str(args.layout)]
@@ -139,15 +141,19 @@ def run_ck_grouped_conv_bwd_data(args):
     add_conv_params_to_cmd(args, cmd)
 
     cmd += [str(args.split_k_value)]
+
+    return cmd
+
+def run_ck_grouped_conv_bwd_data(args):
+    cmd = get_ck_grouped_conv_bwd_data_cmd(args)
     run_ck_profiler_cmd(cmd)
 
-
-def run_ck_grouped_conv_bwd_weight(args):
+def get_ck_grouped_conv_bwd_weight_cmd(args):
     args.ck_profier_op = "grouped_conv_bwd_weight"
     parse_data_type(args)
     parse_layouts(args)
-    # Test all split K value from the list {1, 2, 4, 8, 32, 64, 128}
-    args.split_k_value = -1
+    # Test all split K value from the list {-1, 1, 2, 4, 8, 32, 64, 128}
+    args.split_k_value = "all"
 
     cmd = [str(args.ck_profiler_cmd), str(args.ck_profier_op)]
     cmd += [str(args.data_type), str(args.layout)]
@@ -159,6 +165,11 @@ def run_ck_grouped_conv_bwd_weight(args):
     add_conv_params_to_cmd(args, cmd)
 
     cmd += [str(args.split_k_value)]
+
+    return cmd
+
+def run_ck_grouped_conv_bwd_weight(args):
+    cmd = get_ck_grouped_conv_bwd_weight_cmd(args)
     run_ck_profiler_cmd(cmd)
 
 # Get name of miopen driver, remove it from unknown
@@ -194,8 +205,7 @@ def run_ck_profiler(args):
     if args.forw == 0 or args.forw == 4 or args.forw == 5 or args.forw == 6:
         run_ck_grouped_conv_bwd_weight(args)
 
-
-if __name__ == "__main__":
+def get_parser():
     parser = argparse.ArgumentParser(
         prog="converter",
         description="Convert miopen driver command to ck Profiler"
@@ -206,7 +216,7 @@ if __name__ == "__main__":
                     "32 -F 1 -t 1",
     )
     parser.add_argument(
-        "-in_layout",
+        "--in_layout",
         "-I",
         default="NCHW",
         type=str,
@@ -404,6 +414,11 @@ if __name__ == "__main__":
         required=False,
         help="Number of Groups (Default=1)"
     )
+
+    return parser
+
+if __name__ == "__main__":
+    parser = get_parser()
 
     args, unknown = parser.parse_known_args()
     init_const_args(args)
