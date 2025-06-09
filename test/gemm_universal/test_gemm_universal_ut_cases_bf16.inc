@@ -207,3 +207,35 @@ TYPED_TEST(TestGemmUniversal_BF16_MK_NK, Regular)
     for(int M : Ms)
         this->Run(M, N, K, StrideA, StrideB, StrideC);
 }
+
+TYPED_TEST(TestGemmUniversal_BF16_KM_KN, Regular)
+{
+    std::vector<int> Ms{512};
+    constexpr int N = 512;
+    constexpr int K = 512;
+
+    constexpr int StrideB = N;
+    constexpr int StrideC = N;
+
+    for(int M : Ms)
+    {
+        int StrideA = M;
+        this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
+}
+
+TYPED_TEST(TestGemmUniversal_BF16_KM_NK, Regular)
+{
+    std::vector<int> Ms{512};
+    constexpr int N = 512;
+    constexpr int K = 512;
+
+    constexpr int StrideB = N;
+    constexpr int StrideC = N;
+
+    for(int M : Ms)
+    {
+        int StrideA = M;
+        this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
+}

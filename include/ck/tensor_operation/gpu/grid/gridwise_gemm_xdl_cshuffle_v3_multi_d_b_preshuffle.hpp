@@ -173,15 +173,25 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
           lcm_AK1_BK1 < 32))
             ? true
             : false;
-    static constexpr auto is_scale_mfma    = false;
-    static constexpr auto mfma             = MfmaSelector<ComputeTypeA,
+    static constexpr auto is_scale_mfma = false;
+    static constexpr auto mfma          = MfmaSelector<ComputeTypeA,
                                               MPerXdl,
                                               NPerXdl,
                                               ComputeTypeA,
                                               is_single_rate_mfma,
                                               is_scale_mfma>{};
-    static constexpr index_t KPack         = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
-    static constexpr index_t KGroup        = mfma.selected_mfma.k_per_blk == 32 ? 2 : 1;
+    static constexpr index_t KPack      = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
+    static constexpr index_t KGroup     = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, f8_t>)
+            // On gfx950, we have a mfma that required 32 f8 elements as input,
+            // splited into 2 groups of 16 f8 elements.
+            // the 2 groups is not contiguous in the B preshuffed layout.
+            // and we do not want it to be contiguous in the B preshuffled layout
+            // because a memory instruction can only read 16 f8 elements at a time.
+            return mfma.selected_mfma.k_per_blk == 32 ? 2 : 1;
+        else
+            return 1;
+    }();
     static constexpr index_t KLane         = mfma.GetKPerXdlops() / mfma.GetK1PerXdlops();
     static constexpr index_t KPackPerGroup = KPack / KGroup;
     static constexpr index_t KRepeat       = KPerBlock / KLane / KPackPerGroup;

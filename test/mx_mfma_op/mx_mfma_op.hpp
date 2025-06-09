@@ -74,7 +74,11 @@ struct mfma_scale_type_selector<16, 16>
                                AccumFragT& fragAcc)
     {
         auto op = mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>{};
-        op.template run<16, 16>(fragA, scale_a[Number<0>{}], fragB, scale_b[Number<0>{}], fragAcc);
+        op.template run<16, 16, 0, 0>(fragA,
+                                      ck::utils::get_exponent_value(scale_a[Number<0>{}]),
+                                      fragB,
+                                      ck::utils::get_exponent_value(scale_b[Number<0>{}]),
+                                      fragAcc);
     }
 };
 
@@ -93,7 +97,11 @@ struct mfma_scale_type_selector<32, 32>
                                AccumFragT& fragAcc)
     {
         auto op = mfma_type<MfmaInstr::mfma_scale_f32_32x32x64f8f6f4>{};
-        op.template run<32, 32>(fragA, scale_a[Number<0>{}], fragB, scale_b[Number<0>{}], fragAcc);
+        op.template run<32, 32, 0, 0>(fragA,
+                                      ck::utils::get_exponent_value(scale_a[Number<0>{}]),
+                                      fragB,
+                                      ck::utils::get_exponent_value(scale_b[Number<0>{}]),
+                                      fragAcc);
     }
 };
 
@@ -921,14 +929,12 @@ template <typename AType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-__global__ void matmul(const typename packed_type<AType>::type* a,
-                       const typename packed_type<BType>::type* b,
-                       CType* c)
+__global__ void matmul(const packed_type_t<AType>* a, const packed_type_t<BType>* b, CType* c)
 {
-    using PackedAType            = typename packed_type<AType>::type;
-    constexpr auto packed_size_a = packed_type<AType>::packed_size;
-    using PackedBType            = typename packed_type<BType>::type;
-    constexpr auto packed_size_b = packed_type<BType>::packed_size;
+    using PackedAType            = packed_type_t<AType>;
+    constexpr auto packed_size_a = packed_size_v<PackedAType>;
+    using PackedBType            = packed_type_t<BType>;
+    constexpr auto packed_size_b = packed_size_v<PackedBType>;
 
     constexpr int WAVE_SIZE = 64;
     assert(threadIdx.x < WAVE_SIZE);
@@ -1005,9 +1011,9 @@ __global__ void matmul(const packed_type_t<AType>* a,
                        CType* c)
 {
     using PackedAType            = packed_type_t<AType>;
-    constexpr auto packed_size_a = packed_size_v<AType>;
+    constexpr auto packed_size_a = packed_size_v<PackedAType>;
     using PackedBType            = packed_type_t<BType>;
-    constexpr auto packed_size_b = packed_size_v<BType>;
+    constexpr auto packed_size_b = packed_size_v<PackedBType>;
 
     constexpr int WAVE_SIZE = 64;
     assert(threadIdx.x < WAVE_SIZE);
@@ -1181,10 +1187,10 @@ template <typename DeviceMFMA,
           index_t BLOCK_X>
 struct TestMXMFMA
 {
-    using PackedAType                   = typename packed_type<ADataType>::type;
-    static constexpr auto packed_size_a = packed_type<ADataType>::packed_size;
-    using PackedBType                   = typename packed_type<BDataType>::type;
-    static constexpr auto packed_size_b = packed_type<BDataType>::packed_size;
+    using PackedAType                   = packed_type_t<ADataType>;
+    static constexpr auto packed_size_a = packed_size_v<PackedAType>;
+    using PackedBType                   = packed_type_t<BDataType>;
+    static constexpr auto packed_size_b = packed_size_v<PackedBType>;
 
     auto PrepareGemmTensors(const GemmParams& params, index_t init)
     {
@@ -1384,11 +1390,10 @@ template <typename DeviceMFMA,
           index_t BLOCK_K>
 struct TestMFMA
 {
-
-    using PackedAType                   = typename packed_type<ADataType>::type;
-    static constexpr auto packed_size_a = packed_type<ADataType>::packed_size;
-    using PackedBType                   = typename packed_type<BDataType>::type;
-    static constexpr auto packed_size_b = packed_type<BDataType>::packed_size;
+    using PackedAType                   = packed_type_t<ADataType>;
+    static constexpr auto packed_size_a = packed_size_v<PackedAType>;
+    using PackedBType                   = packed_type_t<BDataType>;
+    static constexpr auto packed_size_b = packed_size_v<PackedBType>;
 
     auto PrepareGemmTensors(const GemmParams& params, index_t init)
     {

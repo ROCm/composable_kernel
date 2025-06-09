@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -242,6 +242,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
 
     struct ComputePtrOffsetOfStridedBatch
     {
+        ComputePtrOffsetOfStridedBatch() = default;
         ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
                                        index_t BatchStrideB,
                                        std::array<ck::index_t, NumDTensor> BatchStrideDs,
@@ -282,7 +283,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         private:
         index_t BatchStrideA_;
         index_t BatchStrideB_;
-        const std::array<ck::index_t, NumDTensor> BatchStrideDs_;
+        std::array<ck::index_t, NumDTensor> BatchStrideDs_;
         index_t BatchStrideC_;
     };
 
@@ -291,6 +292,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         index_t Batch;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
 
+        Argument() = default;
         Argument(const ADataType* p_a_grid_,
                  const BDataType* p_b_grid_,
                  std::array<const void*, NumDTensor> p_ds_grid_,
@@ -413,19 +415,39 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                 }
                 else
                 {
-                    if(arg.KBatch > 1)
-                        hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                                         0,
-                                                         arg.M * arg.N * sizeof(CDataType),
-                                                         stream_config.stream_id_));
+                    const auto clear_workspace = [&]() {
+                        if(arg.KBatch > 1)
+                            hipGetErrorString(
+                                hipMemsetAsync(arg.p_c_grid,
+                                               0,
+                                               arg.Batch * arg.M * arg.N * sizeof(CDataType),
+                                               stream_config.stream_id_));
+                    };
 
-                    ave_time = launch_and_time_kernel(
-                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    ave_time = launch_and_time_kernel_with_preprocess(stream_config,
+                                                                      clear_workspace,
+                                                                      kernel,
+                                                                      dim3(gdx, gdy, gdz),
+                                                                      dim3(BlockSize),
+                                                                      0,
+                                                                      arg);
                 }
             };
 
-            constexpr index_t minimum_occupancy =
-                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
+            constexpr index_t minimum_occupancy = []() {
+                if constexpr(BlkGemmPipeSched == BlockGemmPipelineScheduler::Interwave)
+                {
+                    return 2;
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    return (MPerBlock * NPerBlock / BlockSize <= 128) ? 2 : 1;
+                }
+                else
+                {
+                    return 1;
+                }
+            }();
 
             if(has_main_k_block_loop)
             {

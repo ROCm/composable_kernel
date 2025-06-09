@@ -43,8 +43,8 @@ struct f4x2_pk_t
 
     using type = uint8_t;
     type data;
-    __host__ __device__ f4x2_pk_t() : data{type{}} {}
-    __host__ __device__ f4x2_pk_t(type init) : data{init} {}
+    __host__ __device__ constexpr f4x2_pk_t() : data{type{}} {}
+    __host__ __device__ constexpr f4x2_pk_t(const type init) : data{init} {}
 
     template <index_t I>
     __host__ __device__ inline type unpack(Number<I>) const
@@ -164,6 +164,17 @@ inline constexpr bool is_native_type()
            is_same<T, uint32_t>::value || is_same<T, int8_t>::value || is_same<T, uint8_t>::value ||
            is_same<T, f8_fnuz_t>::value || is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value;
 }
+
+template <typename T>
+struct is_f8f6f4
+{
+    static constexpr bool value =
+        is_same_v<T, f8_t> || is_same_v<T, bf8_t> || is_same_v<T, f6_t> || is_same_v<T, bf6_t> ||
+        is_same_v<T, f6x16_pk_t> || is_same_v<T, f6x32_pk_t> || is_same_v<T, bf6x16_pk_t> ||
+        is_same_v<T, bf6x32_pk_t> || is_same_v<T, f4_t> || is_same_v<T, f4x2_pk_t>;
+};
+template <typename T>
+inline constexpr bool is_f8f6f4_v = is_f8f6f4<T>::value;
 
 // scalar_type
 template <typename TV>
@@ -303,105 +314,87 @@ struct scalar_type<bool>
     static constexpr index_t vector_size = 1;
 };
 
-// Default behavior for types that do not need special handling
 template <typename T>
-struct packed_type
-{
-    using type                           = T;
-    static constexpr index_t packed_size = 1; // number of packed elements
-};
-
-template <>
-struct packed_type<int4_t>
-{
-    using type                           = pk_i4_t;
-    static constexpr index_t packed_size = 2; // number of packed elements
-};
-
-template <>
-struct packed_type<f4_t>
-{
-    using type                           = f4x2_pk_t;
-    static constexpr index_t packed_size = 2; // number of packed elements
-};
-
-template <>
-struct packed_type<f6_t>
-{
-    using type                           = f6x32_pk_t;
-    static constexpr index_t packed_size = f6x32_pk_t::packed_size; // number of packed elements
-};
-
-template <>
-struct packed_type<bf6_t>
-{
-    using type                           = bf6x32_pk_t;
-    static constexpr index_t packed_size = bf6x32_pk_t::packed_size; // number of packed elements
-};
-
-template <typename T>
-using packed_type_t = typename packed_type<T>::type;
-
-// Check if the type has packed type specialization
-template <typename T>
-inline constexpr bool has_packed_type_v = !is_same_v<packed_type_t<T>, T>;
-
-template <typename T>
-struct element_type
+struct packed_type_info
 {
     private:
-    static constexpr auto get_element_type()
+    static constexpr auto get_packed_type_info()
     {
         using U = remove_cvref_t<T>;
         if constexpr(is_same_v<U, pk_i4_t>)
-            return int4_t{};
+            return ck::Tuple<ck::Number<2>, int4_t>{};
         else if constexpr(is_same_v<U, f4x2_pk_t>)
-            return f4_t{};
+            return ck::Tuple<ck::Number<2>, f4_t>{};
         else if constexpr(is_same_v<U, f6x16_pk_t>)
-            return f6_t{};
+            return ck::Tuple<ck::Number<16>, f6_t>{};
         else if constexpr(is_same_v<U, bf6x16_pk_t>)
-            return bf6_t{};
+            return ck::Tuple<ck::Number<16>, bf6_t>{};
         else if constexpr(is_same_v<U, f6x32_pk_t>)
-            return f6_t{};
+            return ck::Tuple<ck::Number<32>, f6_t>{};
         else if constexpr(is_same_v<U, bf6x32_pk_t>)
-            return bf6_t{};
+            return ck::Tuple<ck::Number<32>, bf6_t>{};
+        else
+            return ck::Tuple<ck::Number<1>, T>{};
+    }
+
+    public:
+    using element_type = remove_cvref_t<decltype(get_packed_type_info().At(ck::Number<1>{}))>;
+    static constexpr auto packed_size =
+        static_cast<index_t>(get_packed_type_info().At(ck::Number<0>{}));
+};
+template <typename T>
+using element_type_t = typename packed_type_info<T>::element_type;
+
+template <typename T>
+inline constexpr index_t packed_size_v = packed_type_info<T>::packed_size;
+
+template <typename T>
+inline constexpr bool is_packed_type_v = packed_size_v<T> > 1;
+
+template <typename T, index_t N = 0>
+struct packed_type_maker
+{
+    private:
+    static constexpr auto get_packed_type()
+    {
+        using U = remove_cvref_t<T>;
+        if constexpr(is_same_v<U, int4_t>)
+        {
+            static_assert(N == 0 || N == 2, "Packed size N for int4_t must be 2.");
+            return pk_i4_t{};
+        }
+        else if constexpr(is_same_v<U, f4_t>)
+        {
+            static_assert(N == 0 || N == 2, "Packed size N for f4_t must be 2.");
+            return f4x2_pk_t{};
+        }
+        else if constexpr(is_same_v<U, f6_t>)
+        {
+            static_assert(N == 0 || N == 16 || N == 32, "Packed size N for f6_t must be 16 or 32.");
+            if constexpr(N == 16)
+                return f6x16_pk_t{};
+            else if constexpr(N == 0 || N == 32)
+                return f6x32_pk_t{};
+        }
+        else if constexpr(is_same_v<U, bf6_t>)
+        {
+            static_assert(N == 0 || N == 16 || N == 32,
+                          "Packed size N for bf6_t must be 16 or 32.");
+            if constexpr(N == 16)
+                return bf6x16_pk_t{};
+            else if constexpr(N == 0 || N == 32)
+                return bf6x32_pk_t{};
+        }
         else
             return T{};
     }
 
     public:
-    using type = decltype(get_element_type());
-};
-template <typename T>
-using element_type_t = typename element_type<T>::type;
-
-template <typename T>
-inline constexpr bool is_packed_type_v =
-    has_packed_type_v<element_type_t<T>>&& is_same_v<T, packed_type_t<element_type_t<T>>>;
-
-template <typename T>
-struct packed_size
-{
-    private:
-    static constexpr auto get_packed_size()
-    {
-        using U = remove_cvref_t<T>;
-        if constexpr(is_packed_type_v<U>)
-            return Number<packed_type<element_type_t<U>>::packed_size>{};
-        else
-            return Number<packed_type<U>::packed_size>{};
-    }
-
-    public:
-    using type                  = decltype(get_packed_size());
-    static constexpr auto value = get_packed_size();
+    using packed_type = remove_cvref_t<decltype(get_packed_type())>;
 };
 
-template <typename T>
-using packed_size_t = typename packed_size<T>::type;
-
-template <typename T>
-inline constexpr index_t packed_size_v = packed_size<T>::value;
+template <typename T, index_t N = 0>
+using packed_type_t = typename packed_type_maker<T, N>::packed_type;
 
 #if defined(_WIN32)
 using int64_t = long long;
