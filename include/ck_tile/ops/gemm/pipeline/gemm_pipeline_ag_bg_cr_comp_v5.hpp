@@ -24,6 +24,12 @@ struct BaseGemmPipelineAgBgCrCompV5
     {
         return TailNumber::Empty;
     }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func, bool, TailNumber)
+    {
+        return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Empty>{});
+    }
 };
 
 template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV4DefaultPolicy>
@@ -71,6 +77,15 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
     static constexpr index_t NumWarps  = BlockGemmShape::NumWarps;
     static constexpr index_t KTileSize = BlockGemmShape::WarpTile::at(I2{});
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AgBgCrCompV5", BlockSize,
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
+    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
@@ -139,23 +154,27 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             auto a_offset = (warp_id == 0) ? make_array(0, 0) : make_array(0, KPerBlock);
             auto b_offset = (warp_id == 0) ? make_array(0, 0) : make_array(0, KPerBlock);
 
-            auto&& [a_lds_block, b_lds_block] =
+            auto tensor_views =
                 Base::GetABLdsTensorViews(static_cast<void*>(static_cast<char*>(p_smem_0)));
+            auto& a_lds_block = tensor_views.get(number<0>{});
+            auto& b_lds_block = tensor_views.get(number<1>{});
 
             constexpr auto a_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
             constexpr auto b_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
 
-            auto&& [a_copy_dram_window, a_copy_lds_window, a_lds_window] =
-                Base::GetAWindowsWithOffset(
-                    a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr, a_offset);
-            auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_window] =
-                Base::GetBWindowsWithOffset(
-                    b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr, b_offset);
+            auto a_windows = Base::GetAWindows(
+                a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr, a_offset);
+            auto& a_copy_dram_window = a_windows.get(number<0>{});
+            auto& a_copy_lds_window  = a_windows.get(number<1>{});
+            auto& a_lds_window       = a_windows.get(number<2>{});
 
-            a_copy_dram_window += a_offset;
-            b_copy_dram_window += b_offset;
+            auto b_windows = Base::GetBWindows(
+                b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr, b_offset);
+            auto& b_copy_dram_window = b_windows.get(number<0>{});
+            auto& b_copy_lds_window  = b_windows.get(number<1>{});
+            auto& b_lds_window       = b_windows.get(number<2>{});
 
             // DRAM window steps.
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
@@ -178,10 +197,12 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             BGemmTile b_tile_0, b_tile_1;
 
             // Register tile for A and B.
-            constexpr auto ABlockTileDistr = a_copy_dram_window.get_tile_distribution();
-            constexpr auto BBlockTileDistr = b_copy_dram_window.get_tile_distribution();
-            using ABlockTile = decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr));
-            using BBlockTile = decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr));
+            using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
+            using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
+            using ABlockTile =
+                decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
+            using BBlockTile =
+                decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
             ABlockTile a_global_load_tile;
             BBlockTile b_global_load_tile;
 
