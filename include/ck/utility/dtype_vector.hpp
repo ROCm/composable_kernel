@@ -1449,18 +1449,14 @@ struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T)
     using data_v = element_t __attribute__((ext_vector_type(N * size_factor)));
     using type   = non_native_vector_base<T, N>;
 
-    union alignas(next_pow2(N * sizeof(T))) data_store
+    union alignas(next_pow2(N * sizeof(T)))
     {
         data_v dN; // storage vector;
         StaticallyIndexedArray<data_t, N> dxN;
         StaticallyIndexedArray<T, N> dTxN;
         StaticallyIndexedArray<data_v, 1> dNx1;
-
-        __host__ __device__ data_store(StaticallyIndexedArray<data_t, N> v) : dxN{v} {}
-        __host__ __device__ data_store(data_v v) : dN{v} {}
     } data_;
 
-#if 0
     // Broadcast single value to vector
     __host__ __device__ constexpr non_native_vector_base(data_t a) : data_{}
     {
@@ -1468,25 +1464,7 @@ struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T)
             data_.dxN(i) = a; // broadcast value to all elements
         });
     }
-#else
 
-    template <std::size_t... Indices>
-    auto createTupleWithNElements(data_t a, std::index_sequence<Indices...>)
-    {
-        return make_statically_indexed_array((static_cast<void>(Indices), a)...);
-    }
-
-    auto createTupleWithNElements(data_t a)
-    {
-        return createTupleWithNElements(a, std::make_index_sequence<N>{});
-    }
-
-    // Broadcast single value to vector
-    __host__ __device__ constexpr non_native_vector_base(data_t a)
-        : data_{createTupleWithNElements(a)}
-    {
-    }
-#endif
     __host__ __device__ constexpr non_native_vector_base(T f)
         : non_native_vector_base(bit_cast<data_t>(f))
     {
@@ -2214,17 +2192,17 @@ using bf8x32_t = bf8x32_ocp_t;
 using bf8x64_t = bf8x64_ocp_t;
 #elif CK_FP8_TYPE_FNUZ
 // f8
-using f8x2_t = f8x2_fnuz_t;
-using f8x4_t = f8x4_fnuz_t;
-using f8x8_t = f8x8_fnuz_t;
+using f8x2_t  = f8x2_fnuz_t;
+using f8x4_t  = f8x4_fnuz_t;
+using f8x8_t  = f8x8_fnuz_t;
 using f8x16_t = f8x16_fnuz_t;
 using f8x32_t = f8x32_fnuz_t;
 using f8x64_t = f8x64_fnuz_t;
 
 // bf8
-using bf8x2_t = bf8x2_fnuz_t;
-using bf8x4_t = bf8x4_fnuz_t;
-using bf8x8_t = bf8x8_fnuz_t;
+using bf8x2_t  = bf8x2_fnuz_t;
+using bf8x4_t  = bf8x4_fnuz_t;
+using bf8x8_t  = bf8x8_fnuz_t;
 using bf8x16_t = bf8x16_fnuz_t;
 using bf8x32_t = bf8x32_fnuz_t;
 using bf8x64_t = bf8x64_fnuz_t;

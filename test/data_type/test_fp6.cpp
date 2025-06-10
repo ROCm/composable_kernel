@@ -316,6 +316,7 @@ __global__ void test_f6_convert_rne(float* p_test, uint64_t* p_completed)
     float32_out    = type_convert<ck::float32_t>(f6x32_vec);
 
 #if 0
+    auto f6x32_vec_cnstr = f6x32_pk_t(0x08);
     for(int ii = 0; ii < 6; ++ii)
     {
         printf("data[%d] = 0x%08x ", ii, f6x32_vec.data_.dN[ii]);
@@ -348,12 +349,28 @@ TEST(MXFP6, DeviceF6ConvertRNE)
     device_out.FromDevice(out.data());
 
     EXPECT_EQ(N, completed);
-
-    auto f6x32_vec = ck::type_convert<f6x32_pk_t>(ck::float32_t(1.0f));
-    EXPECT_EQ(f6x32_vec, f6x32_pk_t(0x08));
-
     ck::static_for<0, N, 1>{}(
         [&](auto ii) { EXPECT_EQ(out[static_cast<int>(ii)], 1.0f) << "ii: " << ii << std::endl; });
+
+    auto f6x32_vec_tc    = ck::type_convert<f6x32_pk_t>(ck::float32_t(1.0f));
+    auto f6x32_vec_cnstr = f6x32_pk_t(0x08);
+#if 0
+    printf("f6x32_vec_tc = 0x");
+    for(int ii = 0; ii < 6; ++ii)
+    {
+        printf("%08x ", f6x32_vec_tc.data.data_[ii]);
+    }
+    printf("\n");
+
+    printf("f6x32_vec_cnstr = 0x");
+    for(int ii = 0; ii < 6; ++ii)
+    {
+        printf("%08x ", f6x32_vec_cnstr.data.data_[ii]);
+    }
+    printf("\n");
+#endif
+
+    EXPECT_EQ(f6x32_vec_tc, f6x32_vec_cnstr);
 }
 
 // test vector of 2 f6x16_pk_t, contains 32 f6_t

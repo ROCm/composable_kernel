@@ -1737,46 +1737,6 @@ inline __host__ __device__ f6_t f6_convert_rne(float x, float scale = 1.0f)
  * @param scale A scaling factor for each float before conversion.
  * @return An f6x32_t object storing the compressed 6-bit representation.
  */
-inline __host__ __device__ f6x32_pk_t f6_convert_rne(float32_t x, float scale = 1.0f)
-{
-#if defined(__gfx950__)
-    float16_t* in1 = reinterpret_cast<float16_t*>(&x);
-    float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
-    return __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(*in1, *in2, scale);
-#else
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } in{x};
-
-    using array_type = int8_t __attribute__((ext_vector_type(32)));
-    array_type f6_array[32];
-
-    ck::static_for<0, 32, 1>{}(
-        [&](auto i) { f6_array[i] = utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale); });
-
-    // printf("f6_convert_rne %d = 0x", static_cast<int>(i));
-    // for(int ii = 0; ii < 6; ++ii)
-    // {
-    //     printf("%08x ", out.f6_vector.data_.dN[ii]);
-    // }
-    // printf("\n");
-
-    return f6x32_pk_t(f6_array);
-#endif
-}
-
-/**
- * @brief Converts a 32-element single-precision float array into a packed 6-bit representation.
- *
- * This function divides each input float by the provided scale value, then performs conversion with
- * rounding to nearest / even to pack each element into 6 bits of precision.
- *
- * @param x     A vector of 32 floats stored in float32_t.
- * @param scale A scaling factor for each float before conversion.
- * @return An f6x32_t object storing the compressed 6-bit representation.
- */
 inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0f)
 {
 #if defined(__gfx950__)
@@ -1790,24 +1750,33 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
         float float_array[32];
     } in{x};
 
-    union
-    {
-        f6x32_t f6_vector;
-        f6_t f6_array[32];
-    } out{};
+    using array_type = uint8_t __attribute__((ext_vector_type(32)));
+    array_type uint8_array;
 
+    // collect the 6-bit values into an array
     ck::static_for<0, 32, 1>{}([&](auto i) {
-        out.f6_array[i] = utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale);
-
-        printf("f6_convert_rne %d = 0x", static_cast<int>(i));
-        for(int ii = 0; ii < 6; ++ii)
-        {
-            printf("%08x ", out.f6_vector.data_.dN[ii]);
-        }
-        printf("\n");
+        uint8_array[static_cast<index_t>(i)] =
+            utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale);
     });
 
-    return out.f6_vector;
+#if 0
+    f6x32_pk_t out{uint8_array}; // pack the 6-bit values into a packed type
+#if !defined(__HIP_DEVICE_COMPILE__)
+    printf("host f6_convert_rne = 0x");
+#else
+    printf("device f6_convert_rne = 0x");
+#endif
+
+    for(int ii = 0; ii < 6; ++ii)
+    {
+        printf("%08x ", out.data.data_[ii]);
+    }
+    printf("\n");
+
+    return f6x32_t{out};
+#else
+    return f6x32_t{f6x32_pk_t{uint8_array}};
+#endif
 #endif
 }
 
@@ -1943,7 +1912,24 @@ inline __host__ __device__ f6x32_t type_convert<f6x32_t, float32_t>(float32_t x)
 template <>
 inline __host__ __device__ f6x32_pk_t type_convert<f6x32_pk_t, float32_t>(float32_t x)
 {
+#if 0
+    auto tmp = type_convert<f6x32_t>(x);
+#if !defined(__HIP_DEVICE_COMPILE__)
+    printf("type_convert<f6x32_pk_t, float32_t> tmp = 0x");
+#else
+    printf("type_convert<f6x32_pk_t, float32_t> tmp = 0x");
+#endif
+
+    for(int ii = 0; ii < 6; ++ii)
+    {
+        printf("%08x ", tmp.data_.dN[ii]);
+    }
+    printf("\n");
+
+    return static_cast<f6x32_pk_t>(tmp);
+#else
     return static_cast<f6x32_pk_t>(type_convert<f6x32_t>(x));
+#endif
 }
 
 template <>
