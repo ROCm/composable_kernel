@@ -13,7 +13,8 @@ void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_i
     std::vector<std::unique_ptr<
         DeviceGemmV2BPreshuffle<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances)
-{
+{   
+    printf("*******************Adding f8_f8_bf16 Row instances************************\n");
     add_device_operation_instances(
         instances, device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_instances<GemmDefault>{});
         
