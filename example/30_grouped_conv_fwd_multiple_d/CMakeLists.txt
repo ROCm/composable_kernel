@@ -21,3 +21,6 @@ endif() # USE_BITINT_EXTENSION_INT4
 
 add_example_executable(example_grouped_conv_fwd_bias_relu_add_wmma_fp16 grouped_conv_fwd_bias_relu_add_wmma_fp16.cpp)
 add_example_executable(example_grouped_conv_fwd_bias_relu_add_wmma_int8 grouped_conv_fwd_bias_relu_add_wmma_int8.cpp)
+
+add_example_executable(example_grouped_conv_fwd_dl_fp16 grouped_conv_fwd_dl_fp16.cpp)
+target_compile_options(example_grouped_conv_fwd_dl_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)

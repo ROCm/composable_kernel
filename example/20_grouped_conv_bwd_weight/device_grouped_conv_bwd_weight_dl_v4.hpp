@@ -4,7 +4,7 @@
 #include "ck/utility/common_header.hpp"
 
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+//#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
 #define ENABLE_PIPELINE_V2 1
@@ -1057,9 +1057,9 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
     static_assert(FilterSize * FilterSize < 64);
     static_assert(RequirePadding == false);
     static_assert(NBatch % DstScalarPerVector == 0);
-    static_assert(is_same_v<InElementwiseOperation, element_wise::PassThrough>);
-    static_assert(is_same_v<WeiElementwiseOperation, element_wise::PassThrough>);
-    static_assert(is_same_v<OutElementwiseOperation, element_wise::PassThrough>);
+    //static_assert(is_same_v<InElementwiseOperation, element_wise::PassThrough>);
+    //static_assert(is_same_v<WeiElementwiseOperation, element_wise::PassThrough>);
+    //static_assert(is_same_v<OutElementwiseOperation, element_wise::PassThrough>);
 
     using GridwiseConvBwdWeight = GridwiseGroupedConv2DBwdWeightDlV4<BlockSize,
                                                                      InDataType,

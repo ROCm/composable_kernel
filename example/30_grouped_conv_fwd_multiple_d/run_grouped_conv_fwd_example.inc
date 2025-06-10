@@ -1,54 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-template <ck::index_t NDimSpatial>
-using DeviceConvFwdInstance =
-    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
-        NDimSpatial,
-        InputLayout<NDimSpatial>,
-        WeightLayout<NDimSpatial>,
-        ck::Tuple<>,
-        OutputLayout<NDimSpatial>,
-        InKernelDataType,
-        WeiKernelDataType,
-        AccDataType,
-        CShuffleDataType,
-        ck::Tuple<>,
-        OutKernelDataType,
-        InElementOp,
-        WeiElementOp,
-        OutElementOp,
-        ConvSpec,    // ConvForwardSpecialization
-        GemmSpec,    // GemmSpecialization
-        1,           //
-        256,         // BlockSize
-        128,         // MPerBlock
-        256,         // NPerBlock
-        16,          // KPerBlock
-        4,           // AK1
-        4,           // BK1
-        32,          // MPerXdl
-        32,          // NPerXdl
-        2,           // MXdlPerWave
-        4,           // NXdlPerWave
-        S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
-        S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
-        2,           // ABlockTransferSrcVectorDim
-        4,           // ABlockTransferSrcScalarPerVector
-        4,           // ABlockTransferDstScalarPerVector_AK1
-        1,           // ABlockLdsExtraM
-        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
-        S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
-        S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
-        2,           // BBlockTransferSrcVectorDim
-        4,           // BBlockTransferSrcScalarPerVector
-        4,           // BBlockTransferDstScalarPerVector_BK1
-        1,           // BBlockLdsExtraN
-        1,
-        1,
-        S<1, 16, 1, 16>,
-        4>;
 
 template <ck::index_t NDimSpatial>
 using HostConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
@@ -65,9 +17,21 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
 {
     static_assert(1 <= NDimSpatial && NDimSpatial <= 3, "Unsupported NDimSpatial");
 
-    const auto in_g_n_c_wis_desc  = make_input_descriptor(conv_param);
-    const auto wei_g_k_c_xs_desc  = make_weight_descriptor(conv_param);
-    const auto out_g_n_k_wos_desc = make_output_descriptor(conv_param);
+    const auto in_g_n_c_wis_desc =
+        ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<
+            InputLayout<NDimSpatial>>(conv_param);
+
+    const auto wei_g_k_c_xs_desc =
+        ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<
+            WeightLayout<NDimSpatial>>(conv_param);
+
+    const auto out_g_n_k_wos_desc =
+        ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<
+            OutputLayout<NDimSpatial>>(conv_param);
+
+    //const auto in_g_n_c_wis_desc  = make_input_descriptor(conv_param);
+    //const auto wei_g_k_c_xs_desc  = make_weight_descriptor(conv_param);
+    //const auto out_g_n_k_wos_desc = make_output_descriptor(conv_param);
 
     Tensor<InUserDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiUserDataType> wei(wei_g_k_c_xs_desc);
@@ -214,9 +178,9 @@ bool run_grouped_conv_fwd_example(int argc, char* argv[])
 
     switch(conv_param.num_dim_spatial_)
     {
-    case 1: return run_grouped_conv_fwd<1>(config, conv_param);
+    //case 1: return run_grouped_conv_fwd<1>(config, conv_param);
     case 2: return run_grouped_conv_fwd<2>(config, conv_param);
-    case 3: return run_grouped_conv_fwd<3>(config, conv_param);
+    //case 3: return run_grouped_conv_fwd<3>(config, conv_param);
     }
 
     return false;

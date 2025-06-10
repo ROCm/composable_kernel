@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
-
+#include "device_grouped_conv_fwd_dl_v4.hpp"
 #include "common.hpp"
 
 // kernel data types
@@ -18,6 +18,7 @@ using OutUserDataType = OutKernelDataType;
 using InElementOp  = PassThrough;
 using WeiElementOp = PassThrough;
 using OutElementOp = PassThrough;
+
 
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
