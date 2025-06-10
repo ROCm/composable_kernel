@@ -134,9 +134,21 @@ struct CShuffleEpilogue
     }();
     static constexpr index_t NumMXdlPerWavePerShuffle = std::get<0>(shuffle_tile_tuple);
     static constexpr index_t NumNXdlPerWavePerShuffle = std::get<1>(shuffle_tile_tuple);
-    static constexpr index_t MPerIterationShuffle     = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
-    static constexpr index_t NPerIterationShuffle     = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
+    static constexpr index_t MPerIterationShuffle     = [] {
+        constexpr index_t val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
+        if constexpr(kMPerBlock % val != 0)
+            return MPerXdl * MWave;
+        else
+            return val;
+    }();
 
+    static constexpr index_t NPerIterationShuffle = [] {
+        constexpr index_t val = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
+        if constexpr(kNPerBlock % val != 0)
+            return NPerXdl * NWave;
+        else
+            return val;
+    }();
     using WG = WarpGemmMfmaDispatcher<ADataType,
                                       BTypeToUse,
                                       AccDataType,
