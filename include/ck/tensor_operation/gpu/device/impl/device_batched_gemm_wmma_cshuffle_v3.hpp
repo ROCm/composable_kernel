@@ -36,7 +36,6 @@ __global__ void
                 karg, // This works for now but it actually receives a
                       // DeviceBatchedGemm_Wmma_CShuffleV3::Argument
                       // argument through implicit conversion to base class!
-            const index_t batch,
             const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
@@ -53,14 +52,6 @@ __global__ void
         // functions not directly using the Z dimension for other calculations. As it turns out, k
         // batching does rely directly on blockIdx.Z through SplitKBatchOffset. Therefore, for now
         // we will use the grid Y dimension for batching. This may be a bit fragile.
-
-        // const index_t num_blocks_per_batch =
-        //     amd_wave_read_first_lane((gridDim.x * gridDim.y * gridDim.z) / batch);
-        // const index_t g_idx = amd_wave_read_first_lane(
-        //     (blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y) /
-        //     num_blocks_per_batch);
-
-        (void)batch;
         const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
 
         const long_index_t a_batch_offset =
@@ -468,30 +459,33 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                         dim3(BlockSize),
                         0,
                         arg_,
-                        arg_.Batch,
                         arg_.compute_ptr_offset_of_batch);
                 }
                 else
                 {
-                    if(arg.KBatch > 1)
-                        // Note: we multiply by batch since we want to clear the C matrix for
-                        // the whole batch. Untested since we don't have k batching ATM.
-                        // Note: This seems incorrect for non-contiguous memory layouts for C
-                        // (padding, gaps).
-                        HIP_CHECK_ERROR(
-                            hipMemsetAsync(arg.p_c_grid,
-                                           0,
-                                           arg.Batch * arg.M * arg.N * sizeof(CDataType),
-                                           stream_config.stream_id_));
+                    auto clear_workspace = [&]() {
+                        // clear c mem
+                        if(arg.KBatch > 1)
+                            // Note: we multiply by batch since we want to clear the C matrix for
+                            // the whole batch. Untested since we don't have k batching ATM.
+                            // Note: This seems incorrect for non-contiguous memory layouts for C
+                            // (padding, gaps).
+                            HIP_CHECK_ERROR(
+                                hipMemsetAsync(arg.p_c_grid,
+                                               0,
+                                               arg.Batch * arg.M * arg.N * sizeof(CDataType),
+                                               stream_config.stream_id_));
+                    };
 
-                    ave_time = launch_and_time_kernel(stream_config,
-                                                      kernel,
-                                                      dim3(gdx, gdy, gdz),
-                                                      dim3(BlockSize),
-                                                      0,
-                                                      arg,
-                                                      arg.Batch,
-                                                      arg.compute_ptr_offset_of_batch);
+                    ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
+                        stream_config,
+                        clear_workspace,
+                        kernel,
+                        dim3(gdx, gdy, gdz),
+                        dim3(BlockSize),
+                        0,
+                        arg,
+                        arg.compute_ptr_offset_of_batch);
                 }
             };
 
