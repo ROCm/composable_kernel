@@ -1108,6 +1108,39 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
     }
 
     template <class FloatC>
+    __device__ static void Run(const f6x16x2_t& reg_a,
+                               const int32_t scale_a,
+                               const f6x16x2_t& reg_b,
+                               const int32_t scale_b,
+                               FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        int32x6_t arg_a = bit_cast<int32x6_t>(reg_a);
+        int32x6_t arg_b = bit_cast<int32x6_t>(reg_b);
+
+        using arg_type = int32x8_t;
+
+        reg_c.template AsType<float4_t>()(Number<0>{}) =
+            __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+                arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
+                arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
+                reg_c.template AsType<float4_t>()[Number<0>{}],
+                2,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                2,      // blgp
+                OpselA, // OPSEL
+                scale_a,
+                OpselB, // OPSEL
+                scale_b);
+#else
+        ignore = reg_a;
+        ignore = scale_a;
+        ignore = reg_b;
+        ignore = scale_b;
+        ignore = reg_c;
+#endif
+    }
+
+    template <class FloatC>
     __device__ static void Run(const bf6x32_t& reg_a,
                                const int32_t scale_a,
                                const bf6x32_t& reg_b,

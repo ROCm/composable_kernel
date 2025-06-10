@@ -1737,6 +1737,46 @@ inline __host__ __device__ f6_t f6_convert_rne(float x, float scale = 1.0f)
  * @param scale A scaling factor for each float before conversion.
  * @return An f6x32_t object storing the compressed 6-bit representation.
  */
+inline __host__ __device__ f6x32_pk_t f6_convert_rne(float32_t x, float scale = 1.0f)
+{
+#if defined(__gfx950__)
+    float16_t* in1 = reinterpret_cast<float16_t*>(&x);
+    float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
+    return __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(*in1, *in2, scale);
+#else
+    union
+    {
+        float32_t float_vector;
+        float float_array[32];
+    } in{x};
+
+    using array_type = int8_t __attribute__((ext_vector_type(32)));
+    array_type f6_array[32];
+
+    ck::static_for<0, 32, 1>{}(
+        [&](auto i) { f6_array[i] = utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale); });
+
+    // printf("f6_convert_rne %d = 0x", static_cast<int>(i));
+    // for(int ii = 0; ii < 6; ++ii)
+    // {
+    //     printf("%08x ", out.f6_vector.data_.dN[ii]);
+    // }
+    // printf("\n");
+
+    return f6x32_pk_t(f6_array);
+#endif
+}
+
+/**
+ * @brief Converts a 32-element single-precision float array into a packed 6-bit representation.
+ *
+ * This function divides each input float by the provided scale value, then performs conversion with
+ * rounding to nearest / even to pack each element into 6 bits of precision.
+ *
+ * @param x     A vector of 32 floats stored in float32_t.
+ * @param scale A scaling factor for each float before conversion.
+ * @return An f6x32_t object storing the compressed 6-bit representation.
+ */
 inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0f)
 {
 #if defined(__gfx950__)
@@ -1758,6 +1798,13 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
 
     ck::static_for<0, 32, 1>{}([&](auto i) {
         out.f6_array[i] = utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale);
+
+        printf("f6_convert_rne %d = 0x", static_cast<int>(i));
+        for(int ii = 0; ii < 6; ++ii)
+        {
+            printf("%08x ", out.f6_vector.data_.dN[ii]);
+        }
+        printf("\n");
     });
 
     return out.f6_vector;
@@ -1920,6 +1967,20 @@ inline __host__ __device__ f6x16_t type_convert<f6x16_t, float16_t>(float16_t x)
 #else
     out.v32 = f6_convert_rne(in.v32);
 #endif
+
+    // Print the first three 32-bit integers in hexadecimal format
+    for(int i = 0; i < 6; ++i)
+    {
+        printf("data[%d] = 0x%08x ", i, out.v32.data_.dN[i]);
+    }
+    printf("\n");
+
+    // std::cout << "data = 0x" << std::hex << std::setfill('0') << std::setw(8)
+    //           << result.data.data_[0] << " " << result.data.data_[1] << " " <<
+    //           result.data.data_[2]
+    //           << std::dec;
+    // std::cout << std::endl;
+
     return out.v16x2[0];
 }
 

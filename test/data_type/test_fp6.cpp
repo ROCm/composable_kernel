@@ -6,6 +6,7 @@
 #include "ck/utility/type_convert.hpp"
 #include "ck/utility/env.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
+#include "ck/library/utility/device_memory.hpp"
 
 using ck::e8m0_bexp_t;
 using ck::f6_convert_rne;
@@ -290,6 +291,69 @@ TEST(FP6, TestAsType16x1)
             << type_convert<float>(static_cast<f6_t>(test_vec[static_cast<int>(i)])) << " ("
             << static_cast<int>(test_vec[static_cast<int>(i)]) << ")" << std::endl;
     });
+}
+
+__global__ void test_f6_convert_rne(float* p_test, uint64_t* p_completed)
+{
+    constexpr int N = 32;
+    if(p_completed == nullptr)
+    {
+        return;
+    }
+
+    uint64_t& i = *p_completed;
+    i           = 0;
+
+    if(p_test == nullptr)
+    {
+        return;
+    }
+
+    ck::float32_t float32_in(1.0f);
+    ck::float32_t float32_out{};
+
+    auto f6x32_vec = f6_convert_rne(float32_in);
+    float32_out    = type_convert<ck::float32_t>(f6x32_vec);
+
+#if 0
+    for(int ii = 0; ii < 6; ++ii)
+    {
+        printf("data[%d] = 0x%08x ", ii, f6x32_vec.data_.dN[ii]);
+    }
+    printf("\n");
+#endif
+    // data[0] = 0x08208208 data[1] = 0x82082082 data[2] = 0x20820820 data[3] = 0x08208208
+    // data[4] = 0x82082082 data[5] = 0x20820820
+
+    ck::static_for<0, N, 1>{}([&](auto ii) { p_test[i++] = float32_out[static_cast<int>(ii)]; });
+    i = N;
+}
+
+TEST(MXFP6, DeviceF6ConvertRNE)
+{
+    constexpr int N = 32;
+    std::vector<float> out(N, -1.0f);
+
+    DeviceMem device_out(N * sizeof(float));
+    DeviceMem device_completed(sizeof(uint64_t));
+
+    device_out.SetValue(-21.0f);
+    device_completed.SetValue(-21.0f);
+
+    test_f6_convert_rne<<<1, 1>>>(static_cast<float*>(device_out.GetDeviceBuffer()),
+                                  static_cast<uint64_t*>(device_completed.GetDeviceBuffer()));
+
+    uint64_t completed = 0;
+    device_completed.FromDevice(&completed);
+    device_out.FromDevice(out.data());
+
+    EXPECT_EQ(N, completed);
+
+    auto f6x32_vec = ck::type_convert<f6x32_pk_t>(ck::float32_t(1.0f));
+    EXPECT_EQ(f6x32_vec, f6x32_pk_t(0x08));
+
+    ck::static_for<0, N, 1>{}(
+        [&](auto ii) { EXPECT_EQ(out[static_cast<int>(ii)], 1.0f) << "ii: " << ii << std::endl; });
 }
 
 // test vector of 2 f6x16_pk_t, contains 32 f6_t

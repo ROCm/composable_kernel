@@ -34,7 +34,7 @@ using ck::type_convert;
 struct ExecutionConfig final
 {
     int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 13;    // (0=constant values, 1=integer values, 2=decimal values)
+    int init_method     = 0;     // (0=constant values, 1=integer values, 2=decimal values)
     bool time_kernel    = false; // (0=no, 1=yes)
     int verbosity       = 1;     // (0=no info, 1=verbose info)
     int warm_up         = 10;
@@ -309,6 +309,14 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         else
             return ck::type_convert<BDataType>(x);
     };
+
+    auto result = a_data_element(1.0f);
+    std::cout << "data = 0x" << std::hex << std::setfill('0') << std::setw(8)
+              << result.data.data_[0] << " " << result.data.data_[1] << " " << result.data.data_[2]
+              << std::dec;
+    std::cout << std::endl;
+
+    exit(0);
 
     using int_distr   = std::uniform_int_distribution<int>;
     using float_distr = std::uniform_real_distribution<float>;
@@ -751,6 +759,95 @@ std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
 
         if(config.init_method == 0)
         {
+
+#if 0
+            std::cout << "Submatrix of a_m_k (16x32):" << std::endl;
+            std::cout << "a_m_k(0,0) in hex: 0x" << std::hex << std::setfill('0')
+                      << *reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) << " "
+                      << *(reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) + 1) << " "
+                      << *(reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) + 2) << std::dec
+                      << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 32; ++j)
+                {
+                    if constexpr(ck::is_same_v<ADataType, ck::f4x2_pk_t>)
+                    {
+                        if(j % 2 == 0)
+                        {
+                            std::cout
+                                << type_convert<float>(
+                                       ck::f4_t((a_m_k)(i, j).template unpack<>(ck::Number<0>{})))
+                                << " "
+                                << type_convert<float>(
+                                       ck::f4_t((a_m_k)(i, j).template unpack<>(ck::Number<1>{})))
+                                << " ";
+                        }
+                    }
+                    else if constexpr(ck::is_same_v<ADataType, ck::f6x16_pk_t> ||
+                                      ck::is_same_v<ADataType, ck::bf6x16_pk_t> ||
+                                      ck::is_same_v<ADataType, ck::f6x32_pk_t> ||
+                                      ck::is_same_v<ADataType, ck::bf6x32_pk_t>)
+                    {
+                        std::cout << type_convert<float>(
+                                         a_m_k(i, j).unpack(j % ck::packed_size_v<ADataType>))
+                                  << " ";
+                    }
+                    else
+                    {
+                        std::cout << type_convert<float>((a_m_k)(i, j)) << " ";
+                    }
+                }
+
+                std::cout << std::endl;
+            }
+
+            // std::cout << "Submatrix of b_k_n (16x16):" << std::endl;
+            // for(int i = 0; i < 16; ++i)
+            // {
+            //     for(int j = 0; j < 16; ++j)
+            //     {
+            //         std::cout << std::setw(8) << type_convert<float>((*b_k_n)(i, j));
+            //     }
+
+            //     std::cout << std::endl;
+            // }
+
+            std::cout << "Submatrix of b_k_n (32x16):" << std::endl;
+            for(int k = 0; k < 32; k++)
+            {
+                for(int n = 0; n < 16; n++)
+                {
+                    if constexpr(ck::is_same_v<BDataType, ck::f4x2_pk_t>)
+                    {
+                        if(k % 2 == 0)
+                        {
+                            auto b_pack  = (*b_k_n)(k, n);
+                            auto b_f4_lo = f4_t(b_pack.template unpack<>(ck::Number<0>{}));
+                            auto b_f4_hi = f4_t(b_pack.template unpack<>(ck::Number<1>{}));
+                            std::cout << type_convert<float>(b_f4_lo) << " "
+                                      << type_convert<float>(b_f4_hi) << " ";
+                        }
+                    }
+                    else if constexpr(ck::is_same_v<BDataType, ck::f6x16_pk_t> ||
+                                      ck::is_same_v<BDataType, ck::bf6x16_pk_t> ||
+                                      ck::is_same_v<BDataType, ck::f6x32_pk_t> ||
+                                      ck::is_same_v<BDataType, ck::bf6x32_pk_t>)
+                    {
+                        std::cout << type_convert<float>(
+                                         (*b_k_n)(k, n).unpack(k % BDataType::packed_size))
+                                  << " ";
+                    }
+                    else
+                    {
+                        std::cout << type_convert<float>((*b_k_n)(k, n)) << " ";
+                    }
+                }
+                std::cout << std::endl;
+            }
+
+#endif
+
             auto expected = static_cast<float>(K);
             auto computed = type_convert<float>(c_m_n_device_result(1, 12));
 

@@ -8,6 +8,8 @@
 #include "ck/utility/statically_indexed_array.hpp"
 #include "ck/utility/array.hpp"
 
+#include <iomanip> // for std::setfill and std::setw
+
 /// Definitions from <cstdint>, <cmath> conflict with
 /// /opt/rocm/include/hip/amd_detail/amd_hip_vector_types.h.
 
@@ -88,8 +90,19 @@ struct f6_pk_t
     template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == packed_size>>
     __host__ __device__ f6_pk_t(const T& v) : data{}
     {
-        static_for<0, packed_size, 1>{}(
-            [&](auto i) { pack(v[static_cast<index_t>(i)], static_cast<index_t>(i)); });
+        static_for<0, packed_size, 1>{}([&](auto i) {
+            pack(v[static_cast<index_t>(i)], static_cast<index_t>(i));
+
+            printf("f6_pk_t data %d = 0x", static_cast<int>(i));
+            for(int ii = 0; ii < vector_size; ++ii)
+            {
+                printf("%08x ", data.data_[ii]);
+            }
+            printf("\n");
+        });
+#if !defined(__HIP_DEVICE_COMPILE__)
+        // exit(0);
+#endif // !__HIP_DEVICE_COMPILE__
     }
 
     // Broadcast single initialization value to all packed elements
@@ -143,6 +156,23 @@ struct f6_pk_t
     }
 
     __host__ __device__ inline BitType unpack(const index_t i) const { return unpack(*this, i); }
+
+    // Compare operator
+    __host__ __device__ friend bool operator==(const f6_pk_t& lhs, const f6_pk_t& rhs)
+    {
+#pragma unroll
+        for(index_t i = 0; i < vector_size; ++i)
+        {
+            if(lhs.data.data_[i] != rhs.data.data_[i])
+                return false;
+        }
+        return true;
+    }
+
+    __host__ __device__ friend bool operator!=(const f6_pk_t& lhs, const f6_pk_t& rhs)
+    {
+        return !(lhs == rhs);
+    }
 };
 
 using f6x16_pk_t  = f6_pk_t<f6_t, 16>;
