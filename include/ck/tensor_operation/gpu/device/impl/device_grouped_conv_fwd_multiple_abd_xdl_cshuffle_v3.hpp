@@ -349,22 +349,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         const index_t M_pad    = M_padded - M_raw;
         const index_t K_pad    = GemmKPad - K_raw;
 
-        std::cout << "DEBUG: AK1 = " << AK1 << std::endl;
-        std::cout << "DEBUG: AK0 = " << AK0 << std::endl;
-        std::cout << "DEBUG: k_batch = " << k_batch << std::endl;
-        std::cout << "DEBUG: KPerBlock = " << KPerBlock << std::endl;
-        std::cout << "DEBUG: K0PerBlock = " << K0PerBlock << std::endl;
-        std::cout << "DEBUG: M_raw = " << M_raw << std::endl;
-        std::cout << "DEBUG: K_raw = " << K_raw << std::endl;
-        std::cout << "DEBUG: M_padded = " << M_padded << std::endl;
-        std::cout << "DEBUG: M_pad = " << M_pad << std::endl;
-        std::cout << "DEBUG: K_pad = " << K_pad << std::endl;
-        std::cout << "DEBUG: GemmKPad = " << GemmKPad << std::endl;
-        std::cout << "DEBUG: k_batch * AK0 = " << k_batch * AK0 << std::endl;
-
-        std::cout << "DEBUG: Verification - k_batch * AK0 * AK1 = " << k_batch * AK0 * AK1
-                  << ", GemmKPad = " << GemmKPad << std::endl;
-
         const auto in_gemmm_gemmkpad_desc =
             transform_tensor_descriptor(in_gemmmraw_gemmkraw_desc,
                                         make_tuple(make_right_pad_transform(M_raw, M_pad),
@@ -408,19 +392,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         const index_t N_padded = math::integer_divide_ceil(N_raw, NPerBlock) * NPerBlock;
         const index_t N_pad    = N_padded - N_raw;
         const index_t K_pad    = GemmKPad - K_raw;
-
-        std::cout << "DEBUG: BK1 = " << BK1 << std::endl;
-        std::cout << "DEBUG: BK0 = " << BK0 << std::endl;
-        std::cout << "DEBUG: k_batch = " << k_batch << std::endl;
-        std::cout << "DEBUG: KPerBlock = " << KPerBlock << std::endl;
-        std::cout << "DEBUG: K0PerBlock = " << K0PerBlock << std::endl;
-        std::cout << "DEBUG: N_raw = " << N_raw << std::endl;
-        std::cout << "DEBUG: K_raw = " << K_raw << std::endl;
-        std::cout << "DEBUG: N_padded = " << N_padded << std::endl;
-        std::cout << "DEBUG: N_pad = " << N_pad << std::endl;
-        std::cout << "DEBUG: K_pad = " << K_pad << std::endl;
-        std::cout << "DEBUG: GemmKPad = " << GemmKPad << std::endl;
-        std::cout << "DEBUG: k_batch * BK0 = " << k_batch * BK0 << std::endl;
 
         const auto wei_gemmn_gemmkpad_desc =
             transform_tensor_descriptor(wei_gemmnraw_gemmkraw_desc,
@@ -707,6 +678,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_n_k_wos_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(AccDataType);
+
             // A/B/E Batch/N Stride
             compute_ptr_offset_of_groups_.BatchStrideA_ = a_g_n_c_wis_strides_[0];
             compute_ptr_offset_of_groups_.BatchStrideB_ = b_g_k_c_xs_strides_[0];
@@ -914,6 +890,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         NHWGCTransposeDescType a_out_transpose_desc_, e_in_transpose_desc_;
         GKCYXTransposeDescType b_in_transpose_desc_;
         GKYXCTransposeDescType b_out_transpose_desc_;
+
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -1281,34 +1259,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             const index_t GemmK =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
-            const index_t num_workgroups_per_Conv_N =
-                arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
-
-            index_t gdx, gdy, gdz;
-            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(
-                GemmM, GemmN, arg.k_batch_, arg.num_group_ * num_workgroups_per_Conv_N);
-
-            std::cout << "DEBUG: gdx = " << gdx << std::endl;
-            std::cout << "DEBUG: gdy = " << gdy << std::endl;
-            std::cout << "DEBUG: gdz = " << gdz << std::endl;
-
-            const auto num_k_per_block = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) / arg.k_batch_;
-
-            std::cout << "DEBUG: num_k_per_block = " << num_k_per_block << std::endl;
-            std::cout << "DEBUG: arg = ";
-            arg.Print();
-            std::cout << std::endl;
-
-            index_t k_grain = arg.k_batch_ * KPerBlock;
-            index_t K_split = (GemmK + k_grain - 1) / k_grain * KPerBlock;
-            const bool has_main_k_block_loop =
-                GridwiseGemmSplitK::CalculateHasMainKBlockLoop(K_split);
-
-            std::cout << "DEBUG: has_main_k_block_loop = " << has_main_k_block_loop << std::endl;
-            std::cout << "DEBUG: CalculateKBlockLoopTailNum(K_split) = "
-                      << static_cast<int>(GridwiseGemmSplitK::CalculateKBlockLoopTailNum(K_split))
-                      << std::endl;
-
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
             AccDataType* p_acc_grid   = type_convert<AccDataType*>(arg.p_workspace_);
@@ -1324,31 +1274,29 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         sizeof(BDataType);
             }
 
-            // DEBUG
-            if(arg.k_batch_ > 1)
-            {
-                std::cout << "=== WORKSPACE LAYOUT DEBUG ===" << std::endl;
-                std::cout << "Workspace base: " << arg.p_workspace_ << std::endl;
-                std::cout << "E workspace size: " << arg.GetWorkspaceETensorSizeBytes()
-                          << std::endl;
-                std::cout << "A workspace size: " << arg.GetWorkspaceATensorSizeBytes()
-                          << std::endl;
-                std::cout << "B workspace size: " << arg.GetWorkspaceBTensorSizeBytes()
-                          << std::endl;
-                std::cout << "p_a_grid: " << p_a_grid << std::endl;
-                std::cout << "p_b_grid: " << p_b_grid << std::endl;
-                std::cout << "p_acc_grid: " << p_acc_grid << std::endl;
-            }
-            // DEBUG
-
             typename GridwiseGemmSplitK::Argument gemm_arg{
                 p_a_grid, p_b_grid, p_acc_grid, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
 
+            const index_t num_workgroups_per_Conv_N =
+                arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
+
+            index_t gdx, gdy, gdz;
+            std::tie(gdx, gdy, gdz) =
+                GridwiseGemmSplitK::CalculateGridSize(gemm_arg.M,
+                                                      gemm_arg.N,
+                                                      gemm_arg.KBatch,
+                                                      arg.num_group_ * num_workgroups_per_Conv_N);
+
+            const auto num_k_per_block = arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) / gemm_arg.KBatch;
+
+            index_t k_grain = gemm_arg.KBatch * KPerBlock;
+            index_t K_split = (gemm_arg.K + k_grain - 1) / k_grain * KPerBlock;
+            const bool has_main_k_block_loop =
+                GridwiseGemmSplitK::CalculateHasMainKBlockLoop(K_split);
+
             const auto clear_workspace = [&]() {
-                hip_check_error(hipMemsetAsync(gemm_arg.p_c_grid,
-                                               0,
-                                               arg.GetWorkspaceETensorSizeBytes(),
-                                               stream_config.stream_id_));
+                hip_check_error(hipMemsetAsync(
+                    gemm_arg.p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
             };
 
             const auto Run = [&](const auto& kernel) {
@@ -1419,7 +1367,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                         true,
-                        InMemoryDataOperationEnum::Set,
+                        InMemoryDataOperationEnum::AtomicAdd,
                         minimum_occupancy>;
                     Run(kernel);
                 }
@@ -1718,22 +1666,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 
                     const AccDataType* p_c_grid =
                         type_convert<const AccDataType*>(arg.p_workspace_);
-
-                    // Debug
-                    {
-                        std::vector<AccDataType> host_data(20);
-                        hip_check_error(hipMemcpy(host_data.data(),
-                                                  p_c_grid,
-                                                  20 * sizeof(AccDataType),
-                                                  hipMemcpyDeviceToHost));
-
-                        std::cout << "DEBUG: First 20 values before elementwise:" << std::endl;
-                        for(index_t i = 0; i < 20; ++i)
-                        {
-                            std::cout << "  [" << i << "] = " << host_data[i] << std::endl;
-                        }
-                    }
-                    // END DEBUGGING CODE
 
                     std::array<index_t, I1> in_out_batch_strides = {
                         static_cast<index_t>(arg.compute_ptr_offset_of_groups_.BatchStrideE_)};
