@@ -106,7 +106,7 @@ struct CShuffleEpilogue
      * - NumNXdlPerWavePerShuffle: Number of XDL tiles in N dimension processed per wave
      */
     static constexpr auto shuffle_tile_tuple = [] {
-        constexpr index_t vecPerThread = kMPerXdl * kNPerXdl / get_warp_size();
+        constexpr index_t elem_per_thread= kMPerXdl * kNPerXdl / get_warp_size();
         if constexpr(vecPerThread >= GetVectorSizeC())
         {
             return std::make_tuple(1, 1);
