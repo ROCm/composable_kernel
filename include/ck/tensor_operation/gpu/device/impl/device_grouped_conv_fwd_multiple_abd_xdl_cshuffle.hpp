@@ -1494,8 +1494,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op)
+        const CDEElementwiseOperation& cde_element_op,
+        const ck::index_t split_k = 1)
     {
+        (void)split_k;
+
         return Argument{p_as,
                         p_bs,
                         p_ds,
@@ -1538,8 +1541,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                  const std::array<long_index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOperation& a_element_op,
                  const BElementwiseOperation& b_element_op,
-                 const CDEElementwiseOperation& cde_element_op)
+                 const CDEElementwiseOperation& cde_element_op,
+                 const ck::index_t split_k = 1)
     {
+        (void)split_k;
+
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
         std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
