@@ -134,22 +134,18 @@ struct CShuffleEpilogue
     }();
     static constexpr index_t NumMXdlPerWavePerShuffle = std::get<0>(shuffle_tile_tuple);
     static constexpr index_t NumNXdlPerWavePerShuffle = std::get<1>(shuffle_tile_tuple);
-    static constexpr index_t MPerIterationShuffle     = [] {
-        constexpr index_t val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
-        if constexpr(kMPerBlock % val != 0)
-            return MPerXdl * MWave;
-        else
-            return val;
-    }();
 
-    static constexpr index_t NPerIterationShuffle = [] {
-        constexpr index_t val = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
-        if constexpr(kNPerBlock % val != 0)
-            return NPerXdl * NWave;
+    static constexpr auto MNPerIterationShuffle = [] {
+        constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
+        constexpr index_t n_val = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
+        if constexpr(kMPerBlock % m_val != 0 || kNPerBlock % n_val != 0)
+            return std::make_tuple(MPerXdl * MWave, NPerXdl * NWave);
         else
-            return val;
+            return std::make_tuple(m_val, n_val);
     }();
-    using WG = WarpGemmMfmaDispatcher<ADataType,
+    static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
+    static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
+    using WG                                      = WarpGemmMfmaDispatcher<ADataType,
                                       BTypeToUse,
                                       AccDataType,
                                       MPerXdl,
