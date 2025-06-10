@@ -273,9 +273,6 @@ struct DynamicBuffer
         if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
-            // To Fix Compilation Error Stream-K reduction caused by type convertion
-
             using vector_t = typename vector_type_maker<remove_cvref_t<T>, t_per_x>::type::type;
             vector_t tmp;
 
