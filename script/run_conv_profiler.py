@@ -18,6 +18,7 @@ def parse_cli_args():
     parser.add_argument("--start", type=int, default=None, help="Start index for processing shapes in the CSV file.")
     parser.add_argument("--end", type=int, default=None, help="End index for processing shapes in the CSV file. If None, process all shapes.")
     parser.add_argument("--no-verification", action="store_true", help="Disable verification in the CK profiler.")
+    parser.add_argument("--log-to-stdout", action="store_true", help="Log profiler output to stdout instead of /dev/null.")
     
     args, unknown_args = parser.parse_known_args()
     
@@ -86,14 +87,20 @@ def get_profiler_commands(csv_file, no_verification=False, fwd_only=False, bwd_d
 
   return commands
 
-def run_ck_profiler_cmd(cmd):
+def run_ck_profiler_cmd(cmd, log_to_stdout=False):
     cmd_concatenated_str = ""
     for arg in cmd:
         cmd_concatenated_str += arg + " "
+    working_dir = os.path.dirname(os.path.abspath(__file__))
+    pid = os.getpid()
     env_vars = os.environ.copy()
     env_vars["CK_PROFILER_DISABLED_OPS"] = "DeviceGroupedConvBwdWeight_Dl;DeviceGroupedConvBwdWeight_Xdl_CShuffleV3"
-    env_vars["CK_PROFILER_OUTPUT_FILE"] = "/tmp/ck_profiler_output.txt"
-    subprocess.run(cmd,env=env_vars)
+    env_vars["CK_PROFILER_OUTPUT_FILE"] = f"{working_dir}/conv_profiler_output_{pid}.csv"
+    if log_to_stdout:
+      subprocess.run(cmd, env=env_vars, stdout=devnull) 
+    else:
+      with open(os.devnull, 'w') as devnull:
+        subprocess.run(cmd, env=env_vars, stdout=devnull, stderr=devnull)
 
 def main():
   args = parse_cli_args()
@@ -107,7 +114,7 @@ def main():
 
   for i, cmd in enumerate(profiler_commands):
       print(f"Running command {i + 1}/{len(profiler_commands)}: {cmd}")
-      run_ck_profiler_cmd(cmd)
+      run_ck_profiler_cmd(cmd, args.log_to_stdout)
   
 if __name__ == "__main__":
     main()
