@@ -647,16 +647,17 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
 
 /**
  * @brief Compares and prints elements from two ranges within specified bounds
- * 
+ *
  * @tparam Range1 Type of the first range (must be iterable and have size() method)
  * @tparam Range2 Type of the second range (must be iterable and have size() method)
- * 
+ *
  * @param vec1 First range to compare
  * @param vec2 Second range to compare
  * @param start_index Starting index for comparison
  * @param num_elements Number of elements to compare
- * @param msg Optional message to display before comparison results (defaults to "Comparing Results:")
- * 
+ * @param msg Optional message to display before comparison results (defaults to "Comparing
+ * Results:")
+ *
  * @details This function compares elements from two ranges and prints them side by side.
  * It performs bounds checking to ensure safe access and converts values to float for display.
  * The output format is:
@@ -664,8 +665,8 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
  * [Message]
  * Index [i]: value1 | value2
  * ```
- * 
- * @note 
+ *
+ * @note
  * - Both ranges must support std::begin() and size()
  * - Elements must be convertible to float for display
  * - If bounds checking fails, error message is printed to stderr and function returns early
@@ -673,51 +674,52 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
  */
 template <typename Range1, typename Range2>
 void compare_vector_range(const Range1& vec1,
-                       const Range2& vec2,
-                       size_t start_index,
-                       size_t num_elements,
-                       const std::string& msg = "Comparing Results:")
+                          const Range2& vec2,
+                          size_t start_index,
+                          size_t num_elements,
+                          const std::string& msg = "Comparing Results:")
 {
-    if (start_index >= vec1.size() || start_index >= vec2.size()) {
+    if(start_index >= vec1.size() || start_index >= vec2.size())
+    {
         std::cerr << "Error: Start index " << start_index << " out of bounds" << std::endl;
         return;
     }
 
-    if (num_elements + start_index > vec1.size() || num_elements + start_index > vec2.size())
+    if(num_elements + start_index > vec1.size() || num_elements + start_index > vec2.size())
     {
-        std::cerr << "Error: Length " << num_elements << " + start index " << start_index << " out of bounds" << std::endl;
+        std::cerr << "Error: Length " << num_elements << " + start index " << start_index
+                  << " out of bounds" << std::endl;
         return;
     }
 
     std::cout << msg << std::endl;
     std::cout << std::setw(12) << std::setprecision(7);
 
-    for (size_t i = 0; i < num_elements; ++i) {
+    for(size_t i = 0; i < num_elements; ++i)
+    {
         const auto v1 = *std::next(std::begin(vec1), start_index + i);
         const auto v2 = *std::next(std::begin(vec2), start_index + i);
-        std::cout << "Index [" << (start_index + i) << "]: "
-                  << static_cast<float>(v1) << " | " << static_cast<float>(v2) << std::endl;
+        std::cout << "Index [" << (start_index + i) << "]: " << static_cast<float>(v1) << " | "
+                  << static_cast<float>(v2) << std::endl;
     }
 }
 
 /**
- * @brief Calculates relative and absolute error thresholds for numerical comparisons
- * 
- * @tparam ADataType Type of first input data (typically matrix A)
- * @tparam BDataType Type of second input data (typically matrix B)
+ * @brief Calculate relative and absolute error thresholds for GEMM operations
+ *
+ * This function calculates appropriate thresholds considering:
+ * 1. Data type characteristics of input matrices
+ * 2. Split-K accumulation effects
+ * 3. Maximum accumulated values
+ *
+ * @tparam ADataType Type of matrix A elements
+ * @tparam BDataType Type of matrix B elements
  * @tparam AccDataType Type used for accumulation
- * @tparam CDataType Type of output data (typically matrix C)
- * 
- * @param K Size of reduction dimension (e.g., common dimension in matrix multiplication)
- * @param kbatch Batch size for split-K algorithm
- * @param max_accumulated_value Maximum value that can be accumulated
- * 
- * @return Tuple containing (relative_tolerance, absolute_tolerance)
- * 
- * @details Calculates both standard and split-K thresholds and returns the maximum of both:
- * - Standard thresholds account for numerical error in basic computation
- * - Split-K thresholds account for additional error from batch accumulation
- * The function uses the smaller of ADataType and BDataType as the compute type
+ * @tparam CDataType Type of output matrix C elements
+ * @param K Size of reduction dimension
+ * @param kbatch Number of batches for split-K
+ * @param max_accumulated_value Maximum value accumulated during computation
+ * @return Tuple of (relative threshold, absolute threshold)
  */
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -727,17 +729,16 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     using ComputeType =
         std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
     // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+    const auto rtol =
+        get_relative_threshold<ComputeType, CDataType, AccDataType>(integer_divide_ceil(K, kbatch));
+    const auto atol = get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+        max_accumulated_value / kbatch, integer_divide_ceil(K, kbatch));
     // Calculate error due to split_k accumulation
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
-        max_accumulated_value, kbatch);
+    const auto rtol_split_k = get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
+    const auto atol_split_k =
+        get_absolute_threshold<CDataType, CDataType, CDataType>(max_accumulated_value, kbatch);
     // Use higher threshold
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+    return make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
 } // namespace ck_tile
