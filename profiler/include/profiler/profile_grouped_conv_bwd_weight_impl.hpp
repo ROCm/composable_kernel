@@ -139,24 +139,41 @@ void write_perf_results_to_file(const PerfResults& perf_results_global,
                                 const std::vector<PerfResults>& perf_results_list)
 {
     const auto& results_file = ck::EnvGetString(CK_ENV(CK_PROFILER_OUTPUT_FILE));
+
+    const std::string separator(";");
+    const auto& write_to_file = [&](const PerfResults res, std::ofstream& file, bool only_one_op = false) {
+        auto best_split_k = res.best_split_k_ > 0 ? res.best_split_k_ : res.best_split_k_arg_;
+        ck::index_t rank, total_num;
+        std::tie(rank, total_num) = res.get_ranking(res.opt_split_k_best_op_name_, res.opt_split_k_best_arg_);
+        file << res.best_op_name_ << separator
+             << res.best_avg_time_ << separator
+             << best_split_k << separator;
+        if (!only_one_op) 
+        {
+            file << res.opt_split_k_best_op_name_ << separator;
+        }
+        file << res.opt_split_k_best_arg_ << separator
+             << rank << separator
+             << total_num;
+    };
+
     if(!results_file.empty())
     {
         std::ofstream file(results_file, std::ios::out | std::ios::app);
         if(file.is_open())
         {
-            file << "Best configuration parameters:"
-                 << perf_results_global.print_best_op() << std::endl;
+            // First the global results
+            write_to_file(perf_results_global, file);
+            file << separator; 
 
-            if (!perf_results_list.empty())
+            // Then the local results - one set for each op
+            const auto size = perf_results_list.size();
+            for (size_t i = 0; i < size; ++i)
             {
-                file << "Optimized split-K results:"
-                     << perf_results_global.print_best_split_k() << std::endl;
+                write_to_file(perf_results_list[i], file, true);
+                if (i < size - 2) file << separator; 
             }
-
-            for (const auto& res : perf_results_list)
-            {
-                file << res.print_best_op() << std::endl;
-            }
+            file << std::endl;
             file.close();
         }
         else
@@ -313,13 +330,13 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         profile_all = false;
     }
 
-    std::vector<PerfResults> perf_results_list;
     PerfResults perf_results_global;
-
+    std::vector<PerfResults> perf_results_list;
     const auto& disabled_ops = get_disabled_ops();
 
     for(auto& op_ptr : op_ptrs)
     {
+
         std::string op_name = op_ptr->GetTypeString();
 
         // Skip disabled ops
@@ -333,6 +350,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
         PerfResults perf_results_local;
         bool supports_split_k_optimization = false;
+        bool is_supported = false;
 
         for(std::size_t split_k_id = 0; split_k_id < split_k_list.size(); split_k_id++)
         {
@@ -375,6 +393,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+                is_supported = true;
                 // using atomic add, so need to reset input
                 wei_device_buf.SetZero();
 
@@ -493,7 +512,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             }
         }
 
-        if (supports_split_k_optimization)
+        if (supports_split_k_optimization && is_supported)
         {
             perf_results_list.push_back(perf_results_local);
         }
@@ -506,16 +525,18 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     {
         std::cout << "Optimized split-K results:"
                   << perf_results_global.print_best_split_k() << std::endl;
-        const auto& local_per_result = std::find_if(perf_results_list.begin(), perf_results_list.end(),
+        const auto& local_perf_result = std::find_if(perf_results_list.begin(), perf_results_list.end(),
             [&](const PerfResults& res) { return res.opt_split_k_best_op_name_ == perf_results_global.opt_split_k_best_op_name_; });
         std::cout << "Global ranking: "
                   << std::get<0>(perf_results_global.get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
                   << " / " << std::get<1>(perf_results_global.get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
                   << std::endl;
         std::cout << "Local ranking: "
-                  << std::get<0>(local_per_result->get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
-                  << " / " << std::get<1>(local_per_result->get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
+                  << std::get<0>(local_perf_result->get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
+                  << " / " << std::get<1>(local_perf_result->get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
                   << std::endl;
+
+        write_perf_results_to_file(perf_results_global, perf_results_list);
     }
 
     return all_pass;

@@ -25,28 +25,26 @@ struct DeviceProperties
   int num_cu_;
 };
 
-template<
-        ck::index_t MPerBlock,
-        ck::index_t NPerBlock>
-ck::index_t get_k_batch_value(ck::index_t split_k, int max_occupancy, ck::index_t M, ck::index_t N, ck::index_t conv_G)
+inline ck::index_t get_k_batch_value(int max_occupancy, ck::index_t grid_size, ck::index_t K_size, ck::index_t conv_G)
 {
     static DeviceProperties device_properties;
-    // For now, assume that negative value signals automatic computation of the split_k value.
-    if(split_k <= 0)
+    constexpr ck::index_t k_batch_min = 1;
+    constexpr ck::index_t batch_size_min = 16;
+
+    const int num_cu = device_properties.num_cu_;
+    const auto k_batch_max = math::integer_divide_ceil(K_size, batch_size_min);
+    auto k_batch = static_cast<ck::index_t>(std::ceil((max_occupancy * num_cu) / (1.0 * grid_size))); // Exclude th egrid size from the occupancy calculation
+    k_batch = std::min(std::max(k_batch_min, k_batch), k_batch_max);
+    if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
     {
-      const int num_cu = device_properties.num_cu_;
-      const auto M0 = math::integer_divide_ceil(M, MPerBlock);
-      const auto N0 = math::integer_divide_ceil(N, NPerBlock);
-      const auto n_output_tiles = M0 * N0;
-      const auto k_batch = std::ceil((max_occupancy * num_cu) / (1.0 * n_output_tiles * conv_G));
-      if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-      {
-        std::cout << "[SPLIT-K AUTODEDUCE] Max active thread blocks per CU for GEMM kernel:  " << max_occupancy << std::endl;
-        std::cout << "[SPLIT-K AUTODEDUCE] Using optimized split-k value " << k_batch << " for K-batch."<< std::endl;
-      }
-      return k_batch;
+      std::cout << "[SPLIT-K AUTODEDUCE] Max active thread blocks per CU for GEMM kernel:  " << max_occupancy << std::endl;
+      std::cout << "[SPLIT-K AUTODEDUCE] Output grid size (M tiles x N tiles x Conv groups):  " << grid_size << std::endl;
+      std::cout << "[SPLIT-K AUTODEDUCE] K-dim size:  " << K_size << std::endl;
+      std::cout << "[SPLIT-K AUTODEDUCE] Conv groups:  " << conv_G << std::endl;
+      std::cout << "[SPLIT-K AUTODEDUCE] Maximum k_batch value:  " << k_batch_max << std::endl;
+      std::cout << "[SPLIT-K AUTODEDUCE] Optimal split-k value " << k_batch << " for K-batch."<< std::endl;
     }
-    return split_k;
+    return k_batch;
 }
 
 } // namespace device

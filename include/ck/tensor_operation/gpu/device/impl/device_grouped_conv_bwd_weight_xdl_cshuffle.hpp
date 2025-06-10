@@ -451,7 +451,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                                     true>, // TODO: Do we need to test both true/false for HasMainKBlockLoop?
                                 BlockSize,
                                 dynSharedMemPerBlk));
-            value_ = max_occupancy;
+            value_ = std::max(1, max_occupancy);
         }
         int value_;
     };
@@ -504,13 +504,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         {
             static MaximumActiveBlocksPerMultiprocessor max_occupancy;
 
-            k_batch_ = get_k_batch_value<MPerBlock, NPerBlock>(
-                split_k, 
-                max_occupancy.value_,
-                M01, 
-                N01, 
-                Conv_G_);
-
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
@@ -531,6 +524,40 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             std::array<index_t, NDimSpatial + 3> e_g_k_c_xs_strides_transposed =
                 conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(e_g_k_c_xs_lengths,
                                                                     e_g_k_c_xs_strides);
+
+            if (split_k < 0) 
+            {
+                constexpr int k_batch_initial = 1;
+                const auto descs_initial =
+                conv_to_gemm_transformer
+                    .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                        Conv_N_,
+                        Conv_K_,
+                        Conv_C_,
+                        input_spatial_lengths_,
+                        filter_spatial_lengths_,
+                        output_spatial_lengths_,
+                        b_g_n_c_wis_strides_transposed,
+                        e_g_k_c_xs_strides_transposed,
+                        a_g_n_k_wos_strides_transposed,
+                        conv_filter_strides,
+                        conv_filter_dilations,
+                        input_left_pads,
+                        input_right_pads,
+                        k_batch_initial);
+
+                const auto& a_grid_desc_kbatch_k0_m_k1 = descs_initial[I0];
+                const auto& c_grid_desc_m_n   = descs_initial[I2];
+                const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
+                const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
+                const auto k_size = a_grid_desc_kbatch_k0_m_k1.GetLength(I0) * a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
+                
+                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size, k_size, Conv_G_);
+            }
+            else {
+                k_batch_ = split_k;
+            }
+            
             const auto descs =
                 conv_to_gemm_transformer
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -701,7 +728,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        using Argument = DeviceOp::Argument; // Refers to the argument defined above.
+        using Argument = DeviceOp::Argument;
 
         void ShowInfo(const Argument& arg)
         {
