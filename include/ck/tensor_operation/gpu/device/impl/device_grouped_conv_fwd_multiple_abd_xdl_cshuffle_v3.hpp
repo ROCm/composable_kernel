@@ -1744,10 +1744,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                             arg.elementwise_block_2_ctile_map_transpose_e_.CalculateGridSize(
                                 arg.e_in_transpose_desc_);
 
-                        const EDataType* p_e_in_grid = type_convert<EDataType*>(arg.p_workspace_) +
-                                                       (arg.GetWorkspaceATensorSizeBytes() +
-                                                        arg.GetWorkspaceBTensorSizeBytes()) /
-                                                           sizeof(EDataType);
+                        const EDataType* p_e_in_grid = type_convert<EDataType*>(arg.p_workspace_);
 
                         EDataType* p_e_out_grid = arg.p_e_grid_;
 

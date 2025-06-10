@@ -211,4 +211,4 @@ define_profiler_target(ckProfiler_gemm_universal
 
 define_profiler_target(ckProfiler_grouped_conv_fwd
   "profile_grouped_conv_fwd.cpp" 
-  "device_grouped_conv1d_fwd_instance;device_grouped_conv2d_fwd_instance;device_grouped_conv3d_fwd_instance")
+  "device_grouped_conv3d_fwd_instance")
