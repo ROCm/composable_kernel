@@ -245,6 +245,12 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 namespace ck {
 
+#if defined(__GFX9__)
+  __device__ static constexpr int WarpSize = 64;
+#else
+  __device__ static constexpr int WarpSize = 32;
+#endif
+
 enum struct InMemoryDataOperationEnum
 {
     Set,
