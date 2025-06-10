@@ -32,7 +32,7 @@ struct BaseGemmPipelineAgBgCrCompV5
     }
 };
 
-template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV4DefaultPolicy>
+template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV5DefaultPolicy>
 struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV5<Problem>;
