@@ -1,3 +1,5 @@
+# Implements test instances for MultipleD with xdl and wmma support.
+
 add_gtest_executable(test_gemm_add_xdl test_gemm_add_xdl.cpp)
 if(result EQUAL 0)
     target_link_libraries(test_gemm_add_xdl PRIVATE utility device_gemm_add_instance)

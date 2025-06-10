@@ -97,8 +97,47 @@ void add_device_gemm_add_fastgelu_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_in
 #endif // CK_USE_XDL
 
 #if defined(CK_USE_WMMA)
-void add_device_gemm_add_fastgelu_wmma_universal_f16_f16_f16_f16_mk_nk_mn_mn_instances(
+void add_device_gemm_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_mk_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Row,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          F16_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddFastGelu>>>&);
+
+void add_device_gemm_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          F16_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddFastGelu>>>&);
+
+void add_device_gemm_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_km_kn_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Col,
+                                                          Row,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          F16_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddFastGelu>>>&);
+
+void add_device_gemm_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_km_nk_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Col,
                                                           Col,
                                                           Row_Tuple,
                                                           Row,
@@ -159,16 +198,32 @@ struct DeviceOperationInstanceFactory<
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
         {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_fastgelu_wmma_universal_f16_f16_f16_f16_mk_nk_mn_mn_instances(
+                add_device_gemm_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_mk_kn_mn_mn_instances(
+                    op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_instances(
+                    op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+                              is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_km_kn_mn_mn_instances(
+                    op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+                              is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_km_nk_mn_mn_instances(
                     op_ptrs);
             }
         }
-
-        // TODO: Add other types and layouts
-
+        
 #endif // CK_ENABLE_FP16
 #endif // CK_USE_WMMA
 
