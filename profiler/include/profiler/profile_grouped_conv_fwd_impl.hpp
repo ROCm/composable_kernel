@@ -148,7 +148,10 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     // profile device op instances
     bool pass = true;
 
-    auto run_impl = [&](auto& op_ptr, auto& argument_ptr) {
+    auto run_impl = [&](auto& op_ptr,
+                        auto& argument_ptr,
+                        ck::index_t split_k_local,
+                        bool supports_split_k) {
         // workspace_sz will be equal to 0 for other layout than NGCHW
         const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
         DeviceMem workspace_dev(workspace_sz);
@@ -174,7 +177,13 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             float gb_per_sec = num_btype / 1.E6 / avg_time;
 
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << op_name << std::endl;
+                      << gb_per_sec << " GB/s, " << op_name;
+
+            if(supports_split_k)
+            {
+                std::cout << ", SplitK " << split_k_local;
+            }
+            std::cout << std::endl;
 
             if(tflops > best_tflops)
             {
@@ -228,17 +237,19 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
     std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
 
-    std::vector<ck::index_t> split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
+    std::vector<ck::index_t> base_split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
 
     if(split_k > 0)
     {
-        split_k_list = {split_k};
+        base_split_k_list = {split_k};
     }
 
     for(auto& op_ptr : op_ptrs)
     {
         std::string op_type   = op_ptr->GetTypeString();
         bool supports_split_k = op_type.find("V3") != std::string::npos;
+
+        std::vector<ck::index_t> split_k_list = base_split_k_list;
 
         if(!supports_split_k)
         {
@@ -268,7 +279,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                                             out_element_op,
                                                             split_k_list[split_k_id]);
 
-            run_impl(op_ptr, argument_ptr);
+            run_impl(op_ptr, argument_ptr, split_k_list[split_k_id], supports_split_k);
         }
     }
 
