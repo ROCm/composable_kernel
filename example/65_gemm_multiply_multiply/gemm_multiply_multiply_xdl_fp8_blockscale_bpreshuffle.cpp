@@ -290,7 +290,7 @@ int main(int argc, char* argv[])
     std::size_t num_btype =
         sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
 
-    float ave_time = .0;
+    float ave_time = 0.0f;
 
     if(flush_cache)
     {

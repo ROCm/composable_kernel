@@ -514,7 +514,7 @@ struct Tensor
         }
     }
 
-    // Generate random values with multiple threads. Garanteed to give the same sequence with any
+    // Generate random values with multiple threads. Guaranteed to give the same sequence with any
     // number of threads provided.
     template <typename Distribution = std::uniform_real_distribution<float>,
               typename Mapping      = ck::identity,

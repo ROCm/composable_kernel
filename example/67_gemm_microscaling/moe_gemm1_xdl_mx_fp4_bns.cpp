@@ -192,7 +192,7 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    else if(argc == 3)
+    else if(argc == 4)
     {
         // use default case
         do_verification = std::stoi(argv[1]);
