@@ -1127,7 +1127,7 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x32_f8_base
             return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8(
                 bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
         else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
-            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_316x16x32_bf8_bf8(
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8(
                 bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
 #else
         ck_tile::ignore = a_vec;
@@ -1356,8 +1356,6 @@ struct WarpGemmAttributeMfmaImpl_f32_32x32x8_f8_base
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        // print function name using printf
-        // printf("WarpGemmAttributeMfmaImpl_f32_32x32x8_f8_base\n");
         ck_tile::ignore = c_vec;
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
@@ -1376,7 +1374,6 @@ template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, fp8_t, Ctrl_>;
 
-// Aviral Created
 template <WGAttrCtlEnum Ctrl_ = WGAttrCtlEnum::Default_>
 using WarpGemmAttributeMfmaImpl_f32_32x32x8_fp8_fp8 =
     WarpGemmAttributeMfmaImpl_f32_32x32x8_f8_base<fp8_t, fp8_t, Ctrl_>;
