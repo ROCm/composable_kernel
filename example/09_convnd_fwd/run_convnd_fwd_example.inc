@@ -10,6 +10,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
+    ck::index_t split_k  = 1;
 
     ck::utils::conv::ConvParam conv_param{
         2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
@@ -18,20 +19,22 @@ bool run_convnd_fwd_example(int argc, char* argv[])
     {
         // use default
     }
-    else if(argc == 4)
+    else if(argc == 5)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
+        split_k         = std::stoi(argv[4]);
     }
     else
     {
         do_verification                   = std::stoi(argv[1]);
         init_method                       = std::stoi(argv[2]);
         time_kernel                       = std::stoi(argv[3]);
-        const ck::index_t num_dim_spatial = std::stoi(argv[4]);
+        split_k                           = std::stoi(argv[4]);
+        const ck::index_t num_dim_spatial = std::stoi(argv[5]);
 
-        conv_param = ck::utils::conv::parse_conv_param(num_dim_spatial, 5, argv);
+        conv_param = ck::utils::conv::parse_conv_param(num_dim_spatial, 6, argv);
     }
 
     const auto in_element_op  = InElementOp{};
@@ -69,6 +72,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
             do_verification,
             init_method,
             time_kernel,
+            split_k,
             conv_param,
             in_g_n_c_wis_desc,
             wei_g_k_c_xs_desc,
