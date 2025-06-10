@@ -64,9 +64,7 @@ struct ElementWiseKernel
                                     tile_windows);
         };
 
-        const auto y_m_n = make_naive_tensor_view<address_space_enum::global,
-                                                  memory_operation_enum::set,
-                                                  amd_buffer_coherence_enum::slc>(
+        const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
             p_y, lens, output_strides, number<S::kVectorM>{});
 
         // Transform the tensor view if needed
