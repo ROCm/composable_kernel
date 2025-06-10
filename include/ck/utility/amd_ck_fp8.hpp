@@ -9,18 +9,6 @@
 #include "ck/utility/functional.hpp"
 #include "ck/utility/type.hpp"
 
-#ifdef CK_USE_FNUZ_FP8
-#define CK_USE_FNUZ_FP8 1
-#else
-#define CK_USE_FNUZ_FP8 0
-#endif
-
-#ifdef CK_USE_OCP_FP8
-#define CK_USE_OCP_FP8 1
-#else
-#define CK_USE_OCP_FP8 0
-#endif
-
 #if(defined(__gfx942__) || defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx950__)) && \
     __HIP_DEVICE_COMPILE__
 #define CK_FP8_CVT_FAST_PATH 1
@@ -431,7 +419,7 @@ __host__ __device__ inline constexpr bool fp8_is_inf(bf8_ocp_t a)
 namespace fp8_impl {
 
 // Assertions to check for supported conversion types
-#define __assert_ocp_support(interp)                                               \
+#define __fp8_impl_assert_ocp_support(interp)                                      \
     {                                                                              \
         if(interp != ck_fp8_interpretation_t::CK_E4M3_OCP &&                       \
            interp != ck_fp8_interpretation_t::CK_E5M2_OCP)                         \
@@ -439,7 +427,7 @@ namespace fp8_impl {
             __hip_assert(false && "type is unsupported by current target device"); \
         }                                                                          \
     }
-#define __assert_fnuz_support(interp)                                              \
+#define __fp8_impl_assert_fnuz_support(interp)                                     \
     {                                                                              \
         if(interp != ck_fp8_interpretation_t::CK_E4M3_FNUZ &&                      \
            interp != ck_fp8_interpretation_t::CK_E5M2_FNUZ)                        \
@@ -453,10 +441,10 @@ __is_interpret_supported([[maybe_unused]] ck_fp8_interpretation_t interp)
 {
 #if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
 #if CK_USE_OCP_FP8
-    __assert_ocp_support(interp);
+    __fp8_impl_assert_ocp_support(interp);
 #endif
 #if CK_USE_FNUZ_FP8
-    __assert_fnuz_support(interp);
+    __fp8_impl_assert_fnuz_support(interp);
 #endif
 #endif
 }
@@ -1695,7 +1683,7 @@ using bf8_t = bf8_ocp_t;
 #define CK_FP8_TYPE_FNUZ 0
 #define CK_FP8_TYPE_OCP 1
 #else
-using f8_t = f8_fnuz_t;
+using f8_t  = f8_fnuz_t;
 using bf8_t = bf8_fnuz_t;
 #define CK_FP8_TYPE_FNUZ 1
 #define CK_FP8_TYPE_OCP 0
