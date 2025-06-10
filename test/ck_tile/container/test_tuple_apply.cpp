@@ -214,7 +214,7 @@ TYPED_TEST(TestCkTileTupleApplySize, GeneratedTupleSum)
     // Generate tuple with values 1, 2, 3, ..., N
     auto t = generate_tuple([](auto i) { return i.value + 1; }, number<N>{});
 
-    // Sum all elements - AddFunction is now public
+    // Sum all elements
     auto result = apply(TestCkTileTupleApply::AddFunction{}, t);
 
     // Expected sum: 1 + 2 + ... + N = N*(N+1)/2
