@@ -46,7 +46,7 @@ using I32 = int32_t;
  * @return Relative error threshold based on data type characteristics
  */
 template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
-double get_relative_threshold(const int number_of_accumulations = 1)
+CK_TILE_HOST double get_relative_threshold(const int number_of_accumulations = 1)
 {
 
     static_assert(
@@ -106,7 +106,7 @@ double get_relative_threshold(const int number_of_accumulations = 1)
  * @return Absolute error threshold based on data type characteristics and maximum value
  */
 template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
-double get_absolute_threshold(const double max_possible_num, const int number_of_accumulations = 1)
+CK_TILE_HOST double get_absolute_threshold(const double max_possible_num, const int number_of_accumulations = 1)
 {
 
     static_assert(
@@ -194,7 +194,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
  * @return True if sizes mismatch, false otherwise
  */
 template <typename Range, typename RefRange>
-bool check_size_mismatch(const Range& out,
+CK_TILE_HOST bool check_size_mismatch(const Range& out,
                          const RefRange& ref,
                          const std::string& msg = "Error: Incorrect results!")
 {
@@ -216,7 +216,7 @@ bool check_size_mismatch(const Range& out,
  * @param max_err Maximum error value encountered
  * @param total_size Total number of elements compared
  */
-void report_error_stats(int err_count, double max_err, std::size_t total_size)
+CK_TILE_HOST void report_error_stats(int err_count, double max_err, std::size_t total_size)
 {
     const float error_percent =
         static_cast<float>(err_count) / static_cast<float>(total_size) * 100.f;
