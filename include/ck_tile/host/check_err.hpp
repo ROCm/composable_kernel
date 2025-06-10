@@ -106,7 +106,8 @@ CK_TILE_HOST double get_relative_threshold(const int number_of_accumulations = 1
  * @return Absolute error threshold based on data type characteristics and maximum value
  */
 template <typename ComputeDataType, typename OutDataType, typename AccDataType = ComputeDataType>
-CK_TILE_HOST double get_absolute_threshold(const double max_possible_num, const int number_of_accumulations = 1)
+CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
+                                           const int number_of_accumulations = 1)
 {
 
     static_assert(
@@ -195,8 +196,8 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
  */
 template <typename Range, typename RefRange>
 CK_TILE_HOST bool check_size_mismatch(const Range& out,
-                         const RefRange& ref,
-                         const std::string& msg = "Error: Incorrect results!")
+                                      const RefRange& ref,
+                                      const std::string& msg = "Error: Incorrect results!")
 {
     if(out.size() != ref.size())
     {
