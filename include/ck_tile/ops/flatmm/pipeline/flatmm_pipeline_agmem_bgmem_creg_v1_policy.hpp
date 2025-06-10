@@ -112,7 +112,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
                         make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
-            return a_lds_block_desc;
+        return a_lds_block_desc;
 #endif
     }
 

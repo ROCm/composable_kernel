@@ -62,7 +62,7 @@ template <typename ALayout,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v4,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA>
-struct GridwiseGemm_xdl_cshuffle_v3
+struct GridwiseGemm_xdl_cshuffle_conv_v3
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
