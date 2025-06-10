@@ -111,7 +111,7 @@ foreach(SOURCE ${PROFILER_OPS})
     list(APPEND PROFILER_SOURCES ${SOURCE})
   endif()
 endforeach()
-message(STATUS "ckProfiler sources: ${PROFILER_SOURCES}")
+message(VERBOSE "ckProfiler sources: ${PROFILER_SOURCES}")
 
 set(PROFILER_EXECUTABLE ckProfiler)
 
@@ -119,7 +119,7 @@ add_executable(${PROFILER_EXECUTABLE} ${PROFILER_SOURCES})
 target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Wno-global-constructors)
 # flags to compress the library
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
-  message(STATUS "Adding --offload-compress flag for ${PROFILER_EXECUTABLE}")
+  message(DEBUG "Adding --offload-compress flag for ${PROFILER_EXECUTABLE}")
   target_compile_options(${PROFILER_EXECUTABLE} PRIVATE --offload-compress)
 endif()
 
@@ -228,7 +228,7 @@ foreach(LIB ${DEVICE_INSTANCES})
     list(APPEND PROFILER_LIBS ${LIB})
   endif()
 endforeach()
-message(STATUS "ckProfiler libs: ${PROFILER_LIBS}")
+message(VERBOSE "ckProfiler libs: ${PROFILER_LIBS}")
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE ${PROFILER_LIBS})
 
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
