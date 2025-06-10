@@ -9,8 +9,11 @@ namespace ck {
 
 __host__ __device__ constexpr index_t get_warp_size()
 {
-    // warpSize is defined by HIP
-    return warpSize;
+#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+    return 64;
+#else
+    return 32;
+#endif
 }
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
