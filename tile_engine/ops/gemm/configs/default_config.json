@@ -134,7 +134,8 @@
         },
         "persistent": {
             "values": [
-                false
+                false,
+                true
             ]
         }
     }

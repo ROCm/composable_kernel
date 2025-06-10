@@ -195,7 +195,6 @@ struct GemmKernel {{
         static constexpr bool permuteB = false;
         static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
         static constexpr bool TransposeC = false;
-        
 
         static constexpr int kBlockPerCu                         = 1;
         static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
@@ -207,7 +206,6 @@ struct GemmKernel {{
                                    ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>,
                                    permuteA,
                                    permuteB>;
-
 
         using TilePartitioner =
             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
