@@ -1325,8 +1325,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end);
             num_k_block_main_loop = iter_end - iter_start;
 
-            // if constexpr(Block2CTileMap_streamk::StreamKReductionStrategy ==
-            //              StreamKReductionStrategy::Reduction)
             if(problem.reduction_strategy == StreamKReductionStrategy::Reduction)
             {
                 is_reduction_block = static_cast<uint32_t>(block_idx) >=
