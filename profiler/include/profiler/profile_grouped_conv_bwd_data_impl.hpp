@@ -86,9 +86,6 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     out_device_buf.ToDevice(out.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
 
-    // reset input to zero
-    in_device_buf.SetZero();
-
     float max_accumulated_value = 0;
     if(do_verification)
     {
@@ -136,9 +133,6 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            // re-init output to zero before profiling next kernel
-            in_device_buf.SetZero();
-
             std::string op_name = op_ptr->GetTypeString();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();

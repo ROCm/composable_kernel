@@ -601,6 +601,22 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
               input_right_pads_{input_right_pads},
               k_batch_{split_k}
         {
+            bool image_covered_dilation = true;
+            bool image_covered_strides  = true;
+            for(index_t d = 0; d < NDimSpatial; d++)
+            {
+                // If dilation and stride is not equal to  the we will have some empty places
+                image_covered_dilation &=
+                    conv_filter_dilations[d] == 1 || conv_filter_strides[d] == 1;
+                // If stride is larger than windows size then we will have some empty places
+                image_covered_strides &= conv_filter_strides[d] <= b_g_k_c_xs_lengths[d + I3];
+            }
+            bwd_needs_zero_out = k_batch_ > 1 || !image_covered_dilation || !image_covered_strides;
+            e_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(EDataType);
+
             std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_transposed =
                 conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(a_g_n_k_wos_lengths,
                                                                       a_g_n_k_wos_strides);
@@ -981,6 +997,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         std::vector<index_t> gemms_grid_size_;
         index_t gemms_count_ = 0;
         std::vector<std::array<GemmArgs, MaxGroupedGemmGroupsNum>> gemm_kernel_args_;
+
+        bool bwd_needs_zero_out;
+        long_index_t e_space_size_bytes;
     };
 
     // Invoker
@@ -1028,6 +1047,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 const std::array<GemmArgs, MaxGroupedGemmGroupsNum>& gemm_kernel_args =
                     arg.gemm_kernel_args_[gemm_set_id];
 
+                const auto clear_workspace = [&]() {
+                    if(arg.bwd_needs_zero_out && i == 0)
+                    {
+                        hip_check_error(hipMemsetAsync(
+                            p_e_grid, 0, arg.e_space_size_bytes, stream_config.stream_id_));
+                    }
+                };
+
                 auto launch_kernel = [&]() {
                     const auto kernel = kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle<
                         GridwiseGemm,
@@ -1043,23 +1070,24 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                         ElementOp>;
 
-                    return launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3(gdx, gdy, gdz),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  p_a_grid,
-                                                  p_b_grid,
-                                                  arg.p_ds_grid_,
-                                                  p_e_grid,
-                                                  gemm_kernel_args,
-                                                  gemms_count_for_set,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.cde_element_op_,
-                                                  arg.compute_ptr_offset_of_batch_,
-                                                  arg.compute_ptr_offset_of_n_,
-                                                  arg.k_batch_);
+                    return launch_and_time_kernel_with_preprocess(stream_config,
+                                                                  clear_workspace,
+                                                                  kernel,
+                                                                  dim3(gdx, gdy, gdz),
+                                                                  dim3(BlockSize),
+                                                                  0,
+                                                                  p_a_grid,
+                                                                  p_b_grid,
+                                                                  arg.p_ds_grid_,
+                                                                  p_e_grid,
+                                                                  gemm_kernel_args,
+                                                                  gemms_count_for_set,
+                                                                  arg.a_element_op_,
+                                                                  arg.b_element_op_,
+                                                                  arg.cde_element_op_,
+                                                                  arg.compute_ptr_offset_of_batch_,
+                                                                  arg.compute_ptr_offset_of_n_,
+                                                                  arg.k_batch_);
                 };
 
                 ave_time += launch_kernel();
