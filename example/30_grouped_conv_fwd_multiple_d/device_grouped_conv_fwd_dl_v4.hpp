@@ -324,17 +324,18 @@ struct GridwiseGroupedConv2DFwdDlV4
             {
                 static_for<0, SubTileW, 2>{}([&](auto wo) {
   
-                    InData2 indata;
+                    //InData2 indata;
                     static_for<0, Filter_Y, 1>{}([&](auto y) {
                         #if 1
                         static_for<0, Filter_X_Pack, 1>{}([&](auto x_pack) {
-                            constexpr auto in_idx0 = (wo + x_pack * 2)/ InScalarPerVector_Internal;
-                            constexpr auto in_idx1 = (wo + x_pack * 2)% InScalarPerVector_Internal;
-                            indata[0] = tmp_in[(ho + y) % Filter_Y][in_idx0][in_idx1];
-                            indata[1] = tmp_in[(ho + y) % Filter_Y][in_idx0][in_idx1 + 1];
+                            //constexpr auto in_idx0 = (wo + x_pack * 2)/ InScalarPerVector_Internal;
+                            //constexpr auto in_idx1 = (wo + x_pack * 2)% InScalarPerVector_Internal;
+                            //indata[0] = tmp_in[(ho + y) % Filter_Y][in_idx0][in_idx1];
+                            //indata[1] = tmp_in[(ho + y) % Filter_Y][in_idx0][in_idx1 + 1];
                             //ignore = p_in;
-                            inner_product(indata, p_wei_even[y * Filter_X_Pack + x_pack], tmp_out[wo.value]);
-                            inner_product(indata, p_wei_odd[y * Filter_X_Pack + x_pack], tmp_out[wo.value + 1]);
+                              const InData2* p_in = reinterpret_cast<InData2*>(tmp_in[(ho + y) % Filter_Y]) + wo * Stride_W / 2+ x_pack;
+                            inner_product(*p_in, p_wei_even[y * Filter_X_Pack + x_pack], tmp_out[wo.value]);
+                            inner_product(*p_in, p_wei_odd[y * Filter_X_Pack + x_pack], tmp_out[wo.value + 1]);
                             //tmp_out[wo.value] += type_convert<float>( indata[0]) * type_convert<float>( p_wei_even[y * Filter_X_Pack + x_pack][0]) +
                             //                     type_convert<float>( indata[1]) * type_convert<float>( p_wei_even[y * Filter_X_Pack + x_pack][1]);
                             //tmp_out[wo.value + 1] += type_convert<float>( indata[0]) * type_convert<float>( p_wei_odd[y * Filter_X_Pack + x_pack][0]) +
