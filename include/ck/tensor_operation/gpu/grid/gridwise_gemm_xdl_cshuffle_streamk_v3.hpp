@@ -1297,6 +1297,36 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
+        // lds max alignment
+        constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
+
+        // A matrix in LDS memory, dst of blockwise copy
+        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+
+        // B matrix in LDS memory, dst of blockwise copy
+        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+
+        // LDS allocation for A and B: be careful of alignment
+        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+
+        // Cast after lds
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<BDataType*>(p_shared) +
+                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+
+        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
+
+        // Blockwise GEMM pipeline
+        static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
+        auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
+        auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
+
         uint32_t* p_semaphore = reinterpret_cast<uint32_t*>(
             reinterpret_cast<char*>(p_workspace) +
             block_2_ctile_map_streamk.get_workspace_size_for_acc(sizeof(AccDataType)));
@@ -1541,16 +1571,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 __builtin_amdgcn_readfirstlane(spatial_idx[I1] * NPerBlock);
 
             const index_t k0_block_data_idx_on_grid =
-                __builtin_amdgcn_readfirstlane(iter_offset * KPerBlock);
-
-            // lds max alignment
-            constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
-
-            // A matrix in LDS memory, dst of blockwise copy
-            constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-
-            // B matrix in LDS memory, dst of blockwise copy
-            constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+                __builtin_amdgcn_readfirstlane(iter_offset * AK0Number);
 
             // A matrix blockwise copy
             auto a_blockwise_copy =
@@ -1574,7 +1595,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                                     1,
                                                     1,
                                                     AThreadTransferSrcResetCoordinateAfterRun,
-                                                    true>(
+                                                    true,
+                                                    BlockwiseGemmPipe::GlobalBufferNum>(
                     a_grid_desc_ak0_m_ak1,
                     make_multi_index(k0_block_data_idx_on_grid, m_block_data_idx_on_grid, 0),
                     a_element_op,
@@ -1604,7 +1626,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                                     1,
                                                     1,
                                                     BThreadTransferSrcResetCoordinateAfterRun,
-                                                    true>(
+                                                    true,
+                                                    BlockwiseGemmPipe::GlobalBufferNum>(
                     b_grid_desc_bk0_n_bk1,
                     make_multi_index(k0_block_data_idx_on_grid, n_block_data_idx_on_grid, 0),
                     b_element_op,
@@ -1612,27 +1635,10 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     make_multi_index(0, 0, 0),
                     ck::tensor_operation::element_wise::PassThrough{});
 
-            // LDS allocation for A and B: be careful of alignment
-            constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-                a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
-
-            // Cast after lds
-            auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-
-            auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<BDataType*>(p_shared) +
-                    a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
-                b_block_desc_bk0_n_bk1.GetElementSpaceSize());
-
-            constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
-            constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
-
-            // Blockwise GEMM pipeline
-            static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
-            auto blockwise_gemm_pipeline        = BlockwiseGemmPipe{};
-            auto c_thread_buf                   = blockwise_gemm_pipeline.GetCThreadBuffer();
             const index_t num_k_block_main_loop = current_iter_length;
+            /**if (threadIdx.x == 0 && threadIdx.y == 0 ){
+                              printf("num_k_block_main_loop: %d\n", num_k_block_main_loop);
+                      }**/
 
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
@@ -1936,7 +1942,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         }
                     });
 
-                /**if constexpr(Block2CTileMap::ReductionStrategy ==
+                /**if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                              StreamKReductionStrategy::Reduction)
                 {
                     if(is_sk_block)
@@ -2012,12 +2018,19 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+        using Block2CTileMap_streamk2 =
+            BlockToCTileMap_GemmStreamK_v2<MPerBlock,
+                                           NPerBlock,
+                                           KPerBlock,
+                                           StreamKReductionStrategy::Atomic,
+                                           8,
+                                           4>;
 
-        Block2CTileMap_streamk block_2_ctile_map_streamk(problem.M,
-                                                         problem.N,
-                                                         AK0Number * problem.KPadded,
-                                                         problem.Grid_size,
-                                                         problem.Streamk_sel);
+        Block2CTileMap_streamk2 block_2_ctile_map_streamk(problem.M,
+                                                          problem.N,
+                                                          AK0Number * problem.KPadded,
+                                                          problem.Grid_size,
+                                                          problem.Streamk_sel);
         for(auto block_idx = get_block_1d_id();
             block_idx < block_2_ctile_map_streamk.get_grid_dims();
             block_idx += gridDim.x)
@@ -2036,7 +2049,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 reinterpret_cast<char*>(p_workspace) +
                 block_2_ctile_map_streamk.get_workspace_size_for_acc(sizeof(AccDataType)));
 
-            if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+            if constexpr(Block2CTileMap_streamk2::ReductionStrategy ==
                          StreamKReductionStrategy::Reduction)
             {
                 is_reduction_block = static_cast<uint32_t>(block_idx) >=
@@ -2653,7 +2666,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         }
                         else if(is_sk_block)
                         {
-                            if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                            if constexpr(Block2CTileMap_streamk2::ReductionStrategy ==
                                          StreamKReductionStrategy::Atomic)
                             {
                                 // each block copy its data from LDS to global
@@ -2666,7 +2679,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
                                         c_grid_buf);
                             }
-                            else if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                            else if constexpr(Block2CTileMap_streamk2::ReductionStrategy ==
                                               StreamKReductionStrategy::Reduction)
                             {
                                 // constexpr offset
@@ -2702,7 +2715,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 iter_end -= current_iter_length;
                 if(iter_end <= iter_start)
                     break;
-                if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                if constexpr(Block2CTileMap_streamk2::ReductionStrategy ==
                              StreamKReductionStrategy::Reduction)
                 {
                     block_acc_offset -= MPerBlock * NPerBlock;
@@ -2710,7 +2723,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 // make sure next loop LDS is ready for use
                 block_sync_lds();
             }
-            if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+            if constexpr(Block2CTileMap_streamk2::ReductionStrategy ==
                          StreamKReductionStrategy::Reduction)
             {
                 if(is_sk_block)
