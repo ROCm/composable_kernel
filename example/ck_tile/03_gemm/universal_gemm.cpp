@@ -212,16 +212,15 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
         }
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V5)
-        if(tail_num == ck_tile::TailNumber::Three)
+        if(tail_num == ck_tile::TailNumber::Odd)
         {
-            RunSplitk(
-                ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
         }
         else
         {
             RunSplitk(ck_tile::bool_constant<true>{},
-                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
         }
 #endif
     }
