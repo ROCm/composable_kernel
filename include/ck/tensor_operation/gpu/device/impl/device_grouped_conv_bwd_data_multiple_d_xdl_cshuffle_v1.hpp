@@ -388,6 +388,18 @@ __global__ void
   when backward, up means stride, down means dilate
 */
 
+static __host__ __device__ __forceinline__ int floor_div(int a, int b)
+{
+    int c = a / b;
+
+    if(c * b > a)
+    {
+        c--;
+    }
+
+    return c;
+}
+
 enum DepthwiseConv2dDirection
 {
     DIRECTION_FORWARD,
@@ -419,11 +431,8 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
                                                           const index_t y_height,
                                                           const index_t filter_width,
                                                           const index_t filter_height,
-                                                          const index_t group_num,
-                                                          const index_t batch_num)
+                                                          const index_t group_num)
 {
-    ignore = batch_num;
-
     constexpr index_t ElementPerInFP4  = 16 / sizeof(ABDataType);
     constexpr index_t ElementPerOutFP4 = 16 / sizeof(EDataType);
 
@@ -474,8 +483,8 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
 
     int tile_mid_x = output_tile_w * down_w + up_w - 1 - pad_w;
     int tile_mid_y = output_tile_h * down_h + up_h - 1 - pad_h;
-    int tile_in_x  = tile_mid_x / up_w;
-    int tile_in_y  = tile_mid_y / up_h;
+    int tile_in_x  = floor_div(tile_mid_x, up_w);
+    int tile_in_y  = floor_div(tile_mid_y, up_h);
 
     // load weight to shared memory
     // global weight layout : GKYXC; shared weight layout : Y->X->G
@@ -559,8 +568,8 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
 
             int mid_x    = tile_mid_x + rel_out_x * down_w;
             int mid_y    = tile_mid_y + rel_out_y * down_h;
-            int in_x     = mid_x / up_w;
-            int in_y     = mid_y / up_h;
+            int in_x     = floor_div(mid_x, up_w);
+            int in_y     = floor_div(mid_y, up_h);
             int rel_in_x = in_x - tile_in_x;
             int rel_in_y = in_y - tile_in_y;
             int kernel_x = (in_x + 1) * up_w - mid_x - 1;
@@ -1519,8 +1528,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                         4,
                                         4,
                                         4,
-                                        1,
-                                        1,
+                                        2,
+                                        2,
                                         1,
                                         1,
                                         1,
@@ -1539,8 +1548,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                         4,
                                         4,
                                         4,
-                                        1,
-                                        1,
+                                        2,
+                                        2,
                                         1,
                                         1,
                                         2,
@@ -1562,8 +1571,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                         4,
                                         6,
                                         6,
-                                        1,
-                                        1,
+                                        2,
+                                        2,
                                         1,
                                         1,
                                         1,
@@ -1582,8 +1591,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                         4,
                                         6,
                                         6,
-                                        1,
-                                        1,
+                                        2,
+                                        2,
                                         1,
                                         1,
                                         2,
@@ -1618,25 +1627,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             "No optimized kernel available for the given parameters");
                     }
 
-                    return launch_and_time_kernel(
-                        stream_config,
-                        kernel,
-                        dim3(ceil(arg.e_g_n_c_wis_lengths_[3] / 4),
-                             ceil(arg.e_g_n_c_wis_lengths_[4] / 4),
-                             arg.e_g_n_c_wis_lengths_[0] / GroupPerBlock * 128 / BatchPerBlock),
-                        dim3(BlockDim),
-                        0,
-                        p_a_grid,
-                        p_b_grid,
-                        p_e_grid,
-                        arg.a_g_n_k_wos_lengths_[NDimSpatial + 1],
-                        arg.a_g_n_k_wos_lengths_[NDimSpatial + 2],
-                        arg.e_g_n_c_wis_lengths_[NDimSpatial + 1],
-                        arg.e_g_n_c_wis_lengths_[NDimSpatial + 2],
-                        arg.b_g_k_c_xs_lengths_[NDimSpatial + 1],
-                        arg.b_g_k_c_xs_lengths_[NDimSpatial + 2],
-                        arg.a_g_n_k_wos_lengths_[0],
-                        arg.a_g_n_k_wos_lengths_[1]);
+                    return launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  dim3((arg.e_g_n_c_wis_lengths_[3] + 3) / 4,
+                                                       (arg.e_g_n_c_wis_lengths_[4] + 3) / 4,
+                                                       arg.e_g_n_c_wis_lengths_[0] / GroupPerBlock *
+                                                           arg.e_g_n_c_wis_lengths_[1] /
+                                                           BatchPerBlock),
+                                                  dim3(BlockDim),
+                                                  0,
+                                                  p_a_grid,
+                                                  p_b_grid,
+                                                  p_e_grid,
+                                                  arg.a_g_n_k_wos_lengths_[NDimSpatial + 1],
+                                                  arg.a_g_n_k_wos_lengths_[NDimSpatial + 2],
+                                                  arg.e_g_n_c_wis_lengths_[NDimSpatial + 1],
+                                                  arg.e_g_n_c_wis_lengths_[NDimSpatial + 2],
+                                                  arg.b_g_k_c_xs_lengths_[NDimSpatial + 1],
+                                                  arg.b_g_k_c_xs_lengths_[NDimSpatial + 2],
+                                                  arg.a_g_n_k_wos_lengths_[0]);
                 };
 
                 ave_time += launch_kernel();
