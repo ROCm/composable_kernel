@@ -245,12 +245,6 @@
 #define CK_WORKAROUND_SWDEV_388832 1
 
 // workaround: compiler issue on gfx950
-#define CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION 1
-
-// workaround: compiler issue on gfx950
-#define CK_TEMP_DISABLE_FP4_TESTS 1
-
-// workaround: compiler issue on gfx950
 #define CK_WORKAROUND_FP16_TO_FP8_CONVERSION 1
 
 // workaround: compiler issue on gfx950
