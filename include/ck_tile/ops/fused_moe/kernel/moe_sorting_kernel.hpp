@@ -140,7 +140,7 @@ CK_TILE_HOST constexpr auto moe_sorting_get_smem_row_col(int tokens_, int num_ex
         int r_token_min = (tokens_ + sub_unroll - 1) / sub_unroll * sub_unroll;
         r_for_sub_token = min(r_for_sub_token, r_token_min);
 
-        // final check, but shold not happen
+        // final check, but usually should not happen
         if( ((r_for_sub_token + cumsum_bufs) * smem_cols *  target_occupancy_ ) > total_ ) {
             throw std::runtime_error("can't run this kernel, request LDS over size");
         }
