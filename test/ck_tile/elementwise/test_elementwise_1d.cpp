@@ -7,7 +7,6 @@
 #include <tuple>
 #include <type_traits> // For std::is_same_v, std::is_floating_point_v
 #include <utility>     // For std::index_sequence, std::forward
-#include <memory>      // For std::unique_ptr and std::make_unique
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
@@ -34,6 +33,16 @@ struct elementwise_op_traits<ck_tile::element_wise::Relu>
     static constexpr int num_inputs = 1;
 };
 
+template <std::size_t D, typename F>
+auto make_uniform_array_with_factory(F&& factory)
+{
+    return [&]<std::size_t... Is>(std::index_sequence<Is...>)
+    {
+        return std::array<std::invoke_result_t<F, std::size_t>, D>{factory(Is)...};
+    }
+    (std::make_index_sequence<D>{});
+}
+
 template <typename Tuple>
 class TestCkTileElementwise : public ::testing::Test
 {
@@ -59,26 +68,23 @@ class TestCkTileElementwise : public ::testing::Test
             static_cast<ck_tile::index_t>(1)); // Strides for the single dimension
 
         // Host Tensors
-        std::vector<ck_tile::HostTensor<XDataType>> h_xs;
-        h_xs.reserve(NumInputs);
-        for(int i = 0; i < NumInputs; ++i)
-        {
-            h_xs.emplace_back(ck_tile::HostTensor<XDataType>({total_m_elements}));
-            ck_tile::FillUniformDistribution<XDataType>{0.f, 5.f}(h_xs[i]);
-        }
+        auto h_xs = make_uniform_array_with_factory<NumInputs>([&](std::size_t) {
+            auto ret = ck_tile::HostTensor<XDataType>({total_m_elements});
+            ck_tile::FillUniformDistribution<XDataType>{0.f, 5.f}(ret);
+            return ret;
+        });
         ck_tile::HostTensor<YDataType> h_y({total_m_elements});
         h_y.SetZero();
         ck_tile::HostTensor<YDataType> h_y_ref({total_m_elements});
         h_y_ref.SetZero();
 
         // Device Buffers
-        std::vector<std::unique_ptr<ck_tile::DeviceMem>> d_xs_mems_owner;
-        d_xs_mems_owner.reserve(NumInputs);
+        auto d_xs_mems_owner = make_uniform_array_with_factory<NumInputs>([&](std::size_t i) {
+            return ck_tile::DeviceMem(h_xs[i].get_element_space_size_in_bytes());
+        });
         for(int i = 0; i < NumInputs; ++i)
         {
-            d_xs_mems_owner.emplace_back(
-                std::make_unique<ck_tile::DeviceMem>(h_xs[i].get_element_space_size_in_bytes()));
-            d_xs_mems_owner[i]->ToDevice(h_xs[i].data());
+            d_xs_mems_owner[i].ToDevice(h_xs[i].data());
         }
 
         ck_tile::DeviceMem d_y_mem(h_y.get_element_space_size_in_bytes());
@@ -87,7 +93,7 @@ class TestCkTileElementwise : public ::testing::Test
         auto d_x_ptrs_tuple = [&]<std::size_t... Is>(std::index_sequence<Is...>)
         {
             return ck_tile::make_tuple(
-                static_cast<const XDataType*>(d_xs_mems_owner[Is]->GetDeviceBuffer())...);
+                static_cast<const XDataType*>(d_xs_mems_owner[Is].GetDeviceBuffer())...);
         }
         (std::make_index_sequence<NumInputs>{});
 
