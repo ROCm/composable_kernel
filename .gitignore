@@ -69,5 +69,6 @@ build*/
 # Python cache
 __pycache__/
 
-# Test data
 test_data/*
+script/*.csv
+script/*.png
