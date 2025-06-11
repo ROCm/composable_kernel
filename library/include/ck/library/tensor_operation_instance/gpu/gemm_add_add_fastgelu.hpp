@@ -11,6 +11,7 @@
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
+#if defined(CK_ENABLE_FP16)
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -136,18 +137,17 @@ template <typename ALayout,
           typename D0DataType,
           typename D1DataType,
           typename EDataType>
-struct DeviceOperationInstanceFactory<
-    ck::tensor_operation::device::DeviceGemmMultipleDSplitK<ALayout,
-                                                            BLayout,
-                                                            ck::Tuple<D0Layout, D1Layout>,
-                                                            ELayout,
-                                                            ADataType,
-                                                            BDataType,
-                                                            ck::Tuple<D0DataType, D1DataType>,
-                                                            EDataType,
-                                                            PassThrough,
-                                                            PassThrough,
-                                                            AddAddFastGelu>>
+struct DeviceOperationInstanceFactory<DeviceGemmMultipleDSplitK<ALayout,
+                                                                BLayout,
+                                                                ck::Tuple<D0Layout, D1Layout>,
+                                                                ELayout,
+                                                                ADataType,
+                                                                BDataType,
+                                                                ck::Tuple<D0DataType, D1DataType>,
+                                                                EDataType,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddAddFastGelu>>
 {
     using DeviceOp = DeviceGemmMultipleDSplitK<ALayout,
                                                BLayout,
@@ -170,7 +170,6 @@ struct DeviceOperationInstanceFactory<
 #endif // CK_USE_XDL
 
 #if defined(CK_USE_WMMA)
-#if defined(CK_ENABLE_FP16)
         constexpr bool IsAllDRowLayout = is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row>;
         constexpr bool IsAllDFloat16 =
             is_same_v<D0DataType, half_t> && is_same_v<D1DataType, half_t>;
@@ -203,8 +202,6 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
-
-#endif // CK_ENABLE_FP16
 #endif // CK_USE_WMMA
 
         return op_ptrs;
@@ -223,18 +220,18 @@ template <typename ALayout,
           typename D0DataType,
           typename D1DataType,
           typename EDataType>
-struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMultipleD<
-    ALayout,
-    BLayout,
-    ck::Tuple<D0Layout, D1Layout>,
-    ELayout,
-    ADataType,
-    BDataType,
-    ck::Tuple<D0DataType, D1DataType>,
-    EDataType,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::AddAddFastGelu>>
+struct DeviceOperationInstanceFactory<
+    DeviceGemmMultipleD<ALayout,
+                        BLayout,
+                        ck::Tuple<D0Layout, D1Layout>,
+                        ELayout,
+                        ADataType,
+                        BDataType,
+                        ck::Tuple<D0DataType, D1DataType>,
+                        EDataType,
+                        PassThrough,
+                        PassThrough,
+                        AddAddFastGelu>>
 {
     using DeviceOp = DeviceGemmMultipleD<ALayout,
                                          BLayout,
@@ -244,9 +241,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                                          BDataType,
                                          ck::Tuple<D0DataType, D1DataType>,
                                          EDataType,
-                                         ck::tensor_operation::element_wise::PassThrough,
-                                         ck::tensor_operation::element_wise::PassThrough,
-                                         ck::tensor_operation::element_wise::AddAddFastGelu>;
+                                         PassThrough,
+                                         PassThrough,
+                                         AddAddFastGelu>;
 
     static auto GetInstances()
     {
@@ -317,3 +314,4 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif // CK_ENABLE_FP16
