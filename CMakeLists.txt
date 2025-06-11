@@ -26,17 +26,21 @@ set(version 1.1.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
 
+option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
+option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
+
 # Usage: for customized Python location cmake -DCK_USE_ALTERNATIVE_PYTHON="/opt/Python-3.8.13/bin/python3.8"
 # CK Codegen requires dataclass which is added in Python 3.7
 # Python version 3.8 is required for general good practice as it is default for Ubuntu 20.04
 if(NOT CK_USE_ALTERNATIVE_PYTHON)
    find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
 else()
-   message("Using alternative python version")
+   message(STATUS "Using alternative python version")
    set(EXTRA_PYTHON_PATH)
    # this is overly restrictive, we may need to be more flexible on the following
    string(REPLACE "/bin/python3.8" "" EXTRA_PYTHON_PATH "${CK_USE_ALTERNATIVE_PYTHON}")
-   message("alternative python path is: ${EXTRA_PYTHON_PATH}")
+   message(STATUS "alternative python path is: ${EXTRA_PYTHON_PATH}")
    find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
    add_definitions(-DPython3_EXECUTABLE="${CK_USE_ALTERNATIVE_PYTHON}")
    set(Python3_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
@@ -76,7 +80,7 @@ if (DTYPES)
         add_definitions(-DCK_ENABLE_BF16)
         set(CK_ENABLE_BF16 "ON")
     endif()
-    message("DTYPES macro set to ${DTYPES}")
+    message(STATUS "DTYPES macro set to ${DTYPES}")
 else()
     add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16 -DCK_ENABLE_FP8 -DCK_ENABLE_BF8)
     set(CK_ENABLE_INT8 "ON")
@@ -93,6 +97,9 @@ add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
+
+# Recent change in compiler makes this warning ON by default, which led to compile errors.
+add_compile_options(-Wno-nrvo)
 
 if(NOT DISABLE_DL_KERNELS)
     add_definitions(-DDL_KERNELS)
@@ -139,8 +146,8 @@ rocm_setup_version(VERSION ${version})
 
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
 
-message("GPU_TARGETS= ${GPU_TARGETS}")
-message("GPU_ARCHS= ${GPU_ARCHS}")
+message(STATUS "GPU_TARGETS= ${GPU_TARGETS}")
+message(STATUS "GPU_ARCHS= ${GPU_ARCHS}")
 if(GPU_ARCHS)
     #disable GPU_TARGETS to avoid conflicts, this needs to happen before we call hip package
     unset(GPU_TARGETS CACHE)
@@ -155,9 +162,9 @@ find_package(hip REQUIRED)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
 # SWDEV-413293 and https://reviews.llvm.org/D155213
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
-message("hip_version_flat=${hip_VERSION_FLAT}")
+message(STATUS "hip_version_flat=${hip_VERSION_FLAT}")
 
-message("checking which targets are supported")
+message(STATUS "checking which targets are supported")
 #In order to build just the CK library (without tests and examples) for all supported GPU targets
 #use -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201"
 #the GPU_TARGETS flag will be reset in this case in order to avoid conflicts.
@@ -169,8 +176,10 @@ if(NOT ENABLE_ASAN_PACKAGING)
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
     elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600300000 AND ${hip_VERSION_FLAT} LESS 600400000)
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201")
-    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600400000)
+    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600400000 AND ${hip_VERSION_FLAT} LESS 600443483)
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201;gfx950")
+    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600443483)
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic")
     endif()
 else()
     #build CK only for xnack-supported targets when using ASAN
@@ -194,25 +203,25 @@ endif()
 rocm_check_target_ids(SUPPORTED_GPU_TARGETS
         TARGETS ${CK_GPU_TARGETS})
 
-message("Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
+message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
 
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
-    message("Enabling XDL instances")
+    message(STATUS "Enabling XDL instances")
     add_definitions(-DCK_USE_XDL)
     set(CK_USE_XDL "ON")
 endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx94" OR SUPPORTED_GPU_TARGETS MATCHES "gfx95")
-    message("Enabling XDL FP8 gemms on native architectures")
+    message(STATUS "Enabling XDL FP8 gemms on native architectures")
     add_definitions(-DCK_USE_GFX94)
     set(CK_USE_GFX94 "ON")
 endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
-    message("Enabling WMMA instances")
+    message(STATUS "Enabling WMMA instances")
     add_definitions(-DCK_USE_WMMA)
     set(CK_USE_WMMA "ON")
 endif()
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx12")
-    message("Enabling WMMA FP8 gemms on native architectures")
+    message(STATUS "Enabling WMMA FP8 gemms on native architectures")
     add_definitions(-DCK_USE_WMMA_FP8)
     set(CK_USE_WMMA_FP8 "ON")
 endif()
@@ -241,32 +250,32 @@ configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/con
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
   check_cxx_compiler_flag("-fno-offload-uniform-block" HAS_NO_OFFLOAD_UNIFORM_BLOCK)
   if(HAS_NO_OFFLOAD_UNIFORM_BLOCK)
-    message("Adding the fno-offload-uniform-block compiler flag")
+    message(STATUS "Adding the fno-offload-uniform-block compiler flag")
     add_compile_options(-fno-offload-uniform-block)
   endif()
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500500000)
   check_cxx_compiler_flag("-mllvm --lsr-drop-solution=1" HAS_LSR_DROP_SOLUTION)
   if(HAS_LSR_DROP_SOLUTION)
-    message("Adding the lsr-drop-solution=1 compiler flag")
+    message(STATUS "Adding the lsr-drop-solution=1 compiler flag")
     add_compile_options("SHELL: -mllvm --lsr-drop-solution=1")
   endif()
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
   check_cxx_compiler_flag("-mllvm -enable-post-misched=0" HAS_ENABLE_POST_MISCHED)
   if(HAS_ENABLE_POST_MISCHED)
-    message("Adding the enable-post-misched=0 compiler flag")
+    message(STATUS "Adding the enable-post-misched=0 compiler flag")
     add_compile_options("SHELL: -mllvm -enable-post-misched=0")
   endif()
 endif()
 set(check-coerce)
 check_cxx_compiler_flag(" -mllvm -amdgpu-coerce-illegal-types=1" check-coerce)
 if(NOT WIN32 AND check-coerce AND ${hip_VERSION_FLAT} GREATER 600241132)
-   message("Adding the amdgpu-coerce-illegal-types=1")
+   message(STATUS "Adding the amdgpu-coerce-illegal-types=1")
    add_compile_options("SHELL: -mllvm -amdgpu-coerce-illegal-types=1")
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
-   message("Adding -amdgpu-early-inline-all=true and -amdgpu-function-calls=false")
+   message(STATUS "Adding -amdgpu-early-inline-all=true and -amdgpu-function-calls=false")
    add_compile_options("SHELL: -mllvm -amdgpu-early-inline-all=true")
    add_compile_options("SHELL: -mllvm -amdgpu-function-calls=false")
 endif()
@@ -303,13 +312,13 @@ option(USE_OPT_GFX11 "Whether to enable LDS cumode and Wavefront32 mode for GFX1
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
     add_compile_options(-Wno-bit-int-extension)
-    message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
+    message(STATUS "CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
 endif()
 
 if(USE_OPT_GFX11)
     add_compile_options(-mcumode)
     add_compile_options(-mno-wavefrontsize64)
-    message("CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
+    message(STATUS "CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
 endif()
 
 ## Threads
@@ -321,7 +330,7 @@ link_libraries(Threads::Threads)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
+message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 
 # https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_macros.html
 # _GLIBCXX_ASSERTIONS
@@ -337,7 +346,7 @@ endif()
 set(CMAKE_HIP_PLATFORM amd)
 set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
 set(CMAKE_HIP_EXTENSIONS ON)
-message("CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
+message(STATUS "CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
 
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -352,10 +361,10 @@ else()
 	find_package(OpenMP REQUIRED)
 endif()
 
-message("OpenMP_CXX_LIB_NAMES: ${OpenMP_CXX_LIB_NAMES}")
-message("OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
-message("OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
-message("OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
+message(STATUS "OpenMP_CXX_LIB_NAMES: ${OpenMP_CXX_LIB_NAMES}")
+message(STATUS "OpenMP_gomp_LIBRARY: ${OpenMP_gomp_LIBRARY}")
+message(STATUS "OpenMP_pthread_LIBRARY: ${OpenMP_pthread_LIBRARY}")
+message(STATUS "OpenMP_CXX_FLAGS: ${OpenMP_CXX_FLAGS}")
 
 link_libraries(${OpenMP_gomp_LIBRARY})
 link_libraries(${OpenMP_pthread_LIBRARY})
@@ -387,146 +396,152 @@ else()
     add_compile_definitions(__HIP_PLATFORM_HCC__=1)
 endif()
 
-## tidy
 include(EnableCompilerWarnings)
+## tidy
 set(CK_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
-    set(CK_TIDY_CHECKS -modernize-use-override -readability-non-const-parameter)
+set(CK_TIDY_CHECKS -modernize-use-override -readability-non-const-parameter)
 # Enable tidy on hip
 elseif(CK_BACKEND STREQUAL "HIP" OR CK_BACKEND STREQUAL "HIPNOGPU")
-    set(CK_TIDY_ERRORS ALL)
+set(CK_TIDY_ERRORS ALL)
 endif()
 
 
-include(ClangTidy)
-enable_clang_tidy(
-    CHECKS
-        *
-        -abseil-*
-        -android-cloexec-fopen
-        # Yea we shouldn't be using rand()
-        -cert-msc30-c
-        -bugprone-exception-escape
-        -bugprone-macro-parentheses
-        -cert-env33-c
-        -cert-msc32-c
-        -cert-msc50-cpp
-        -cert-msc51-cpp
-        -cert-dcl37-c
-        -cert-dcl51-cpp
-        -clang-analyzer-alpha.core.CastToStruct
-        -clang-analyzer-optin.performance.Padding
-        -clang-diagnostic-deprecated-declarations
-        -clang-diagnostic-extern-c-compat
-        -clang-diagnostic-unused-command-line-argument
-        -cppcoreguidelines-avoid-c-arrays
-        -cppcoreguidelines-avoid-magic-numbers
-        -cppcoreguidelines-explicit-virtual-functions
-        -cppcoreguidelines-init-variables
-        -cppcoreguidelines-macro-usage
-        -cppcoreguidelines-non-private-member-variables-in-classes
-        -cppcoreguidelines-pro-bounds-array-to-pointer-decay
-        -cppcoreguidelines-pro-bounds-constant-array-index
-        -cppcoreguidelines-pro-bounds-pointer-arithmetic
-        -cppcoreguidelines-pro-type-member-init
-        -cppcoreguidelines-pro-type-reinterpret-cast
-        -cppcoreguidelines-pro-type-union-access
-        -cppcoreguidelines-pro-type-vararg
-        -cppcoreguidelines-special-member-functions
-        -fuchsia-*
-        -google-explicit-constructor
-        -google-readability-braces-around-statements
-        -google-readability-todo
-        -google-runtime-int
-        -google-runtime-references
-        -hicpp-vararg
-        -hicpp-braces-around-statements
-        -hicpp-explicit-conversions
-        -hicpp-named-parameter
-        -hicpp-no-array-decay
-        # We really shouldn't use bitwise operators with signed integers, but
-        # opencl leaves us no choice
-        -hicpp-avoid-c-arrays
-        -hicpp-signed-bitwise
-        -hicpp-special-member-functions
-        -hicpp-uppercase-literal-suffix
-        -hicpp-use-auto
-        -hicpp-use-equals-default
-        -hicpp-use-override
-        -llvm-header-guard
-        -llvm-include-order
-        #-llvmlibc-*
-        -llvmlibc-restrict-system-libc-headers
-        -llvmlibc-callee-namespace
-        -llvmlibc-implementation-in-namespace
-        -llvm-else-after-return
-        -llvm-qualified-auto
-        -misc-misplaced-const
-        -misc-non-private-member-variables-in-classes
-        -misc-no-recursion
-        -modernize-avoid-bind
-        -modernize-avoid-c-arrays
-        -modernize-pass-by-value
-        -modernize-use-auto
-        -modernize-use-default-member-init
-        -modernize-use-equals-default
-        -modernize-use-trailing-return-type
-        -modernize-use-transparent-functors
-        -performance-unnecessary-value-param
-        -readability-braces-around-statements
-        -readability-else-after-return
-        # we are not ready to use it, but very useful
-        -readability-function-cognitive-complexity
-        -readability-isolate-declaration
-        -readability-magic-numbers
-        -readability-named-parameter
-        -readability-uppercase-literal-suffix
-        -readability-convert-member-functions-to-static
-        -readability-qualified-auto
-        -readability-redundant-string-init
-        # too many narrowing conversions in our code
-        -bugprone-narrowing-conversions
-        -cppcoreguidelines-narrowing-conversions
-        -altera-struct-pack-align
-        -cppcoreguidelines-prefer-member-initializer
-        ${CK_TIDY_CHECKS}
-        ${CK_TIDY_ERRORS}
-    HEADER_FILTER
-        "\.hpp$"
-    EXTRA_ARGS
-        -DCK_USE_CLANG_TIDY
-)
+if(ENABLE_CLANG_CPP_CHECKS)
+    include(ClangTidy)
+    enable_clang_tidy(
+        CHECKS
+            *
+            -abseil-*
+            -android-cloexec-fopen
+            # Yea we shouldn't be using rand()
+            -cert-msc30-c
+            -bugprone-exception-escape
+            -bugprone-macro-parentheses
+            -cert-env33-c
+            -cert-msc32-c
+            -cert-msc50-cpp
+            -cert-msc51-cpp
+            -cert-dcl37-c
+            -cert-dcl51-cpp
+            -clang-analyzer-alpha.core.CastToStruct
+            -clang-analyzer-optin.performance.Padding
+            -clang-diagnostic-deprecated-declarations
+            -clang-diagnostic-extern-c-compat
+            -clang-diagnostic-unused-command-line-argument
+            -cppcoreguidelines-avoid-c-arrays
+            -cppcoreguidelines-avoid-magic-numbers
+            -cppcoreguidelines-explicit-virtual-functions
+            -cppcoreguidelines-init-variables
+            -cppcoreguidelines-macro-usage
+            -cppcoreguidelines-non-private-member-variables-in-classes
+            -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+            -cppcoreguidelines-pro-bounds-constant-array-index
+            -cppcoreguidelines-pro-bounds-pointer-arithmetic
+            -cppcoreguidelines-pro-type-member-init
+            -cppcoreguidelines-pro-type-reinterpret-cast
+            -cppcoreguidelines-pro-type-union-access
+            -cppcoreguidelines-pro-type-vararg
+            -cppcoreguidelines-special-member-functions
+            -fuchsia-*
+            -google-explicit-constructor
+            -google-readability-braces-around-statements
+            -google-readability-todo
+            -google-runtime-int
+            -google-runtime-references
+            -hicpp-vararg
+            -hicpp-braces-around-statements
+            -hicpp-explicit-conversions
+            -hicpp-named-parameter
+            -hicpp-no-array-decay
+            # We really shouldn't use bitwise operators with signed integers, but
+            # opencl leaves us no choice
+            -hicpp-avoid-c-arrays
+            -hicpp-signed-bitwise
+            -hicpp-special-member-functions
+            -hicpp-uppercase-literal-suffix
+            -hicpp-use-auto
+            -hicpp-use-equals-default
+            -hicpp-use-override
+            -llvm-header-guard
+            -llvm-include-order
+            #-llvmlibc-*
+            -llvmlibc-restrict-system-libc-headers
+            -llvmlibc-callee-namespace
+            -llvmlibc-implementation-in-namespace
+            -llvm-else-after-return
+            -llvm-qualified-auto
+            -misc-misplaced-const
+            -misc-non-private-member-variables-in-classes
+            -misc-no-recursion
+            -modernize-avoid-bind
+            -modernize-avoid-c-arrays
+            -modernize-pass-by-value
+            -modernize-use-auto
+            -modernize-use-default-member-init
+            -modernize-use-equals-default
+            -modernize-use-trailing-return-type
+            -modernize-use-transparent-functors
+            -performance-unnecessary-value-param
+            -readability-braces-around-statements
+            -readability-else-after-return
+            # we are not ready to use it, but very useful
+            -readability-function-cognitive-complexity
+            -readability-isolate-declaration
+            -readability-magic-numbers
+            -readability-named-parameter
+            -readability-uppercase-literal-suffix
+            -readability-convert-member-functions-to-static
+            -readability-qualified-auto
+            -readability-redundant-string-init
+            # too many narrowing conversions in our code
+            -bugprone-narrowing-conversions
+            -cppcoreguidelines-narrowing-conversions
+            -altera-struct-pack-align
+            -cppcoreguidelines-prefer-member-initializer
+            ${CK_TIDY_CHECKS}
+            ${CK_TIDY_ERRORS}
+        HEADER_FILTER
+            "\.hpp$"
+        EXTRA_ARGS
+            -DCK_USE_CLANG_TIDY
+    )
 
-include(CppCheck)
-enable_cppcheck(
-    CHECKS
-        warning
-        style
-        performance
-        portability
-    SUPPRESS
-        ConfigurationNotChecked
-        constStatement
-        duplicateCondition
-        noExplicitConstructor
-        passedByValue
-        preprocessorErrorDirective
-        shadowVariable
-        unusedFunction
-        unusedPrivateFunction
-        unusedStructMember
-        unmatchedSuppression
-    FORCE
-    SOURCES
-        library/src
-    INCLUDE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/library/include
-    DEFINE
-        CPPCHECK=1
-        __linux__=1
-)
+    include(CppCheck)
+    enable_cppcheck(
+        CHECKS
+            warning
+            style
+            performance
+            portability
+        SUPPRESS
+            ConfigurationNotChecked
+            constStatement
+            duplicateCondition
+            noExplicitConstructor
+            passedByValue
+            preprocessorErrorDirective
+            shadowVariable
+            unusedFunction
+            unusedPrivateFunction
+            unusedStructMember
+            unmatchedSuppression
+        FORCE
+        SOURCES
+            library/src
+        INCLUDE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/library/include
+        DEFINE
+            CPPCHECK=1
+            __linux__=1
+    )
+else()
+    function(clang_tidy_check TARGET)
+        # stub out empty function if clang tidy is not enabled
+    endfunction()
+endif()
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -545,7 +560,7 @@ if(BUILD_DEV)
     add_compile_options(-Werror)
     add_compile_options(-Weverything)
 endif()
-message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     add_compile_options(-fcolor-diagnostics)
@@ -554,12 +569,15 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERS
     add_compile_options(-fdiagnostics-color=always)
 endif()
 
-# make check runs the entire set of examples and tests
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
-# make smoke runs the tests and examples that runs within 30 seconds on gfx90a
-add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST")
-# make regression runs the tests and examples that runs for more 30 seconds on gfx90a
-add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST")
+if(NOT MIOPEN_REQ_LIBS_ONLY)
+    # make check runs the entire set of examples and tests
+    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+    # make smoke runs the tests and examples that runs within 30 seconds on gfx90a
+    add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST")
+    # make regression runs the tests and examples that runs for more 30 seconds on gfx90a
+    add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST")
+endif()
+
 
 
 file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
@@ -602,6 +620,11 @@ ENDIF()
 ENDFOREACH()
 
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
+
+option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(DISABLE_OFFLOAD_COMPRESS "Disable offload compress compiler flag when building instances" OFF)
+option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
+
 add_subdirectory(library)
 
 if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
@@ -621,11 +644,13 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
    endif()
 endif()
 
-rocm_package_setup_component(profiler
-    LIBRARY_NAME composablekernel
-    PACKAGE_NAME ckprofiler
-)
-add_subdirectory(profiler)
+if (NOT MIOPEN_REQ_LIBS_ONLY)
+    rocm_package_setup_component(profiler
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME ckprofiler
+    )
+    add_subdirectory(profiler)
+endif()
 
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
   add_subdirectory(codegen)

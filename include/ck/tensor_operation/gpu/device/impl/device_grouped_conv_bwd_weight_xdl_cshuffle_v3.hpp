@@ -328,53 +328,53 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
-    using GridwiseGemm =
-        GridwiseGemm_xdl_cshuffle_v3<tensor_layout::gemm::RowMajor,
-                                     tensor_layout::gemm::ColumnMajor,
-                                     tensor_layout::gemm::RowMajor,
-                                     ADataType,
-                                     BDataType,
-                                     AccDataType,
-                                     CDataType,
-                                     CDataType,
-                                     AElementwiseOperation,
-                                     BElementwiseOperation,
-                                     CElementwiseOperation,
-                                     GemmSpec,
-                                     BlockSize,
-                                     MPerBlock,
-                                     NPerBlock,
-                                     K0PerBlock,
-                                     K1,
-                                     K1,
-                                     MPerXdl,
-                                     NPerXdl,
-                                     MXdlPerWave,
-                                     NXdlPerWave,
-                                     ABlockTransferThreadClusterLengths_K0_M_K1,
-                                     ABlockTransferThreadClusterArrangeOrder,
-                                     ABlockTransferSrcAccessOrder,
-                                     ABlockTransferSrcVectorDim,
-                                     ABlockTransferSrcScalarPerVector,
-                                     ABlockTransferDstScalarPerVector_K1,
-                                     false,
-                                     ABlockLdsAddExtraM,
-                                     BBlockTransferThreadClusterLengths_K0_N_K1,
-                                     BBlockTransferThreadClusterArrangeOrder,
-                                     BBlockTransferSrcAccessOrder,
-                                     BBlockTransferSrcVectorDim,
-                                     BBlockTransferSrcScalarPerVector,
-                                     BBlockTransferDstScalarPerVector_K1,
-                                     false,
-                                     BBlockLdsAddExtraN,
-                                     CShuffleMXdlPerWavePerShuffle,
-                                     CShuffleNXdlPerWavePerShuffle,
-                                     CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                                     CBlockTransferScalarPerVector_NWaveNPerXdl,
-                                     BlkGemmPipeSched,
-                                     BlkGemmPipelineVer,
-                                     ComputeTypeA,
-                                     ComputeTypeB>;
+    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_conv_v3<
+        tensor_layout::gemm::RowMajor,
+        tensor_layout::gemm::ColumnMajor,
+        tensor_layout::gemm::RowMajor,
+        ADataType,
+        BDataType,
+        AccDataType,
+        CDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GemmSpec,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        K0PerBlock,
+        K1,
+        K1,
+        MPerXdl,
+        NPerXdl,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_K1,
+        false,
+        ABlockLdsAddExtraM,
+        BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_K1,
+        false,
+        BBlockLdsAddExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CBlockTransferScalarPerVector_NWaveNPerXdl,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ComputeTypeA,
+        ComputeTypeB>;
 
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
@@ -1206,6 +1206,13 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         if constexpr(ConvBackwardWeightSpecialization ==
                      ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
         {
+// workaround: disable when K, C is even
+#if CK_WORKAROUND_DISABLE_FILTER1x1STRIDE1PAD0_WHEN_K_C_IS_EVEN
+            if(arg.Conv_C_ % 2 == 0 || arg.Conv_K_ % 2 == 0)
+            {
+                return false;
+            }
+#endif
             // check if it's 1x1, stride=1 pad = 0 conv
             for(int i = 0; i < NDimSpatial; i++)
             {

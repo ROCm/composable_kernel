@@ -6,8 +6,9 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_batch_prefill_pipeline_qr_ks_vs_async_default_policy.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
+#include "ck_tile/ops/fmha/block/variants.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_batch_prefill_pipeline_qr_ks_vs_async_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
@@ -498,6 +499,16 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 #else
                     for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
                     {
+#if(defined(__gfx90a__) || defined(__gfx94__)) &&                                               \
+    (CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN && \
+     CK_TILE_ATTENTION_USE_SOFTSIGN_ASM)
+                        // Avoid data hazard if v_mfma is followed by inline asm consumer
+                        // instructions. In this case, compiler won't add s_nop for us
+                        if(i == s_acc.thread_buf_.size() / 2)
+                        {
+                            __builtin_amdgcn_sched_barrier(0);
+                        }
+#endif
                         apply_logits_transform(s_acc.thread_buf_[i]);
                     }
 #endif
@@ -691,12 +702,19 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             }
 
             const auto p = [&]() {
+#if CK_TILE_FMHA_FLOAT_TO_FLOAT16_RTN
+                // For fp32 to fp16,
+                // impl::cast_tile_pk_fp16_fp32 would cause precision issue,
+                // since it uses __builtin_amdgcn_cvt_pkrtz, which is round to zero.
+                return cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+#else
                 if constexpr(std::is_same_v<PDataType, fp16_t>)
                     return impl::cast_tile_pk_fp16_fp32<PDataType>(
                         tile_elementwise_in(p_compute_element_func, p_compute));
                 else
                     return cast_tile<PDataType>(
                         tile_elementwise_in(p_compute_element_func, p_compute));
+#endif
             }();
 
             // STAGE 3, KV gemm
