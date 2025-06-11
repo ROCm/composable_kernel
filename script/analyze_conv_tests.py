@@ -14,6 +14,7 @@ def parse_cli_args():
     parser = argparse.ArgumentParser(description="Analyze convolution test results.")
     parser.add_argument("--csv-file", type=str, dest="csv_file", required=True, help="Path to the CSV file containing test cases.")
     parser.add_argument("--output-dir", type=str, dest="output_dir", required=True, help="Directory to save output plots.")
+    parser.add_argument("--label", type=str, dest="label", default="", help="Label for the figure names.")
     
     args, unknown_args = parser.parse_known_args()
     
@@ -22,6 +23,143 @@ def parse_cli_args():
         sys.exit(1)
     
     return args
+
+def calculate_ranking_numbers(best_split_k_ranks, num_ops):
+  """Calculate ranking numbers based on best split-k ranks and number of operations."""
+  best_split_k_ranking_numbers = []
+  for i in range(len(best_split_k_ranks)):
+      rank = int(best_split_k_ranks.iloc[i])
+      total_ops = int(num_ops.iloc[i])
+      ranking = 100.0 * (total_ops - rank + 1) / total_ops
+      best_split_k_ranking_numbers.append(ranking)
+
+  return best_split_k_ranking_numbers
+
+def plot_ranking_histogram(best_split_k_ranking_numbers, file_name, explanation):
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    plt.figure(figsize=(10, 6))
+    plt.hist(best_split_k_ranking_numbers, bins=20, color='skyblue', edgecolor='black', alpha=0.7)
+    plt.title('Optimized Split-K Ranking Numbers')
+    plt.xlabel('Ranking (%)')
+    plt.ylabel('Frequency')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.text(0.05, 0.8, explanation, transform=plt.gca().transAxes, fontsize=9,
+          verticalalignment='bottom', bbox=props)
+    plt.savefig(file_name)
+
+def plot_local_ranking_bar_chart(best_split_k_ranking_numbers, file_name, explanation):
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    
+    # Count the occurrences of each ranking
+    rankings_count = {}
+    for ranking in best_split_k_ranking_numbers:
+        rankings_count[ranking] = rankings_count.get(ranking, 0) + 1
+    
+    # Ensure all ranks 1-9 are represented
+    max_rank = 9
+    all_ranks = list(range(1, max_rank+1))  # Ranks 1 through 9
+    
+    # Create a list of counts, with 0 for missing ranks
+    counts = [rankings_count.get(rank, 0) for rank in all_ranks]
+    
+    # Check that there are not other ranks than 1-9
+    if any(rank < 1 or rank > max_rank for rank in rankings_count.keys()):
+        raise f"Error: Found ranks outside the range 1-9."
+
+    plt.figure(figsize=(10, 6))
+    
+    # Create bar chart with consistent coloring
+    bars = plt.bar(
+        all_ranks,              # X positions (1-9)
+        counts,                 # Heights (frequencies)
+        color='skyblue',
+        edgecolor='black',
+        alpha=0.7,
+        width=0.6
+    )
+    
+    # Add value labels on top of each bar
+    for bar in bars:
+        height = bar.get_height()
+        if height > 0:  # Only add labels for non-zero bars
+            plt.text(
+                bar.get_x() + bar.get_width()/2.,
+                height + 0.5,
+                f'{int(height)}',
+                ha='center', 
+                va='bottom',
+                fontweight='bold'
+            )
+    
+    # Set x-tick positions and labels
+    plt.xticks(
+        all_ranks,              # Positions (1-9)
+        [f"{rank}" for rank in all_ranks],  # Labels
+        fontsize=11
+    )
+    
+    # Add labels and title
+    plt.title('Distribution of Optimal Split-K Rankings', fontsize=14, fontweight='bold')
+    plt.xlabel('Ranking (1=Best, 9=Worst)', fontsize=12)
+    plt.ylabel('Frequency (Count)', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7, axis='y')  # Grid lines only on y-axis
+    
+    # Add explanation text
+    plt.text(0.2, 0.85, explanation, transform=plt.gca().transAxes, fontsize=9,
+            verticalalignment='bottom', bbox=props)
+    
+    # Add statistics
+    total_instances = sum(counts)
+    stats_text = (f"Total instances: {total_instances}\n"
+                 f"Best performing (Rank 1): {counts[0]} ({counts[0]/total_instances:.1%})\n"
+                 f"Worst performing (Rank 9): {counts[7]} ({counts[8]/total_instances:.1%})")
+    
+    plt.text(0.65, 0.675, stats_text, transform=plt.gca().transAxes, fontsize=9,
+            verticalalignment='bottom', bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.5))
+    
+    # Adjust layout to prevent label cutoff
+    plt.tight_layout()
+    
+    # Save the plot
+    plt.savefig(file_name)
+
+def plot_local_performance_histogram(local_performance, file_name, explanation):
+    import numpy as np
+    mean_val = np.mean(local_performance)
+    median_val = np.median(local_performance)
+    std_val = np.std(local_performance)
+    min_val = np.min(local_performance)
+    max_val = np.max(local_performance)
+    count = len(local_performance)
+    
+    # Create statistics text
+    stats_text = (f"Statistics:\n"
+                  f"Count: {count}\n"
+                  f"Mean: {mean_val:.2f}%\n"
+                  f"Median: {median_val:.2f}%\n"
+                  f"Std Dev: {std_val:.2f}%\n"
+                  f"Min: {min_val:.2f}%\n"
+                  f"Max: {max_val:.2f}%")
+    
+    # Create figure and plot histogram
+    plt.figure(figsize=(10, 6))
+    plt.hist(local_performance, bins=20, color='skyblue', edgecolor='black', alpha=0.7)
+    plt.title('Local Performance of Split-K Values')
+    plt.xlabel('Performance (%)')
+    plt.ylabel('Frequency')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    # Add explanation text box (on the left)
+    plt.text(0.05, 0.85, explanation, transform=plt.gca().transAxes, fontsize=9,
+            verticalalignment='bottom', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    
+    # Add statistics text box (on the right)
+    plt.text(0.05, 0.55, stats_text, transform=plt.gca().transAxes, fontsize=9,
+            verticalalignment='bottom', bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.5))
+    
+    # Save figure
+    plt.savefig(file_name)
+    plt.close()
 
 def main():
   args = parse_cli_args()
@@ -39,43 +177,65 @@ def main():
   best_times = df[1]
   best_split_k = df[2]
   best_split_k_ops = df[3]
-  best_split_k_values = df[4]
-  best_split_k_ranks = df[5]
-  num_ops = df[6]
+  best_split_k_times = df[4]
+  best_split_k_values = df[5]
+  best_split_k_ranks = df[6]
+  num_ops = df[7]
+
+  local_rankings = []
+  local_peformance = []
+  local_data_num_cols = 7  # Number of columns we expect in the local data
+  max_columns = df.shape[1] - local_data_num_cols
+  for i in range(8, max_columns, local_data_num_cols):
+      temp_df = pd.DataFrame({
+          'best_times': df[i + 1],
+          'best_split_k': df[i + 2],
+          'opt_split_k_times': df[i + 3],
+          'opt_split_k_values': df[i + 4],
+          'opt_split_k_rank': df[i + 5],
+          'num_ops': df[i + 6]
+      })
+      clean_df = temp_df.dropna()
+      local_opt_split_k_rank = clean_df['opt_split_k_rank'].astype(int).tolist()
+
+      # Filter out rows where opt_split_k equals best_split_k
+      filtered_df = clean_df[clean_df['opt_split_k_values'] != clean_df['best_split_k']]
+
+      # Calculate performance metrics on filtered data
+      perf_factor = filtered_df['best_times'].astype(float) / filtered_df['opt_split_k_times'].astype(float)
+      local_perf = 100.0 * perf_factor
+
+      local_peformance.extend(local_perf.tolist())
+      local_rankings.extend(local_opt_split_k_rank)
   
+  suffix = f"_{args.label}" if args.label else ""
+
+  # Plot the local ranking numbers as a bar chart
+  explanation = """Each supported instance was benchmarked with split-K values ["optimized", 1, 2, 4, 8, 16, 32, 64, 128]. 
+Ranking 1 means that optimized split-K value was the best, and ranking 9 means that it was the worst"""
+  file_name = os.path.join(args.output_dir, f'local_ranking_chart{suffix}.png')
+  plot_local_ranking_bar_chart(local_rankings, file_name, explanation)
+
+  # Plot the local performance as a histogram
+  explanation = """Performance of the optimal split-K value compared to the best split-K value 
+when optimal split-K value was not the best."""
+  file_name = os.path.join(args.output_dir, f'local_performance_histogram{suffix}.png')
+  plot_local_performance_histogram(local_peformance, file_name, explanation)
+
   print(f"Column stats:")
   print(f"- Best split-k values unique count: {best_split_k.nunique()}")
   print(f"- Best split-k values: {', '.join(best_split_k.unique().tolist()[:10])}...")
   
   # Calculate ranking numbers
-  best_split_k_ranking_numbers = []
-  for i in range(len(best_split_k_ranks)):
-      try:
-          rank = int(best_split_k_ranks.iloc[i])
-          total_ops = int(num_ops.iloc[i])
-          ranking = 100.0 * (total_ops - rank + 1) / total_ops
-          best_split_k_ranking_numbers.append(ranking)
-      except (ValueError, TypeError) as e:
-          print(f"Warning: Could not process row {i}: {e}")
-          best_split_k_ranking_numbers.append(0)  # Default value
+  best_split_k_ranking_numbers = calculate_ranking_numbers(best_split_k_ranks, num_ops)
 
-  # Plot the ranking number as a historgram
+  # Plot the global ranking numbers as a historgram
   explanation = """For each shape, all supported instances were benchmarked 
-with split-K values ["optimized", 1, 2, 4, 8, 16, 32, 128]. 
+with split-K values ["optimized", 1, 2, 4, 8, 16, 32, 64, 128]. 
 Ranking 100% means that best instance had optimized split-K value, 
 lower values mean that the best instance had one of the fixed split-K values."""
-  props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-  plt.figure(figsize=(10, 6))
-  plt.hist(best_split_k_ranking_numbers, bins=20, color='skyblue', edgecolor='black', alpha=0.7)
-  plt.title('Optimized Split-K Ranking Numbers')
-  plt.xlabel('Ranking (%)')
-  plt.ylabel('Frequency')
-  plt.grid(True, linestyle='--', alpha=0.7)
-  plt.text(0.05, 0.8, explanation, transform=plt.gca().transAxes, fontsize=9,
-         verticalalignment='bottom', bbox=props)
-  hist_plot_path = os.path.join(args.output_dir, 'ranking_histogram.png')
-  plt.savefig(hist_plot_path)
-  print(f"Saved ranking histogram to: {hist_plot_path}")
+  file_name = os.path.join(args.output_dir, f'ranking_histogram{suffix}.png')
+  plot_ranking_histogram(best_split_k_ranking_numbers, file_name, explanation)
   
   # Find indices where split-k is not in the standard set
   standard_split_k = ['1', '2', '4', '8', '16', '32', '64', '128']
@@ -174,7 +334,7 @@ lower values mean that the best instance had one of the fixed split-K values."""
       plt.tight_layout()
 
       # Save the plot
-      bar_plot_path = os.path.join(args.output_dir, 'split_k_distribution.png')
+      bar_plot_path = os.path.join(args.output_dir, f'best_split_k_distribution{suffix}.png')
       plt.savefig(bar_plot_path)
       print(f"Saved split-K distribution chart to: {bar_plot_path}")
       print(f"You can view it with: \"$BROWSER\" {os.path.abspath(bar_plot_path)}")
@@ -262,7 +422,7 @@ lower values mean that the best instance had one of the fixed split-K values."""
     plt.tight_layout()
     
     # Save the plot
-    opt_plot_path = os.path.join(args.output_dir, 'optimized_split_k_distribution.png')
+    opt_plot_path = os.path.join(args.output_dir, f'optimized_split_k_distribution{suffix}.png')
     plt.savefig(opt_plot_path)
     print(f"Saved optimized split-K distribution chart to: {opt_plot_path}")
 

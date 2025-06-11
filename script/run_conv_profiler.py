@@ -94,7 +94,7 @@ def run_ck_profiler_cmd(cmd, log_to_stdout=False):
     working_dir = os.path.dirname(os.path.abspath(__file__))
     pid = os.getpid()
     env_vars = os.environ.copy()
-    env_vars["CK_PROFILER_DISABLED_OPS"] = "DeviceGroupedConvBwdWeight_Dl;DeviceGroupedConvBwdWeight_Xdl_CShuffleV3"
+    env_vars["CK_PROFILER_DISABLED_OPS"] = ""
     env_vars["CK_PROFILER_OUTPUT_FILE"] = f"{working_dir}/conv_profiler_output_{pid}.csv"
     if log_to_stdout:
       subprocess.run(cmd, env=env_vars, stdout=devnull) 
