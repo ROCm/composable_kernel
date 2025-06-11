@@ -53,6 +53,11 @@ namespace {
  * DeviceConv3d \endlink uses the same concept, but currently does NOT encapsulate the computing of
  * pointer offset into \p ComputePtrOffsetOfStridedBatch.
  *
+ * MaxGroupedGemmGroupsNum  is used to specify number of gemm args in compile time. With this
+ * implementation we can avoid copy data to workspace before kernel launch since number of groups is
+ * runtime parameter. If number of groups is larger than MaxGroupedGemmGroupsNum  then we run this
+ * kernel in the loop.
+ *
  * \note \p Block2ETileMap allows customized mapping between a workgroup and the C-tile it computes.
  * Together with \p ComputePtrOffsetOfBatch, we can reuse GridwiseGemm (and GridwiseGemm fusion ) to
  * realize BatchedGemm and GroupedGemm (and the corresponding GEMM fusion).
@@ -62,7 +67,7 @@ template <typename GridwiseGemm,
           typename ABDataType,
           typename DsPointer,
           typename EDataType,
-          index_t MaxKernelArgsNum,
+          index_t MaxGroupedGemmGroupsNum,
           typename GemmArgs,
           typename AElementwiseOp,
           typename BElementwiseOp,
@@ -79,7 +84,7 @@ __global__ void
             const ABDataType* __restrict__ p_b_grid,
             DsPointer p_ds_grid,
             EDataType* __restrict__ p_e_grid,
-            const std::array<GemmArgs, MaxKernelArgsNum> gemm_kernel_args,
+            const std::array<GemmArgs, MaxGroupedGemmGroupsNum> gemm_kernel_args,
             const index_t gemms_count,
             const AElementwiseOp a_element_op,
             const BElementwiseOp b_element_op,
@@ -269,7 +274,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static_assert(NDimSpatial == 2 || NDimSpatial == 3,
                   "wrong! only implemented for 2D and 3D now");
 
-    static constexpr index_t MaxKernelArgsNum = 32;
+    // MaxGroupedGemmGroupsNum  is used to specify number of gemm args in compile time. With this
+    // implementation we can avoid copy data to workspace before kernel launch since number of
+    // groups is runtime parameter. If number of groups is larger than MaxGroupedGemmGroupsNum  then
+    // we run this kernel in the loop.
+    static constexpr index_t MaxGroupedGemmGroupsNum = 32;
 
     using DeviceOp = DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1;
 
@@ -418,40 +427,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     // block-to-e-tile map
     using Block2ETileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
 
-    struct GroupedGemmBlock2ETileMap
-    {
-
-        GroupedGemmBlock2ETileMap() : block_2_etile_map_(1, 1), BlockStart_(0) {}
-
-        GroupedGemmBlock2ETileMap(const EGridDesc_M_N& e_grid_desc_m_n, ck::index_t BlockStart)
-            : block_2_etile_map_(e_grid_desc_m_n.GetLength(I0), e_grid_desc_m_n.GetLength(I1)),
-              BlockStart_(BlockStart)
-        {
-        }
-
-        template <typename TopIdx>
-        __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
-        {
-            return block_2_etile_map_.CalculateBottomIndex(
-                make_multi_index(idx_top[I0] - BlockStart_));
-        }
-
-        // it's actually E-Tile
-        template <typename CTileIdx, typename CTileDim>
-        __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
-                                                 const CTileDim& c_tile_dim) const
-        {
-            return block_2_etile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
-        }
-
-        __host__ bool CheckValidity(const EGridDesc_M_N& e_grid_desc_m_n) const
-        {
-            return block_2_etile_map_.CheckValidity(e_grid_desc_m_n);
-        }
-
-        Block2ETileMap block_2_etile_map_;
-        ck::index_t BlockStart_;
-    };
+    using GroupedGemmBlock2ETileMap = OffsettedBlockToCTileMap<Block2ETileMap>;
 
     struct GemmArgs
     {
@@ -684,7 +660,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             index_t grid_size = 0;
             // Allocate place for sets of gemms
             gemm_kernel_args_.resize(
-                math::integer_divide_ceil(ZTilde * YTilde * XTilde, MaxKernelArgsNum));
+                math::integer_divide_ceil(ZTilde * YTilde * XTilde, MaxGroupedGemmGroupsNum));
 
             for(index_t i_ztilde = 0; i_ztilde < ZTilde; ++i_ztilde)
             {
@@ -790,10 +766,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         ds_grid_desc_m_n_container_.push_back(ds_grid_desc_m_n);
                         e_grid_desc_m_n_container_.push_back(e_grid_desc_m_n);
 
-                        const index_t grid_size_grp =
-                            GroupedGemmBlock2ETileMap(e_grid_desc_m_n, 0)
-                                .block_2_etile_map_.CalculateGridSize(
-                                    e_grid_desc_m_n.GetLength(I0), e_grid_desc_m_n.GetLength(I1));
+                        const index_t grid_size_grp = Block2ETileMap::CalculateGridSize(
+                            e_grid_desc_m_n.GetLength(I0), e_grid_desc_m_n.GetLength(I1));
 
                         const index_t BlockStart = grid_size;
                         const index_t BlockEnd   = grid_size + grid_size_grp;
@@ -802,26 +776,30 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
                         // block-to-e-tile map
                         const auto block_2_etile_map =
-                            GroupedGemmBlock2ETileMap(e_grid_desc_m_n, BlockStart);
+                            GroupedGemmBlock2ETileMap(Block2ETileMap(e_grid_desc_m_n.GetLength(I0),
+                                                                     e_grid_desc_m_n.GetLength(I1)),
+                                                      BlockStart);
 
                         const auto GemmK = a_grid_desc_m_k.GetLength(I1);
                         const bool HasMainKBlockLoop =
                             GridwiseGemm::CalculateHasMainKBlockLoop(GemmK, k_batch_);
 
                         gemm_kernel_args_[gemms_count_ /
-                                          MaxKernelArgsNum][gemms_count_ %
-                                                            MaxKernelArgsNum] = GemmArgs{
-                            a_grid_desc_ak0_m_ak1,
-                            b_grid_desc_bk0_n_bk1,
-                            GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ds_grid_desc_m_n),
-                            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n),
-                            block_2_etile_map,
-                            BlockStart,
-                            BlockEnd,
-                            HasMainKBlockLoop};
+                                          MaxGroupedGemmGroupsNum][gemms_count_ %
+                                                                   MaxGroupedGemmGroupsNum] =
+                            GemmArgs{a_grid_desc_ak0_m_ak1,
+                                     b_grid_desc_bk0_n_bk1,
+                                     GridwiseGemm::
+                                         MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                             ds_grid_desc_m_n),
+                                     MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                         e_grid_desc_m_n),
+                                     block_2_etile_map,
+                                     BlockStart,
+                                     BlockEnd,
+                                     HasMainKBlockLoop};
                         gemms_count_++;
-                        if(gemms_count_ % MaxKernelArgsNum == 0)
+                        if(gemms_count_ % MaxGroupedGemmGroupsNum == 0)
                         {
                             gemms_grid_size_.push_back(grid_size);
                             grid_size = 0;
@@ -829,7 +807,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     }
                 }
             }
-            gemm_kernel_args_.resize(math::integer_divide_ceil(gemms_count_, MaxKernelArgsNum));
+            gemm_kernel_args_.resize(
+                math::integer_divide_ceil(gemms_count_, MaxGroupedGemmGroupsNum));
             gemms_grid_size_.push_back(grid_size);
 
             // A/B/Ds/E Batch Stride
@@ -1001,7 +980,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         index_t num_workgroups_per_Conv_N_;
         std::vector<index_t> gemms_grid_size_;
         index_t gemms_count_ = 0;
-        std::vector<std::array<GemmArgs, MaxKernelArgsNum>> gemm_kernel_args_;
+        std::vector<std::array<GemmArgs, MaxGroupedGemmGroupsNum>> gemm_kernel_args_;
     };
 
     // Invoker
@@ -1044,9 +1023,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 const index_t gdx = arg.gemms_grid_size_[gemm_set_id];
                 const index_t gemms_count_for_set =
                     gemm_set_id == arg.gemm_kernel_args_.size() - 1
-                        ? arg.gemms_count_ - MaxKernelArgsNum * gemm_set_id
-                        : MaxKernelArgsNum;
-                const std::array<GemmArgs, MaxKernelArgsNum> gemm_kernel_args =
+                        ? arg.gemms_count_ - MaxGroupedGemmGroupsNum * gemm_set_id
+                        : MaxGroupedGemmGroupsNum;
+                const std::array<GemmArgs, MaxGroupedGemmGroupsNum>& gemm_kernel_args =
                     arg.gemm_kernel_args_[gemm_set_id];
 
                 auto launch_kernel = [&]() {
@@ -1055,7 +1034,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         ADataType, // TODO: distiguish A/B datatype
                         typename GridwiseGemm::DsGridPointer,
                         EDataType,
-                        MaxKernelArgsNum,
+                        MaxGroupedGemmGroupsNum,
                         GemmArgs,
                         AElementwiseOp,
                         BElementwiseOp,
@@ -1376,7 +1355,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                    arg.b_grid_desc_n_k_container_[i],
                    arg.ds_grid_desc_m_n_container_[i],
                    arg.e_grid_desc_m_n_container_[i],
-                   arg.gemm_kernel_args_[i / MaxKernelArgsNum][i % MaxKernelArgsNum]
+                   arg.gemm_kernel_args_[i / MaxGroupedGemmGroupsNum][i % MaxGroupedGemmGroupsNum]
                        .block_2_ctile_map_,
                    arg.k_batch_))
             {

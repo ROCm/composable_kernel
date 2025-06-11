@@ -267,16 +267,16 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     rtol = std::max(rtol, rtol_split_k);
                     atol = std::max(atol, atol_split_k);
                     // Use default atol for splitK == 1
-                    bool pass =
-                        num_accums_split_k == 1 ? ck::utils::check_err(weight_device_result,
-                                                                       weight_host_result,
-                                                                       "Error: Incorrect results!",
-                                                                       rtol);
-                    : ck::utils::check_err(weight_device_result,
-                                                     weight_host_result,
-                                                     "Error: Incorrect results!",
-                                                     rtol,
-                                                     atol);
+                    bool pass = num_accums_split_k == 1
+                                    ? ck::utils::check_err(weight_device_result,
+                                                           weight_host_result,
+                                                           "Error: Incorrect results!",
+                                                           rtol)
+                                    : ck::utils::check_err(weight_device_result,
+                                                           weight_host_result,
+                                                           "Error: Incorrect results!",
+                                                           rtol,
+                                                           atol);
                     std::cout << "Relative error threshold: " << rtol
                               << " Absolute error threshold: " << atol << std::endl;
 
