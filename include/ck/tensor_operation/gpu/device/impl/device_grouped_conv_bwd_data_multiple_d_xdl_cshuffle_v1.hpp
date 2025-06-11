@@ -1048,7 +1048,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     arg.gemm_kernel_args_[gemm_set_id];
 
                 const auto clear_workspace = [&]() {
-                    if(arg.bwd_needs_zero_out && i == 0)
+                    if(arg.bwd_needs_zero_out && gemm_set_id == 0)
                     {
                         hip_check_error(hipMemsetAsync(
                             p_e_grid, 0, arg.e_space_size_bytes, stream_config.stream_id_));
