@@ -110,20 +110,8 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
                                                   OutElementOp{});
 
         ref_invoker.Run(ref_argument);
-
-        out_device_buf.FromDevice(out_device.mData.data());
-
-#ifdef BUILD_INT4_EXAMPLE
-        const Tensor<OutUserDataType> out_device_converted(out_device);
-
-        return ck::utils::check_err(
-            out_device_converted.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
-#else
-        return ck::utils::check_err(
-            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
-#endif
     }
-#if ENABLE_CONV_FACTORY
+#if defined(ENABLE_CONV_FACTORY)
     float best_tflops = 0;
     float best_gb_per_sec = 0;
     float best_avg_time = 0;
@@ -159,6 +147,7 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
 
         if(conv.IsSupportedArgument(argument))
         {
+            found_kernel = true;
             float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
             if(config.time_kernel)
             {

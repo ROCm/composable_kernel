@@ -140,11 +140,11 @@ struct GridwiseGroupedConv2DFwdDlV4
     static constexpr index_t TileOut_Align_H = TileOut_Pack_H * TileOut_Pack_Group;
 
     // constants for internal subtile
-    static constexpr index_t TilePerWave   = 1;
+    static constexpr index_t TilePerWave   = 4;
     static constexpr index_t ThreadPerTile = WaveSize / TilePerWave;
-    static constexpr index_t HRepeate      = math::integer_divide_ceil(Tile_H, SubTileH);
-    static constexpr index_t WRepeate      = math::integer_divide_ceil(Tile_W, SubTileW);
-    static_assert(HRepeate * WRepeate <= (WaveSize / TilePerWave));
+    static constexpr index_t HRepeate      = math::integer_divide_ceil(TileOut_H, SubTileH);
+    static constexpr index_t WRepeate      = math::integer_divide_ceil(TileOut_W, SubTileW);
+    static_assert(HRepeate * WRepeate <= ThreadPerTile);
     static constexpr index_t TileIn_Max_W =
         SubTileW * Stride_W * (WRepeate - 1) +
         math::integer_least_multiple(SubTileW * Stride_W + (Filter_X - 1) * Dilation_X,
@@ -154,6 +154,7 @@ struct GridwiseGroupedConv2DFwdDlV4
         math::integer_least_multiple(SubTileW, OutScalarPerVector_Internal);
     static constexpr index_t TileIn_Stride  = TileIn_Max_W;
     static constexpr index_t TileOut_Stride = TileOut_Max_W;
+    static constexpr bool CheckSubTileRange = (TileOut_H % SubTileH != 0 || TileOut_W % SubTileW != 0);
 
     static constexpr index_t ShareMemInTileSize = TileIn_Align_H * TileIn_Stride;
     static constexpr index_t ShareMemInSize = ShareMemInTileSize * TilePerWave * sizeof(InDataType);
@@ -275,7 +276,9 @@ struct GridwiseGroupedConv2DFwdDlV4
                                         WeiDataVector* p_wei_odd,
                                         OutShareVector* p_mem_out,
                                         index_t  ho_stride,
-                                        index_t  wo_stride)
+                                        index_t  wo_stride,
+                                        index_t h_max,
+                                        index_t w_max)
     {
 #if defined(DISABLE_OUTPUT_LDS)
         ignore = p_share_out;
@@ -283,6 +286,8 @@ struct GridwiseGroupedConv2DFwdDlV4
         ignore = p_mem_out;
         ignore = ho_stride;
         ignore = wo_stride;
+        ignore = h_max;
+        ignore = w_max;
 #endif
         static_assert(SubTileW % OutScalarPerVector == 0);
         static_assert((SubTileW * Stride_W + (Filter_X - 1) * Dilation_X) % InScalarPerVector == 0);
@@ -302,14 +307,23 @@ struct GridwiseGroupedConv2DFwdDlV4
                     output[i.value] =
                         type_convert<OutDataType>(acc[wo_ * OutScalarPerVector_Internal + i]);
                 });
-                // if (threadIdx.x == 38)
-                // {
-                // printf("threadIdx %u outut %04x %04x %04x %04x\n", threadIdx.x,
-                // bit_cast<uint16_t>(output[0]),  bit_cast<uint16_t>(output[1]),
+                //if (threadIdx.x == 4)
+                {
+                //    printf("threadIdx %u outut %04x %04x\n", threadIdx.x, bit_cast<uint16_t>(output[0]),  bit_cast<uint16_t>(output[1]));
                 // bit_cast<uint16_t>(output[2]),  bit_cast<uint16_t>(output[3]));
-                // }
+                }
 #if defined(DISABLE_OUTPUT_LDS)
-                p_mem_out[ho_ * ho_stride / OutScalarPerVector_Internal + wo_ * wo_stride] = output;
+                if constexpr (CheckSubTileRange)
+                {
+                    if (ho_ < h_max && wo_ * OutScalarPerVector_Internal < w_max)
+                    {
+                        p_mem_out[ho_ * ho_stride / OutScalarPerVector_Internal + wo_ * wo_stride] = output;
+                    }
+                }
+                else
+                {
+                    p_mem_out[ho_ * ho_stride / OutScalarPerVector_Internal + wo_ * wo_stride] = output;
+                }
 #else            
                 p_share_out[ho_ * TileOut_Stride / OutScalarPerVector_Internal + wo_] = output;
 #endif
@@ -334,7 +348,7 @@ struct GridwiseGroupedConv2DFwdDlV4
             float tmp_out[SubTileW] = {};
             static_for<0, Stride_H, 1>{}([&](auto s) {
                 constexpr index_t hi        = ho * Stride_H + Filter_Y - Stride_H + s;
-                constexpr index_t tmp_y_idx = (ho + Filter_Y - Stride_H + s) % Filter_Y;
+                constexpr index_t tmp_y_idx = (ho * Stride_H + Filter_Y - Stride_H + s) % Filter_Y;
                 get_in(hi, Number<SubTileInW>{}, tmp_in[tmp_y_idx]);
             });
             // if constexpr(ho == 0)
@@ -398,10 +412,22 @@ struct GridwiseGroupedConv2DFwdDlV4
                     static_for<0, Filter_Y, 1>{}([&](auto y) {
                         static_for<0, Filter_X_Pack, 1>{}([&](auto x_pack) {
                             const InData2* p_in =
-                                reinterpret_cast<InData2*>(tmp_in[(ho + y) % Filter_Y]) +
+                                reinterpret_cast<InData2*>(tmp_in[(ho * Stride_H + y) % Filter_Y]) +
                                 wo * Stride_W / 2 + x_pack;
                             inner_product(
                                 *p_in, p_wei_even[y * Filter_X_Pack + x_pack], tmp_out[wo.value]);
+#if 0                        
+                            if constexpr(ho == 0 && wo == 0)
+                            {
+                                  if (threadIdx.x ==16)
+                                  {
+                                      printf("dot2(%d %d):  %08x %08x %f\n", y.value, x_pack.value, 
+                                        bit_cast<uint32_t>(*p_in),
+                                         bit_cast<uint32_t>(p_wei_even[y * Filter_X_Pack + x_pack]),
+                                      tmp_out[wo.value]);
+                                  }
+                            }
+#endif                    
                         });
                     });
                 });
@@ -587,31 +613,37 @@ struct GridwiseGroupedConv2DFwdDlV4
         constexpr index_t TileInEnd         = (Tile_H + Pad_H) * TileIn_Stride;
         constexpr index_t ButtomPaddingSize = ShareMemInTileSize - TileInEnd;
         static_assert(ButtomPaddingSize >= 0);
-        if constexpr(Pad_H > 0)
-        {
-            init_pading(share_in, Number<TopPadingSize>{});
-            init_pading(share_in + TileInEnd, Number<ButtomPaddingSize>{});
-        }
+        static_for<0, TilePerWave, 1>{}([&](auto i) {
+            if constexpr(Pad_H > 0)
+            {
+                init_pading(share_in + ShareMemInTileSize * i, Number<TopPadingSize>{});
+                init_pading(share_in + ShareMemInTileSize * i + TileInEnd,
+                            Number<ButtomPaddingSize>{});
+            }
 
-        if constexpr(Pad_W > 0)
-        {
-            init_array_pading(
-                share_in + TopPadingSize, Number<Pad_W>{}, Number<Tile_H>{}, TileIn_Stride);
-        }
-        if constexpr(TileIn_Stride - Tile_H - Pad_W > 0)
-        {
-            constexpr auto Pad_Right = TileIn_Stride - Tile_H - Pad_W;
-            init_array_pading(share_in + TopPadingSize + Pad_W + Tile_H,
-                              Number<Pad_Right>{},
-                              Number<Tile_H>{},
-                              TileIn_Stride);
-        }
+            if constexpr(Pad_W > 0)
+            {
+                init_array_pading(share_in + ShareMemInTileSize * i + TopPadingSize,
+                                  Number<Pad_W>{},
+                                  Number<Tile_H>{},
+                                  TileIn_Stride);
+            }
+            if constexpr(TileIn_Stride - Tile_H - Pad_W > 0)
+            {
+                constexpr auto Pad_Right = TileIn_Stride - Tile_H - Pad_W;
+                init_array_pading(share_in + ShareMemInTileSize * i + TopPadingSize + Pad_W +
+                                      Tile_H,
+                                  Number<Pad_Right>{},
+                                  Number<Tile_H>{},
+                                  TileIn_Stride);
+            }
 #if !defined(DISABLE_OUTPUT_LDS)
-        constexpr index_t TileOutEnd           = TileOut_H * TileOut_Stride;
-        constexpr index_t OutButtomPaddingSize = ShareMemOutTileSize - TileOutEnd;
-        init_pading(share_out + TileOutEnd, Number<OutButtomPaddingSize>{});
+            constexpr index_t TileOutEnd           = TileOut_H * TileOut_Stride;
+            constexpr index_t OutButtomPaddingSize = ShareMemOutTileSize - TileOutEnd;
+            init_pading(share_out + ShareMemOutTileSize * i + TileOutEnd,
+                        Number<OutButtomPaddingSize>{});
 #endif
-
+        });
         const index_t in_x         = lane_id % TileIn_Pack_W;
         const index_t in_y_offset  = lane_id / TileIn_Pack_W;
         const index_t out_x        = lane_id % TileOut_Pack_W;
@@ -641,6 +673,8 @@ struct GridwiseGroupedConv2DFwdDlV4
         index_t x               = (lane_id % ThreadPerTile) % WRepeate;
         index_t y               = (lane_id % ThreadPerTile) / WRepeate;
         index_t tile_idx        = lane_id / ThreadPerTile;
+        index_t h_max           = TileOut_H - y * SubTileH;
+        index_t w_max           = TileOut_W - x * SubTileW;
         auto p_share_subtile_in = reinterpret_cast<InShareVector*>(
             share_in + (tile_idx * ShareMemInTileSize + y * SubTileH * TileIn_Stride * Stride_H +
                         x * SubTileW * Stride_W));
@@ -650,30 +684,31 @@ struct GridwiseGroupedConv2DFwdDlV4
 #if defined(DISABLE_OUTPUT_LDS)
         p_out += tile_idx * out_n_stride + y * SubTileH * ho_stride + x * SubTileW * wo_stride;
 #endif
-        // printf("tileinfo threadIdx = %u, x = %d y = %d tileIdx = %d in_offset = %d out_offset =
-        // %d\n", threadIdx.x, x, y, tile_idx,
+         
+        //printf("tileinfo threadIdx = %u, x = %d y = %d tileIdx = %d in_offset = %d out_offset = %d\n", threadIdx.x, x, y, tile_idx,
         //      static_cast<index_t>(reinterpret_cast<InDataType*>(p_share_subtile_in) - share_in),
-        //      static_cast<index_t>(reinterpret_cast<OutDataType*>(p_share_subtile_out )-
-        //      share_out));
+        //      static_cast<index_t>(p_out -  arg.p_out_grid_));
 
         // adjust share memory offset for copy
         share_in += (TileIn_Stride * Pad_H + Pad_W);
-
-        // if (in_x < Tile_W / InScalarPerVector)
-        // {
-        // load_data_from_global<Tile_H, TileIn_Pack_W, InScalarPerVector>(p_in, in_x, in_y_offset,
-        // in_n_stride, hi, wi, hi_stride, wi_stride, tmp_in); write_data_to_lds<Tile_H,
-        // TileIn_Pack_W, TileIn_Stride, ShareMemInTileSize, InScalarPerVector>(in_x, in_y_offset,
-        // tmp_in, share_in);
-        // }
+#if 0 
+        if(in_x < Tile_W / InScalarPerVector)
+        {
+            load_data_from_global<Tile_H, TileIn_Pack_W, InScalarPerVector>(
+                p_in, in_x, in_y_offset, in_n_stride, hi, wi, hi_stride, wi_stride, tmp_in);
+            write_data_to_lds<Tile_H,
+                              TileIn_Pack_W,
+                              TileIn_Stride,
+                              ShareMemInTileSize,
+                              InScalarPerVector>(in_x, in_y_offset, tmp_in, share_in);
+        }
         if(threadIdx.x == 0)
         {
-            // DstVector* p, index_t totalcount, index_t length)
-            // dump_lds(reinterpret_cast<InDataType*>(p_share_in), ShareMemInSize /
-            // sizeof(InDataType),TileIn_Stride);
-            //     dump_lds(reinterpret_cast<OutDataType*>(p_share_out), ShareMemOutSize /
-            //     sizeof(OutDataType),TileOut_Stride);
+            dump_lds(reinterpret_cast<InDataType*>(p_share_in),
+                     ShareMemInSize / sizeof(InDataType),
+                     TileIn_Stride);
         }
+ #endif    
         while(num_loop > 0)
         {
             if(in_x < Tile_W / InScalarPerVector)
@@ -689,13 +724,14 @@ struct GridwiseGroupedConv2DFwdDlV4
             }
             if(y < HRepeate)
             {
-                run_conv_fwd(p_share_subtile_in, p_share_subtile_out, weight, weight_odd, reinterpret_cast<OutShareVector*>(p_out), ho_stride, wo_stride);
+                //printf("threadIdx %u\n", threadIdx.x);
+                run_conv_fwd(p_share_subtile_in, p_share_subtile_out, weight, weight_odd, reinterpret_cast<OutShareVector*>(p_out), ho_stride, wo_stride, h_max, w_max);
             }
 
 #if !defined(DISABLE_OUTPUT_LDS)
             if(out_x < TileOut_W / OutScalarPerVector)
             {
-                write_output_data<Tile_H, TileOut_Pack_W, OutScalarPerVector>(p_out,
+                write_output_data<TileOut_H, TileOut_Pack_W, OutScalarPerVector>(p_out,
                                                                               out_x,
                                                                               out_y_offset,
                                                                               out_n_stride,
@@ -705,15 +741,16 @@ struct GridwiseGroupedConv2DFwdDlV4
                                                                               wo_stride,
                                                                               share_out);
                 
-                // if(threadIdx.x == 0)
-                // {
-                //     //DstVector* p, index_t totalcount, index_t length)
-                //     //dump_lds(reinterpret_cast<InDataType*>(p_share_in), ShareMemInSize /
-                //     sizeof(InDataType),TileIn_Stride);
-                //     dump_lds(reinterpret_cast<OutDataType*>(p_share_out), ShareMemOutSize /
-                //     sizeof(OutDataType),TileOut_Stride);
-                // }
+
             }
+#endif
+#if 0
+        if(threadIdx.x == 0)
+        {
+            dump_lds(reinterpret_cast<OutDataType*>(p_share_out),
+                     ShareMemOutSize / sizeof(OutDataType),
+                     TileOut_Stride);
+        }
 #endif
             p_out += out_n_stride * TilePerWave;
             num_loop--;
