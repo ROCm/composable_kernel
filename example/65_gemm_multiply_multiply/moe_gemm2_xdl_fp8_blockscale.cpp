@@ -184,24 +184,15 @@ int main(int argc, char* argv[])
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = true;
-
-    // tokens = 1
-    // topk = 1
-    // experts = 8
-    // per expert:
-
-    constexpr ck::index_t valid_tile_num =
-        26; // 13 for 128; 52 for 32; 4096 for ds  // > token * topk / MPerBlock
-    constexpr ck::index_t sorted_tile_num = valid_tile_num + 3;
-    ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
-    ck::index_t valid_size                = valid_tile_num * MPerBlock;
 #if 1
     // GEMM shape
     ck::index_t N       = 6144;
     ck::index_t K       = 4096;
     ck::index_t experts = 8;
-    ck::index_t tokens  = 832;
     ck::index_t topk    = 2;
+    ck::index_t valid_tile_num = 128;
+    ck::index_t sorted_tile_num = valid_tile_num + 3;
+    ck::index_t tokens          = 4096;
 #else
     // deepseek
     ck::index_t N       = 2048;
@@ -231,6 +222,18 @@ int main(int argc, char* argv[])
         K               = std::stoi(argv[5]);
         tokens          = std::stoi(argv[6]);
     }
+    else if(argc == 9)
+    {
+
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+        N               = std::stoi(argv[4]);
+        K               = std::stoi(argv[5]);
+        tokens          = std::stoi(argv[6]);
+        sorted_tile_num = std::stoi(argv[7]);
+        valid_tile_num  = std::stoi(argv[8]);
+    }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
@@ -240,6 +243,15 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+    valid_tile_num = tokens * topk / MPerBlock;
+    sorted_tile_num = valid_tile_num + 3;
+    ck::index_t sorted_size = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size  = valid_tile_num * MPerBlock;
+    if(tokens * topk > valid_size)
+    {
+        printf("err config, tokens * topk > valid_size\n");
+        exit(-1);
+    }
     ck::index_t StrideA              = K;
     ck::index_t StrideB              = K;
     ck::index_t StrideE              = N;
@@ -270,12 +282,8 @@ int main(int argc, char* argv[])
     {
         expert_ids.mData[i] = i / ck::math::integer_divide_ceil(valid_tile_num, experts);
     }
-    if(tokens * topk > valid_size)
-    {
-        printf("err config, tokens * topk > valid_size\n");
-        exit(-1);
-    }
-    int token_per_tile = tokens * topk / valid_tile_num;
+
+    int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
 
     for(int i = 0; i < sorted_size; i++)
@@ -448,7 +456,7 @@ int main(int argc, char* argv[])
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
         std::size_t flop      = std::size_t(2) * tokens * topk * N * K;
-        std::size_t num_btype = sizeof(A0DataType) * tokens * K * topk +
+        std::size_t num_btype = sizeof(A0DataType) * valid_tile_num * K +
                                 sizeof(B0DataType) * K * N * experts +
                                 sizeof(EDataType) * tokens * N;
 
@@ -520,12 +528,14 @@ int main(int argc, char* argv[])
                                                       cde_element_op);
 
         ref_invoker.Run(ref_argument);
+        bool host_all_zero = true;
         for(int t = 0; t < tokens; ++t)
         {
 
             for(int n = 0; n < N; ++n)
             {
                 e_t_n_host_result(t, n) = ck::type_convert<EDataType>(c_t_n(t, n));
+                host_all_zero = host_all_zero && !e_t_n_host_result(t, n);
             }
         }
 
@@ -561,6 +571,9 @@ int main(int argc, char* argv[])
                 : 1;
         if(status == 0)
         {
+            if (host_all_zero){
+                printf("WARNING: All results are zero. ");
+            }
             printf("Validation Pass.\n");
         }
         return status;
