@@ -2,6 +2,7 @@
 # Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 from .instance import GEMM
+from dataclasses import asdict
 from string import Template
 
 instance_template = Template(r"""
@@ -92,62 +93,62 @@ def render(instance: GEMM):
     def render_epilogue(epilogue_type):
         if epilogue_type == "Default":
             return r"""
-        using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
-                                                                        BDataType,
-                                                                        AccDataType,
-                                                                        CDataType,
-                                                                        CLayout,
-                                                                        kPadM,
-                                                                        kPadN,
-                                                                        WarpTileM,
-                                                                        WarpTileN,
-                                                                        WarpTileK,
-                                                                        TransposeC>;
-        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;
-    """
-        elif epilogue_type == "CShuffle":
-            return r"""
-        constexpr auto kMemoryOperation = ck_tile::memory_operation_enum::set;
-        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
+    using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
                                                                     BDataType,
                                                                     AccDataType,
                                                                     CDataType,
                                                                     CLayout,
-                                                                    GemmPipelineProblem::kBlockSize,
-                                                                    TileM,
-                                                                    TileN,
-                                                                    WarpM,
-                                                                    WarpN,
+                                                                    kPadM,
+                                                                    kPadN,
                                                                     WarpTileM,
                                                                     WarpTileN,
                                                                     WarpTileK,
-                                                                    TransposeC,
-                                                                    kMemoryOperation>;
+                                                                    TransposeC>;
+    using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;
+    """
+        elif epilogue_type == "CShuffle":
+            return r"""
+    constexpr auto kMemoryOperation = ck_tile::memory_operation_enum::set;
+    using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                                BDataType,
+                                                                AccDataType,
+                                                                CDataType,
+                                                                CLayout,
+                                                                GemmPipelineProblem::kBlockSize,
+                                                                TileM,
+                                                                TileN,
+                                                                WarpM,
+                                                                WarpN,
+                                                                WarpTileM,
+                                                                WarpTileN,
+                                                                WarpTileK,
+                                                                TransposeC,
+                                                                kMemoryOperation>;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
+    using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
     """
         else:
             raise AssertionError("Epilogue must be set")
 
     def render_pipeline(pipeline_type):
         return rf"""
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCr{pipeline_type}<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCr{pipeline_type}<GemmPipelineProblem>;
 
-        template<bool has_hot_loop_v, ck_tile::TailNumber tail_number_v>
-        using GemmPipeline = ck_tile::GemmPipelineAgBgCr{pipeline_type}<UniversalGemmProblem<has_hot_loop_v, tail_number_v>>;
+    template<bool has_hot_loop_v, ck_tile::TailNumber tail_number_v>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCr{pipeline_type}<UniversalGemmProblem<has_hot_loop_v, tail_number_v>>;
     """
 
     def render_scheduler(scheduler_type):
         return rf"""
-        constexpr auto scheduler = ck_tile::GemmPipelineScheduler::{scheduler_type};
+    constexpr auto scheduler = ck_tile::GemmPipelineScheduler::{scheduler_type};
     """
 
     rendered_definition = instance_template.substitute(
-        instance_name=op.name(),
-        **asdict(op),
-        rendered_scheduler=render_scheduler(op.scheduler),
-        rendered_pipeline=render_pipeline(op.pipeline),
-        rendered_epilogue=render_epilogue(op.epilogue),
-        has_double_smem_buffer=("true" if op.pipeline == "CompV4" else "false"),
+        instance_name=instance.name(),
+        **asdict(instance),
+        rendered_scheduler=render_scheduler(instance.scheduler),
+        rendered_pipeline=render_pipeline(instance.pipeline),
+        rendered_epilogue=render_epilogue(instance.epilogue),
+        has_double_smem_buffer=("true" if instance.pipeline == "CompV4" else "false"),
     )
     return rendered_definition
