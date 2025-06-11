@@ -446,7 +446,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
     const int output_tile_w = blockIdx.x * TileOutW;
     const int output_tile_h = blockIdx.y * TileOutH;
 
-    if(output_tile_w >= out_width || output_tile_h >= out_height)
+    if(output_tile_w >= y_width || output_tile_h >= y_height)
     {
         return; // out of bound
     }
@@ -531,11 +531,11 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
                                rel_in_h * TileInW * GroupPerBlockInFP4 +
                                rel_in_w * GroupPerBlockInFP4 + group_id;
 
-            bool is_in_bound = (in_x >= 0 && in_x < in_width) && (in_y >= 0 && in_y < in_height);
+            bool is_in_bound = (in_x >= 0 && in_x < x_width) && (in_y >= 0 && in_y < x_height);
             float4_t v{0.f, 0.f, 0.f, 0.f};
             if(is_in_bound)
             {
-                v = reinterpret_cast<const float4_t*>(p_x)[ingrad_offset / ElementPerInFP4];
+                v = reinterpret_cast<const float4_t*>(p_x)[in_offset / ElementPerInFP4];
             }
 
             reinterpret_cast<float4_t*>(shmem_x)[shmem_offset] = v;
@@ -597,7 +597,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
                     });
                 }
 
-            if(out_x < out_width & out_y < out_height)
+            if(out_x < y_width & out_y < y_height)
             {
                 // global outgrad layout : NHWGK; shared outgrad layout : H->W->G
                 int out_offset =
@@ -1503,7 +1503,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         }
                         else if(stride_y == 2 && stride_x == 2)
                         {
-                            if(p.kernel_h <= 4 && p.kernel_w <= 4)
+                            if(filter_y <= 4 && filter_x <= 4)
                             {
                                 if(pad_y == 1 && pad_x == 1)
                                 {
@@ -1546,7 +1546,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                         2>;
                                 }
                             }
-                            else if(p.kernel_h <= 6 && p.kernel_w <= 6)
+                            else if(filter_y <= 6 && filter_x <= 6)
                             {
                                 if(pad_y == 1 && pad_x == 1)
                                 {
