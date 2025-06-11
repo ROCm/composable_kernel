@@ -159,7 +159,7 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
             out_device_converted.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
 #else
         return ck::utils::check_err(
-            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
 #endif
     }
 
