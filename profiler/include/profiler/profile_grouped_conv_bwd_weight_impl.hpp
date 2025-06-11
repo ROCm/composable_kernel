@@ -152,7 +152,8 @@ void write_perf_results_to_file(const PerfResults& perf_results_global,
         {
             file << res.opt_split_k_best_op_name_ << separator;
         }
-        file << res.opt_split_k_best_arg_ << separator
+        file << res.opt_split_k_avg_time_ << separator
+             << res.opt_split_k_best_arg_ << separator
              << rank << separator
              << total_num;
     };

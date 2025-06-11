@@ -552,7 +552,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
                 const auto k_size = a_grid_desc_kbatch_k0_m_k1.GetLength(I0) * a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
                 
-                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size, k_size, Conv_G_);
+                //const auto multiplier = static_cast<ck::index_t>(-split_k);
+                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size, k_size, Conv_G_/*, multiplier*/);
             }
             else {
                 k_batch_ = split_k;
