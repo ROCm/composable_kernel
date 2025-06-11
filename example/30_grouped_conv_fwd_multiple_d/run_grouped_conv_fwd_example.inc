@@ -93,6 +93,116 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
+    
+    if(config.do_verification)
+    {
+        auto ref_conv     = HostConvFwdInstance<NDimSpatial>{};
+        auto ref_invoker  = ref_conv.MakeInvoker();
+        auto ref_argument = ref_conv.MakeArgument(in,
+                                                  wei,
+                                                  out_host,
+                                                  conv_param.conv_filter_strides_,
+                                                  conv_param.conv_filter_dilations_,
+                                                  conv_param.input_left_pads_,
+                                                  conv_param.input_right_pads_,
+                                                  InElementOp{},
+                                                  WeiElementOp{},
+                                                  OutElementOp{});
+
+        ref_invoker.Run(ref_argument);
+
+        out_device_buf.FromDevice(out_device.mData.data());
+
+#ifdef BUILD_INT4_EXAMPLE
+        const Tensor<OutUserDataType> out_device_converted(out_device);
+
+        return ck::utils::check_err(
+            out_device_converted.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
+#else
+        return ck::utils::check_err(
+            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
+#endif
+    }
+#if ENABLE_CONV_FACTORY
+    float best_tflops = 0;
+    float best_gb_per_sec = 0;
+    float best_avg_time = 0;
+    std::string best_kernel = "";
+
+    ck::index_t instance_idx = 0;
+    bool found_kernel= false;
+    ck::static_for<0, std::tuple_size_v<DeviceConvFwdFactory>, 1>{}([&](auto i) -> void {
+        // do Conv
+        const auto device_conv_fwd_instance = std::get<i>(DeviceConvFwdFactory{});
+        using DeviceConvFwdInstance = ck::remove_cvref_t<decltype(device_conv_fwd_instance)>;
+        auto conv     = DeviceConvFwdInstance{};
+        auto invoker  = conv.MakeInvoker();
+        auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
+                                          wei_device_buf.GetDeviceBuffer(),
+                                          std::array<const void*, 0>{},
+                                          out_device_buf.GetDeviceBuffer(),
+                                          a_g_n_c_wis_lengths,
+                                          a_g_n_c_wis_strides,
+                                          b_g_k_c_xs_lengths,
+                                          b_g_k_c_xs_strides,
+                                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
+                                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
+                                          e_g_n_k_wos_lengths,
+                                          e_g_n_k_wos_strides,
+                                          conv_filter_strides,
+                                          conv_filter_dilations,
+                                          input_left_pads,
+                                          input_right_pads,
+                                          InElementOp{},
+                                          WeiElementOp{},
+                                          OutElementOp{});
+
+        if(conv.IsSupportedArgument(argument))
+        {
+            float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+            if(config.time_kernel)
+            {
+                std::size_t flop = conv_param.GetFlops();
+                std::size_t num_btype =
+                    conv_param.GetByte<InUserDataType, WeiUserDataType, OutUserDataType>();
+
+                float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+                float gb_per_sec = num_btype / 1.E6 / avg_time;
+                std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                          << " GB/s, " << conv.GetTypeString() << std::endl;
+
+                if(tflops > best_tflops)
+                {
+                    best_tflops     = tflops;
+                    best_gb_per_sec = gb_per_sec;
+                    best_avg_time   = avg_time;
+                    best_kernel     = conv.GetTypeString();
+                    instance_idx    = i;
+                }
+            }
+            if(config.do_verification)
+            {
+                out_device_buf.FromDevice(out_device.mData.data());
+                ck::utils::check_err(
+                    out_device.mData, out_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
+            }
+        }
+    });
+    if (found_kernel == false)
+    {
+        std::cerr << "wrong! device_conv with the specified compilation parameters does "
+                "not support this Conv problem"
+            << std::endl;
+        return true;
+    }
+    if(config.time_kernel)
+    {
+        std::cout << "Best Perf: " << best_avg_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
+                  << " GB/s" << std::endl
+                  << "Instance: " << instance_idx << " DeviceOp: " << best_kernel << std::endl;
+    }
+
+#else
     // do Conv
     auto conv     = DeviceConvFwdInstance<NDimSpatial>{};
     auto invoker  = conv.MakeInvoker();
@@ -132,24 +242,9 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
     float gb_per_sec = num_btype / 1.E6 / avg_time;
     std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << conv.GetTypeString() << std::endl;
-
+    
     if(config.do_verification)
     {
-        auto ref_conv     = HostConvFwdInstance<NDimSpatial>{};
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(in,
-                                                  wei,
-                                                  out_host,
-                                                  conv_param.conv_filter_strides_,
-                                                  conv_param.conv_filter_dilations_,
-                                                  conv_param.input_left_pads_,
-                                                  conv_param.input_right_pads_,
-                                                  InElementOp{},
-                                                  WeiElementOp{},
-                                                  OutElementOp{});
-
-        ref_invoker.Run(ref_argument);
-
         out_device_buf.FromDevice(out_device.mData.data());
 
 #ifdef BUILD_INT4_EXAMPLE
@@ -162,6 +257,7 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
             out_device.mData, out_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
 #endif
     }
+#endif
 
     return true;
 }
