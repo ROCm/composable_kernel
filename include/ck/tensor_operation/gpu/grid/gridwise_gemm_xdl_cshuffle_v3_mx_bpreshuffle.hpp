@@ -2122,7 +2122,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                       ck::tensor_operation::element_wise::PassThrough{}};
 
             // calculate C grid descriptor
-            constexpr auto atomic_vector_size = 4 / sizeof(CDataType);
+            constexpr auto DWORD_BYTES        = 4;
+            constexpr auto atomic_vector_size = DWORD_BYTES / sizeof(CDataType);
 
             constexpr auto CShuffleBlockTransferClusterLengths = [&]() {
                 if constexpr(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set)

@@ -702,8 +702,6 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                 });
             });
 
-            // __builtin_amdgcn_sched_barrier(0);
-
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     static_for<0, num_scale_k_block, 1>{}([&](auto kscale0) {
