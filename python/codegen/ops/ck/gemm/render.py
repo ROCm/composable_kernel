@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 from .instance import GEMM
 from string import Template
 
@@ -6,6 +9,7 @@ namespace $instance_name {
     using Instance = $ck_class<$template_params>;
 }
 """)
+
 
 def render(instance: GEMM):
     template_params = []
@@ -24,5 +28,5 @@ def render(instance: GEMM):
     return instance_template.substitute(
         instance_name=instance.name(),
         ck_class="DeviceGemmMultiD_Xdl_CShuffle_V3",
-        template_params=template_params_separator.join(template_params)
+        template_params=template_params_separator.join(template_params),
     )

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 from dataclasses import asdict, dataclass
 from typing import Optional, Tuple
@@ -80,22 +80,50 @@ class GEMM:
         return f"ck_devicegemm_multid_xdl_cshuffle_v3_{self.key_name()}"
 
     def layout(self):
-        return "".join([l[0] for l in (self.a_layout, self.b_layout, self.c_layout, *self.ds_layouts)])
+        return "".join(
+            [
+                l[0]
+                for l in (self.a_layout, self.b_layout, self.c_layout, *self.ds_layouts)
+            ]
+        )
 
     def dtype(self):
-        return "".join([t for t in (self.a_element_dtype, self.b_element_dtype, self.c_element_dtype, *self.ds_element_dtypes)])
+        return "".join(
+            [
+                t
+                for t in (
+                    self.a_element_dtype,
+                    self.b_element_dtype,
+                    self.c_element_dtype,
+                    *self.ds_element_dtypes,
+                )
+            ]
+        )
 
     def tiles(self):
-        return "_".join([
-            "block",
-            "x".join(map(str, [self.m_per_block, self.n_per_block, self.k_per_block])),
-            "warp",
-            "x".join(map(str, [self.m_xdl_per_wave, self.n_xdl_per_wave])),
-            "core",
-            "x".join(map(str, [self.m_per_xdl, self.n_per_xdl])),
-            "ks",
-            "x".join(map(str, [self.a_k1, self.b_k1, *self.a_block_transfer_thread_cluster_lengths_ak0_m_ak1]))
-        ])
+        return "_".join(
+            [
+                "block",
+                "x".join(
+                    map(str, [self.m_per_block, self.n_per_block, self.k_per_block])
+                ),
+                "warp",
+                "x".join(map(str, [self.m_xdl_per_wave, self.n_xdl_per_wave])),
+                "core",
+                "x".join(map(str, [self.m_per_xdl, self.n_per_xdl])),
+                "ks",
+                "x".join(
+                    map(
+                        str,
+                        [
+                            self.a_k1,
+                            self.b_k1,
+                            *self.a_block_transfer_thread_cluster_lengths_ak0_m_ak1,
+                        ],
+                    )
+                ),
+            ]
+        )
 
     def short_name(self):
         return f"ck_gemm_{self.layout().lower()}_{self.dtype().lower()}_{self.tiles()}"
