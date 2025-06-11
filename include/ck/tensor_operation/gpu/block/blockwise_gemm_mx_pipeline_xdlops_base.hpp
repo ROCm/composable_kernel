@@ -407,30 +407,13 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     // A[MRepeat/MXdlPack, MWave, MXdlPack, KRepeat, KPack]
     //   1                 0      3         2           4
     // 
-    static constexpr auto a_thread_desc_ =
-        make_naive_tensor_descriptor(make_tuple(Number<MRepeat / MXdlPack>{},
-                                                I1,
-                                                Number<MXdlPack>{},
-                                                Number<KRepeat>{},
-                                                Number<KPack>{}),
-                                     make_tuple(Number<KRepeat * MXdlPack* KPack>{},
-                                                Number<MRepeat * KRepeat * KPack>{},
-                                                Number<KPack>{},
-                                                Number<MXdlPack*KPack>{},
-                                                I1));
+    static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor_packed(make_tuple(
+        Number<MRepeat / MXdlPack>{}, I1, Number<MXdlPack>{}, Number<KRepeat>{}, Number<KPack>{}));
 
     // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ =
-        make_naive_tensor_descriptor(make_tuple(Number<NRepeat / NXdlPack>{},
-                                                I1,
-                                                Number<KRepeat>{},
-                                                Number<NXdlPack>{},
-                                                Number<KPack>{}),
-                                     make_tuple(Number<KRepeat * NXdlPack* KPack>{},
-                                                Number<NRepeat * KRepeat * KPack>{},
-                                                Number<KPack>{},
-                                                Number<NXdlPack*KPack>{},
-                                                I1));
+        make_naive_tensor_descriptor_packed(make_tuple(
+        Number<NRepeat / NXdlPack>{}, I1, Number<NXdlPack>{}, Number<KRepeat>{}, Number<KPack>{}));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ =

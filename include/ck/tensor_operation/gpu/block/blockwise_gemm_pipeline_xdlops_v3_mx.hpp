@@ -202,6 +202,20 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
     }
 
+    static constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
+    static constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
+
+    static constexpr auto num_buffer_load_a_scale = MPerBlock * KPerBlock * APackedSize /
+                                                 ScaleBlockSize / ThreadBlockSize / MXdlPack /
+                                                 KXdlPack;
+    static constexpr auto num_buffer_load_b_scale = NPerBlock * KPerBlock * BPackedSize /
+                                                 ScaleBlockSize / ThreadBlockSize / NXdlPack /
+                                                 KXdlPack;
+    static constexpr auto num_buffer_load_total = num_buffer_load_inst_a + num_buffer_load_inst_b +
+                                               num_buffer_load_a_scale + num_buffer_load_b_scale;
+
+    static constexpr auto async_copy_fence = 3952 + (num_buffer_load_total) % 16 + (num_buffer_load_total)/16*16384;
+
     __device__ static constexpr auto HotLoopScheduler()
     {
         // A/B split schedule
@@ -215,16 +229,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                 ? HotLoopInstList::B_LDS_Read_Inst_Num
                 : HotLoopInstList::B_LDS_Read_Inst_Num / 2;
 
-        constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
-
-        constexpr auto num_buffer_load_a_scale = MPerBlock * KPerBlock * APackedSize /
-                                                 ScaleBlockSize / ThreadBlockSize / MXdlPack /
-                                                 KXdlPack;
-        constexpr auto num_buffer_load_b_scale = NPerBlock * KPerBlock * BPackedSize /
-                                                 ScaleBlockSize / ThreadBlockSize / NXdlPack /
-                                                 KXdlPack;
-
         constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num * APackedSize;
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
@@ -233,10 +237,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto ds_read_b_issue_cycle =
             HotLoopInstList::B_LDS_Read_Width * sizeof(BDataType) == 16 ? 8 : 4;
 
-        constexpr auto ds_read_a_mfma_rate =
-            (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
-        constexpr auto ds_read_b_mfma_rate =
-            (mfma_cycle - 4 + 2 * ds_read_b_issue_cycle - 1) / (2 * ds_read_b_issue_cycle);
+        constexpr auto ds_read_a_mfma_rate = 1;
+            // (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
+        constexpr auto ds_read_b_mfma_rate = 1;
+            // (mfma_cycle - 4 + 2 * ds_read_b_issue_cycle - 1) / (2 * ds_read_b_issue_cycle);
 
         constexpr auto num_dsread_a_mfma =
             (num_ds_read_inst_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
@@ -255,12 +259,104 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         // constexpr auto num_buffer_load_scale_a_mfma = num_buffer_load_a_scale;
         // constexpr auto num_buffer_load_scale_b_mfma = num_buffer_load_b_scale;
 
-        // stage 1
-        // constexpr auto num_mfma_stage1 = num_mfma_inst - (num_dsread_a_mfma + num_dsread_b_mfma +
-        // num_buffer_load_scale_a_mfma + num_buffer_load_scale_b_mfma);
-        constexpr auto num_buffer_load_total = num_buffer_load_inst_a + num_buffer_load_inst_b +
-                                               num_buffer_load_a_scale + num_buffer_load_b_scale;
+        #if 1
+        constexpr auto num_ds_read_total = num_dsread_a_mfma + num_dsread_b_mfma +
+                                           num_dsread_a_scale_mfma + num_dsread_b_scale_mfma+
+                                           num_buffer_load_a_scale + num_buffer_load_b_scale;
 
+        // stage 1 - buffer load
+        constexpr auto num_mfma_stage1 = num_mfma_inst - (num_ds_read_total);
+
+        constexpr auto mfma_perstage_more =
+            math::integer_divide_ceil(num_mfma_stage1, num_buffer_load_total-(num_buffer_load_a_scale + num_buffer_load_b_scale));
+        constexpr auto mfma_perstage_less =
+            math::integer_divide_floor(num_mfma_stage1, num_buffer_load_total-(num_buffer_load_a_scale + num_buffer_load_b_scale));
+
+        constexpr auto mfma_stages_more =
+            num_mfma_stage1 - mfma_perstage_less * (num_buffer_load_total-(num_buffer_load_a_scale + num_buffer_load_b_scale));
+        
+        static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
+            if constexpr(i < mfma_stages_more)
+            {
+                static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    if constexpr(imfma == 0)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                    }
+                });
+            }
+            else
+            {
+                static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    if constexpr(imfma == 0)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                    }
+                });
+            }
+        });
+
+        static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
+            if constexpr((i + num_buffer_load_inst_a) < mfma_stages_more)
+            {
+                static_for<0, mfma_perstage_more, 1>{}([&](auto imfma) {
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    if constexpr(imfma == 0)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                    }
+                });
+            }
+            else
+            {
+                static_for<0, mfma_perstage_less, 1>{}([&](auto imfma) {
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    if constexpr(imfma == 0)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                    }
+                });
+            }
+        });
+
+        static_for<0, num_buffer_load_a_scale, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+        });
+
+        static_for<0, num_buffer_load_b_scale, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+        });
+        
+        static_for<0, num_dsread_a_mfma, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+        });
+        
+        static_for<0, num_dsread_b_mfma, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
+        });
+        
+        static_for<0, num_dsread_a_scale_mfma, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        });
+        
+        static_for<0, num_dsread_b_scale_mfma, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
+        });
+#elif 1
         constexpr auto num_ds_read_total = num_dsread_a_mfma + num_dsread_b_mfma +
                                            num_dsread_a_scale_mfma + num_dsread_b_scale_mfma;
 
@@ -435,6 +531,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                 });
             }
         });
+#endif
     }
 
     template <bool HasMainLoop,
@@ -523,8 +620,23 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         a_scale_blockwise_copy.MoveSrcSliceWindow(a_scale_grid_desc, a_scale_block_copy_step);
         b_scale_blockwise_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_block_copy_step);
 
+        // Global prefetch 2
+        a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(I1));
+        b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_bufs(I1));
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        a_scale_blockwise_copy.Run(
+            a_scale_grid_desc, a_scale_grid_buf, a_scale_block_desc, a_scale_block_bufs(I1));
+        b_scale_blockwise_copy.Run(
+            b_scale_grid_desc, b_scale_grid_buf, b_scale_block_desc, b_scale_block_bufs(I1));
+
+        a_scale_blockwise_copy.MoveSrcSliceWindow(a_scale_grid_desc, a_scale_block_copy_step);
+        b_scale_blockwise_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_block_copy_step);
+
         // Local prefetch 1, sync the async load
-        __builtin_amdgcn_s_waitcnt(3952);
+        __builtin_amdgcn_s_waitcnt(async_copy_fence);
         block_sync_lds();
 
         static_for<0, KRepeat, 1>{}([&](auto k) {
@@ -595,21 +707,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             });
         });
 
-        // Global prefetch 2
-        a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(I1));
-        b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_bufs(I1));
-
-        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
-        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-
-        a_scale_blockwise_copy.Run(
-            a_scale_grid_desc, a_scale_grid_buf, a_scale_block_desc, a_scale_block_bufs(I1));
-        b_scale_blockwise_copy.Run(
-            b_scale_grid_desc, b_scale_grid_buf, b_scale_block_desc, b_scale_block_bufs(I1));
-
-        a_scale_blockwise_copy.MoveSrcSliceWindow(a_scale_grid_desc, a_scale_block_copy_step);
-        b_scale_blockwise_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_block_copy_step);
-
         // Initialize C
         c_thread_buf.Clear();
         __builtin_amdgcn_sched_barrier(0);
@@ -623,7 +720,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             {
                 auto LoopFunc = [&](auto scale_comp_buf, auto scale_mem_buf) {
                     // __builtin_amdgcn_s_waitcnt(3952);
-                    block_sync_lds();
+                    // block_sync_lds();
 
                     a_blockwise_copy.Run(
                         a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(scale_comp_buf));
@@ -744,8 +841,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     // t32: |32 --> 47 96  --> 111| 160 --> 175 224 --> 239| etc.
                     // t48: |48 --> 63 112 --> 127| 176 --> 191 240 --> 255| etc.
                     //              k = 0                    k = 1
-                    // __builtin_amdgcn_s_waitcnt(3952);
-                    // block_sync_lds();
+                    __builtin_amdgcn_s_waitcnt(async_copy_fence);
+                    block_sync_lds();
                     static_for<0, KRepeat, 1>{}([&](auto k) {
                         constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
                                                 (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
@@ -801,7 +898,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                         static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                             a_scale_thread_copy_.Run(
-                                b_scale_block_desc,
+                                a_scale_block_desc,
                                 make_tuple(Number<m0 * MWaves>{}, Number<k0>{}, I0),
                                 a_scale_block_bufs(scale_mem_buf),
                                 a_scale_thread_desc,
@@ -821,7 +918,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
 
                     HotLoopScheduler();
-                    __builtin_amdgcn_sched_barrier(0);
+                    // __builtin_amdgcn_sched_barrier(0);
                 };
 
                 LoopFunc(I0, I1);
@@ -914,7 +1011,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                 });
             });
 
-            __builtin_amdgcn_s_waitcnt(3952);
+            __builtin_amdgcn_s_waitcnt(async_copy_fence);
             block_sync_lds();
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
@@ -969,7 +1066,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
             static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                 static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
-                    a_scale_thread_copy_.Run(b_scale_block_desc,
+                    a_scale_thread_copy_.Run(a_scale_block_desc,
                                              make_tuple(Number<m0 * MWaves>{}, Number<k0>{}, I0),
                                              a_scale_block_bufs(I1),
                                              a_scale_thread_desc,
@@ -987,8 +1084,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                 });
             });
             
-            HotLoopScheduler();
-            __builtin_amdgcn_sched_barrier(0);
+            // HotLoopScheduler();
+            // __builtin_amdgcn_sched_barrier(0);
 
             static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                 static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
