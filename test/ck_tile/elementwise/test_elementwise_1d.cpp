@@ -64,10 +64,7 @@ class TestCkTileElementwise : public ::testing::Test
         for(int i = 0; i < NumInputs; ++i)
         {
             h_xs.emplace_back(ck_tile::HostTensor<XDataType>({total_m_elements}));
-            for(ck_tile::index_t j = 0; j < total_m_elements; ++j)
-            {
-                h_xs[i](j) = static_cast<XDataType>(((i + 1) * (j % 100)) / 10.0f - 5.0f);
-            }
+            ck_tile::FillUniformDistribution<XDataType>{0.f, 5.f}(h_xs[i]);
         }
         ck_tile::HostTensor<YDataType> h_y({total_m_elements});
         h_y.SetZero();
@@ -152,18 +149,7 @@ class TestCkTileElementwise : public ::testing::Test
         }
 
         // Check results
-        for(ck_tile::index_t i = 0; i < total_m_elements; ++i)
-        {
-            if constexpr(std::is_floating_point_v<YDataType>)
-            {
-                EXPECT_NEAR(h_y(i), h_y_ref(i), std::abs(h_y_ref(i) * 0.001f) + 1e-5)
-                    << "Error at index " << i;
-            }
-            else
-            {
-                EXPECT_EQ(h_y(i), h_y_ref(i)) << "Error at index " << i;
-            }
-        }
+        check_err(h_y, h_y_ref, "Error: Incorrect results!", 1e-5, 1e-5);
     }
 };
 
@@ -192,16 +178,16 @@ using TestConfig_F32_Relu = std::tuple<float,
                                        Shape1_WarpTile,
                                        Shape1_Vector>;
 
-using TestConfig_HF_Add = std::tuple<ck_tile::half_t,
-                                     ck_tile::half_t,
-                                     float, // Compute in float for half
-                                     ck_tile::element_wise::Add,
-                                     Shape1_BlockWarps,
-                                     Shape1_BlockTile,
-                                     Shape1_WarpTile,
-                                     ck_tile::sequence<8>>; // Vector of 8 half_t elements
+using TestConfig_F16_Add = std::tuple<ck_tile::half_t,
+                                      ck_tile::half_t,
+                                      float, // Compute in float for half
+                                      ck_tile::element_wise::Add,
+                                      Shape1_BlockWarps,
+                                      Shape1_BlockTile,
+                                      Shape1_WarpTile,
+                                      ck_tile::sequence<8>>; // Vector of 8 half_t elements
 
-using TestTypes = ::testing::Types<TestConfig_F32_Add, TestConfig_F32_Relu, TestConfig_HF_Add>;
+using TestTypes = ::testing::Types<TestConfig_F32_Add, TestConfig_F32_Relu, TestConfig_F16_Add>;
 
 TYPED_TEST_SUITE(TestCkTileElementwise, TestTypes);
 

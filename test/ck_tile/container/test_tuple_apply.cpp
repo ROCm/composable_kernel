@@ -165,7 +165,7 @@ TEST_F(TestCkTileTupleApply, NumberTypes)
 {
     // Test with ck_tile::number types
     auto t      = make_tuple(number<1>{}, number<2>{}, number<3>{});
-    auto result = apply([](auto a, auto b, auto c) { return a.value + b.value + c.value; }, t);
+    auto result = apply([](auto a, auto b, auto c) { return a + b + c; }, t);
     EXPECT_EQ(result, 6);
 }
 
@@ -212,12 +212,12 @@ TYPED_TEST(TestCkTileTupleApplySize, GeneratedTupleSum)
     constexpr int N = TypeParam::value;
 
     // Generate tuple with values 1, 2, 3, ..., N
-    auto t = generate_tuple([](auto i) { return i.value + 1; }, number<N>{});
+    constexpr auto t = generate_tuple([](auto i) { return i.value + 1; }, number<N>{});
 
     // Sum all elements
-    auto result = apply(TestCkTileTupleApply::AddFunction{}, t);
+    constexpr auto result = apply(TestCkTileTupleApply::AddFunction{}, t);
 
     // Expected sum: 1 + 2 + ... + N = N*(N+1)/2
-    int expected = N * (N + 1) / 2;
-    EXPECT_EQ(result, expected);
+    constexpr int expected = N * (N + 1) / 2;
+    static_assert(result == expected);
 }
