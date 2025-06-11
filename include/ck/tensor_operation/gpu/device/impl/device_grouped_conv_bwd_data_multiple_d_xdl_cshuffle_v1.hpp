@@ -511,6 +511,7 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
 #pragma unroll
     for(int batch_id = 0; batch_id < BatchPerBlock; batch_id += WaveNum)
     {
+        block_sync_lds();
         for(int i = tid; i < InLoopNum; i += BlockSize)
         {
             int group_id          = i % GroupPerBlockInFP4;
