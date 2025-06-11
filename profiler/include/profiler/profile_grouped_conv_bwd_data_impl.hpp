@@ -192,11 +192,8 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                 rtol = std::max(rtol, rtol_split_k);
                 atol = std::max(atol, atol_split_k);
 
-                pass &= split_k_for_run == 1
-                            ? ck::utils::check_err(
-                                  in_device, in_host, "Error: Incorrect results!", rtol)
-                            : ck::utils::check_err(
-                                  in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                pass &= ck::utils::check_err(
+                    in_device, in_host, "Error: Incorrect results!", rtol, atol);
                 std::cout << "Relative error threshold: " << rtol
                           << " Absolute error threshold: " << atol << std::endl;
 
