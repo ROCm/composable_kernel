@@ -45,8 +45,8 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
 
-        return integer_least_multiple(
-            sizeof(typename Problem::CDataType) * MPerBlock * NPerBlock, 16);
+        return integer_least_multiple(sizeof(typename Problem::CDataType) * MPerBlock * NPerBlock,
+                                      16);
     }
 
     template <typename Problem>
@@ -58,6 +58,6 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
 
         return smem_size_a + smem_size_b >= smem_size_c ? (smem_size_a + smem_size_b)
                                                         : (smem_size_c);
-    }    
+    }
 };
 } // namespace ck_tile

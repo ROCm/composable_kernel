@@ -107,10 +107,10 @@ struct GemmConfig
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr bool DoubleSmemBuffer = false;
 
     // Available wavegroups will be split into `NumWaveGroups` and each of these wavegroups
-    // will be responsible for specific jobs. For instance, perform Global Memory read operations, 
+    // will be responsible for specific jobs. For instance, perform Global Memory read operations,
     // perform block-gemm operation etc...
     static constexpr ck_tile::index_t NumWaveGroups = 2;
 #endif
