@@ -586,8 +586,8 @@ __global__ void kernel_grouped_conv_bwd_data_optimized_v2(const ABDataType* __re
                                  (rel_in_y + y) * TileInW * GroupPerBlockInFP4 +
                                  (rel_in_x + x) * GroupPerBlockInFP4 + group_out_id];
                     ABDTypeVec_t shmem_k_vec = reinterpret_cast<ABDTypeVec_t*>(
-                        shmem_k)[(kernel_y + y * up_h) * kernelW * GroupPerBlock +
-                                 (kernel_x + x * up_w) * GroupPerBlock + group_out_id];
+                        shmem_k)[(kernel_y + y * up_h) * kernelW * GroupPerBlockInFP4 +
+                                 (kernel_x + x * up_w) * GroupPerBlockInFP4 + group_out_id];
 
                     static_for<0, ElementPerInFP4, 1>{}([&](auto idx) {
                         auto x_val = shmem_x_vec.template AsType<ABDataType>()[idx];
