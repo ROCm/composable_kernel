@@ -1683,7 +1683,7 @@ using bf8_t = bf8_ocp_t;
 #define CK_FP8_TYPE_FNUZ 0
 #define CK_FP8_TYPE_OCP 1
 #else
-using f8_t  = f8_fnuz_t;
+using f8_t = f8_fnuz_t;
 using bf8_t = bf8_fnuz_t;
 #define CK_FP8_TYPE_FNUZ 1
 #define CK_FP8_TYPE_OCP 0
