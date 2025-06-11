@@ -82,7 +82,7 @@ struct buffer_store_if;
 // TODO: strict aliasing rule seems fail when reinterpret_cast between vector type
 // (exp_vector_type(xxx))
 
-#define HAS_RAW_BUFFER_BUILTINS false                             \
+#define HAS_RAW_BUFFER_BUILTINS false
 //    __has_builtin(__builtin_amdgcn_raw_buffer_load_b32) &&  \
 //        __has_builtin(__builtin_amdgcn_make_buffer_rsrc) && \
 //        __has_builtin(__builtin_amdgcn_raw_buffer_store_b32)
