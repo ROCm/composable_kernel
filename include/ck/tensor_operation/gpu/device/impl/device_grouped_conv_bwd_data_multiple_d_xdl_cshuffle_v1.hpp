@@ -1673,7 +1673,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                                                       EDataType,
                                                                                       GroupPerBlock,
                                                                                       BatchPerBlock,
-                                                                                      BlockDim,
+                                                                                      512,
                                                                                       5,
                                                                                       5,
                                                                                       1,
