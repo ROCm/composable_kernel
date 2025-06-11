@@ -42,7 +42,7 @@ target_include_directories(gemm_template_instances PRIVATE ${CMAKE_CURRENT_LIST_
 target_sources(gemm_template_instances PRIVATE ${GEMM_CODEGEN_HPP_FILES})
 
 set(BENCHMARK_GEMM_EXECUTABLE "benchmark_gemm")
-message("adding example ${BENCHMARK_GEMM_EXECUTABLE}")
+message(DEBUG "adding example ${BENCHMARK_GEMM_EXECUTABLE}")
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 

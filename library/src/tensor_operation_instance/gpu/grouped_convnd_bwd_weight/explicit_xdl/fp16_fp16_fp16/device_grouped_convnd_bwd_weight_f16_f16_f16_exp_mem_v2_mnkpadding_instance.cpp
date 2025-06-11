@@ -9,7 +9,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v1_mkpadding_instances(
+void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
                                                            GKYXC,
@@ -32,10 +32,11 @@ void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v1_mkpadding_insta
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_xdl_universal_km_kn_mn_mem_instances<F16, Intrawave, GemmMKPadding>>(instances);
+        device_gemm_xdl_universal_km_kn_mn_mem_instances<F16, Interwave, GemmMNKPadding>>(
+        instances);
 }
 
-void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v1_mkpadding_instances(
+void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v2_mnkpadding_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
                                                            GKZYXC,
@@ -58,7 +59,8 @@ void add_device_grouped_convnd_bwd_weight_f16_f16_f16_exp_mem_v1_mkpadding_insta
         PassThrough,
         PassThrough,
         PassThrough,
-        device_gemm_xdl_universal_km_kn_mn_mem_instances<F16, Intrawave, GemmMKPadding>>(instances);
+        device_gemm_xdl_universal_km_kn_mn_mem_instances<F16, Interwave, GemmMNKPadding>>(
+        instances);
 }
 
 } // namespace instance

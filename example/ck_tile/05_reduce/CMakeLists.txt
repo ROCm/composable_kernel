@@ -1,7 +1,7 @@
 set(EXAMPLE_REDUCE "tile_example_reduce")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
-message("adding example ${EXAMPLE_REDUCE}")
+message(DEBUG "adding example ${EXAMPLE_REDUCE}")
 
 add_executable(${EXAMPLE_REDUCE} EXCLUDE_FROM_ALL reduce.cpp)
 target_include_directories(${EXAMPLE_REDUCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})

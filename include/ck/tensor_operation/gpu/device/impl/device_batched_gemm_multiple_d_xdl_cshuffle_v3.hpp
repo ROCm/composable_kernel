@@ -185,7 +185,9 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                                        BElementwiseOperation,
                                        CElementwiseOperation>
 {
-    static constexpr index_t NumDTensor = DsDataType::Size();
+    static constexpr index_t NumDTensor            = DsDataType::Size();
+    using CDEShuffleBlockTransferScalarPerVectors_ = CDEShuffleBlockTransferScalarPerVectors;
+    using CDataType_                               = CDataType;
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultiD_xdl_cshuffle_v3<
