@@ -1964,6 +1964,7 @@ struct GridwiseMoeGemmBlockScale
                                     BElementwiseOperation b_element_op,
                                     CElementwiseOperation c_element_op)
     {
+        ignore                           = a_element_op;
         ignore                           = b_element_op;
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             IsInputGemm ? problem.NumTokens : problem.NumTokens * problem.TopK,
@@ -2031,7 +2032,7 @@ struct GridwiseMoeGemmBlockScale
         constexpr auto AK1Threads = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I2);
         constexpr auto AKThreads  = AK0Threads * AK1Threads;
         constexpr auto AMRepeats  = MPerBlock / AMThreads;
-        const index_t token_pos   = block_m_id * MPerBlock + threadIdx.x / AKThreads * AMRepeats;
+        const index_t token_pos   = block_m_id * MPerBlock + threadIdx.x / AKThreads;
 
         if(token_pos >= max_token_id || expert_block_id * MPerBlock >= max_token_id ||
            token0 >= problem.NumTokens)
@@ -2039,7 +2040,7 @@ struct GridwiseMoeGemmBlockScale
         StaticallyIndexedArray<IndexType, AMRepeats>
             gather_offsets; //= p_sorted_token_ids[token_pos];
         static_for<0, AMRepeats, 1>{}([&](auto m0) {
-            const index_t fused_token = p_sorted_token_ids[token_pos + m0];
+            const index_t fused_token = p_sorted_token_ids[token_pos + m0 * AMThreads];
             index_t token_offset      = fused_token & 0xffffff;
             if constexpr(!IsInputGemm)
             {
@@ -2075,11 +2076,8 @@ struct GridwiseMoeGemmBlockScale
         // dummy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
-        auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_gather<
+        auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_Gather_DirectLoad<
             ThisThreadBlock,
-            AElementwiseOperation,
-            ck::tensor_operation::element_wise::PassThrough,
-            InMemoryDataOperationEnum::Set,
             Sequence<AK0Number, MPerBlock, AK1Number>,
             ABlockTransferThreadClusterLengths_AK0_M_AK1,
             ABlockTransferThreadClusterArrangeOrder,
@@ -2088,24 +2086,15 @@ struct GridwiseMoeGemmBlockScale
             decltype(a_grid_desc_ak0_m_ak1),
             decltype(a_block_desc_ak0_m_ak1),
             ABlockTransferSrcAccessOrder,
-            Sequence<0, 1, 2>,
             ABlockTransferSrcVectorDim,
             2,
             ABlockTransferSrcScalarPerVector,
-            ABlockTransferDstScalarPerVector_AK1,
-            1,
-            1,
-            AThreadTransferSrcResetCoordinateAfterRun,
-            true,
             IndexType,
-            1,
-            BlockwiseGemmPipe::GlobalBufferNum>(a_grid_desc_ak0_m_ak1,
-                                                make_multi_index(0, 0, 0),
-                                                a_element_op,
-                                                a_block_desc_ak0_m_ak1,
-                                                make_multi_index(0, 0, 0),
-                                                ck::tensor_operation::element_wise::PassThrough{},
-                                                gather_offsets);
+            1>(a_grid_desc_ak0_m_ak1,
+               make_multi_index(0, 0, 0),
+               a_block_desc_ak0_m_ak1,
+               make_multi_index(0, 0, 0),
+               gather_offsets);
 
         // Thread-wise copy
         // K0 -> N0/NWave -> NWave -> KLane -> NLane -> KPack

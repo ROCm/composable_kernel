@@ -217,7 +217,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
         static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
             ignore = i;
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            // __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         });
@@ -443,6 +442,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
 
         // Local prefetch A1
         __builtin_amdgcn_s_waitcnt(3952);
+        block_sync_lds();
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {

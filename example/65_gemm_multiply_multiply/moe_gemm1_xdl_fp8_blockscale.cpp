@@ -178,7 +178,7 @@ static constexpr ck::index_t MPerBlock = 64; using DeviceOpInstance = ck::tensor
                16,   16,
                4,    2,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
-               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
+               S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                4,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
                ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, true, MulRoutedWeight, int32_t, A0DataType>;
 #endif
@@ -386,8 +386,8 @@ int main(int argc, char* argv[])
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.mDesc.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.mDesc.GetElementSpaceSize());
     // a0_t_k.savetxt("a.txt");
-    expert_ids.savetxt("expert_ids.txt", "int");
-    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
+    // expert_ids.savetxt("expert_ids.txt", "int");
+    // sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
     // d2_e_n.savetxt("d2_e_n.txt", "int");
     sorted_token_ids_dev.ToDevice(sorted_token_ids.mData.data());
     expert_ids_dev.ToDevice(expert_ids.mData.data());
@@ -517,6 +517,7 @@ int main(int argc, char* argv[])
                                                       PassThrough{});
 
         ref_invoker.Run(ref_argument);
+        bool host_all_zero = true;
         for(int m = 0; m < valid_size; ++m)
         {
 
@@ -532,6 +533,7 @@ int main(int argc, char* argv[])
             {
                 e_t_n_host_result(t, topk_id, n) =
                     ck::type_convert<EDataType>(c_t_k_n(t, topk_id, n));
+                host_all_zero = host_all_zero && !e_t_n_host_result(t, topk_id, n);
             }
         }
 
@@ -566,6 +568,9 @@ int main(int argc, char* argv[])
                 : 1;
         if(status == 0)
         {
+            if (host_all_zero){
+                printf("WARNING: All results are zero. ");
+            }
             printf("Validation Pass.\n");
         }
         return status;
