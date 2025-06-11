@@ -310,22 +310,28 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             return ck::type_convert<BDataType>(x);
     };
 
-    auto result = a_data_element(1.0f);
-    std::cout << "data = 0x" << std::hex << std::setfill('0') << std::setw(8)
-              << result.data.data_[0] << " " << result.data.data_[1] << " " << result.data.data_[2]
-              << std::dec;
-    std::cout << std::endl;
-
-    exit(0);
-
     using int_distr   = std::uniform_int_distribution<int>;
     using float_distr = std::uniform_real_distribution<float>;
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
         ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
+#if 1
+        ck::utils::FillConstant<ADataType>{a_data_element(0.0f)}(a_m_k);
+        for(ck::index_t j = 0; j < K; j += ck::packed_size_v<ADataType>)
+        {
+            a_m_k(0, j) = a_data_element(1.0f);
+        }
+#endif
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
         ck::utils::FillConstant<BDataType>{b_data_element(2.0f)}(*b_k_n);
+#if 1
+        ck::utils::FillConstant<BDataType>{b_data_element(0.0f)}(*b_k_n);
+        for(ck::index_t i = 0; i < K; i += ck::packed_size_v<BDataType>)
+        {
+            (*b_k_n)(i, 0) = b_data_element(2.0f);
+        }
+#endif
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
         if(config.verbosity > 0)
         {
@@ -760,13 +766,14 @@ std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
         if(config.init_method == 0)
         {
 
-#if 0
+#if 1
             std::cout << "Submatrix of a_m_k (16x32):" << std::endl;
-            std::cout << "a_m_k(0,0) in hex: 0x" << std::hex << std::setfill('0')
-                      << *reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) << " "
-                      << *(reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) + 1) << " "
-                      << *(reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) + 2) << std::dec
-                      << std::endl;
+
+            // std::cout << "a_m_k(0,0) in hex: 0x" << std::hex << std::setfill('0')
+            //           << *reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) << " "
+            //           << *(reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) + 1) << " "
+            //           << *(reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) + 2) << std::dec
+            //           << std::endl;
             for(int i = 0; i < 16; ++i)
             {
                 for(int j = 0; j < 32; ++j)
@@ -802,17 +809,6 @@ std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
                 std::cout << std::endl;
             }
 
-            // std::cout << "Submatrix of b_k_n (16x16):" << std::endl;
-            // for(int i = 0; i < 16; ++i)
-            // {
-            //     for(int j = 0; j < 16; ++j)
-            //     {
-            //         std::cout << std::setw(8) << type_convert<float>((*b_k_n)(i, j));
-            //     }
-
-            //     std::cout << std::endl;
-            // }
-
             std::cout << "Submatrix of b_k_n (32x16):" << std::endl;
             for(int k = 0; k < 32; k++)
             {
@@ -823,10 +819,14 @@ std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
                         if(k % 2 == 0)
                         {
                             auto b_pack  = (*b_k_n)(k, n);
-                            auto b_f4_lo = f4_t(b_pack.template unpack<>(ck::Number<0>{}));
-                            auto b_f4_hi = f4_t(b_pack.template unpack<>(ck::Number<1>{}));
-                            std::cout << type_convert<float>(b_f4_lo) << " "
-                                      << type_convert<float>(b_f4_hi) << " ";
+                            auto b_f4_lo = ck::f4_t(b_pack.template unpack<>(ck::Number<0>{}));
+                            std::cout << type_convert<float>(b_f4_lo) << " ";
+                        }
+                        else
+                        {
+                            auto b_pack  = (*b_k_n)(k, n);
+                            auto b_f4_hi = ck::f4_t(b_pack.template unpack<>(ck::Number<1>{}));
+                            std::cout << type_convert<float>(b_f4_hi) << " ";
                         }
                     }
                     else if constexpr(ck::is_same_v<BDataType, ck::f6x16_pk_t> ||
@@ -846,10 +846,136 @@ std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
                 std::cout << std::endl;
             }
 
+#if 1
+            std::cout << "Submatrix of a_m_k_scale (16x16):" << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(8) << type_convert<float>(a_m_k_scale(i, j));
+                }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(11) << type_convert<float>(a_m_k_scale(i, j + 128)) <<
+                //     "
+                //     ";
+                // }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(8) << type_convert<float>(a_m_k_scale(i, j + 200))
+                //               << " ";
+                // }
+
+                std::cout << std::endl;
+            }
+
+            std::cout << "Submatrix of a_shuffled_scale (16x16):" << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(11) << type_convert<float>(a_shuffled_scale(i, j));
+                }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(11) << type_convert<float>(a_shuffled_scale(i, j +
+                //     128))
+                //     << "
+                //     ";
+                // }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(11) << type_convert<float>(a_shuffled_scale(i, j +
+                //     200))
+                //               << " ";
+                // }
+
+                std::cout << std::endl;
+            }
+#endif
+
+#if 1
+            std::cout << "Submatrix of b_k_n_scale (16x16):" << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(8) << type_convert<float>(b_k_n_scale(i, j));
+                }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(8) << type_convert<float>(b_k_n_scale(i, j + 128));
+                // }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(8) << type_convert<float>(b_k_n_scale(i, j + 200));
+                // }
+
+                std::cout << std::endl;
+            }
+            std::cout << "Submatrix of b_shuffled_scale (16x16):" << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(11) << type_convert<float>(b_shuffled_scale(i, j));
+                }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(11) << type_convert<float>(b_shuffled_scale(i, j +
+                //     128))
+                //     << "
+                //     ";
+                // }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(11) << type_convert<float>(b_shuffled_scale(i, j +
+                //     200))
+                //               << " ";
+                // }
+
+                std::cout << std::endl;
+            }
+#endif
+
+#if 1
+            std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
+            for(int i = 0; i < 16; ++i)
+            {
+                for(int j = 0; j < 16; ++j)
+                {
+                    std::cout << std::setw(8) << type_convert<float>(c_m_n_device_result(i, j));
+                }
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(8)
+                //               << type_convert<float>(c_m_n_device_result(i, j + 128));
+                // }
+
+                // std::cout << "\t\t";
+                // for(int j = 0; j < 16; ++j)
+                // {
+                //     std::cout << std::setw(8)
+                //               << type_convert<float>(c_m_n_device_result(i, j + 200));
+                // }
+
+                std::cout << std::endl;
+            }
+#endif
+
 #endif
 
             auto expected = static_cast<float>(K);
-            auto computed = type_convert<float>(c_m_n_device_result(1, 12));
+            auto computed = type_convert<float>(c_m_n_device_result(0, 0));
 
             res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
             std::cout << "\nExpected vs Computed: " << expected << " vs " << computed

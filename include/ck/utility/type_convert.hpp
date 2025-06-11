@@ -1954,6 +1954,7 @@ inline __host__ __device__ f6x16_t type_convert<f6x16_t, float16_t>(float16_t x)
     out.v32 = f6_convert_rne(in.v32);
 #endif
 
+#if 0
     // Print the first three 32-bit integers in hexadecimal format
     for(int i = 0; i < 6; ++i)
     {
@@ -1966,6 +1967,7 @@ inline __host__ __device__ f6x16_t type_convert<f6x16_t, float16_t>(float16_t x)
     //           result.data.data_[2]
     //           << std::dec;
     // std::cout << std::endl;
+#endif
 
     return out.v16x2[0];
 }
