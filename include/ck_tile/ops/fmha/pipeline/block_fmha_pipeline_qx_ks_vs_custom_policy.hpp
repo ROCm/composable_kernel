@@ -726,9 +726,9 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
             constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
 
-            constexpr index_t K1 = min(MaxVectorSize, ElemPerThread);
-            constexpr index_t K0 = kKPerBlock / K1;
-            constexpr index_t N2 = get_warp_size() / K0;
+            constexpr index_t K1 = min(MaxVectorSize, ElemPerThread); //8
+            constexpr index_t K0 = kKPerBlock / K1; // 8
+            constexpr index_t N2 = get_warp_size() / K0; // 8
             constexpr index_t N1 = kBlockSize / get_warp_size();
             constexpr index_t N0 = kNPerBlock / (N2 * N1);
 

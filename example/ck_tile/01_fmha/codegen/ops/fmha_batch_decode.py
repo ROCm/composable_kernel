@@ -626,7 +626,7 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
         ### '64'  : FmhaFwdTileSize(16, 64, 32, 64,  32,  64,   1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
         ### '96'  : FmhaFwdTileSize(16, 64, 32, 128, 32,  96,   1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
             '128' : FmhaFwdTileSize(16, 64, 64, 128, 64,  128,  1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '256' : FmhaFwdTileSize(16, 64, 64, 256, 64,  256,  1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
+            # '256' : FmhaFwdTileSize(16, 64, 64, 256, 64,  256,  1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
@@ -638,19 +638,19 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
         return None
 
 def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
-    if dtype == 'fp16' or dtype == 'bf16':
+    if dtype == 'bf16':
         return {
         ### '32'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
         ### '64'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
         ### '96'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
             '128' : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
+            # '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
     }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '128' : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
+            # '64'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
+            # '128' : FmhaFwdSplitKVCombineTileSize(32,  -1),
+            # '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
         }
     else:
         return None
@@ -736,7 +736,7 @@ def get_batch_decode_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                         continue
                 # Aiter(batch_decode) integration
                 elif receipt == 200:
-                    cond = dtype in ['fp16', 'bf16']
+                    cond = dtype in [ 'bf16']
                     cond &= mode == 'batch'
                     cond &= pipeline.F_vlayout == 'row'
                     cond &= pipeline.F_bias == 'no'

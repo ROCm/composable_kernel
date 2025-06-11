@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_batch_decode_pipeline_qr_ks_vs_default_policy.hpp"
+#include "ck_tile/core/tensor/tile_scatter_gather_debug.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
@@ -348,10 +349,10 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
             constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
             statically_indexed_array<index_t, NRepeat> k_offsets;
             static_for<0, NRepeat, 1>{}([&](auto n0) {
-                k_offsets[n0] = kv_page_indices[k_coord[0] + kN0 / NRepeat * n0.value] * stride_k;
+                k_offsets[n0] = kv_page_indices[k_coord[0] + kN0 / NRepeat * n0.value] / 16 * stride_k;
             });
 
-            return make_tile_scatter_gather(k_dram_block_window.get_bottom_tensor_view(),
+            return make_tile_scatter_gather_debug(k_dram_block_window.get_bottom_tensor_view(),
                                             k_dram_block_window.get_window_lengths(),
                                             k_dram_block_window.get_window_origin(),
                                             k_dist,
@@ -473,7 +474,8 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                tile_elementwise_inout([&scale_s](auto& x) {
+                     x = x * scale_s; }, s_acc);
 #else
                 if constexpr(kHasLogitsSoftCap)
                 {
@@ -536,11 +538,11 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
                     statically_indexed_array<index_t, NRepeat> k_offsets;
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         k_offsets[n0] =
-                            (kv_page_indices + kN0)[k_coord[0] + kN0 / NRepeat * n0.value] *
+                            (kv_page_indices + kN0)[k_coord[0] + kN0 / NRepeat * n0.value]  / 16 *
                             stride_k;
                     });
 
-                    return make_tile_scatter_gather(k_dram_block_window.get_bottom_tensor_view(),
+                    return make_tile_scatter_gather_debug(k_dram_block_window.get_bottom_tensor_view(),
                                                     k_dram_block_window.get_window_lengths(),
                                                     k_dram_block_window.get_window_origin(),
                                                     k_dist,
