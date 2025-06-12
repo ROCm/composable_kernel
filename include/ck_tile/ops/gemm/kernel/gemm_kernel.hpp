@@ -78,7 +78,7 @@ struct GemmKernelArgs
     const void* a_ptr;
     /// @brief The B input tensor's pointer to device memory.
     const void* b_ptr;
-    /// @brief The B input tensor's pointer to device memory.
+    /// @brief The Ds input tensor's pointer to device memory.
     const std::array<const void*, NumDTensor> ds_ptr;
     /// @brief The E output tensor's pointer to device memory.
     void* e_ptr;
