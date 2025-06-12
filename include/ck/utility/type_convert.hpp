@@ -2067,6 +2067,12 @@ inline __host__ __device__ float16_t type_convert<float16_t, f6x16_t>(f6x16_t x)
     return out.v16x2[0];
 }
 
+template <>
+inline __host__ __device__ float16_t type_convert<float16_t, f6x16_pk_t>(f6x16_pk_t x)
+{
+    return type_convert<float16_t>(static_cast<f6x16_t>(x));
+}
+
 /**
  * @brief Converts a float to the 6-bit BF6 type using round-to-nearest-even.
  *

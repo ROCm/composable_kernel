@@ -321,6 +321,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         for(ck::index_t j = 0; j < K; j += ck::packed_size_v<ADataType>)
         {
             a_m_k(0, j) = a_data_element(1.0f);
+            // a_m_k(0, j) = a_data_element(0.0f);
         }
 #endif
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
@@ -330,6 +331,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         for(ck::index_t i = 0; i < K; i += ck::packed_size_v<BDataType>)
         {
             (*b_k_n)(i, 0) = b_data_element(2.0f);
+            //(*b_k_n)(i, 0) = b_data_element(0.0f);
         }
 #endif
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
@@ -766,7 +768,7 @@ std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
         if(config.init_method == 0)
         {
 
-#if 1
+#if 0
             std::cout << "Submatrix of a_m_k (16x32):" << std::endl;
 
             // std::cout << "a_m_k(0,0) in hex: 0x" << std::hex << std::setfill('0')
