@@ -130,26 +130,65 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
+   
+
     // Run reference GEMM
     if(do_verification)
     {
+        // Use GPU validation
+        using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
+                                                                                    BLayout,
+                                                                                    CLayout,
+                                                                                    ADataType,
+                                                                                    BDataType,
+                                                                                    CDataType,
+                                                                                    AccDataType,
+                                                                                    AElementOp,
+                                                                                    BElementOp,
+                                                                                    CElementOp,
+                                                                                    ComputeDataType,
+                                                                                    ComputeDataType>;
 
-        // Use CPU validation
-        // Note: GPU validation is not supported for fp8 !!!
-        using ReferenceGemmInstanceCPU = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                   BDataType,
-                                                                                   CDataType,
-                                                                                   AccDataType,
-                                                                                   AElementOp,
-                                                                                   BElementOp,
-                                                                                   CElementOp,
-                                                                                   ComputeDataType>;
-        auto ref_gemm_cpu              = ReferenceGemmInstanceCPU{};
-        auto ref_invoker_cpu           = ref_gemm_cpu.MakeInvoker();
-        auto ref_argument_cpu          = ref_gemm_cpu.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
-        ref_invoker_cpu.Run(ref_argument_cpu);
+        auto ref_gemm_gpu     = ReferenceGemmInstanceGPU{};
+        auto ref_invoker_gpu  = ref_gemm_gpu.MakeInvoker();
+        auto ref_argument_gpu = ref_gemm_gpu.MakeArgument(
+            static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_m_n_device_ref_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            a_element_op,
+            b_element_op,
+            c_element_op);
+
+        if(ref_gemm_gpu.IsSupportedArgument(&ref_argument_gpu))
+        {
+            ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{nullptr, true});
+            c_m_n_device_ref_buf.FromDevice(c_m_n_host_result.mData.data());
+        }
+        else
+        {
+            std::cerr << "GPU reference GEMM does not support this problem configuration so does CPU validation." << std::endl;
+            
+            // Use CPU validation
+           
+            using ReferenceGemmInstanceCPU = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                                        BDataType,
+                                                                                        CDataType,
+                                                                                        AccDataType,
+                                                                                        AElementOp,
+                                                                                        BElementOp,
+                                                                                        CElementOp,
+                                                                                        ComputeDataType>;
+            auto ref_gemm_cpu              = ReferenceGemmInstanceCPU{};
+            auto ref_invoker_cpu           = ref_gemm_cpu.MakeInvoker();
+            auto ref_argument_cpu          = ref_gemm_cpu.MakeArgument(
+                a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+            ref_invoker_cpu.Run(ref_argument_cpu);
+        }
     }
+
 
     std::string best_op_name;
     float best_ave_time    = 0;
