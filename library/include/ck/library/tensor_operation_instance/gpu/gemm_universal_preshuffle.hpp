@@ -55,6 +55,7 @@ struct DeviceOperationInstanceFactory<
 
     static auto GetInstances()
     {
+#ifdef CK_USE_XDL
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 #if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
@@ -65,9 +66,12 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances(
                     op_ptrs);
+                add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(
+                    op_ptrs);
             }
         }
 #endif
+#endif // CK_USE_XDL
 
         return op_ptrs;
     }
