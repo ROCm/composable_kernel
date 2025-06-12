@@ -199,6 +199,14 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
         constexpr auto num_buffer_load_inst_b =
             HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves * 2;
         constexpr auto mfma_interleave = MPerXDL == 32 ? 1 : 2;
+        // A global
+        static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
+            ignore = i;
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+        });
+
         // B global
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
             ignore = i;
@@ -210,14 +218,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
             {
                 __builtin_amdgcn_sched_group_barrier(0x008, mfma_interleave, 0);
             }
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-        });
-
-        // A global
-        static_for<0, num_buffer_load_inst_a, 1>{}([&](auto i) {
-            ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         });
 
@@ -297,6 +297,8 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
     {
         ignore = b_block_desc;
         ignore = b_block_buf;
+        constexpr auto num_buffer_load_inst_b =
+            HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves * 2; //TODO: remove if compiler handle s_wait buf2lds
         // __builtin_amdgcn_sched_barrier(0);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
             a_thread_desc_.GetElementSpaceSize());
@@ -442,7 +444,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
 
         // Local prefetch A1
         __builtin_amdgcn_s_waitcnt(3952);
-        block_sync_lds();
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, KGroup, 1>{}([&](auto kg0) {
@@ -470,6 +471,9 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
             do
             {
                 auto LoopFunc = [&](auto mfma_reg_buf, auto local_read_buf) {
+                    block_sync_lds();
+                    a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                     b_blockwise_copy.Run(b_grid_desc,
                                          b_grid_buf,
                                          b_block_desc_n0_n1_k0_k1,
@@ -483,9 +487,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                                             b_block_origin_idx,
                                             b_thread_bufs_up(local_read_buf));
                     b_blockwise_copy_up.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
-                    block_sync_lds();
-                    a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
-                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -591,7 +592,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                             });
                         });
                     });
-                    __builtin_amdgcn_s_waitcnt(3952);
+                    __builtin_amdgcn_s_waitcnt(3952 + num_buffer_load_inst_b); //TODO: remove if compiler handle s_wait buf2lds.
                     block_sync_lds();
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -676,6 +677,8 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
         // tail
         if constexpr(TailNum == TailNumber::Even)
         {
+            block_sync_lds();
+            a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
             b_blockwise_copy.Run(b_grid_desc,
                                  b_grid_buf,
                                  b_block_desc_n0_n1_k0_k1,
@@ -687,9 +690,6 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                                     b_block_desc_n0_n1_k0_k1,
                                     b_block_origin_idx,
                                     b_thread_bufs_up(I1));
-            __builtin_amdgcn_s_waitcnt(3952);
-            block_sync_lds();
-            a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -799,7 +799,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                     });
                 });
             });
-            __builtin_amdgcn_s_waitcnt(3952);
+            __builtin_amdgcn_s_waitcnt(3952 + num_buffer_load_inst_b); //TODO: remove if compiler handle s_wait buf2lds.
             block_sync_lds();
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
