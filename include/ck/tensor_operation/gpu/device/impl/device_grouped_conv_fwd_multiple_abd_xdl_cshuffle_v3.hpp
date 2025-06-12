@@ -780,8 +780,20 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         sizeof(EDataType);
             }
 
-            typename GridwiseGemm::Argument gemm_arg{
-                p_a_grid, p_b_grid, p_e_grid, GemmM, GemmN, GemmK, I0, I0, I0, I1};
+            typename GridwiseGemm::Argument gemm_arg{p_a_grid,
+                                                     p_b_grid,
+                                                     p_e_grid,
+                                                     GemmM,
+                                                     GemmN,
+                                                     GemmK,
+                                                     I0,
+                                                     I0,
+                                                     I0,
+                                                     I1,
+                                                     false,
+                                                     arg.a_element_op_,
+                                                     arg.b_element_op_,
+                                                     arg.cde_element_op_};
 
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)

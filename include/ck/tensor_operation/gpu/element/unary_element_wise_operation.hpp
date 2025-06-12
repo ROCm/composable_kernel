@@ -744,6 +744,79 @@ struct UnarySqrt
     };
 };
 
+struct Clamp
+{
+    Clamp(float floor = 0.f, float ceil = NumericLimits<float>::Max())
+        : floor_(floor), ceil_(ceil){};
+
+    template <typename Y, typename X>
+    __host__ __device__ constexpr void operator()(Y& y, const X& x) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<float, float>(float& y, const float& x) const
+    {
+        const float& a = x;
+        y              = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<double, double>(double& y, const double& x) const
+    {
+        const double& a = x;
+        y               = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    {
+        const float a = type_convert<half_t>(x);
+        const float b = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+        y             = type_convert<half_t>(b);
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        const float& a = x;
+        const float b  = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+        y              = type_convert<half_t>(b);
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
+    {
+        const float& a = x;
+        const float b  = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+        y              = type_convert<bhalf_t>(b);
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<bhalf_t, bhalf_t>(bhalf_t& y,
+                                                                    const bhalf_t& x) const
+    {
+        const float a = type_convert<float>(x);
+        const float b = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+        y             = type_convert<bhalf_t>(b);
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<int, int>(int& y, const int& x) const
+    {
+        const int8_t& a = x;
+        y               = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
+    {
+        const int8_t& a = x;
+        y               = a > floor_ ? (a < ceil_ ? a : ceil_) : floor_;
+    };
+
+    const float floor_;
+    const float ceil_;
+};
+
 struct Relu
 {
     template <typename T>
