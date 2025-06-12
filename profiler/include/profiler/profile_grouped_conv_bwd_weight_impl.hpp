@@ -249,6 +249,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     float max_accumulated_value = 0;
     if(do_verification)
     {
+        std::cout << "Running reference implementation for verification..." << std::endl;
         auto ref_conv     = ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
                                                                            InDataType,
                                                                            WeiDataType,

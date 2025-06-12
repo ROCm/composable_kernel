@@ -427,10 +427,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     {
         MaximumActiveBlocksPerMultiprocessor()
         {
-            constexpr size_t dynSharedMemPerBlk = GridwiseGemm::GetSharedMemoryNumberOfByte();
+            constexpr size_t dynSharedMemPerBlk = 0;
+            constexpr size_t ldsMemPerBlk = GridwiseGemm::GetSharedMemoryNumberOfByte();
             if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "[SPLIT-K AUTODEDUCE] Dynamic shared memory per block: " << dynSharedMemPerBlk << " bytes" << std::endl;
+                std::cout << "[SPLIT-K AUTODEDUCE] LDS memory per block: " << ldsMemPerBlk << " bytes" << std::endl;
             }
             int max_occupancy = 0;
             hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
