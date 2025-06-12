@@ -35,6 +35,9 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     using ComputeTypeB = BDataType;
     using AccType      = float; // for now only support V_MFMA_SCALE_F32
 
+    static constexpr index_t APackedSize = packed_size_v<ComputeTypeA>;
+    static constexpr index_t BPackedSize = packed_size_v<ComputeTypeB>;
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -48,17 +51,24 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
     static constexpr index_t A_K1 = ATileDesc{}.GetLength(I2);
-    static constexpr index_t B_K1 = BTileDesc{}.GetLength(I2);
+    // static constexpr index_t B_K1 = BTileDesc{}.GetLength(I2);
+    static constexpr index_t B_K1 =
+        BTileDesc{}.GetLength(Number < BTileDesc{}.GetNumOfDimension() == 4 ? 3 : 2 > {});
 
-    static constexpr auto xdlops_gemm =
-        XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB, TransposeC, true>{};
+    static constexpr auto xdlops_gemm = XdlopsGemm<ComputeTypeA,
+                                                   MPerXDL,
+                                                   NPerXDL,
+                                                   KPack * APackedSize,
+                                                   ComputeTypeB,
+                                                   TransposeC,
+                                                   true>{};
 
     static constexpr index_t AMmaKStride = KPack;
     static constexpr index_t BMmaKStride = KPack;
 
     //> store rows/cols into thread registers in chunks of 16
     //> e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
-    static constexpr index_t KThreadChunk = 16;
+    static constexpr index_t KThreadChunk = 16 / sizeof(ComputeTypeA);
 
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
@@ -67,22 +77,29 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
-    using HotLoopInstList =
-        ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
-                                                      MPerBlock,
-                                                      NPerBlock,
-                                                      KPerBlock,
-                                                      ABlockTransferSrcScalarPerVector,
-                                                      BBlockTransferSrcScalarPerVector,
-                                                      A_K1,
-                                                      B_K1,
-                                                      A_K1,
-                                                      B_K1,
-                                                      MRepeat,
-                                                      NRepeat,
-                                                      MPerXDL,
-                                                      NPerXDL,
-                                                      xdlops_gemm.KPerXdlops>;
+    // Hardcode to 2, for better 8-bit access pattern
+
+    static constexpr index_t MXdlPack = 2;
+    static constexpr index_t NXdlPack = 2;
+    static constexpr index_t KXdlPack = 2;
+
+    using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst< //
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        ABlockTransferSrcScalarPerVector,
+        BBlockTransferSrcScalarPerVector,
+        A_K1,
+        B_K1,
+        A_K1,
+        B_K1,
+        MRepeat,
+        NRepeat,
+        MPerXDL,
+        NPerXDL,
+        xdlops_gemm.KPerXdlops,
+        (packed_size_v<ComputeTypeA> > 1 || packed_size_v<ComputeTypeB> > 1)>;
 
     static_assert(KPerThread % KPack == 0,
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");
@@ -116,7 +133,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_m, xdlops_a_idx[I1], KThreadChunk * xdlops_a_idx[I0]);
+        return make_tuple(0, waveId_m, 0, xdlops_a_idx[I1], KThreadChunk * xdlops_a_idx[I0]);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -127,7 +144,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         const auto xdlops_b_idx = xdlops_gemm.CalculateBThreadOriginDataIndex();
 
-        return make_tuple(0, waveId_n, xdlops_b_idx[I1], KThreadChunk * xdlops_b_idx[I0]);
+        return make_tuple(0, waveId_n, 0, xdlops_b_idx[I1], KThreadChunk * xdlops_b_idx[I0]);
     }
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
@@ -142,24 +159,27 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         const auto blk_idx = xdlops_gemm.GetBeginOfThreadBlk(xdlops_i, blk_i);
 
         constexpr auto mrepeat_mwave_mperxdl_to_m_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_unmerge_transform(make_tuple(MRepeat, MWaves, MPerXDL))),
+            make_tuple(
+                make_unmerge_transform(make_tuple(MRepeat / MXdlPack, MWaves, MXdlPack, MPerXDL))),
             make_tuple(Sequence<0>{}),
-            make_tuple(Sequence<0, 1, 2>{}));
+            make_tuple(Sequence<0, 1, 2, 3>{}));
 
         constexpr auto nrepeat_nwave_nperxdl_to_n_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_unmerge_transform(make_tuple(NRepeat, NWaves, NPerXDL))),
+            make_tuple(
+                make_unmerge_transform(make_tuple(NRepeat / NXdlPack, NWaves, NXdlPack, NPerXDL))),
             make_tuple(Sequence<0>{}),
-            make_tuple(Sequence<0, 1, 2>{}));
+            make_tuple(Sequence<0, 1, 2, 3>{}));
 
+        // We pack 2 mfma in M/N direction, so we need to divide by 2
         const index_t c_thread_m = mrepeat_mwave_mperxdl_to_m_adaptor.CalculateBottomIndex(
-            make_tuple(m0, waveId_m, blk_idx[I0]))[I0];
+            make_tuple(m0 / MXdlPack, waveId_m, m0 % MXdlPack, blk_idx[I0]))[I0];
         const index_t c_thread_n = nrepeat_nwave_nperxdl_to_n_adaptor.CalculateBottomIndex(
-            make_tuple(n0, waveId_n, blk_idx[I1]))[I0];
+            make_tuple(n0 / NXdlPack, waveId_n, n0 % NXdlPack, blk_idx[I1]))[I0];
 
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    using Tuple4 = decltype(CalculateAThreadOriginDataIndex());
+    using Tuple5 = decltype(CalculateAThreadOriginDataIndex());
 
     /**
      * @brief Constructor for BlockwiseGemmXdlops_mx_pipeline_base.
@@ -179,13 +199,12 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
      * repeat dimensions.
      */
     __host__ __device__
-    BlockwiseGemmXdlops_mx_pipeline_base(Tuple4 a_origin = CalculateAThreadOriginDataIndex(),
-                                         Tuple4 b_origin = CalculateBThreadOriginDataIndex())
+    BlockwiseGemmXdlops_mx_pipeline_base(Tuple5 a_origin = CalculateAThreadOriginDataIndex(),
+                                         Tuple5 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
-
         static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
                       "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
 
@@ -219,6 +238,28 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
+    }
+
+    // XDL output supporting C_xdl = A_xdl * B_xdl, packed mfma
+    __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3()
+    {
+        constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
+
+        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
+        constexpr auto M1 = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
+        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
+
+        return make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
+                                                              Number<NRepeat / NXdlPack>{},
+                                                              I1,
+                                                              I1,
+                                                              Number<MXdlPack>{},
+                                                              Number<NXdlPack>{},
+                                                              M0,
+                                                              M1,
+                                                              M2,
+                                                              N));
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -260,6 +301,23 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                            Number<NPerXDL>{}));
 
         return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_block_desc_m0_n0_m1_n1_m2_n2);
+    }
+
+    // XDL output supporting C_xdl = A_xdl * B_xdl_packed mfma
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3()
+    {
+        constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
+                                                           Number<NRepeat / NXdlPack>{},
+                                                           Number<MWaves>{},
+                                                           Number<NWaves>{},
+                                                           Number<MXdlPack>{},
+                                                           Number<NXdlPack>{},
+                                                           Number<MPerXDL>{},
+                                                           Number<NPerXDL>{}));
+
+        return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(
+            c_block_desc_m0_n0_m1_n1_m2_n2);
     }
 
     __host__ __device__ static constexpr auto GetCBlockDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -314,45 +372,47 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
             c_grid_desc_g_m0_n0_m1_n1_m2_n2);
     }
 
-    static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_k;
-    static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_k;
+    __host__ __device__ static constexpr auto GetCThreadDesc() { return c_thread_desc_; }
+
+    static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_m3_k;
+    static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_n3_k;
 
     protected:
     // M1, N1 as double buffer index
     // Read buffer + Compute buffer
     // A[M0, M1, M2, KPack]
-    static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
-        make_tuple(
-            Number<KPack>{}, Number<KRepeat * MRepeat * KPack>{}, Number<MRepeat * KPack>{}, I1));
+    static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor_packed(make_tuple(
+        Number<MRepeat / MXdlPack>{}, I1, Number<MXdlPack>{}, Number<KRepeat>{}, Number<KPack>{}));
 
     // B[N0, N1, N2, KPack]
-    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor(
-        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
-        make_tuple(
-            Number<KPack>{}, Number<KRepeat * NRepeat * KPack>{}, Number<NRepeat * KPack>{}, I1));
+    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(make_tuple(
+        Number<NRepeat / NXdlPack>{}, I1, Number<NXdlPack>{}, Number<KRepeat>{}, Number<KPack>{}));
 
     // C[M, N, NumRegXdlops]
-    static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, xdlops_gemm.GetRegSizePerXdlops()));
+    static constexpr auto c_thread_desc_ =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
+                                                       Number<NRepeat / NXdlPack>{},
+                                                       Number<MXdlPack>{},
+                                                       Number<NXdlPack>{},
+                                                       xdlops_gemm.GetRegSizePerXdlops()));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<ADataType,
                                                          ComputeTypeA,
-                                                         decltype(a_block_desc_m0_m1_m2_k),
+                                                         decltype(a_block_desc_m0_m1_m2_m3_k),
                                                          decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, KThreadChunk>,
-                                                         Sequence<0, 1, 2, 3>,
-                                                         3,
+                                                         Sequence<1, 1, 1, 1, KThreadChunk>,
+                                                         Sequence<0, 1, 2, 3, 4>,
+                                                         4,
                                                          A_K1,
                                                          A_K1>;
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<BDataType,
                                                          ComputeTypeB,
-                                                         decltype(b_block_desc_n0_n1_n2_k),
+                                                         decltype(b_block_desc_n0_n1_n2_n3_k),
                                                          decltype(b_thread_desc_),
-                                                         Sequence<1, 1, 1, KThreadChunk>,
-                                                         Sequence<0, 1, 2, 3>,
-                                                         3,
+                                                         Sequence<1, 1, 1, 1, KThreadChunk>,
+                                                         Sequence<0, 1, 2, 3, 4>,
+                                                         4,
                                                          B_K1,
                                                          B_K1>;
 
