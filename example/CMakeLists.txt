@@ -104,11 +104,13 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
             list(REMOVE_ITEM FILE_NAME "${source}")
         endif()
     endforeach()
-    # Do not build gemm_universal_f8 or gemm_multiply_multiply_f8 for any targets except gfx94
+    # Build fp8 gemm_multiply_multiply and moe only on gfx94/95
     foreach(source IN LISTS FILE_NAME)
-    if(NOT EX_TARGETS MATCHES "gfx94" AND NOT EX_TARGETS MATCHES "gfx95" AND source MATCHES "gemm_multiply_multiply_xdl_fp8_bpreshuffle")
-         message(DEBUG "Skipping ${source} example for current target")
-         list(REMOVE_ITEM FILE_NAME "${source}")
+    if(NOT EX_TARGETS MATCHES "gfx94" AND NOT EX_TARGETS MATCHES "gfx95")
+        if (source MATCHES "fp8" AND source MATCHES "(gemm_multiply_multiply|moe)")
+            message(DEBUG "Skipping ${source} example for current target")
+            list(REMOVE_ITEM FILE_NAME "${source}")
+        endif()
     endif()
     endforeach()
     #only continue if there are some source files left on the list
