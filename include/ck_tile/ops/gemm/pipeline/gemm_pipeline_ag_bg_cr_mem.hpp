@@ -52,13 +52,14 @@ struct BaseGemmPipelineAgBgCrMem
 
     static constexpr index_t LocalPrefillStages = 1;
     static constexpr index_t GlobalBufferNum    = PrefetchStages;
+    static constexpr bool UsePersistentKernel   = Problem::Traits::UsePersistentKernel;
 
-    CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
         if(num_loop % PrefetchStages == 1)
         {
@@ -92,6 +93,56 @@ struct BaseGemmPipelineAgBgCrMem
         {
             return TailNumber::Full;
         }
+    }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
+    {
+        // Wrap the hot_loop dispatch first.
+        auto tail_dispatch = [&](auto tail_num_constant) {
+            if(has_hot_loop)
+            {
+                return run_func(bool_constant<true>{}, tail_num_constant);
+            }
+            else
+            {
+                return run_func(bool_constant<false>{}, tail_num_constant);
+            }
+        };
+
+#define CHECK_TAIL_NUMBER(TAIL_NUMBER, PREFETCH_VALUE)                                      \
+    else if(tail_number == TailNumber::TAIL_NUMBER)                                         \
+    {                                                                                       \
+        if constexpr(PrefetchStages > PREFETCH_VALUE)                                       \
+        {                                                                                   \
+            return tail_dispatch(integral_constant<TailNumber, TailNumber::TAIL_NUMBER>{}); \
+        }                                                                                   \
+    }
+        // Handle all the valid cases.
+        if(tail_number == TailNumber::One)
+        {
+            return tail_dispatch(integral_constant<TailNumber, TailNumber::One>{});
+        }
+        else if(tail_number == TailNumber::Full)
+        {
+            return tail_dispatch(integral_constant<TailNumber, TailNumber::Full>{});
+        }
+        CHECK_TAIL_NUMBER(Two, 2)
+        CHECK_TAIL_NUMBER(Three, 3)
+        CHECK_TAIL_NUMBER(Four, 4)
+        CHECK_TAIL_NUMBER(Five, 5)
+        CHECK_TAIL_NUMBER(Six, 6)
+        CHECK_TAIL_NUMBER(Seven, 7)
+#undef CHECK_TAIL_NUMBER
+
+        // We shouldn't get here unless we have a tail number larger than the prefetch stages.
+#if defined(__HIP_DEVICE_COMPILE__)
+        __builtin_unreachable();
+#else
+        throw std::logic_error("Invalid TailNumber: Only TailNumber::Full and smaller than "
+                               "PrefetchStages are supported.");
+#endif
     }
 };
 
@@ -747,6 +798,29 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             b_element_func,
             num_loop,
             p_smem);
+    }
+
+    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   bool has_hot_loop,
+                                   TailNumber tail_number,
+                                   void* p_smem) const
+    {
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            constexpr bool hot_loop    = hot_loop_.value;
+            constexpr auto tail_num    = tail_num_.value;
+            constexpr auto PassThrough = [](const auto& x) { return x; };
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop, tail_num>(
+                a_dram_block_window_tmp,
+                PassThrough,
+                b_dram_block_window_tmp,
+                PassThrough,
+                num_loop,
+                p_smem);
+        };
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
 
     template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>

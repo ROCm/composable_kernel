@@ -213,7 +213,8 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)");
+        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
+        .insert("persistent", "0", "0:non-persistent, 1:persistent");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -229,5 +230,6 @@ template <typename ADataType,
           typename BLayout,
           typename DsLayout,
           typename CLayout,
+          bool Persistent = false,
           typename CDEElementWise>
 float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s);

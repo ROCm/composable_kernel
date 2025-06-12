@@ -21,10 +21,13 @@ template <typename ADataType,
           typename BLayout,
           typename DsLayout,
           typename CLayout,
+          bool Persistent,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s)
 
 {
+    if constexpr(Persistent)
+        std::cout << "WARNING: Ignoring persistent kernel option for basic gemm." << std::endl;
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;

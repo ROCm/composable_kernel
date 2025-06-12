@@ -165,7 +165,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::index_t stride_C,
                   ck_tile::index_t kbatch,
                   int n_warmup,
-                  int n_repeat)
+                  int n_repeat,
+                  bool persistent)
 {
     ck_tile::GemmHostArgs</*NumDTensor = 0*/> args = {a_m_k_dev_buf.GetDeviceBuffer(),
                                                       b_k_n_dev_buf.GetDeviceBuffer(),
@@ -180,17 +181,37 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                                       {},
                                                       stride_C};
 
-    float ave_time =
-        gemm<ADataType,
-             BDataType,
-             DsDataType,
-             AccDataType,
-             CDataType,
-             ALayout,
-             BLayout,
-             DsLayout,
-             CLayout,
-             CDEElementWise>(args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
+    float ave_time;
+    if(persistent)
+    {
+        ave_time = gemm<ADataType,
+                        BDataType,
+                        DsDataType,
+                        AccDataType,
+                        CDataType,
+                        ALayout,
+                        BLayout,
+                        DsLayout,
+                        CLayout,
+                        true,
+                        CDEElementWise>(
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+    }
+    else
+    {
+        ave_time = gemm<ADataType,
+                        BDataType,
+                        DsDataType,
+                        AccDataType,
+                        CDataType,
+                        ALayout,
+                        BLayout,
+                        DsLayout,
+                        CLayout,
+                        false,
+                        CDEElementWise>(
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+    }
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -205,8 +226,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
               << " B_Type=" << DataTypeTraits<BDataType>::name
               << " C_Type=" << DataTypeTraits<CDataType>::name
               << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
-              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
+              << " Persistent=" << (persistent ? "on" : "off") << " : " << ave_time << " ms, "
+              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     return ave_time;
 }
@@ -241,6 +262,7 @@ int run_gemm_example_with_layouts(int argc,
     int n_warmup                 = arg_parser.get_int("warmup");
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
+    bool persistent              = arg_parser.get_int("persistent");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -335,7 +357,8 @@ int run_gemm_example_with_layouts(int argc,
                          stride_C,
                          kbatch,
                          n_warmup,
-                         n_repeat);
+                         n_repeat,
+                         persistent);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
