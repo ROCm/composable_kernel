@@ -105,8 +105,6 @@ int profile_gemm_universal(int argc, char* argv[])
     using BF16 = ck::bhalf_t;
 #if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94) || defined(CK_USE_WMMA_FP8)
     using F8 = ck::f8_t;
-#endif
-#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
     using I4 = ck::pk_i4_t;
 #endif
 
@@ -169,7 +167,7 @@ int profile_gemm_universal(int argc, char* argv[])
     {
         return profile(F16{}, F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
-#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94) || defined(CK_USE_WMMA_FP8)
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F16{}, F8{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
@@ -212,8 +210,6 @@ int profile_gemm_universal(int argc, char* argv[])
     {
         return profile(F8{}, F8{}, F8{}, F32{}, BF16{}, Row{}, Col{}, Row{});
     }
-#endif
-#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
     else if(data_type == GemmDataType::F16_I4_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(F16{}, I4{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});

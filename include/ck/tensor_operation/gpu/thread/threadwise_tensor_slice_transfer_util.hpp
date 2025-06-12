@@ -62,6 +62,18 @@ struct lambda_scalar_per_access_for_src_and_dst
     }
 };
 
+template <index_t WaveNum, index_t nDim>
+struct lambda_wave_cluster_dimension
+{
+    __host__ __device__ constexpr auto operator()(index_t i) const
+    {
+        if((nDim - i) == 3)
+            return WaveNum;
+        else
+            return 1;
+    }
+};
+
 } // namespace detail
 
 } // namespace ck

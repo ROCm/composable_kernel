@@ -23,6 +23,10 @@ using I32  = int32_t;
 using F8   = ck::f8_t;
 using BF8  = ck::bf8_t;
 using I4   = ck::pk_i4_t;
+using F4   = ck::f4x2_pk_t;
+
+using E8M0   = ck::e8m0_bexp_t;
+using E8M0PK = int32_t;
 
 using Empty_Tuple = ck::Tuple<>;
 
@@ -42,8 +46,9 @@ using BF16_Tuple    = ck::Tuple<BF16>;
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
 
 // GEMM layout
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row  = ck::tensor_layout::gemm::RowMajor;
+using Col  = ck::tensor_layout::gemm::ColumnMajor;
+using MFMA = ck::tensor_layout::gemm::MFMA;
 
 using Row_Tuple     = ck::Tuple<Row>;
 using Row_Row_Tuple = ck::Tuple<Row, Row>;
