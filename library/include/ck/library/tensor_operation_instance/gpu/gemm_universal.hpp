@@ -55,306 +55,306 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-#ifdef CK_USE_WMMA
-#ifdef CK_ENABLE_FP16
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-                     is_same_v<CDataType, half_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_mk_kn_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_mk_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_f16_f16_km_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_km_kn_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_km_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_km_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_f16_f16_km_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_km_nk_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_km_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f16_f16_km_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-        }
-#endif
-#ifdef CK_ENABLE_BF16
-        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
-                     is_same_v<CDataType, bhalf_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_kn_mn_comp_default_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_kn_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_nk_mn_comp_default_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_nk_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_km_kn_mn_comp_default_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_km_kn_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_km_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_km_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_comp_default_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-        }
-#endif
-#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8) && defined(CK_USE_WMMA_FP8))
-        if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
-                     is_same_v<CDataType, bhalf_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f8_f8_bf16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f8_bf16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f8_bf16_mk_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f8_f8_bf16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f8_f8_bf16_mk_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f8_bf16_mk_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f8_f8_bf16_mk_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-        }
+        // #ifdef CK_USE_WMMA
+        // #ifdef CK_ENABLE_FP16
+        //         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+        //                      is_same_v<CDataType, half_t>)
+        //         {
+        //             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+        //                          is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_mk_kn_mn_comp_kpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_mk_kn_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_kpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_mk_nk_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_km_kn_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_km_kn_mn_comp_kpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_km_kn_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_km_kn_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_km_nk_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_km_nk_mn_comp_kpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_km_nk_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f16_f16_km_nk_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //         }
+        // #endif
+        // #ifdef CK_ENABLE_BF16
+        //         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
+        //                      is_same_v<CDataType, bhalf_t>)
+        //         {
+        //             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+        //                          is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_kn_mn_comp_default_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_kn_mn_comp_kpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_nk_mn_comp_default_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_nk_mn_comp_kpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_nk_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_mk_nk_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_km_kn_mn_comp_default_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_km_kn_mn_comp_kpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_km_kn_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_km_kn_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_comp_default_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_comp_kpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_bf16_bf16_bf16_km_nk_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //         }
+        // #endif
+        // #if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8) && defined(CK_USE_WMMA_FP8))
+        //         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
+        //                      is_same_v<CDataType, bhalf_t>)
+        //         {
+        //             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+        //                          is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f8_f8_bf16_mk_kn_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f8_bf16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f8_bf16_mk_kn_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f8_bf16_mk_kn_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f8_f8_bf16_mk_nk_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f8_bf16_mk_nk_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f8_bf16_mk_nk_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //         }
 
-        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, pk_i4_t> &&
-                     is_same_v<CDataType, bhalf_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_default_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_default_instances(
-                    op_ptrs);
-            }
-        }
-#endif
-#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8) && defined(CK_USE_WMMA_FP8))
-        if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
-                     is_same_v<CDataType, half_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f8_f16_f16_mk_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_mk_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_mk_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f8_f16_f16_km_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_km_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_km_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_km_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-        }
+        //         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, pk_i4_t> &&
+        //                      is_same_v<CDataType, bhalf_t>)
+        //         {
+        //             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+        //                          is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn_comp_default_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_bf16_i4_bf16_km_nk_mn_comp_default_instances(
+        //                     op_ptrs);
+        //             }
+        //         }
+        // #endif
+        // #if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8) && defined(CK_USE_WMMA_FP8))
+        //         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
+        //                      is_same_v<CDataType, half_t>)
+        //         {
+        //             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+        //                          is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_mk_nk_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_mk_nk_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_mk_nk_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_km_kn_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_km_kn_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_km_kn_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_km_kn_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //         }
 
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
-                     is_same_v<CDataType, half_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_f8_f16_mk_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_mk_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_mk_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_f8_f16_km_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_km_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_km_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_km_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_f8_f16_km_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_km_nk_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_km_nk_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_wmma_universal_f16_f8_f16_km_nk_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-            }
-        }
+        //         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
+        //                      is_same_v<CDataType, half_t>)
+        //         {
+        //             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+        //                          is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_mk_nk_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_mk_nk_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_mk_nk_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_km_kn_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_km_kn_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_km_kn_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_km_kn_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_km_nk_mn_comp_default_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_km_nk_mn_comp_kpadding_instances(op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_km_nk_mn_comp_mnpadding_instances(
+        //                     op_ptrs);
+        //                 add_device_gemm_wmma_universal_f16_f8_f16_km_nk_mn_comp_mnkpadding_instances(
+        //                     op_ptrs);
+        //             }
+        //         }
 
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, pk_i4_t> &&
-                     is_same_v<CDataType, half_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_i4_f16_mk_nk_mn_comp_default_instances(op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_wmma_universal_f16_i4_f16_km_nk_mn_comp_default_instances(op_ptrs);
-            }
-        }
-#endif
-#endif // CK_USE_WMMA
+        //         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, pk_i4_t> &&
+        //                      is_same_v<CDataType, half_t>)
+        //         {
+        //             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+        //                          is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_i4_f16_mk_nk_mn_comp_default_instances(op_ptrs);
+        //             }
+        //             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+        //                               is_same_v<CLayout, Row>)
+        //             {
+        //                 add_device_gemm_wmma_universal_f16_i4_f16_km_nk_mn_comp_default_instances(op_ptrs);
+        //             }
+        //         }
+        // #endif
+        // #endif // CK_USE_WMMA
 
 #ifdef CK_USE_XDL
 #ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<CDataType, half_t>)
         {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
+            // if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+            //              is_same_v<CLayout, Row>)
+            // {
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
+            //         op_ptrs);
 
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_mnkpadding_instances(
-                    op_ptrs);
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_default_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_kpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_mnkpadding_instances(
+            //         op_ptrs);
 
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
-                    op_ptrs);
-            }
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_default_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_kpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
+            //         op_ptrs);
+            // }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_comp_default_instances(op_ptrs);
                 add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
 
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v1_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v1_default_instances(
+                //     op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v1_kpadding_instances(
+                //     op_ptrs);
 
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v2_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v2_default_instances(
+                //     op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v2_kpadding_instances(
+                //     op_ptrs);
             }
         }
 #endif
@@ -365,37 +365,38 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<CLayout, Row>)
             {
+                // TODO:
                 add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_comp_default_instances(op_ptrs);
                 add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
 
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_mem_v1_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_mem_v1_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_mem_v1_kpadding_instances(
+                //    op_ptrs);
 
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_nk_mn_mem_v2_kpadding_instances(
+                //    op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                               is_same_v<CLayout, Row>)
             {
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_mnpadding_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_mnpadding_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_mnkpadding_instances(
+                //    op_ptrs);
 
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v1_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v1_mnkpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v1_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v1_kpadding_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v1_mnkpadding_instances(
+                //    op_ptrs);
 
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v2_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v2_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v2_kpadding_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
+                //    op_ptrs);
             }
         }
         else if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
@@ -404,37 +405,38 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<CLayout, Row>)
             {
+                // TODO:
                 add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_comp_default_instances(op_ptrs);
                 add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
 
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v1_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v1_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v1_kpadding_instances(
+                //    op_ptrs);
 
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v2_kpadding_instances(
+                //    op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                               is_same_v<CLayout, Row>)
             {
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_comp_mnpadding_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_comp_mnpadding_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
+                //    op_ptrs);
 
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v1_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v1_mnkpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v1_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v1_kpadding_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v1_mnkpadding_instances(
+                //    op_ptrs);
 
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v2_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v2_default_instances(op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v2_kpadding_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_f8_f16_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
+                //    op_ptrs);
             }
         }
 #endif
@@ -445,164 +447,172 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
             {
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_default_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_kpadding_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnpadding_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnkpadding_instances(
+                //    op_ptrs);
 
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v1_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v1_mnkpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v1_default_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v1_kpadding_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v1_mnkpadding_instances(
+                //    op_ptrs);
 
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_mnkpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_default_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_kpadding_instances(
+                //    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_mnkpadding_instances(
+                //    op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
+                // TODO
                 add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_comp_default_instances(
                     op_ptrs);
                 add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_comp_kpadding_instances(
                     op_ptrs);
 
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v1_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v1_default_instances(
+                //     op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v1_kpadding_instances(
+                //     op_ptrs);
 
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_default_instances(
+                //     op_ptrs);
+                // add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_kpadding_instances(
+                //     op_ptrs);
             }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_comp_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_comp_mnpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
+            // else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+            //                   is_same_v<CLayout, Row>)
+            // {
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_comp_default_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_comp_kpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_comp_mnpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_comp_mnkpadding_instances(
+            //         op_ptrs);
 
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v1_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v1_mnkpadding_instances(
-                    op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v1_default_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v1_kpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v1_mnkpadding_instances(
+            //         op_ptrs);
 
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v2_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v2_mnkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_comp_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_comp_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_comp_mpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_comp_mkpadding_instances(
-                    op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v2_default_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v2_kpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_mem_v2_mnkpadding_instances(
+            //         op_ptrs);
+            // }
+            // else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+            //                   is_same_v<CLayout, Row>)
+            // {
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_comp_default_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_comp_kpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_comp_mpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_comp_mkpadding_instances(
+            //         op_ptrs);
 
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v1_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v1_mkpadding_instances(
-                    op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v1_default_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v1_kpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v1_mkpadding_instances(
+            //         op_ptrs);
 
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v2_default_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v2_mkpadding_instances(
-                    op_ptrs);
-            }
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v2_default_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v2_kpadding_instances(
+            //         op_ptrs);
+            //     add_device_gemm_xdl_universal_bf16_bf16_bf16_km_nk_mn_mem_v2_mkpadding_instances(
+            //         op_ptrs);
+            // }
         }
 #endif
-#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
-        if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
-                     is_same_v<CDataType, bhalf_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_comp_nkpadding_instances(op_ptrs);
+// #if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
+//         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
+//                      is_same_v<CDataType, bhalf_t>)
+//         {
+//             // if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+//             //              is_same_v<CLayout, Row>)
+//             // {
+//             // add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_comp_default_instances(op_ptrs);
+//             //
+//             add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
+//             //
+//             add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_comp_nkpadding_instances(op_ptrs);
 
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v1_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v1_nkpadding_instances(
-                    op_ptrs);
+//             //
+//             add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v1_default_instances(op_ptrs);
+//             //     add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v1_kpadding_instances(
+//             //         op_ptrs);
+//             //     add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v1_nkpadding_instances(
+//             //         op_ptrs);
 
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v2_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v2_nkpadding_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
+//             //
+//             add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v2_default_instances(op_ptrs);
+//             //     add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v2_kpadding_instances(
+//             //         op_ptrs);
+//             //     add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_mem_v2_nkpadding_instances(
+//             //         op_ptrs);
+//             // }
+//             // else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+//             //                   is_same_v<CLayout, Row>)
+//             // {
+//             // add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_default_instances(op_ptrs);
+//             //
+//             add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
 
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v1_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
+//             //
+//             add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v1_default_instances(op_ptrs);
+//             //     add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v1_kpadding_instances(
+//             //         op_ptrs);
 
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
-            }
-        }
-#endif
+//             //
+//             add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
+//             //     add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_instances(
+//             //         op_ptrs);
+//             // }
+//         }
+// #endif // CK_ENABLE_BF16 && CK_ENABLE_FP8
 
-#ifdef CK_ENABLE_FP16
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, pk_i4_t> &&
-                     is_same_v<CDataType, half_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_universal_f16_i4_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
-            }
-        }
-#endif
-#ifdef CK_ENABLE_BF16
-        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, pk_i4_t> &&
-                     is_same_v<CDataType, bhalf_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_universal_bf16_i4_bf16_mk_nk_mn_mem_v2_default_instances(
-                    op_ptrs);
-            }
-        }
-#endif
+// #ifdef CK_ENABLE_FP16
+//         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, pk_i4_t> &&
+//                      is_same_v<CDataType, half_t>)
+//         {
+//             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+//                          is_same_v<CLayout, Row>)
+//             {
+//                 add_device_gemm_xdl_universal_f16_i4_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
+//             }
+//         }
+// #endif
+// #ifdef CK_ENABLE_BF16
+//         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, pk_i4_t> &&
+//                      is_same_v<CDataType, bhalf_t>)
+//         {
+//             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+//                          is_same_v<CLayout, Row>)
+//             {
+//                 add_device_gemm_xdl_universal_bf16_i4_bf16_mk_nk_mn_mem_v2_default_instances(
+//                     op_ptrs);
+//             }
+//         }
+// #endif
 #endif // CK_USE_XDL
 
         return op_ptrs;
