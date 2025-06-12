@@ -31,38 +31,38 @@ template <typename ADataType,
           typename BLayout,
           typename CLayout>
 struct DeviceOperationInstanceFactory<
-    //ck::tensor_operation::device::DeviceGemmV2BPreshuffle<ALayout,
-    ck::tensor_operation::device::DeviceGemmV2BPreshuffle<ALayout,
-                                               BLayout,
-                                               CLayout,
-                                               ADataType,
-                                               BDataType,
-                                               CDataType,
-                                               ck::tensor_operation::element_wise::PassThrough,
-                                               ck::tensor_operation::element_wise::PassThrough,
-                                               ck::tensor_operation::element_wise::PassThrough>>
+    // ck::tensor_operation::device::DeviceGemmV2BPreshuffle<ALayout,
+    ck::tensor_operation::device::DeviceGemmV2BPreshuffle<
+        ALayout,
+        BLayout,
+        CLayout,
+        ADataType,
+        BDataType,
+        CDataType,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough>>
 {
     using DeviceOp = DeviceGemmV2BPreshuffle<ALayout,
-                                  BLayout,
-                                  CLayout,
-                                  ADataType,
-                                  BDataType,
-                                  CDataType,
-                                  ck::tensor_operation::element_wise::PassThrough,
-                                  ck::tensor_operation::element_wise::PassThrough,
-                                  ck::tensor_operation::element_wise::PassThrough>;
+                                             BLayout,
+                                             CLayout,
+                                             ADataType,
+                                             BDataType,
+                                             CDataType,
+                                             ck::tensor_operation::element_wise::PassThrough,
+                                             ck::tensor_operation::element_wise::PassThrough,
+                                             ck::tensor_operation::element_wise::PassThrough>;
 
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-#if (defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, bhalf_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<CLayout, Row>)
-            {   
-                printf("*******************Adding f8_f8_bf16 Row instances************************\n");
+            {
                 add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances(
                     op_ptrs);
             }

@@ -12,7 +12,6 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_v2.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-// #include "ck/library/tensor_operation_instance/gpu/gemm_universal.hpp"
 #include "ck/library/tensor_operation_instance/gpu/gemm_universal_preshuffle.hpp"
 
 #include "ck/library/utility/check_err.hpp"
@@ -143,24 +142,14 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
     a_device_buf.ToDevice(a_m_k.mData.data());
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmV2BPreshuffle<ALayout,
-                                                                BLayout,
-                                                                CLayout,
-                                                                ADataType,
-                                                                BDataType,
-                                                                CDataType,
-                                                                AElementOp,
-                                                                BElementOp,
-                                                                CElementOp>;
-                                                                
-    // using DeviceOp = ck::tensor_operation::device::DeviceGemmV2<ALayout,
-    //                                                             BLayout,
-    //                                                             CLayout,
-    //                                                             ADataType,
-    //                                                             BDataType,
-    //                                                             CDataType,
-    //                                                             AElementOp,
-    //                                                             BElementOp,
-    //                                                             CElementOp>;
+                                                                           BLayout,
+                                                                           CLayout,
+                                                                           ADataType,
+                                                                           BDataType,
+                                                                           CDataType,
+                                                                           AElementOp,
+                                                                           BElementOp,
+                                                                           CElementOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -275,13 +264,11 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
             b_k_n_permute = b_k_n;
         }
         int NPerXdl = op_ptr->GetPreShuffleParameters();
-        (void)NPerXdl; // to avoid unused variable warning
 
         preShuffleBuffer<BDataType>(
             b_k_n_permute.mData.data(), b_preshuffled.mData.data(), N, K, NPerXdl);
 
         b_device_buf.ToDevice(b_preshuffled.mData.data());
-        //b_device_buf.ToDevice(b_k_n_permute.mData.data());
 
         std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
 

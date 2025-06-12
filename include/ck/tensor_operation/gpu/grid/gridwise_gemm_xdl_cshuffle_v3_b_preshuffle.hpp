@@ -897,7 +897,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
-    {   
+    {
         printf("*******************Checking validity************************\n");
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -911,7 +911,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         {
             if(!(karg.M % MPerBlock == 0))
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -929,7 +929,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         {
             if(!(karg.N % NPerBlock == 0))
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -948,7 +948,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
             auto K_t = karg.KBatch * KPerBlock;
             if(!(karg.K % K_t == 0))
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
                               << karg.K << " " << __FILE__ << ":" << __LINE__
@@ -963,8 +963,9 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
             auto K_t                = karg.KBatch * KReadVec;
             auto KReadPadSplited    = math::integer_divide_ceil(karg.K, K_t) * KReadVec;
             if((KReadPadSplited * (karg.KBatch - 1)) >= karg.K)
-            {   
-                printf("*******************KReadPadSplited * (karg.KBatch - 1) >= karg.K************************\n");
+            {
+                printf("*******************KReadPadSplited * (karg.KBatch - 1) >= "
+                       "karg.K************************\n");
                 return false;
             }
         }
@@ -973,7 +974,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         {
             if(karg.K % ABlockTransferSrcScalarPerVector != 0)
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << karg.K
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -987,7 +988,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         {
             if(karg.M % ABlockTransferSrcScalarPerVector != 0)
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << karg.M
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -1002,7 +1003,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         {
             if(karg.N % BBlockTransferSrcScalarPerVector != 0)
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << karg.N
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -1016,7 +1017,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         {
             if(karg.K % BBlockTransferSrcScalarPerVector != 0)
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << karg.K
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -1031,7 +1032,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         {
             if(karg.N % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << karg.N
                               << ") value is not a multiple of "
@@ -1047,7 +1048,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         {
             if(karg.M % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << karg.M
                               << ") value is not a multiple of "
@@ -1067,7 +1068,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         {
             if(!karg.IsReduceAdd())
             {
-                //if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                // if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__
                               << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
@@ -1085,8 +1086,9 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
         if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
-        {   
-            printf("*******************num_k_loop <= BlockwiseGemmPipe::PrefetchStages************************\n");
+        {
+            printf("*******************num_k_loop <= "
+                   "BlockwiseGemmPipe::PrefetchStages************************\n");
             return false;
         }
 

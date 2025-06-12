@@ -136,13 +136,13 @@ int profile_gemm_universal_preshuffle(int argc, char* argv[])
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
         bool pass = ck::profiler::profile_gemm_universal_preshuffle_impl<ADataType,
-                                                              BDataType,
-                                                              ComputeDataType,
-                                                              AccDataType,
-                                                              CDataType,
-                                                              ALayout,
-                                                              BLayout,
-                                                              CLayout>(
+                                                                         BDataType,
+                                                                         ComputeDataType,
+                                                                         AccDataType,
+                                                                         CDataType,
+                                                                         ALayout,
+                                                                         BLayout,
+                                                                         CLayout>(
             do_verification,
             init_method,
             do_log,
