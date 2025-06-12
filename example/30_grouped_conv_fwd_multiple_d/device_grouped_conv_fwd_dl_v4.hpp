@@ -127,7 +127,7 @@ struct GridwiseGroupedConv2DFwdDlV4
     using WeiDataVector  = typename vector_type<WeiDataType, WeiScalarPerVector>::type;
 
     // constants for data load/store
-    static constexpr index_t TileIn_Pack_W     = GetAlignedPackW<TileIn_W, InScalarPerVector>();
+    static constexpr index_t TileIn_Pack_W     = GetAlignedPackW<Tile_W, InScalarPerVector>();
     static constexpr index_t TileIn_Pack_Group = WaveSize / TileIn_Pack_W;
     static constexpr index_t TileIn_Pack_H = math::integer_divide_ceil(Tile_H, TileIn_Pack_Group);
     static constexpr index_t TileIn_Align_H =
@@ -140,11 +140,12 @@ struct GridwiseGroupedConv2DFwdDlV4
     static constexpr index_t TileOut_Align_H = TileOut_Pack_H * TileOut_Pack_Group;
 
     // constants for internal subtile
-    static constexpr index_t TilePerWave   = 4;
-    static constexpr index_t ThreadPerTile = WaveSize / TilePerWave;
     static constexpr index_t HRepeate      = math::integer_divide_ceil(TileOut_H, SubTileH);
     static constexpr index_t WRepeate      = math::integer_divide_ceil(TileOut_W, SubTileW);
-    static_assert(HRepeate * WRepeate <= ThreadPerTile);
+    static constexpr index_t TilePerWave   = WaveSize / (HRepeate * WRepeate);
+    static constexpr index_t ThreadPerTile = WaveSize / TilePerWave;
+    static_assert(NBatch % TilePerWave == 0);
+
     static constexpr index_t TileIn_Max_W =
         SubTileW * Stride_W * (WRepeate - 1) +
         math::integer_least_multiple(SubTileW * Stride_W + (Filter_X - 1) * Dilation_X,
@@ -167,8 +168,6 @@ struct GridwiseGroupedConv2DFwdDlV4
 #endif
 
     static_assert(BlockSize == WaveSize);
-    // static constexpr index_t NumTilePerBlock = BlockSize / WaveSize;
-
     template <index_t TileH,
               index_t AlignedPackW,
               index_t ScalarPerVector,
@@ -290,7 +289,6 @@ struct GridwiseGroupedConv2DFwdDlV4
         ignore = w_max;
 #endif
         static_assert(SubTileW % OutScalarPerVector == 0);
-        static_assert((SubTileW * Stride_W + (Filter_X - 1) * Dilation_X) % InScalarPerVector == 0);
         static_assert(WeiScalarPerVector == 2);
         static_assert(Filter_X % 2 == 1);
         static_assert(Dilation_X == 1);
@@ -303,10 +301,17 @@ struct GridwiseGroupedConv2DFwdDlV4
         auto set_out = [&](index_t ho_, auto count, float* acc) {
             static_for<0, count / OutScalarPerVector_Internal, 1>{}([&](auto wo_) {
                 OutShareVector output = {};
-                static_for<0, OutScalarPerVector_Internal, 1>{}([&](auto i) {
-                    output[i.value] =
-                        type_convert<OutDataType>(acc[wo_ * OutScalarPerVector_Internal + i]);
-                });
+                if constexpr(OutScalarPerVector_Internal == 1)
+                {
+                    output = type_convert<OutDataType>(acc[wo_ * OutScalarPerVector_Internal]);
+                }
+                else
+                {
+                    static_for<0, OutScalarPerVector_Internal, 1>{}([&](auto i) {
+                        output[i.value] =
+                            type_convert<OutDataType>(acc[wo_ * OutScalarPerVector_Internal + i]);
+                    });
+                }
                 //if (threadIdx.x == 4)
                 {
                 //    printf("threadIdx %u outut %04x %04x\n", threadIdx.x, bit_cast<uint16_t>(output[0]),  bit_cast<uint16_t>(output[1]));
@@ -331,7 +336,7 @@ struct GridwiseGroupedConv2DFwdDlV4
         };
 
         // constexpr auto SubTileInH = SubTileH * Stride_H + (Filter_Y - 1) * Dilation_Y;
-        constexpr auto SubTileInW = SubTileW * Stride_W + (Filter_X - 1) * Dilation_X;
+        constexpr auto SubTileInW = math::integer_least_multiple(SubTileW * Stride_W + (Filter_X - 1) * Dilation_X, InScalarPerVector_Internal);
         static_assert(SubTileInW % InScalarPerVector_Internal == 0);
         static_assert(SubTileW % OutScalarPerVector_Internal == 0);
 
