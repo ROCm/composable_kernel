@@ -240,17 +240,18 @@
 #define CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID 1
 #endif
 
-#ifndef __HIP_DEVICE_COMPILE__ // for host code
-#ifdef CK_TILE_USE_OCP_FP8
-#define CK_TILE_USE_OCP_FP8 1
-#else
-#define CK_TILE_USE_OCP_FP8 0
+#ifndef CK_TILE_USE_OCP_FP8
+#  if defined(__HIP_DEVICE_COMPILE__)
+#    if defined(__gfx950__) || defined(__gfx12__)
+#      define CK_TILE_USE_OCP_FP8 1
+#    else
+#      define CK_TILE_USE_OCP_FP8 0
+#    endif
+#  else
+#    define CK_TILE_USE_OCP_FP8 0
+#  endif
 #endif
-#elif defined(__gfx950__) || defined(__gfx12__) // for GPU code
-#define CK_TILE_USE_OCP_FP8 1
-#else // for GPU code
-#define CK_TILE_USE_OCP_FP8 0
-#endif
+
 
 #ifndef CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
 #if __clang_major__ == 20
