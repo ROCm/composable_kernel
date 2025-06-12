@@ -181,6 +181,7 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
                 auto grid_size_curr      = grid_size_list[i];
                 index_t streamk_sel_curr = streamk_sel_list[j];
                 printf("streamk_sel_curr=%0d\n", streamk_sel_curr);
+
                 auto argument_ptr = op_ptr->MakeArgumentPointer(
                     static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                     static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
@@ -191,11 +192,10 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
                     StrideA,
                     StrideB,
                     StrideC,
-                    streamk_sel_curr,
-                    grid_size_curr,
                     a_element_op,
                     b_element_op,
-                    c_element_op);
+                    c_element_op,
+                    streamk_sel_curr);  // NumSKBlocks parameter
 
                 auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
