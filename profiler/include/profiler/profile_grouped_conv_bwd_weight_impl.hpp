@@ -261,8 +261,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                         ck::utils::get_absolute_threshold<WeiDataType, WeiDataType, WeiDataType>(
                             max_accumulated_value, num_accums_split_k);
                     // Use higher threshold
-                    rtol      = std::max(rtol, rtol_split_k);
-                    atol      = std::max(atol, atol_split_k);
+                    rtol = std::max(rtol, rtol_split_k);
+                    atol = std::max(atol, atol_split_k);
+                    // Use default atol for splitK == 1
                     bool pass = ck::utils::check_err(weight_device_result,
                                                      weight_host_result,
                                                      "Error: Incorrect results!",
