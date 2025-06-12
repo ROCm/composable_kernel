@@ -22,6 +22,12 @@ auto create_args(int argc, char* argv[])
         .insert("pr_i", "int32", "index data type. (currently only int32 supported now)")
         .insert("pr_w", "fp32", "output weight data type(currently only fp32 supported now)")
         .insert("t", "128", "number of input tokens")
+        .insert("local_t",
+                "-1",
+                "number of local input tokens, dynamic token feature, \n"
+                "will be used for EP case where each rank have different tokens.\n"
+                "This value will be stored in GPU buffer for cuda graph usage. if -1, then no this "
+                "value/buffer")
         .insert("e", "8", "number of num_experts")
         .insert("k", "4", "topk")
         .insert("unit", "32", "unit_size")
@@ -70,6 +76,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     std::string index_prec  = args.get_str("pr_i");
     std::string weight_prec = args.get_str("pr_w");
     int tokens              = args.get_int("t");
+    int local_tokens        = args.get_int("local_t");
     int num_experts         = args.get_int("e");
     int topk                = args.get_int("k");
     int seed                = args.get_int("seed");
@@ -92,6 +99,16 @@ bool test_moe_sorting(ck_tile::ArgParser args)
         printf("topk:%d value should be smaller than, or equal to number of num_experts:%d\n",
                topk,
                num_experts);
+        return false;
+    }
+
+    // if local_tokens == tokens, not local_token, but better avoid this since no meaning for such
+    // case
+    bool is_local_token = local_tokens >= 0 && local_tokens < tokens;
+
+    if(local_tokens > tokens)
+    {
+        printf("local_tokens:%d larger than tokens:%d, invalid\n", local_tokens, tokens);
         return false;
     }
 
@@ -143,6 +160,13 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     ck_tile::DeviceMem local_expert_masking_dev(
         local_expert_masking_host.get_element_space_size_in_bytes());
 
+    // used for simulating dynamic_tokens for EP case
+    ck_tile::DeviceMem local_tokens_dev(sizeof(ck_tile::index_t));
+    if(is_local_token)
+    {
+        local_tokens_dev.ToDevice(&local_tokens);
+    }
+
     topk_ids_dev.ToDevice(topk_ids_host.data());
     weights_dev.ToDevice(weights_host.data());
     if(moe_buf_size > 0)
@@ -164,6 +188,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                           weights_dev.GetDeviceBuffer(),
                           local_expert_masking ? local_expert_masking_dev.GetDeviceBuffer()
                                                : nullptr,
+                          is_local_token ? local_tokens_dev.GetDeviceBuffer() : nullptr,
                           sorted_ids_dev.GetDeviceBuffer(),
                           sorted_weights_dev.GetDeviceBuffer(),
                           sorted_expert_ids_dev.GetDeviceBuffer(),
@@ -236,13 +261,12 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     }
 #endif
 
-    printf("[%s|%s]tokens:%d, num_experts:%d, topk:%d, mp:%d, ",
-           index_prec.c_str(),
-           weight_prec.c_str(),
-           tokens,
-           num_experts,
-           topk,
-           workspace_size != 0 ? 1 : 0);
+    printf("[%s|%s]tokens:%d", index_prec.c_str(), weight_prec.c_str(), tokens);
+    if(is_local_token)
+    {
+        printf("(%d)", local_tokens);
+    }
+    printf(", num_experts:%d, topk:%d, mp:%d, ", num_experts, topk, workspace_size != 0 ? 1 : 0);
 
     if(local_expert_masking)
     {
@@ -285,6 +309,8 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                                                               ref_total_tokens_post_pad,
                                                               num_experts,
                                                               unit_size,
+                                                              is_local_token ? local_tokens
+                                                                             : tokens,
                                                               local_expert_masking);
         printf("total_tokens_post_pad:%d(%d), ",
                ref_total_tokens_post_pad,
