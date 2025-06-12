@@ -162,10 +162,8 @@ static constexpr ck::index_t NPerBlock = 128;
 static constexpr ck::index_t MNPerXDL  = 16;
 static constexpr ck::index_t MXDLPerWave = MPerBlock / (MNPerXDL * 1);
 static constexpr ck::index_t NXDLPerWave = NPerBlock / (MNPerXDL * 4);
-// static constexpr ck::index_t CShuffleMXDLPerWave = MXDLPerWave;
-// static constexpr ck::index_t CShuffleNXDLPerWave = NXDLPerWave;
-static constexpr ck::index_t BLOCKSIZE = 256;
 
+static constexpr ck::index_t BLOCKSIZE = 256;
 static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
 static constexpr ck::index_t Nswizzle  = false;
 static constexpr ck::index_t AK1       = 16 / sizeof(A0DataType);

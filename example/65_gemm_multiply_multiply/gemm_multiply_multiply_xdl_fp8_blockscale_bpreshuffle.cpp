@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -238,16 +238,6 @@ int main(int argc, char* argv[])
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
     }
 
-    // printf("a1_m_k: \n");
-    // for(int i = 0; i < (M + Scale_Block_M - 1) / Scale_Block_M; ++i)
-    // {
-    //     for(int j = 0; j < (K + Scale_Block_K - 1) / Scale_Block_K; ++j)
-    //     {
-    //         printf("%f ", a1_m_k(i, j));
-    //     }
-    //     printf("\n");
-    // }
-
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem a1_device_buf(sizeof(A1DataType) * a1_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize());
@@ -300,7 +290,7 @@ int main(int argc, char* argv[])
     std::size_t num_btype =
         sizeof(A0DataType) * M * K + sizeof(B0DataType) * K * N + sizeof(EDataType) * M * N;
 
-    float ave_time = .0;
+    float ave_time = 0.0f;
 
     if(flush_cache)
     {

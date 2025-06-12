@@ -49,7 +49,7 @@ struct GemmConfig
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 8;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     static constexpr bool DoubleSmemBuffer = false;
 #endif
@@ -213,7 +213,8 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)");
+        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
+        .insert("persistent", "0", "0:non-persistent, 1:persistent");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -226,5 +227,6 @@ template <typename ADataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          bool Persistent = false>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);

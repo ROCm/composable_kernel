@@ -542,6 +542,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
     struct Problem
     {
+        __host__ __device__ Problem() = default;
         __host__ __device__ Problem(index_t M_,
                                     index_t N_,
                                     index_t K_,
@@ -609,6 +610,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     // Argument
     struct Argument : public tensor_operation::device::BaseArgument, public Problem
     {
+        __host__ Argument() = default;
         __host__ Argument(const ADataType* p_a_grid_,
                           const BDataType* p_b_grid_,
                           std::array<const void*, NumDTensor> p_ds_grid_,
@@ -648,9 +650,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         DsGridPointer p_ds_grid;
         CDataType* p_c_grid;
 
-        const AElementwiseOperation a_element_op;
-        const BElementwiseOperation b_element_op;
-        const CElementwiseOperation c_element_op;
+        AElementwiseOperation a_element_op;
+        BElementwiseOperation b_element_op;
+        CElementwiseOperation c_element_op;
     };
 
     struct SplitKBatchOffset

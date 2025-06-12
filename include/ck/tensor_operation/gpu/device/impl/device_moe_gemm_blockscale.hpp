@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -265,17 +265,16 @@ struct DeviceMoeGemmBlockScale
                 }
             };
 
-            // constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) /
-            // BlockSize /
-            //                                  4 * (1 + GridwiseGemm::NWave);
-            // constexpr auto estimated_reg_b =
-            //     NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2);
-            // constexpr auto estimated_reg_c =
-            //     MPerBlock * NPerBlock * sizeof(GemmAccDataType) / BlockSize / 4;
-            // constexpr auto estimated_reg_total =
-            //     estimated_reg_a + estimated_reg_b + estimated_reg_c;
+            constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) / BlockSize /
+                                             4 * (1 + GridwiseGemm::NWave);
+            constexpr auto estimated_reg_b = NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize /
+                                             4 * (2) * (IsInputGemm ? 2 : 1);
+            constexpr auto estimated_reg_c = MPerBlock * NPerBlock * sizeof(GemmAccDataType) /
+                                             BlockSize / 4 * (IsInputGemm ? 2 : 1);
+            constexpr auto estimated_reg_total =
+                estimated_reg_a + estimated_reg_b + estimated_reg_c;
 
-            constexpr index_t minimum_occupancy = 2;
+            constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
 
             constexpr auto MemoryDataOp =
                 IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;

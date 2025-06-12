@@ -6,6 +6,7 @@
 #include "ck/utility/functional.hpp"
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/tuple.hpp"
+#include "ck/utility/type.hpp"
 
 namespace ck {
 

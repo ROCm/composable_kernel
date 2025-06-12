@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    else if(argc == 3)
+    else if(argc == 4)
     {
         // use default case
         do_verification = std::stoi(argv[1]);
@@ -268,8 +268,6 @@ int main(int argc, char* argv[])
         }
     }
 
-    expert_ids.savetxt("expert_ids.txt", "int");
-    sorted_token_ids.savetxt("sorted_token_ids.txt", "int");
     Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}));
     Tensor<XDataType> a1_t_k_k(
         HostTensorDescriptor({tokens, topk, (K + ScaleBlockSize - 1) / ScaleBlockSize},
@@ -362,7 +360,6 @@ int main(int argc, char* argv[])
     DeviceMem b1_device_buf(sizeof(XDataType) * b1_e_n_k.GetElementSpaceSize());
     DeviceMem d2_device_buf(sizeof(D2DataType) * d2_e_n.GetElementSpaceSize());
     DeviceMem e_device_buf(sizeof(EDataType) * e_t_n_device_result.GetElementSpaceSize());
-    // d2_e_n.savetxt("weight.txt", "int");
 
     // A scale sorted
     for(int i = 0; i < sorted_size; i++)
@@ -403,113 +400,6 @@ int main(int argc, char* argv[])
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
-
-#if 0
-    printf("a0_t_k_k:\n");
-    for(int t = 0; t < tokens; ++t)
-    {
-        for(int tk = 0; tk < topk; ++tk)
-        {
-            for(int k = 0; k < K; ++k)
-            {
-                auto f4x2 = a0_t_k_k(t, tk, k).data;
-                if(k % 2 == 0)
-                {
-                    ck::f4_t f4 = (f4x2 >> 4) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-                else
-                {
-                    ck::f4_t f4 = (f4x2 >> 0) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
-
-    printf("a1_t_k_k:\n");
-    for(int t = 0; t < tokens; ++t)
-    {
-        for(int tk = 0; tk < topk; ++tk)
-        {
-            for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-            {
-                printf("%.2f ", ck::type_convert<float>(a1_t_k_k(t, tk, k)));
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
-
-    printf("a_scale_sorted: K/scale: %d\n", (K + ScaleBlockSize - 1) / ScaleBlockSize);
-    for(int i = 0; i < sorted_size; ++i)
-    {
-        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-        {
-            printf("%.2f ", ck::type_convert<float>(a_scale_sorted(i, k)));
-        }
-        printf("\n");
-    }
-
-    printf("a_scale_preshuffled:\n");
-    for(int i = 0; i < sorted_size; ++i)
-    {
-        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-        {
-            printf("%.2f ", ck::type_convert<float>(a_scale_preshuffled(i, k)));
-        }
-        printf("\n");
-    }
-
-    printf("b0_e_n_k:\n");
-    for(int e = 0; e < experts; ++e)
-    {
-        for(int n = 0; n < N; ++n)
-        {
-            for(int k = 0; k < K; ++k)
-            {
-                auto f4x2 = b0_e_n_k(e, k, n).data;
-                if(k % 2 == 0)
-                {
-                    ck::f4_t f4 = f4x2 >> 4 & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-                else
-                {
-                    ck::f4_t f4 = f4x2 >> 0 & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
-
-    printf("b1_e_n_k:\n");
-    for(int e = 0; e < experts; ++e)
-    {
-        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-        {
-            for(int n = 0; n < N; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(b1_e_n_k(e, k, n)));
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
-
-    printf("d2_e_n:\n");
-    for(int i = 0; i < sorted_size; ++i)
-    {
-        for(int n = 0; n < 1; ++n)
-        {
-            printf("%.2f ", ck::type_convert<float>(d2_e_n(i, n)));
-        }
-    }
-#endif
 
     // do GEMM
     auto device_op = DeviceOpInstance{};
@@ -625,28 +515,6 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-
-#if 0
-        printf("e_t_n_device_result:\n");
-        for(int t = 0; t < tokens; ++t)
-        {
-            for(int n = 0; n < N; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(e_t_n_device_result(t, n)));
-            }
-            printf("\n");
-        }
-
-        printf("e_t_n_host_result:\n");
-        for(int t = 0; t < tokens; ++t)
-        {
-            for(int n = 0; n < N; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(e_t_n_host_result(t, n)));
-            }
-            printf("\n");
-        }
-#endif
 
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)

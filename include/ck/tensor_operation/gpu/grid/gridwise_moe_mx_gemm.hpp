@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -2035,18 +2035,6 @@ struct GridwiseMoeGemmMX
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
 
-#if 0
-        printf("blkx: %u, blky: %u, tidx: %u, token_pos: %d, gather_offsets:<%d, %d, %d, %d>\n",
-               blockIdx.x,
-               blockIdx.y,
-               threadIdx.x,
-               token_pos,
-               gather_offsets[Number<0>{}],
-               gather_offsets[Number<1>{}],
-               gather_offsets[Number<2>{}],
-               gather_offsets[Number<3>{}]);
-#endif
-
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
         const index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
@@ -2059,30 +2047,9 @@ struct GridwiseMoeGemmMX
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
 
-#if 1
-        printf("blkx: %u, blky: %u, tidx: %u, a_grid_size: %ld\n",
-               blockIdx.x,
-               blockIdx.y,
-               threadIdx.x,
-               a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-
-#endif
-
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
 
-        const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
-        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
-            b_scale_grid_desc_bn_ak.GetElementSpaceSize());
-
-        // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-
-        // B matrix in LDS memory, dst of blockwise copy
-        // dummy
-        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
         auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_gather<
             ThisThreadBlock,
