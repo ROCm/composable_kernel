@@ -139,7 +139,7 @@ inline bool parse_cmd_args(int argc,
 
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
         conv_params                       = ck::utils::conv::parse_conv_param(
-            num_dim_spatial, num_conv_param_leading_args+1, argv);
+            num_dim_spatial, num_conv_param_leading_args, argv);
     }
     else
     {
