@@ -20,7 +20,7 @@ static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecial
 // e = elementwise((a * b), d0, d1)
 // outout: e[m, n]
 // input: a[m, k], b[k, n], d0[m, n], d1[m, n]
-using device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_generic_instances = std::tuple<
+using device_gemm_add_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_generic_instances = std::tuple<
     // clang-format off
         // M/N/K padding
         //################################|      A|      B|        Ds|      E| AData| BData|  AccData| CShuffle|     DsData| EData|            A|           B|         CDE|           GEMM| Prefetch| Block|  MPer|  NPer| K0Per|  K1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
@@ -32,7 +32,7 @@ using device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_generic_inst
     // clang-format on
     >;
 
-using add_device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances = std::tuple<
+using add_device_gemm_add_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_instances = std::tuple<
     // clang-format off
         // M/N/K padding
         //################################|      A|      B|        Ds|      E| AData| BData|  AccData| CShuffle|     DsData| EData|            A|           B|         CDE|           GEMM| Prefetch| Block|  MPer|  NPer| K0Per|  K1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
@@ -46,7 +46,7 @@ using add_device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instance
     // clang-format on
     >;
 
-void device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances(
+void device_gemm_add_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
                                                     Row_Tuple,
@@ -61,9 +61,9 @@ void device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances(
 {
     add_device_operation_instances(
         instances,
-        device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_generic_instances{});
+        device_gemm_add_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_generic_instances{});
     add_device_operation_instances(
-        instances, add_device_gemm_add_wmma_c_shuffle_bf16_f16_bf16_bf16_mk_kn_mn_mn_instances{});
+        instances, add_device_gemm_add_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_instances{});
 }
 
 } // namespace instance
