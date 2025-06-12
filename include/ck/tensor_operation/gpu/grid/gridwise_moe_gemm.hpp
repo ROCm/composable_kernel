@@ -2030,7 +2030,6 @@ struct GridwiseMoeGemm
                                    0,
                                    KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
 
-
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
         auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
