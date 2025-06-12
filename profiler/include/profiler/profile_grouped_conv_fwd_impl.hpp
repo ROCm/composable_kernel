@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -155,9 +155,6 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            // re-init output to zero before profiling next kernel
-            out_device_buf.SetZero();
-
             std::string op_name = op_ptr->GetTypeString();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();

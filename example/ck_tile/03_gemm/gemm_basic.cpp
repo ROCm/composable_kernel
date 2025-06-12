@@ -18,9 +18,12 @@ template <typename ADataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          bool Persistent>
 float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
+    if constexpr(Persistent)
+        std::cout << "WARNING: Ignoring persistent kernel option for basic gemm." << std::endl;
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadM = false;
     constexpr bool kPadN = false;
@@ -214,4 +217,15 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    try
+    {
+        return !run_gemm_example(argc, argv);
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Runtime error: " << e.what() << '\n';
+        return EXIT_FAILURE;
+    }
+}

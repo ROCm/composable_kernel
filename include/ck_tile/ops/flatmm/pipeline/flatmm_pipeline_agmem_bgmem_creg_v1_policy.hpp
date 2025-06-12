@@ -19,7 +19,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         using namespace ck_tile;
-#if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
+#if defined(USING_MFMA_16x16x32)
         /*reduce transform layers,compare with old ck*/
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -112,8 +112,8 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
                         make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
             make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
-#endif
         return a_lds_block_desc;
+#endif
     }
 
     template <typename Problem>
