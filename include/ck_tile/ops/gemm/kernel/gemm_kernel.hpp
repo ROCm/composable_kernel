@@ -995,7 +995,15 @@ struct GemmKernel
                                EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                                is_any_of<EDataType, fp16_t, bf16_t>::value))
                 {
-                    RunGemm(a_ptr, b_ptr, kargs.ds_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+                    RunGemm(a_ptr,
+                            b_ptr,
+                            kargs.ds_ptr,
+                            c_ptr,
+                            smem_ptr_0,
+                            kargs,
+                            splitk_batch_offset,
+                            i_m,
+                            i_n);
                 }
             }
             // Advance to the next work item
