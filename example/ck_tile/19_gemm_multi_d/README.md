@@ -10,9 +10,9 @@ mkdir build && cd build
     leave it blank
 sh ../script/cmake-ck-dev.sh  ../ <arch>
 #The basic pipeline method on the gemm calculation
-make tile_example_gemm_multi_d -j
+make tile_example_gemm_multi_d_fp16 -j
 ```
-This will result in an executable `build/bin/tile_example_gemm_multi_d`
+This will result in an executable `build/bin/tile_example_gemm_multi_d_fp16`
 
 ## example
 ```
@@ -31,4 +31,5 @@ args:
 -validate  0. No validation, 1. Validation on GPU. (Default: 1)
   -warmup  Number of iterations before benchmark the kernel. (Default: 10)
   -repeat  Number of iterations to benchmark the kernel. (Default: 100)
+  -kbatch  kbatch for SplitK. (Default 1)
 ```

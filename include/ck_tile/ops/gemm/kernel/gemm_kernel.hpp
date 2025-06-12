@@ -68,7 +68,7 @@ struct GemmHostArgs
 };
 
 /// @brief The GEMM kernel device arguments.
-template <typename DType = ck_tile::tuple<>>
+template <index_t NumDTensor = 0>
 struct GemmKernelArgs
 {
     /// @brief The A input tensor's pointer to device memory.
@@ -76,7 +76,7 @@ struct GemmKernelArgs
     /// @brief The B input tensor's pointer to device memory.
     const void* b_ptr;
     /// @brief The B input tensor's pointer to device memory.
-    const DType ds_ptr;
+    const std::array<const void*, NumDTensor> ds_ptr;
     /// @brief The E output tensor's pointer to device memory.
     void* e_ptr;
     /// @brief GEMM's M dimension size.
@@ -93,7 +93,7 @@ struct GemmKernelArgs
     index_t stride_B;
     /// @brief The distance between consecutive elements of non-contiguous dimension
     ///        (in memory) of Ds tensor.
-    std::array<index_t, DType::size()> stride_Ds;
+    std::array<index_t, NumDTensor> stride_Ds;
     /// @brief The distance between consecutive elements of non-contiguous dimension
     ///        (in memory) of E tensor.
     index_t stride_E;
@@ -164,6 +164,7 @@ struct GemmKernel
 
     static_assert(DsLayout::size() == DsDataType::size(),
                   "The size of DsLayout and DsDataType should be the same");
+    using KernelArgs = GemmKernelArgs<DsLayout::size()>;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -171,20 +172,6 @@ struct GemmKernel
         return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>, GemmPipeline::GetName());
         // clang-format on
     }
-
-    CK_TILE_HOST static constexpr auto MakeDsGridPointer()
-    {
-        return generate_tuple(
-            [&](auto i) {
-                using DDataType = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
-
-                return static_cast<const DDataType*>(nullptr);
-            },
-            number<NumDTensor>{});
-    }
-
-    using DsGridPointer = decltype(MakeDsGridPointer());
-    using KernelArgs    = GemmKernelArgs<DsGridPointer>;
 
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
@@ -196,15 +183,15 @@ struct GemmKernel
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs)
     {
-        DsGridPointer p_ds_grid;
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
-            p_ds_grid(i)     = static_cast<const DDataType_*>(hostArgs.ds_ptr[i]);
-        });
+        // DsGridPointer p_ds_grid;
+        // static_for<0, NumDTensor, 1>{}([&](auto i) {
+        //     using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
+        //     p_ds_grid(i)     = static_cast<const DDataType_*>(hostArgs.ds_ptr[i]);
+        // });
 
         return KernelArgs{hostArgs.a_ptr,
                           hostArgs.b_ptr,
-                          p_ds_grid,
+                          hostArgs.ds_ptr,
                           hostArgs.e_ptr,
                           hostArgs.M,
                           hostArgs.N,
@@ -454,12 +441,13 @@ struct GemmKernel
     }
 
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
-    CK_TILE_DEVICE static auto MakeGemmTensorViews(const ADataType* a_ptr,
-                                                   const BDataType* b_ptr,
-                                                   const DsGridPointer ds_ptr,
-                                                   EDataType* e_ptr,
-                                                   const KernelArgs& kargs,
-                                                   const SplitKBatchOffset& splitk_batch_offset)
+    CK_TILE_DEVICE static auto
+    MakeGemmTensorViews(const ADataType* a_ptr,
+                        const BDataType* b_ptr,
+                        const std::array<const void*, NumDTensor>& ds_ptr,
+                        EDataType* e_ptr,
+                        const KernelArgs& kargs,
+                        const SplitKBatchOffset& splitk_batch_offset)
     {
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
         const auto& a_tensor_view = [&]() {
@@ -548,11 +536,12 @@ struct GemmKernel
 
         const auto& ds_tensor_view = generate_tuple(
             [&](auto i) {
-                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
                 if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
                 {
                     return make_naive_tensor_view<address_space_enum::global>(
-                        ds_ptr[i],
+                        static_cast<const DDataType_*>(ds_ptr[i]),
                         make_tuple(kargs.M, kargs.N),
                         make_tuple(kargs.stride_Ds[i], 1),
                         number<EpiloguePipeline::GetVectorSizeD(i)>{},
@@ -561,7 +550,7 @@ struct GemmKernel
                 else
                 {
                     return make_naive_tensor_view<address_space_enum::global>(
-                        ds_ptr[i],
+                        static_cast<const DDataType_*>(ds_ptr[i]),
                         make_tuple(kargs.N, kargs.M),
                         make_tuple(kargs.stride_Ds[i], 1),
                         number<EpiloguePipeline::GetVectorSizeD(i)>{},
@@ -764,7 +753,7 @@ struct GemmKernel
      */
     CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
                                        const BDataType* b_ptr,
-                                       const DsGridPointer ds_ptr,
+                                       const std::array<const void*, NumDTensor>& ds_ptr,
                                        EDataType* e_ptr,
                                        void* smem_ptr_0,
                                        const KernelArgs& kargs,
@@ -818,7 +807,7 @@ struct GemmKernel
      */
     CK_TILE_DEVICE static void RunGemm2LDS(const ADataType* a_ptr,
                                            const BDataType* b_ptr,
-                                           const DsGridPointer ds_ptr,
+                                           const std::array<const void*, NumDTensor>& ds_ptr,
                                            EDataType* e_ptr,
                                            void* __restrict__ smem_ptr_0,
                                            void* __restrict__ smem_ptr_1,

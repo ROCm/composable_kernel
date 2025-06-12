@@ -46,20 +46,20 @@ template <typename Tuple>
 class TestCkTileGemmMultiD : public ::testing::Test
 {
     protected:
-    using ALayout          = std::tuple_element_t<0, Tuple>;
-    using BLayout          = std::tuple_element_t<1, Tuple>;
-    using D0Layout         = std::tuple_element_t<2, Tuple>;
-    using D1Layout         = std::tuple_element_t<3, Tuple>;
-    using ELayout          = std::tuple_element_t<4, Tuple>;
-    using ADataType        = std::tuple_element_t<5, Tuple>;
-    using BDataType        = std::tuple_element_t<6, Tuple>;
-    using D0DataType       = std::tuple_element_t<7, Tuple>;
-    using D1DataType       = std::tuple_element_t<8, Tuple>;
-    using AccDataType      = std::tuple_element_t<9, Tuple>;
-    using EDataType        = std::tuple_element_t<10, Tuple>;
-    using CDEElementWiseFn = std::tuple_element_t<11, Tuple>;
-    using DsLayout         = ck_tile::tuple<D0Layout, D1Layout>;
-    using DsDataType       = ck_tile::tuple<D0DataType, D1DataType>;
+    using ALayout         = std::tuple_element_t<0, Tuple>;
+    using BLayout         = std::tuple_element_t<1, Tuple>;
+    using D0Layout        = std::tuple_element_t<2, Tuple>;
+    using D1Layout        = std::tuple_element_t<3, Tuple>;
+    using ELayout         = std::tuple_element_t<4, Tuple>;
+    using ADataType       = std::tuple_element_t<5, Tuple>;
+    using BDataType       = std::tuple_element_t<6, Tuple>;
+    using D0DataType      = std::tuple_element_t<7, Tuple>;
+    using D1DataType      = std::tuple_element_t<8, Tuple>;
+    using AccDataType     = std::tuple_element_t<9, Tuple>;
+    using EDataType       = std::tuple_element_t<10, Tuple>;
+    using CDElementWiseFn = std::tuple_element_t<11, Tuple>;
+    using DsLayout        = ck_tile::tuple<D0Layout, D1Layout>;
+    using DsDataType      = ck_tile::tuple<D0DataType, D1DataType>;
 
     template <typename ADataType,
               typename BDataType,
@@ -343,7 +343,7 @@ class TestCkTileGemmMultiD : public ::testing::Test
                             BLayout,
                             DsLayout,
                             ELayout,
-                            CDEElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
+                            CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
 
         std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
                   << " StrideA =" << StrideA << " StrideB =" << StrideB << " StrideE =" << StrideE
@@ -356,15 +356,14 @@ class TestCkTileGemmMultiD : public ::testing::Test
             f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
         e_m_n_host_ref.SetZero();
 
-        ck_tile::reference_gemm_multiple_d<ADataType,
-                                           BDataType,
-                                           D0DataType,
-                                           D1DataType,
-                                           AccDataType,
-                                           EDataType,
-                                           CDEElementWiseFn,
-                                           D0Layout>(
-            a_m_k_tesnor, b_k_n_tensors, d0_m_n_tensors, d1_m_n_tensors, e_m_n_host_ref);
+        ck_tile::reference_gemm_multiple_d<
+            ADataType,
+            BDataType,
+            std::array<ck_tile::HostTensor<D0DataType>, DsDataType::size()>,
+            AccDataType,
+            EDataType,
+            CDElementWiseFn,
+            ELayout>(a_m_k_tesnor, b_k_n_tensors, {d0_m_n_tensors, d1_m_n_tensors}, e_m_n_host_ref);
 
         const float max_accumulated_value =
             *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());

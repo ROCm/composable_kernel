@@ -66,4 +66,14 @@ auto create_args(int argc, char* argv[])
 
 using gemm_multi_d_kargs = ck_tile::GemmHostArgs<DsDataType::size()>;
 
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename EDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise>
 float gemm_multi_d(const gemm_multi_d_kargs& kargs, const ck_tile::stream_config& s);
