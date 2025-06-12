@@ -80,14 +80,14 @@ class TestCkTileElementwise : public ::testing::Test
 
         // Device Buffers
         auto d_xs_mems_owner = make_uniform_array_with_factory<NumInputs>([&](std::size_t i) {
-            return ck_tile::DeviceMem(h_xs[i].get_element_space_size_in_bytes());
+            return ck_tile::DeviceMem(h_xs[i]);
         });
         for(int i = 0; i < NumInputs; ++i)
         {
             d_xs_mems_owner[i].ToDevice(h_xs[i].data());
         }
 
-        ck_tile::DeviceMem d_y_mem(h_y.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem d_y_mem(h_y);
         d_y_mem.SetZero();
 
         auto d_x_ptrs_tuple = [&]<std::size_t... Is>(std::index_sequence<Is...>)
