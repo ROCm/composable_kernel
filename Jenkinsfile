@@ -573,7 +573,7 @@ def Build_CK(Map conf=[:]){
                                   . ${env.WORKSPACE}/bin/activate
                                   python3 -m pip install pytest build setuptools setuptools_scm
                                   python3 -m pip install .
-                                  python3 -m pytest python/test/test_gen_instances.py
+                                  python3 -m pytest python/test/ck4inductor/test_gen_instances.py
                             """
                     }
                     dir("build"){
