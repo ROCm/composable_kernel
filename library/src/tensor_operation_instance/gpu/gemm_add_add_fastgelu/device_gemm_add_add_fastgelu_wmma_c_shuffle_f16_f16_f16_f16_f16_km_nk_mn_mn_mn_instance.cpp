@@ -24,10 +24,10 @@ static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto V1 = BlockGemmPipelineVersion::v1;
 static constexpr auto V3 = BlockGemmPipelineVersion::v3;
 
-// e = elementwise((a * b), d0)
-// elementwise(c, d0) = fastgelu(c + d0)
+// e = elementwise((a * b), d0, d1)
+// elementwise(c, d0, d1) = fastgelu(c + d0 + d1)
 // output: e[m, n]
-// input: a[m, k], b[n, k], d0[m, n]
+// input: a[m, k], b[n, k], d0[m, n], d1[m, n]
 
 template <GemmSpecialization GemmSpec>
 using device_gemm_add_add_fastgelu_wmma_c_shuffle_f16_f16_f16_f16_f16_km_nk_mn_mn_mn_instances =
