@@ -37,13 +37,6 @@ using FP32 = float;
 using FP8  = ck::f8_t;
 using BF8  = ck::bf8_t;
 
-struct ExecutionConfig final
-{
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
-};
-
 #define DefaultConvParams                                                                \
     ck::utils::conv::ConvParam                                                           \
     {                                                                                    \

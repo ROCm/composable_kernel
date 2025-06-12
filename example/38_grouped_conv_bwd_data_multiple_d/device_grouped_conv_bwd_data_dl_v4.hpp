@@ -3,13 +3,15 @@
 #include "ck/utility/common_header.hpp"
 
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_data_multiple_d.hpp"
+
+#include "ck/host_utility/kernel_launch.hpp"
 namespace ck {
 template <typename GridwiseConvBwd, index_t BlockSize, index_t MinimumOccupancy = 1>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(BlockSize, MinimumOccupancy)
 #endif
-    kernel_grouped_conv_Bwd_dl_v4(typename GridwiseConvBwd::Argument arg)
+    kernel_grouped_conv_bwd_data_dl_v4(typename GridwiseConvBwd::Argument arg)
 {
     __shared__ char p_share_in[GridwiseConvBwd::ShareMemInSize];
     __shared__ char p_share_out[GridwiseConvBwd::ShareMemOutSize];
@@ -37,7 +39,7 @@ template <index_t BlockSize,
           index_t InScalarPerVector,
           index_t OutScalarPerVector,
           bool RequirePadding = false>
-struct GridwiseGroupedConv2DBwdDlV4
+struct GridwiseGroupedConv2DBwdDataDlV4
 {
     static constexpr index_t
     GetConvOut(index_t length, index_t filter, index_t dilation, index_t pad, index_t stride)
@@ -768,7 +770,7 @@ struct DeviceGroupedConvBwdDlV4 : public DeviceGroupedConvBwdDataMultipleD<NDimS
     // static_assert(is_same_v<WeiElementwiseOperation, element_wise::PassThrough>);
     // static_assert(is_same_v<OutElementwiseOperation, element_wise::PassThrough>);
 
-    using GridwiseConvBwd = GridwiseGroupedConv2DBwdDlV4<BlockSize,
+    using GridwiseConvBwd = GridwiseGroupedConv2DBwdDataDlV4<BlockSize,
                                                          InDataType,
                                                          WeiDataType,
                                                          AccDataType,
@@ -876,7 +878,7 @@ struct DeviceGroupedConvBwdDlV4 : public DeviceGroupedConvBwdDataMultipleD<NDimS
                 1; // GridwiseConvBwd::TotalLdsSize() > (32 * 1024) ? 1 : 2;
 
             const auto conv_kernel =
-                kernel_grouped_conv_bwd_dl_v4<GridwiseConvBwd, BlockSize, minimum_occupancy>;
+                kernel_grouped_conv_bwd_data_dl_v4<GridwiseConvBwd, BlockSize, minimum_occupancy>;
 
             ave_time += launch_and_time_kernel(
                 stream_config, conv_kernel, gdx, dim3(BlockSize), 0, conv_arg);
@@ -1032,72 +1034,30 @@ struct DeviceGroupedConvBwdDlV4 : public DeviceGroupedConvBwdDataMultipleD<NDimS
 
     static auto MakeInvoker() { return Invoker{}; }
 
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(
-        const void* p_in_grid,
-        const void* p_wei_grid,
-        const std::array<const void*, NumDTensor>& p_ds,
-        void* p_out_grid,
-        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths, // input
-        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_strides,
-        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths, // weight
-        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_strides,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
-        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths, // output
-        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_strides,
-        const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
-        const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
-        const std::array<ck::index_t, NDimSpatial>& input_left_pads,
-        const std::array<ck::index_t, NDimSpatial>& input_right_pads,
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(
+        const void* p_in_grid,                                                 // output image
+        const void* p_wei_grid,                                                 // weight
+        const std::array<const void*, NumDTensor>& p_ds,                 // bias
+        void* p_out_grid,                                                       // input image
+        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths, // output image
+        const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_strides, // output image
+        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,  // weight
+        const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_strides,  // weight
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
+            ds_g_n_k_wos_lengths, // bias
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
+            ds_g_n_k_wos_strides,                                        // bias
+        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths, // input image
+        const std::array<index_t, NDimSpatial + 3>& out_g_n_k_wos_strides, // input image
+        const std::array<index_t, NDimSpatial>& conv_filter_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+        const std::array<index_t, NDimSpatial>& input_left_pads,
+        const std::array<index_t, NDimSpatial>& input_right_pads,
         const InElementwiseOperation& in_element_op,
         const WeiElementwiseOperation& wei_element_op,
         const OutElementwiseOperation& out_element_op,
         const ck::index_t split_k = 1) override
-    {
-        return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
-                                          static_cast<const WeiDataType*>(p_wei_grid),
-                                          p_ds,
-                                          static_cast<OutDataType*>(p_out_grid),
-                                          in_g_n_c_wis_lengths, // input
-                                          in_g_n_c_wis_strides,
-                                          wei_g_k_c_xs_lengths, // weight
-                                          wei_g_k_c_xs_strides,
-                                          ds_g_n_k_wos_lengths,
-                                          ds_g_n_k_wos_strides,
-                                          out_g_n_k_wos_lengths, // output
-                                          out_g_n_k_wos_strides,
-                                          conv_filter_strides,
-                                          conv_filter_dilations,
-                                          input_left_pads,
-                                          input_right_pads,
-                                          in_element_op,
-                                          wei_element_op,
-                                          out_element_op);
-    }
-
-    virtual std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_in_grid,
-                        const void* p_wei_grid,
-                        const std::array<const void*, NumDTensor>& p_ds,
-                        void* p_out_grid,
-                        const std::array<long_index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths,
-                        const std::array<long_index_t, NDimSpatial + 3>& in_g_n_c_wis_strides,
-                        const std::array<long_index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths,
-                        const std::array<long_index_t, NDimSpatial + 3>& wei_g_k_c_xs_strides,
-                        const std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor>&
-                            ds_g_n_k_wos_lengths,
-                        const std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor>&
-                            ds_g_n_k_wos_strides,
-                        const std::array<long_index_t, NDimSpatial + 3>& out_g_n_k_wos_lengths,
-                        const std::array<long_index_t, NDimSpatial + 3>& out_g_n_k_wos_strides,
-                        const std::array<long_index_t, NDimSpatial>& conv_filter_strides,
-                        const std::array<long_index_t, NDimSpatial>& conv_filter_dilations,
-                        const std::array<long_index_t, NDimSpatial>& input_left_pads,
-                        const std::array<long_index_t, NDimSpatial>& input_right_pads,
-                        const InElementwiseOperation& in_element_op,
-                        const WeiElementwiseOperation& wei_element_op,
-                        const OutElementwiseOperation& out_element_op,
-                        const ck::index_t split_k = 1) override
     {
         std::array<index_t, NDimSpatial + 3> in_g_n_c_wis_lengths_i32;
         std::array<index_t, NDimSpatial + 3> in_g_n_c_wis_strides_i32;
@@ -1116,7 +1076,7 @@ struct DeviceGroupedConvBwdDlV4 : public DeviceGroupedConvBwdDataMultipleD<NDimS
         array_convert(in_g_n_c_wis_strides_i32, in_g_n_c_wis_strides);
         array_convert(wei_g_k_c_xs_lengths_i32, wei_g_k_c_xs_lengths);
         array_convert(wei_g_k_c_xs_strides_i32, wei_g_k_c_xs_strides);
-        for(index_t d = 0; d < NumDTensor; d++)
+        for(index_t d = 0; d < NumDTensor * split_k; d++)
         {
             array_convert(ds_g_n_k_wos_lengths_i32[d], ds_g_n_k_wos_lengths[d]);
             array_convert(ds_g_n_k_wos_strides_i32[d], ds_g_n_k_wos_strides[d]);
@@ -1146,7 +1106,8 @@ struct DeviceGroupedConvBwdDlV4 : public DeviceGroupedConvBwdDataMultipleD<NDimS
                                           input_right_pads_i32,
                                           in_element_op,
                                           wei_element_op,
-                                          out_element_op);
+                                          out_element_op
+                                         );
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

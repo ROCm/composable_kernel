@@ -3,7 +3,7 @@
 
 
 template <ck::index_t NDimSpatial>
-using HostConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwd<NDimSpatial,
+using HostConvBwdInstance = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
                                                                          InUserDataType,
                                                                          WeiUserDataType,
                                                                          CShuffleDataType,
