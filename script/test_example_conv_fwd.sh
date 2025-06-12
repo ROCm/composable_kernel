@@ -4,7 +4,8 @@ EXAMPLE="../build/bin/example_grouped_conv_fwd_dl_fp16"
 set -x
 
 #                   G    N   K C Y X H   W   Sy Sx Dy Dx Pad   
-$EXAMPLE 1 2 1 2 2304 128 1 1 5 5 7   7   1 1   1  1  2 2 2 2     
+$EXAMPLE 1 2 1 2 2304 128 1 1 5 5 7   7   1 1   1  1  2 2 2 2   
+$EXAMPLE 1 2 1 2 3840 128 1 1 5 5 7   7   1 1   1  1  2 2 2 2   
 $EXAMPLE 1 2 1 2 960  128 1 1 5 5 14  14  1 1   1  1  2 2 2 2        
 $EXAMPLE 1 2 1 2 480  128 1 1 5 5 28  28  1 1   1  1  2 2 2 2
 $EXAMPLE 1 2 1 2 288  128 1 1 5 5 56  56  2 2   1  1  2 2 2 2

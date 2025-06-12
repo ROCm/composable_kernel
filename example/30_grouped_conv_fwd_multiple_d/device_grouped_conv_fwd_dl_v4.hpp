@@ -2,26 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
-
-template <typename T>
-struct Debug;
-
 namespace ck {
-template <typename T>
-__device__ T warp_shuffle_down(const T& v_local, uint32_t lane_delta)
-{
-#if 0
-    return  __shfl_down(v_local, lane_delta);
-#elif 1
-    static_assert(sizeof(T) == sizeof(int32_t), "wrong!");
-
-    const int32_t v_remote_tmp = __builtin_amdgcn_ds_bpermute(
-        (__lane_id() << 2) + (lane_delta << 2), bit_cast<int32_t>(v_local));
-
-    return bit_cast<T>(v_remote_tmp);
-#endif
-}
-
 template <typename GridwiseConvFwd, index_t BlockSize, index_t MinimumOccupancy = 1>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -153,8 +134,9 @@ struct GridwiseGroupedConv2DFwdDlV4
     static constexpr index_t TileOut_Max_W =
         SubTileW * (WRepeate - 1) +
         math::integer_least_multiple(SubTileW, OutScalarPerVector_Internal);
-    static constexpr index_t TileIn_Stride  = TileIn_Max_W;
-    static constexpr index_t TileOut_Stride = TileOut_Max_W;
+    static constexpr index_t TileIn_Stride  = math::integer_least_multiple(TileIn_Max_W, InScalarPerVector);
+    static constexpr index_t TileOut_Stride = math::integer_least_multiple(TileOut_Max_W, OutScalarPerVector);
+    //Debug<Sequence<TileIn_Max_W, TileIn_Pack_W> > xxx;
     static constexpr bool CheckSubTileRange = (TileOut_H % SubTileH != 0 || TileOut_W % SubTileW != 0);
 
     static constexpr index_t ShareMemInTileSize = TileIn_Align_H * TileIn_Stride;
@@ -198,7 +180,6 @@ struct GridwiseGroupedConv2DFwdDlV4
         };
 
         // todo: check with real width/height
-        // and use OOB to avoid tynamic control flow.
         auto* p_base = reinterpret_cast<const SrcVector*>(p);
         static_for<0, TilePerWave, 1>{}([&](auto n) {
             static_for<0, PackH, 1>{}([&](auto i) {
@@ -215,18 +196,11 @@ struct GridwiseGroupedConv2DFwdDlV4
                     const index_t y                 = y_offset + i * NumGroup;
                     const index_t offset            = get_offset(y, x, n);
                     p_scratch[n * AlignedPackH + i] = p_base[offset];
-#if 0
-                    printf("threadx = %u %u %u %u %u\n", threadIdx.x, bit_cast<uint16_t>(p_scratch[n * AlignedPackH + i ][0]),
-                    bit_cast<uint16_t>(p_scratch[n * AlignedPackH + i ][1]),
-                    bit_cast<uint16_t>(p_scratch[n * AlignedPackH + i ][2]),
-                    bit_cast<uint16_t>(p_scratch[n * AlignedPackH + i ][3]));
-#endif
                 }
             }
         });
     }
 
-    // todo handle pading in p_sharemem
     template <index_t TileH,
               index_t AlignedPackW,
               index_t TileW_Stride,
@@ -262,8 +236,6 @@ struct GridwiseGroupedConv2DFwdDlV4
                     const index_t y        = y_offset + i * NumGroup;
                     const index_t offset   = get_offset(y, x, n);
                     p_share_vector[offset] = p_scratch[n * AlignedPackH + i];
-                    // printf("threadx = %u offset = %d index = %d\n", threadIdx.x, offset, n *
-                    // AlignedPackH + i);
                 }
             }
         });
@@ -312,11 +284,7 @@ struct GridwiseGroupedConv2DFwdDlV4
                             type_convert<OutDataType>(acc[wo_ * OutScalarPerVector_Internal + i]);
                     });
                 }
-                //if (threadIdx.x == 4)
-                {
-                //    printf("threadIdx %u outut %04x %04x\n", threadIdx.x, bit_cast<uint16_t>(output[0]),  bit_cast<uint16_t>(output[1]));
-                // bit_cast<uint16_t>(output[2]),  bit_cast<uint16_t>(output[3]));
-                }
+
 #if defined(DISABLE_OUTPUT_LDS)
                 if constexpr (CheckSubTileRange)
                 {
@@ -335,7 +303,6 @@ struct GridwiseGroupedConv2DFwdDlV4
             });
         };
 
-        // constexpr auto SubTileInH = SubTileH * Stride_H + (Filter_Y - 1) * Dilation_Y;
         constexpr auto SubTileInW = math::integer_least_multiple(SubTileW * Stride_W + (Filter_X - 1) * Dilation_X, InScalarPerVector_Internal);
         static_assert(SubTileInW % InScalarPerVector_Internal == 0);
         static_assert(SubTileW % OutScalarPerVector_Internal == 0);
@@ -356,27 +323,12 @@ struct GridwiseGroupedConv2DFwdDlV4
                 constexpr index_t tmp_y_idx = (ho * Stride_H + Filter_Y - Stride_H + s) % Filter_Y;
                 get_in(hi, Number<SubTileInW>{}, tmp_in[tmp_y_idx]);
             });
-            // if constexpr(ho == 0)
-            // {
-            //     if (threadIdx.x ==0)
-            //     {
-            //         printf("tmp_in %d:  %lx %lx\n", tmp_y_idx,
-            //         bit_cast<uint64_t>(tmp_in[tmp_y_idx][0]),
-            //         bit_cast<uint64_t>(tmp_in[tmp_y_idx][1]));
-            //     }
-            // }
+
             if constexpr(Stride_W == 1)
             {
                 static_for<0, SubTileW, 2>{}([&](auto wo) {
-                    // InData2 indata;
                     static_for<0, Filter_Y, 1>{}([&](auto y) {
-#if 1
                         static_for<0, Filter_X_Pack, 1>{}([&](auto x_pack) {
-                            // constexpr auto in_idx0 = (wo + x_pack * 2)/
-                            // InScalarPerVector_Internal; constexpr auto in_idx1 = (wo + x_pack *
-                            // 2)% InScalarPerVector_Internal; indata[0] = tmp_in[(ho + y) %
-                            // Filter_Y][in_idx0][in_idx1]; indata[1] = tmp_in[(ho + y) %
-                            // Filter_Y][in_idx0][in_idx1 + 1]; ignore = p_in;
                             const InData2* p_in =
                                 reinterpret_cast<InData2*>(tmp_in[(ho + y) % Filter_Y]) +
                                 wo * Stride_W / 2 + x_pack;
@@ -385,16 +337,6 @@ struct GridwiseGroupedConv2DFwdDlV4
                             inner_product(*p_in,
                                           p_wei_odd[y * Filter_X_Pack + x_pack],
                                           tmp_out[wo.value + 1]);
-                            // tmp_out[wo.value] += type_convert<float>( indata[0]) *
-                            // type_convert<float>( p_wei_even[y * Filter_X_Pack + x_pack][0]) +
-                            //                      type_convert<float>( indata[1]) *
-                            //                      type_convert<float>( p_wei_even[y *
-                            //                      Filter_X_Pack + x_pack][1]);
-                            // tmp_out[wo.value + 1] += type_convert<float>( indata[0]) *
-                            // type_convert<float>( p_wei_odd[y * Filter_X_Pack + x_pack][0]) +
-                            //                      type_convert<float>( indata[1]) *
-                            //                      type_convert<float>( p_wei_odd[y * Filter_X_Pack
-                            //                      + x_pack][1]);
                             //  if constexpr(ho == 1 && wo == 0)
                             //  {
                             //      if (threadIdx.x ==0)
@@ -406,7 +348,6 @@ struct GridwiseGroupedConv2DFwdDlV4
                             //      }
                             //  }
                         });
-#endif
                     });
                 });
             }
@@ -424,7 +365,7 @@ struct GridwiseGroupedConv2DFwdDlV4
 #if 0                        
                             if constexpr(ho == 0 && wo == 0)
                             {
-                                  if (threadIdx.x ==16)
+                                  if (threadIdx.x ==0)
                                   {
                                       printf("dot2(%d %d):  %08x %08x %f\n", y.value, x_pack.value, 
                                         bit_cast<uint32_t>(*p_in),
@@ -467,7 +408,6 @@ struct GridwiseGroupedConv2DFwdDlV4
         // to do: check result in SGPR
     }
 
-    // todo: output without lds or use async lds
     template <index_t TileH, index_t AlignedPackW, index_t ScalarPerVector, typename SrcType>
     static void __device__ write_output_data(SrcType* p,
                                              index_t x,
@@ -666,14 +606,6 @@ struct GridwiseGroupedConv2DFwdDlV4
         WeiDataVector weight_odd[WeiVectorCount] = {};
 
         load_filter_data<WeiVectorCount>(arg, g_idx, weight, weight_odd);
-        // if (threadIdx.x == 0)
-        // {
-        //     for (int i = 0; i < WeiVectorCount; i++)
-        //     {
-        //         printf("wei 0x%08x, 0x%08x\n", bit_cast<uint32_t>(weight[i]),
-        //         bit_cast<uint32_t>(weight_odd[i]));
-        //     }
-        // }
 
         index_t x               = (lane_id % ThreadPerTile) % WRepeate;
         index_t y               = (lane_id % ThreadPerTile) / WRepeate;
@@ -690,15 +622,12 @@ struct GridwiseGroupedConv2DFwdDlV4
         p_out += tile_idx * out_n_stride + y * SubTileH * ho_stride + x * SubTileW * wo_stride;
 #endif
          
-        //printf("tileinfo threadIdx = %u, x = %d y = %d tileIdx = %d in_offset = %d out_offset = %d\n", threadIdx.x, x, y, tile_idx,
-        //      static_cast<index_t>(reinterpret_cast<InDataType*>(p_share_subtile_in) - share_in),
-        //      static_cast<index_t>(p_out -  arg.p_out_grid_));
-
         // adjust share memory offset for copy
         share_in += (TileIn_Stride * Pad_H + Pad_W);
-#if 0 
+#if 0
         if(in_x < Tile_W / InScalarPerVector)
         {
+            printf("threadIdx %u in_x %d in_y %d\n", threadIdx.x, in_x, in_y_offset);
             load_data_from_global<Tile_H, TileIn_Pack_W, InScalarPerVector>(
                 p_in, in_x, in_y_offset, in_n_stride, hi, wi, hi_stride, wi_stride, tmp_in);
             write_data_to_lds<Tile_H,
@@ -729,7 +658,6 @@ struct GridwiseGroupedConv2DFwdDlV4
             }
             if(y < HRepeate)
             {
-                //printf("threadIdx %u\n", threadIdx.x);
                 run_conv_fwd(p_share_subtile_in, p_share_subtile_out, weight, weight_odd, reinterpret_cast<OutShareVector*>(p_out), ho_stride, wo_stride, h_max, w_max);
             }
 
