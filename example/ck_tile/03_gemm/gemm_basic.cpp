@@ -186,7 +186,8 @@ int run_gemm_example(int argc, char* argv[])
 
     if(data_type == "fp16")
     {
-        return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
+//        return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
+        throw std::runtime_error("Unsupported data type for this operation !!!");
     }
     else if(data_type == "bf16")
     {
@@ -194,21 +195,24 @@ int run_gemm_example(int argc, char* argv[])
     }
     else if(data_type == "fp8")
     {
-        return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+        // return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
+        //     a_layout, b_layout, argc, argv);
+        throw std::runtime_error("Unsupported data type for this operation !!!");
     }
     else if(data_type == "bf8")
     {
-        return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+        // return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
+        //     a_layout, b_layout, argc, argv);
+        throw std::runtime_error("Unsupported data type for this operation !!!");
     }
 
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
     else if(data_type == "pk_int4_t")
     {
         // TODO: Add support for bhalf_t ADataType
-        return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
+        // return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
+        //     a_layout, b_layout, argc, argv);
+        throw std::runtime_error("Unsupported data type for this operation !!!");
     }
 #endif
     else
