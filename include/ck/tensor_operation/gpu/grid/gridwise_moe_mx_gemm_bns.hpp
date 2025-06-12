@@ -1160,9 +1160,8 @@ struct GridwiseMoeGemmMXBNS
 
         if constexpr(IsInputGemm)
         {
-            return math::max((a_block_space_size_aligned * sizeof(ADataType) +
-                              b_block_space_size_aligned * sizeof(BDataType)) *
-                                 2,
+            return math::max(a_block_space_size_aligned * sizeof(ADataType) +
+                                 b_block_space_size_aligned * sizeof(BDataType) * 2,
                              c_block_size * sizeof(CShuffleDataType));
         }
         else
