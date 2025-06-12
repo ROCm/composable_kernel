@@ -241,17 +241,16 @@
 #endif
 
 #ifndef CK_TILE_USE_OCP_FP8
-#  if defined(__HIP_DEVICE_COMPILE__)
-#    if defined(__gfx950__) || defined(__gfx12__)
-#      define CK_TILE_USE_OCP_FP8 1
-#    else
-#      define CK_TILE_USE_OCP_FP8 0
-#    endif
-#  else
-#    define CK_TILE_USE_OCP_FP8 0
-#  endif
+#if defined(__HIP_DEVICE_COMPILE__)
+#if defined(__gfx950__) || defined(__gfx12__)
+#define CK_TILE_USE_OCP_FP8 1
+#else
+#define CK_TILE_USE_OCP_FP8 0
 #endif
-
+#else
+#define CK_TILE_USE_OCP_FP8 0
+#endif
+#endif
 
 #ifndef CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
 #if __clang_major__ == 20
