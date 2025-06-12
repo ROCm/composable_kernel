@@ -25,7 +25,7 @@ execute_process(
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
-  message( FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of FWD kernels via Python.")
+  message(FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of FWD kernels via Python.")
 endif()
 
 execute_process(
@@ -34,7 +34,7 @@ execute_process(
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
-  message( FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of BWD kernels via Python.")
+  message(FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of BWD kernels via Python.")
 endif()
 
 # NOTE: for cmake, the FMHA_FWD_GEN_BLOBS/FMHA_BWD_GEN_BLOBS files must be in the same directory
@@ -57,7 +57,7 @@ add_custom_command(
 set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
-message("adding example ${EXAMPLE_FMHA_FWD}")
+message(DEBUG "adding example ${EXAMPLE_FMHA_FWD}")
 add_executable(${EXAMPLE_FMHA_FWD} EXCLUDE_FROM_ALL fmha_fwd.cpp)
 target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXAMPLE_FMHA_FWD} PRIVATE ${FMHA_FWD_GEN_BLOBS})
@@ -65,7 +65,7 @@ target_sources(${EXAMPLE_FMHA_FWD} PRIVATE ${FMHA_FWD_GEN_BLOBS})
 set(EXAMPLE_FMHA_BWD "tile_example_fmha_bwd")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
-message("adding example ${EXAMPLE_FMHA_BWD}")
+message(DEBUG "adding example ${EXAMPLE_FMHA_BWD}")
 add_executable(${EXAMPLE_FMHA_BWD} EXCLUDE_FROM_ALL fmha_bwd.cpp)
 target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXAMPLE_FMHA_BWD} PRIVATE ${FMHA_BWD_GEN_BLOBS})

@@ -13,7 +13,6 @@
 #include "ck/ck.hpp"
 #include "ck/utility/env.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -396,8 +395,6 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 is_supported = true;
-                // using atomic add, so need to reset input
-                wei_device_buf.SetZero();
 
                 auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -475,8 +472,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                         ck::utils::get_absolute_threshold<WeiDataType, WeiDataType, WeiDataType>(
                             max_accumulated_value, num_accums_split_k);
                     // Use higher threshold
-                    rtol      = std::max(rtol, rtol_split_k);
-                    atol      = std::max(atol, atol_split_k);
+                    rtol = std::max(rtol, rtol_split_k);
+                    atol = std::max(atol, atol_split_k);
+                    // Use default atol for splitK == 1
                     bool pass = ck::utils::check_err(weight_device_result,
                                                      weight_host_result,
                                                      "Error: Incorrect results!",

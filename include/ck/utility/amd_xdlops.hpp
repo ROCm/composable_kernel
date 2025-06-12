@@ -662,11 +662,11 @@ struct intrin_mfma_f32_32x32x64f8f6f4<32, 32>
     }
 };
 
-template <index_t MPerWave, index_t NPerWave>
+template <index_t MPerWave, index_t NPerWave, index_t OpselA, index_t OpselB>
 struct intrin_mfma_scale_f32_32x32x64f8f6f4;
 
-template <>
-struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
+template <index_t OpselA, index_t OpselB>
+struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32, OpselA, OpselB>
 {
     template <class FloatC>
     __device__ static void Run(const f8x32_t& reg_a,
@@ -682,11 +682,11 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                0, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                0, // blgp
-                0, // OPSEL
+                0,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                0,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
         // XXX: Note on the scale_a and scale_b parameters:
         // If compiler detects that one or both scales are constant values, it will treat that
@@ -719,11 +719,11 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                1, // blgp
-                0, // OPSEL
+                1,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
         // XXX: Note on the scale_a and scale_b parameters:
         // If compiler detects that one or both scales are constant values, it will treat that
@@ -756,11 +756,11 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                0, // blgp
-                0, // OPSEL
+                1,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                0,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
         // XXX: Note on the scale_a and scale_b parameters:
         // If compiler detects that one or both scales are constant values, it will treat that
@@ -798,11 +798,11 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
                 arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                2, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                2, // blgp
-                0, // OPSEL
+                2,      // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                2,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -832,11 +832,11 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
                 arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                3, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                3, // blgp
-                0, // OPSEL
+                3,      // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                3,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -866,11 +866,11 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], 0, 0, 0, 0},
                 arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], 0, 0, 0, 0},
                 reg_c.template AsType<float16_t>()[Number<0>{}],
-                4, // cbsz  {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                4, // blgp
-                0, // OPSEL
+                4,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                4,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -882,11 +882,11 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32>
     }
 };
 
-template <index_t MPerWave, index_t NPerWave>
+template <index_t MPerWave, index_t NPerWave, index_t OpselA, index_t OpselB>
 struct intrin_mfma_scale_f32_16x16x128f8f6f4;
 
-template <>
-struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
+template <index_t OpselA, index_t OpselB>
+struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
 {
     template <class FloatC>
     __device__ static void Run(const f8x32_t& reg_a,
@@ -902,11 +902,11 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                0, // cbsz   {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                0, // blgp
-                0, // OPSEL
+                0,      // cbsz   {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                0,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -931,11 +931,11 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                1, // blgp
-                0, // OPSEL
+                1,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -960,11 +960,11 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                0, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                1, // blgp
-                0, // OPSEL
+                0,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                1,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -989,11 +989,11 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 reg_a,
                 reg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                1, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                0, // blgp
-                0, // OPSEL
+                1,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                0,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -1022,11 +1022,11 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
                 arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                2, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                2, // blgp
-                0, // OPSEL
+                2,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                2,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -1055,11 +1055,11 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
                 arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                3, // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
-                3, // blgp
-                0, // OPSEL
+                3,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
+                3,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
@@ -1080,19 +1080,17 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16>
 #if defined(__gfx950__)
         int32x4_t arg_a = bit_cast<int32x4_t>(reg_a);
         int32x4_t arg_b = bit_cast<int32x4_t>(reg_b);
-
-        using arg_type = int32x8_t;
-
+        using arg_type  = int32x8_t;
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
                 arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], 0, 0, 0, 0},
                 arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], 0, 0, 0, 0},
                 reg_c.template AsType<float4_t>()[Number<0>{}],
-                4, // cbsz
-                4, // blgp
-                0, // OPSEL
+                4,      // cbsz
+                4,      // blgp
+                OpselA, // OPSEL
                 scale_a,
-                0, // OPSEL
+                OpselB, // OPSEL
                 scale_b);
 #else
         ignore = reg_a;
