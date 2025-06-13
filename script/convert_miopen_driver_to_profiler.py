@@ -224,7 +224,7 @@ def get_parser():
         help="Input Layout (Default=NCHW for 2d conv, NCDHW for 3d conv)"
     )
     parser.add_argument(
-        "-forw",
+        "--forw",
         "-F",
         default=0,
         type=int,
@@ -239,7 +239,7 @@ def get_parser():
         "\n6 bwd+wrw"
     )
     parser.add_argument(
-        "-spatial_dim",
+        "--spatial_dim",
         "-_",
         default=2,
         type=int,
@@ -247,7 +247,7 @@ def get_parser():
         help="convolution spatial dimension (Default-2)"
     )
     parser.add_argument(
-        "-batchsize",
+        "--batchsize",
         "-n",
         default=100,
         type=int,
@@ -255,7 +255,7 @@ def get_parser():
         help="Mini-batch size (Default=100)"
     )
     parser.add_argument(
-        "-in_channels",
+        "--in_channels",
         "-c",
         default=3,
         type=int,
@@ -263,7 +263,7 @@ def get_parser():
         help="Number of Input Channels (Default=3)"
     )
     parser.add_argument(
-        "-in_d",
+        "--in_d",
         "-!",
         default=32,
         type=int,
@@ -271,7 +271,7 @@ def get_parser():
         help="Input Depth (Default=32)"
     )
     parser.add_argument(
-        "-in_h",
+        "--in_h",
         "-H",
         default=32,
         type=int,
@@ -279,7 +279,7 @@ def get_parser():
         help="Input Height (Default=32)"
     )
     parser.add_argument(
-        "-in_w",
+        "--in_w",
         "-W",
         default=32,
         type=int,
@@ -287,7 +287,7 @@ def get_parser():
         help="Input Width (Default=32)"
     )
     parser.add_argument(
-        "-out_channels",
+        "--out_channels",
         "-k",
         default=32,
         type=int,
@@ -295,7 +295,7 @@ def get_parser():
         help="Number of Output Channels (Default=32)"
     )
     parser.add_argument(
-        "-fil_d",
+        "--fil_d",
         "-@",
         default=3,
         type=int,
@@ -303,7 +303,7 @@ def get_parser():
         help="Filter Depth (Default=3)"
     )
     parser.add_argument(
-        "-fil_h",
+        "--fil_h",
         "-y",
         default=3,
         type=int,
@@ -311,7 +311,7 @@ def get_parser():
         help="Filter Height (Default=3)"
     )
     parser.add_argument(
-        "-fil_w",
+        "--fil_w",
         "-x",
         default=3,
         type=int,
@@ -319,7 +319,7 @@ def get_parser():
         help="Filter Width (Default=3)"
     )
     parser.add_argument(
-        "-conv_stride_d",
+        "--conv_stride_d",
         "-#",
         default=1,
         type=int,
@@ -327,7 +327,7 @@ def get_parser():
         help="Convolution Stride for Depth (Default=1)"
     )
     parser.add_argument(
-        "-conv_stride_h",
+        "--conv_stride_h",
         "-u",
         default=1,
         type=int,
@@ -335,7 +335,7 @@ def get_parser():
         help="Convolution Stride for Height (Default=1)"
     )
     parser.add_argument(
-        "-conv_stride_w",
+        "--conv_stride_w",
         "-v",
         default=1,
         type=int,
@@ -343,7 +343,7 @@ def get_parser():
         help="Convolution Stride for Width (Default=1)"
     )
     parser.add_argument(
-        "-pad_d",
+        "--pad_d",
         "-$",
         default=1,
         type=int,
@@ -351,7 +351,7 @@ def get_parser():
         help="Zero Padding for Depth (Default=0)"
     )
     parser.add_argument(
-        "-pad_h",
+        "--pad_h",
         "-p",
         default=1,
         type=int,
@@ -359,7 +359,7 @@ def get_parser():
         help="Zero Padding for Height (Default=0)"
     )
     parser.add_argument(
-        "-pad_w",
+        "--pad_w",
         "-q",
         default=1,
         type=int,
@@ -367,7 +367,7 @@ def get_parser():
         help="Zero Padding for Width (Default=0)"
     )
     parser.add_argument(
-        "-verify",
+        "--verify",
         "-V",
         default=1,
         type=int,
@@ -375,7 +375,7 @@ def get_parser():
         help="Verify Each Layer (Default=1)"
     )
     parser.add_argument(
-        "-time",
+        "--time",
         "-t",
         default=0,
         type=int,
@@ -383,7 +383,7 @@ def get_parser():
         help="Time Each Layer (Default=0)"
     )
     parser.add_argument(
-        "-dilation_d",
+        "--dilation_d",
         "-^",
         default=1,
         type=int,
@@ -391,7 +391,7 @@ def get_parser():
         help="Dilation of Filter Depth (Default=1)"
     )
     parser.add_argument(
-        "-dilation_h",
+        "--dilation_h",
         "-l",
         default=1,
         type=int,
@@ -399,7 +399,7 @@ def get_parser():
         help="Dilation of Filter Height (Default=1)"
     )
     parser.add_argument(
-        "-dilation_w",
+        "--dilation_w",
         "-j",
         default=1,
         type=int,
@@ -407,7 +407,7 @@ def get_parser():
         help="Dilation of Filter Width (Default=1)"
     )
     parser.add_argument(
-        "-group_count",
+        "--group_count",
         "-g",
         type=int,
         default=1,
