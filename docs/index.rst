@@ -21,10 +21,18 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
     * :doc:`Build and install Composable Kernel <./install/Composable-Kernel-install>`
     * :doc:`Build and install Composable Kernel on a Docker image <./install/Composable-Kernel-Docker>`
 
+.. grid:: 2
+  :gutter: 3
+
   .. grid-item-card:: Conceptual
 
+    * :doc:`CK Tile concepts <./conceptual/Composable-Kernel-CKTile-concept>`
     * :doc:`Composable Kernel structure <./conceptual/Composable-Kernel-structure>`
     * :doc:`Composable Kernel mathematical basis <./conceptual/Composable-Kernel-math>`
+
+.. grid-item-card:: How to
+
+    * :doc:`Use CK Tile <./how-to/Composable-Kernel-CKTile-workflow>`
 
   .. grid-item-card:: Tutorials
 
@@ -32,12 +40,17 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
 
   .. grid-item-card:: Reference
 
+    * :doc:`CK Tile <./reference/Composable-Kernel-CKTile>`
+    
+      * :doc:`CK Tile key APIs <./reference/Composable-Kernel-CKTile-API>`  
+    
     * :doc:`Composable Kernel supported scalar types <./reference/Composable_Kernel_supported_scalar_types>`
     * :doc:`Composable Kernel custom types <./reference/Composable_Kernel_custom_types>`
     * :doc:`Composable Kernel vector utilities <./reference/Composable_Kernel_vector_utilities>`
     * :ref:`wrapper`    
-    * :doc:`Composable Kernel complete class list <./doxygen/html/annotated>`
-    
+    * :doc:`Composable Kernel API reference <./doxygen/html/namespace_c_k>`
+    * :doc:`CK Tile API reference <./doxygen/html/namespaceck__tile>`    
+
 To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 
 You can find licensing information on the `Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.
