@@ -26,7 +26,8 @@ template <typename ADataType_,
           index_t NPerXdl_,
           index_t KPerXdl_,
           bool isCTransposed_,
-          memory_operation_enum MemoryOperation_>
+          memory_operation_enum MemoryOperation_,
+          index_t kNumWaveGroups_ = 1>
 struct CShuffleEpilogueProblem
 {
     using ADataType                                        = remove_cvref_t<ADataType_>;
@@ -47,6 +48,7 @@ struct CShuffleEpilogueProblem
     static constexpr index_t KPerXdl                       = KPerXdl_;
     static constexpr index_t isCTransposed                 = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
+    static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
     static constexpr index_t NumDTensor                    = DsDataType::size();
 
     static_assert(NumDTensor == DsLayout::size(),
@@ -282,7 +284,8 @@ struct CShuffleEpilogue
                                               MPerIterationShuffle,
                                               NPerIterationShuffle,
                                               GetVectorSizeC(),
-                                              tile_distribution_pattern::thread_raked>;
+                                              tile_distribution_pattern::thread_raked,
+                                              Problem::kNumWaveGroups>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
         auto d_dram_windows = generate_tuple(
