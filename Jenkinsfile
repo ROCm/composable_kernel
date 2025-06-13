@@ -1185,8 +1185,12 @@ pipeline {
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make benchmark_gemm -j && \
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                            -D CMAKE_BUILD_TYPE=Release \
+                                            -D GPU_TARGETS="gfx90a" \
+                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j64 benchmark_gemm && \
                                            ./bin/benchmark_gemm """
                     }
                     steps{
@@ -1203,8 +1207,12 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make benchmark_gemm -j && \
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                            -D CMAKE_BUILD_TYPE=Release \
+                                            -D GPU_TARGETS="gfx942" \
+                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j128 benchmark_gemm && \
                                            ./bin/benchmark_gemm """
                     }
                     steps{
