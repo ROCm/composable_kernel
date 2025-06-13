@@ -28,6 +28,7 @@ using I4  = ck::pk_i4_t;
 using F16 = ck::half_t;
 using F8  = ck::f8_t;
 using F32 = float;
+using I64  = int64_t;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -138,19 +139,19 @@ void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
     int tempk;
-    for(int n = 0; n < N; ++n)
+    for(I64 n = 0; n < N; ++n)
     {
-        for(int k = 0; k < K; ++k)
+        for(I64 k = 0; k < K; ++k)
         {
-            int n0 = n / NLane;
-            int n1 = n % NLane;
+            I64 n0 = n / NLane;
+            I64 n1 = n % NLane;
 
-            int k0 = k / (KLane * KPack);
+            I64 k0 = k / (KLane * KPack);
             tempk  = k % (KLane * KPack);
-            int k1 = tempk / KPack;
-            int k2 = tempk % KPack;
+            I64 k1 = tempk / KPack;
+            I64 k2 = tempk % KPack;
 
-            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+            I64 outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
                               k1 * KPack * NLane + n1 * KPack + k2;
 
             dst[outputIndex / 2] = src[(n * K + k) / 2];
@@ -194,9 +195,9 @@ int main(int argc, char* argv[])
     // GEMM shape
     ck::index_t N               = 14336;
     ck::index_t K               = 4096;
-    ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 16;
-    ck::index_t valid_tile_num  = 13;
+    ck::index_t experts         = 256;
+    ck::index_t sorted_tile_num = 55;
+    ck::index_t valid_tile_num  = 55;
     ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
     ck::index_t valid_size      = valid_tile_num * MPerBlock;
     ck::index_t tokens          = 644;
@@ -241,11 +242,16 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
     max_token_id.mData = {valid_size};
-    int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
+    // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 7, 7, 3, 3, 3};
+    // for(int i = 0; i < sorted_tile_num; i++)
+    // {
+    //     expert_ids.mData[i] = eids[i];
+    // }
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = eids[i];
+        expert_ids.mData[i] = i / ck::math::integer_divide_ceil(valid_tile_num, experts);
     }
+
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
     for(int i = 0; i < sorted_size; i++)
