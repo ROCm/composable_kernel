@@ -27,3 +27,8 @@ add_gtest_executable(test_gemm_add_multiply_wmma test_gemm_add_multiply_wmma.cpp
 if(result EQUAL 0)
     target_link_libraries(test_gemm_add_multiply_wmma PRIVATE utility device_gemm_add_multiply_instance)
 endif()
+
+add_gtest_executable(test_gemm_multiply_add_wmma test_gemm_multiply_add_wmma.cpp)
+if(result EQUAL 0)
+    target_link_libraries(test_gemm_multiply_add_wmma PRIVATE utility device_gemm_multiply_add_instance)
+endif()
