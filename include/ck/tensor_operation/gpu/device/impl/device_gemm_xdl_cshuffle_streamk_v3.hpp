@@ -168,11 +168,30 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                     hip_check_error(hipGetDevice(&dev));
                     hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
                     num_cu        = dev_prop.multiProcessorCount;
-                    arg.Grid_size = num_cu * occupancy;
-                    grid_dim      = arg.Grid_size;
+                    // arg.Grid_size = num_cu * occupancy;
+                    // grid_dim      = arg.Grid_size;
+                    grid_dim.x = num_cu * occupancy; // Set the x-dimension
+
+                    // TODO: Set grid_dim.y and grid_dim.z appropriately if they are not 1.
+                    // This often comes from the block_2_ctile_map.CalculateGridSize(...)
+                    // For now, assuming they might be 1 or derived from block_2_ctile_map elsewhere if needed.
+                    // If block_2_ctile_map.CalculateGridSize gives (N0, M0, k_split), then
+                    // grid_dim might be (N0, M0, k_split) or (total_blocks, 1, 1)
+                    // The current code sets grid_dim = arg.Grid_size (if positive) or occupancy-based (if negative)
+                    // which implies a 1D grid of blocks. We'll stick to that interpretation for grid_dim.x
+                    grid_dim.y = 1;
+                    grid_dim.z = 1;
                 }
                 else
-                    grid_dim = arg.Grid_size;
+                {
+                    // grid_dim = arg.Grid_size;
+                    grid_dim.x = arg.Grid_size;
+                    // TODO: As above, confirm y and z dimensions.
+                    grid_dim.y = 1;
+                    grid_dim.z = 1;
+                }
+                   
+                arg.SetLaunchGridDims(grid_dim); // Store the determined launch grid dimensions
 
                 if(stream_config.flush_cache)
                 {

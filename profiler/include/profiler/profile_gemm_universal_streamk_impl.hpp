@@ -250,10 +250,18 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
 
                     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
+                    const auto actual_launch_grid_dims = argument_ptr->GetLaunchGridDims();
+                    
                     std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
                               << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", Grid_size "
-                              << grid_size_curr << ", streamk selection strategy"
+                              << actual_launch_grid_dims.x // Use the x-dimension of the actual launch grid
+                              << ", streamk selection strategy "
                               << streamk_sel_curr << std::endl;
+
+                    // std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
+                    //           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", Grid_size "
+                    //           << grid_size_curr << ", streamk selection strategy"
+                    //           << streamk_sel_curr << std::endl;
 
 #if defined CK_ENABLE_FP8
                     // set softer tolerances for fp8
