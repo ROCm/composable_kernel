@@ -109,7 +109,8 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                                  GemmConfig::N_Warp_Tile,
                                                  GemmConfig::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+                                                 memory_operation,
+                                                 GemmConfig::NumWaveGroups>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
@@ -329,6 +330,7 @@ int main(int argc, char* argv[])
         // run_gemm_example<GemmConfigComputeV3_2>(argc, argv);
         // run_gemm_example<GemmConfigComputeV4>(argc, argv);
         // run_gemm_example<GemmConfigComputeV4_1>(argc, argv);
+        // run_gemm_example<GemmConfigComputeV5>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {

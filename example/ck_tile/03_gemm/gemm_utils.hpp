@@ -31,8 +31,9 @@ struct GemmConfigBase
     static constexpr int kBlockPerCu                         = 1;
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
 };
 
 template <typename PrecType>
@@ -175,6 +176,26 @@ struct GemmConfigComputeV4_1 : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
 };
 
+template <typename PrecType>
+struct GemmConfigComputeV5 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 2;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 16 : 64;
+
+    static constexpr bool DoubleSmemBuffer               = false;
+    static constexpr ck_tile::index_t Pipeline           = CK_TILE_PIPELINE_COMPUTE_V5;
+    static constexpr ck_tile::index_t NumWaNumWaveGroups = 2;
+};
+
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmTypeConfig;
 
@@ -297,6 +318,15 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV4<PipelineProblem>;
     template <typename PipelineProblem>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V5>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV5<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV5<PipelineProblem>;
 };
 
 auto create_args(int argc, char* argv[])
