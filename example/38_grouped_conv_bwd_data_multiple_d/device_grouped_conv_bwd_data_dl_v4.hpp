@@ -398,8 +398,9 @@ struct GridwiseGroupedConv2DBwdDataDlV4
     {
         const index_t Wei_G_Stride = arg.wei_g_k_c_xs_strides_[0];
         const index_t Y_Stride     = arg.wei_g_k_c_xs_strides_[3];
-        const index_t X_Stride     = arg.wei_g_k_c_xs_strides_[4];
-        static_for<0, Filter_Y, 1>{}([&](auto y) {
+        #if 0
+      //  const index_t X_Stride     = arg.wei_g_k_c_xs_strides_[4];
+            static_for<0, Filter_Y, 1>{}([&](auto y) {
             static_for<0, Filter_X, 1>{}([&](auto x) {
                 auto p_wei = arg.p_wei_grid_ + Wei_G_Stride * g + y * Y_Stride + x * X_Stride;
                 constexpr auto stride = math::integer_divide_ceil(Filter_X, WeiScalarPerVector);
@@ -407,6 +408,44 @@ struct GridwiseGroupedConv2DBwdDataDlV4
                 weight_odd[y * stride + (x + 1) / WeiScalarPerVector]
                           [(x + 1) % WeiScalarPerVector] = *p_wei;
             });
+        });
+        #endif
+
+         static_for<0, Filter_Y, 1>{}([&](auto y) {
+            auto p_wei = arg.p_wei_grid_ + Wei_G_Stride * g;
+            constexpr auto stride = math::integer_divide_ceil(Filter_X, WeiScalarPerVector);
+            static_assert(WeiScalarPerVector == 2, "WeiScalarPerVector must be 2");
+            if constexpr(Filter_Y == 5)
+            {
+                weight[y * stride][0]    = p_wei[(Filter_Y - y) * Y_Stride -1];
+                weight[y* stride][1]     = p_wei[(Filter_Y - y) * Y_Stride -2];
+                weight[y* stride + 1][0] = p_wei[(Filter_Y - y) * Y_Stride -3];
+                weight[y* stride + 1][1] = p_wei[(Filter_Y - y) * Y_Stride -4];
+                weight[y* stride + 2][0] = p_wei[(Filter_Y - y) * Y_Stride -5];
+                weight[y* stride + 2][1] = 0;
+
+                weight_odd[y * stride][0]    = 0;
+                weight_odd[y* stride][1]     = p_wei[(Filter_Y - y) * Y_Stride -1];
+                weight_odd[y* stride + 1][0] = p_wei[(Filter_Y - y) * Y_Stride -2];
+                weight_odd[y* stride + 1][1] = p_wei[(Filter_Y - y) * Y_Stride -3];
+                weight_odd[y* stride + 2][0] = p_wei[(Filter_Y - y) * Y_Stride -4];
+                weight_odd[y* stride + 2][1] = p_wei[(Filter_Y - y) * Y_Stride -5];
+            }
+            else if constexpr(Filter_Y == 3)
+            {
+                weight[y * stride][0]    = p_wei[(Filter_Y - y) * Y_Stride -1];
+                weight[y* stride][1]     = p_wei[(Filter_Y - y) * Y_Stride -2];
+                weight[y* stride + 1][0] = p_wei[(Filter_Y - y) * Y_Stride -3];
+                weight[y* stride + 1][1] = 0;
+
+                weight_odd[y * stride][0]    = 0;
+                weight_odd[y* stride][1]     = p_wei[(Filter_Y - y) * Y_Stride -1];
+                weight_odd[y* stride + 1][0] = p_wei[(Filter_Y - y) * Y_Stride -2];
+                weight_odd[y* stride + 1][1] = p_wei[(Filter_Y - y) * Y_Stride -3];
+            }
+            else{
+                static_assert(!"unsupportted filter");
+            }
         });
         // to do: check result in SGPR
     }
@@ -659,6 +698,8 @@ struct GridwiseGroupedConv2DBwdDataDlV4
                                   InScalarPerVector>(in_x, in_y_offset, tmp_in, share_in);
                 p_in += in_n_stride * TilePerWave;
             }
+            block_sync_lds();
+
             if(y < HRepeate)
             {
                 run_conv_bwd(p_share_subtile_in, p_share_subtile_out, weight, weight_odd, reinterpret_cast<OutShareVector*>(p_out), ho_stride, wo_stride, h_max, w_max);
@@ -991,10 +1032,10 @@ struct DeviceGroupedConvBwdDlV4 : public DeviceGroupedConvBwdDataMultipleD<NDimS
     }
 
     static auto MakeArgument(
-        const void* p_in_grid,
+        void* p_in_grid,
         const void* p_wei_grid,
         const std::array<const void*, NumDTensor>& p_ds,
-        void* p_out_grid,
+        const void* p_out_grid,
         const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_lengths, // input
         const std::array<index_t, NDimSpatial + 3>& in_g_n_c_wis_strides,
         const std::array<index_t, NDimSpatial + 3>& wei_g_k_c_xs_lengths, // weight
@@ -1011,10 +1052,10 @@ struct DeviceGroupedConvBwdDlV4 : public DeviceGroupedConvBwdDataMultipleD<NDimS
         WeiElementwiseOperation wei_element_op,
         OutElementwiseOperation out_element_op)
     {
-        return Argument{static_cast<const InDataType*>(p_in_grid),
+        return Argument{static_cast<const InDataType*>(p_out_grid),
                         static_cast<const WeiDataType*>(p_wei_grid),
                         p_ds,
-                        static_cast<OutDataType*>(p_out_grid),
+                        static_cast<OutDataType*>(p_in_grid),
                         in_g_n_c_wis_lengths, // input
                         in_g_n_c_wis_strides,
                         wei_g_k_c_xs_lengths, // weight

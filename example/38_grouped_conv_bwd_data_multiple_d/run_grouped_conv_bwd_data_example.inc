@@ -33,41 +33,39 @@ bool run_grouped_conv_bwd(const ExecutionConfig& config,
     //const auto wei_g_k_c_xs_desc  = make_weight_descriptor(conv_param);
     //const auto out_g_n_k_wos_desc = make_output_descriptor(conv_param);
 
-    Tensor<InUserDataType> in(in_g_n_c_wis_desc);
+    Tensor<InUserDataType> out(out_g_n_k_wos_desc);
     Tensor<WeiUserDataType> wei(wei_g_k_c_xs_desc);
-    Tensor<OutUserDataType> out_host(out_g_n_k_wos_desc);
-    Tensor<OutKernelDataType> out_device(out_g_n_k_wos_desc);
+    Tensor<OutUserDataType> in_host(in_g_n_c_wis_desc);
+    Tensor<OutUserDataType> in_device(in_g_n_c_wis_desc);
 
-    std::cout << "in: " << in.mDesc << std::endl;
+    std::cout << "in: " << in_device.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
-    std::cout << "out: " << out_host.mDesc << std::endl;
+    std::cout << "out: " << out.mDesc << std::endl;
 
     switch(config.init_method)
     {
     case 0: break;
     case 1:
-        in.GenerateTensorValue(GeneratorTensor_2<InUserDataType>{-5, 5});
+        out.GenerateTensorValue(GeneratorTensor_2<InUserDataType>{-5, 5});
         wei.GenerateTensorValue(GeneratorTensor_2<WeiUserDataType>{-5, 5});
         break;
+    #if 0
+    case 2:
+        out.GenerateTensorValue(GeneratorTensor_2<InUserDataType>{1, 2});
+        wei.GenerateTensorValue(GeneratorTensor_2<WeiUserDataType>{4, 10});
+        break;
+    #endif
     default:
-        in.GenerateTensorValue(GeneratorTensor_3<InUserDataType>{0.0, 1.0});
+        out.GenerateTensorValue(GeneratorTensor_3<InUserDataType>{0.0, 1.0});
         wei.GenerateTensorValue(GeneratorTensor_3<WeiUserDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InKernelDataType) * in.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiKernelDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutKernelDataType) * out_device.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(InKernelDataType) * out.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(WeiUserDataType) * wei.mDesc.GetElementSpaceSize());
+    DeviceMem in_device_buf(sizeof(OutKernelDataType) * in_device.mDesc.GetElementSpaceSize());
 
-#ifdef BUILD_INT4_EXAMPLE
-    const Tensor<InKernelDataType> in_converted(in);
-    const Tensor<WeiKernelDataType> wei_converted(wei);
-
-    in_device_buf.ToDevice(in_converted.mData.data());
-    wei_device_buf.ToDevice(wei_converted.mData.data());
-#else
-    in_device_buf.ToDevice(in.mData.data());
+    out_device_buf.ToDevice(out.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
-#endif
 
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
@@ -96,11 +94,18 @@ bool run_grouped_conv_bwd(const ExecutionConfig& config,
     
     if(config.do_verification)
     {
-        auto ref_conv     = HostConvBwdInstance<NDimSpatial>{};
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
+                                                                         InUserDataType,
+                                                                         WeiUserDataType,
+                                                                         OutUserDataType,
+                                                                         PassThrough,
+                                                                         WeiElementOp,
+                                                                         OutElementOp>();
+
         auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(in,
+        auto ref_argument = ref_conv.MakeArgument(in_host,
                                                   wei,
-                                                  out_host,
+                                                  out,
                                                   conv_param.conv_filter_strides_,
                                                   conv_param.conv_filter_dilations_,
                                                   conv_param.input_left_pads_,
@@ -171,9 +176,9 @@ bool run_grouped_conv_bwd(const ExecutionConfig& config,
             }
             if(config.do_verification)
             {
-                out_device_buf.FromDevice(out_device.mData.data());
+                in_device_buf.FromDevice(in_device.mData.data());
                 ck::utils::check_err(
-                    out_device.mData, out_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
+                    in_device.mData, in_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
             }
         }
     });
@@ -234,8 +239,7 @@ bool run_grouped_conv_bwd(const ExecutionConfig& config,
     
     if(config.do_verification)
     {
-        out_device_buf.FromDevice(out_device.mData.data());
-
+       in_device_buf.FromDevice(in_device.mData.data());
 #ifdef BUILD_INT4_EXAMPLE
         const Tensor<OutUserDataType> out_device_converted(out_device);
 
@@ -243,7 +247,7 @@ bool run_grouped_conv_bwd(const ExecutionConfig& config,
             out_device_converted.mData, out_host.mData, "Error: incorrect results!", 1e-5f, 1e-4f);
 #else
         return ck::utils::check_err(
-            out_device.mData, out_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
+            in_device.mData, in_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
 #endif
     }
 #endif
