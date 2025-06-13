@@ -57,6 +57,7 @@ int profile_gemm(int argc, char* argv[])
     }
 
     const auto data_type       = static_cast<GemmDataType>(std::stoi(argv[2]));
+    std::cout << "Data Type: " << static_cast<int>(data_type) << std::endl;
     const auto layout          = static_cast<GemmMatrixLayout>(std::stoi(argv[3]));
     const bool do_verification = std::stoi(argv[4]);
     const int init_method      = std::stoi(argv[5]);

@@ -6,15 +6,18 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <unordered_map>
 #include <iomanip>
 #include <chrono>
 #include <sstream>
 #include <cctype>
 #include <cstdio>
 #include <typeinfo>
+
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/amd_ck_fp8.hpp"
+
+#include "data_type_enum.hpp"
 #include "profiler/argparse_wrapper.hpp"
-#include "profiler/data_type_enum.hpp"
 
 namespace ck {
 namespace profiler {
@@ -345,20 +348,44 @@ DataTypeEnum GetDataTypeEnum()
     {
         return DataTypeEnum::Int32;
     }
-    else
-    {
-        // Use typeid to try to identify CK-specific types
+
+    // Add explicit checks for CK-specific types
+    else if constexpr(std::is_same_v<DataType, ck::half_t>) {
+        return DataTypeEnum::Half;
+    } else if constexpr(std::is_same_v<DataType, ck::bhalf_t>) {
+        return DataTypeEnum::BFloat16;
+    } else if constexpr(std::is_same_v<DataType, ck::f8_t>) {
+        return DataTypeEnum::Float8;
+    }
+    // Handle potential alternative type names that might be used
+    else if constexpr(std::is_same_v<DataType, __half>) {
+        return DataTypeEnum::Half;
+    }
+    // Fallback for any 1-byte floating point types that aren't int8_t
+    else if constexpr(sizeof(DataType) == 1 && std::is_floating_point_v<DataType>) {
+        return DataTypeEnum::Float8;
+    }
+    // Fallback for 2-byte types that might be half precision
+    else if constexpr(sizeof(DataType) == 2 && std::is_floating_point_v<DataType>) {
+        // Try to distinguish between fp16 and bf16 using typeid as last resort
         std::string type_name = typeid(DataType).name();
-        if(type_name.find("half") != std::string::npos)
-        {
+        if (type_name.find("bhalf") != std::string::npos || type_name.find("bf16") != std::string::npos) {
+            return DataTypeEnum::BFloat16;
+        } else {
+            return DataTypeEnum::Half;
+        }
+    }
+    // Additional fallback using typeid for types we might have missed
+    else {
+        std::string type_name = typeid(DataType).name();
+        if (type_name.find("half") != std::string::npos && type_name.find("bhalf") == std::string::npos) {
             return DataTypeEnum::Half;
         }
         else if(type_name.find("bhalf") != std::string::npos)
         {
             return DataTypeEnum::BFloat16;
-        }
-        else if(sizeof(DataType) == 1 && !std::is_same_v<DataType, int8_t>)
-        {
+
+        } else if (type_name.find("f8") != std::string::npos || type_name.find("fp8") != std::string::npos) {
             return DataTypeEnum::Float8;
         }
         return DataTypeEnum::Unknown;
