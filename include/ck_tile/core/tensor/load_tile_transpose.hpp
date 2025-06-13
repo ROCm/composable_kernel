@@ -152,6 +152,8 @@ struct TransposeTileDistrChecker
     static constexpr bool distr_encoding_valid = Validator::value;
 };
 
+// this is used to generate the transposed output tile distribution encoding
+// based on the input tile distribution encoding
 template <typename TileDistribution_,
           typename DataType_,
           typename Policy = DefaultTranspose<DataType_>>
@@ -174,6 +176,9 @@ struct OutputTileDistributionTraits
     static constexpr index_t dim1 = Policy::transpose_dims[1];
 
     // for transpose load
+    // append the reversed quad output hs lengths to the input hs lengthss after removing
+    // the quad_input_hs_lengthss
+    // then reverse the whole sequence to get the dst_out_hs_lengthss
     static constexpr auto reversed_quad_output_hs_lengthss = tuple_reverse(quad_output_hs_lengthss);
 
     static constexpr auto full_out_hs_lengthss = generate_tuple(
@@ -189,6 +194,8 @@ struct OutputTileDistributionTraits
 
     static constexpr auto dst_out_hs_lengthss = tuple_reverse(full_out_hs_lengthss);
 
+    // for PS→RHS mapping(both major and minor), we need to modify the last element of the major
+    // sequence
     static constexpr auto modified_ps_to_rhss_major = generate_tuple(
         [](auto i) {
             if constexpr(i == input_ps_to_rhss_major.size() - 1)
@@ -263,6 +270,31 @@ struct OutputTileDistributionTraits
                                                      remove_cvref_t<decltype(dst_ys_to_rhs_minor)>>;
 };
 
+/**
+ * @brief transpose loads tile from a tensor and returns the resulting tensor with a new
+ * (transposed) tile distribution. use SFINAE to ensure the tile distribution encoding is valid.
+ *
+ * This function is intended for use with statically distributed tensor tiles, where the input
+ * and output tile distributions differ due to the transpose operation. It ensures that the
+ * element space size and vector length remain consistent between the input and output
+ * distributions.
+ *
+ * @tparam BottomTensorView_      The type of the bottom tensor view.
+ * @tparam WindowLengths_         The type representing the window lengths.
+ * @tparam TileDistribution_      The type representing the tile distribution.
+ * @tparam NumCoord               The number of coordinates (dimensions).
+ * @tparam Policy                 The transpose policy to use (defaults to DefaultTranspose).
+ * @tparam (Unnamed)              SFINAE to ensure the tile distribution encoding is valid.
+ *
+ * @param tile_window             The tile window with static distribution to load and transpose.
+ *
+ * @return A statically distributed tensor containing the transposed tile data.
+ *
+ * @note
+ * - The function uses compile-time checks to ensure the input and output tile distributions
+ *   are compatible in terms of element space size and vector length.
+ * - The transpose operation is performed according to the specified Policy.
+ */
 template <
     typename BottomTensorView_,
     typename WindowLengths_,
