@@ -17,9 +17,6 @@ using S = ck::Sequence<Is...>;
 
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-// e = elementwise((a * b), d0, d1)
-// outout: e[m, n]
-// input: a[m, k], b[k, n], d0[m, n], d1[m, n]
 using device_gemm_add_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_generic_instances = std::tuple<
     // clang-format off
         // M/N/K padding
