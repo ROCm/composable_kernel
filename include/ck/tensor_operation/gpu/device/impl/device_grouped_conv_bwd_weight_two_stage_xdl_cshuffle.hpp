@@ -391,53 +391,53 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
     using CElementwiseGridDesc_M_N =
         remove_cvref_t<decltype(GetElementwiseCGridDesc<NDimSpatial>())>;
 
-    using GridwiseGemm =
-        GridwiseGemm_xdl_cshuffle_v3<tensor_layout::gemm::RowMajor,
-                                     tensor_layout::gemm::ColumnMajor,
-                                     tensor_layout::gemm::RowMajor,
-                                     ADataType,
-                                     BDataType,
-                                     AccDataType,
-                                     AccDataType,
-                                     AccDataType,
-                                     AElementwiseOperation,
-                                     BElementwiseOperation,
-                                     CDEElementwiseOperation,
-                                     GemmSpec,
-                                     BlockSize,
-                                     MPerBlock,
-                                     NPerBlock,
-                                     KPerBlock,
-                                     K1,
-                                     K1,
-                                     MPerXdl,
-                                     NPerXdl,
-                                     MXdlPerWave,
-                                     NXdlPerWave,
-                                     ABlockTransferThreadClusterLengths_K0_M_K1,
-                                     ABlockTransferThreadClusterArrangeOrder,
-                                     ABlockTransferSrcAccessOrder,
-                                     ABlockTransferSrcVectorDim,
-                                     ABlockTransferSrcScalarPerVector,
-                                     ABlockTransferDstScalarPerVector_K1,
-                                     false,
-                                     ABlockLdsAddExtraM,
-                                     BBlockTransferThreadClusterLengths_K0_N_K1,
-                                     BBlockTransferThreadClusterArrangeOrder,
-                                     BBlockTransferSrcAccessOrder,
-                                     BBlockTransferSrcVectorDim,
-                                     BBlockTransferSrcScalarPerVector,
-                                     BBlockTransferDstScalarPerVector_K1,
-                                     false,
-                                     BBlockLdsAddExtraN,
-                                     CShuffleMXdlPerWavePerShuffle,
-                                     CShuffleNXdlPerWavePerShuffle,
-                                     CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                                     CBlockTransferScalarPerVector_NWaveNPerXdl,
-                                     BlkGemmPipeSched,
-                                     BlkGemmPipelineVer,
-                                     ComputeTypeA,
-                                     ComputeTypeB>;
+    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_conv_v3<
+        tensor_layout::gemm::RowMajor,
+        tensor_layout::gemm::ColumnMajor,
+        tensor_layout::gemm::RowMajor,
+        ADataType,
+        BDataType,
+        AccDataType,
+        AccDataType,
+        AccDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CDEElementwiseOperation,
+        GemmSpec,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        K1,
+        K1,
+        MPerXdl,
+        NPerXdl,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_K0_M_K1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_K1,
+        false,
+        ABlockLdsAddExtraM,
+        BBlockTransferThreadClusterLengths_K0_N_K1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_K1,
+        false,
+        BBlockLdsAddExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CBlockTransferScalarPerVector_NWaveNPerXdl,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ComputeTypeA,
+        ComputeTypeB>;
 
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 
@@ -550,6 +550,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
               input_right_pads_{input_right_pads},
               k_batch_{split_k}
         {
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(AccDataType);
+
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
@@ -747,6 +752,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         const index_t k_batch_;
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -810,10 +816,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 arg.a_grid_desc_k0_m_k1_.GetLength(Number<0>{}) / gemm_arg.KBatch;
 
             const auto clear_workspace = [&]() {
-                hip_check_error(hipMemsetAsync(gemm_arg.p_c_grid,
-                                               0,
-                                               arg.GetWorkspaceETensorSizeBytes(),
-                                               stream_config.stream_id_));
+                if(arg.k_batch_ > 1)
+                {
+                    hip_check_error(hipMemsetAsync(
+                        gemm_arg.p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
+                }
             };
 
             const auto Run = [&](const auto& kernel) {

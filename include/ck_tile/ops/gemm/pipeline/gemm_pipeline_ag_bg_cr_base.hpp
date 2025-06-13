@@ -71,7 +71,8 @@ struct GemmPipelineAgBgCrImplBase
     template <typename ADramBlockWindowTmp, typename ALdsTensorView, typename ALdsLoadTileDistr>
     CK_TILE_DEVICE constexpr auto GetAWindows(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                               const ALdsTensorView& a_lds_block_view,
-                                              const ALdsLoadTileDistr&) const
+                                              const ALdsLoadTileDistr&,
+                                              const array<index_t, 2>& offset = {0, 0}) const
     {
         constexpr bool is_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
 
@@ -82,7 +83,7 @@ struct GemmPipelineAgBgCrImplBase
         auto a_copy_dram_window =
             make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(YPerTile{}, XPerTile{}),
-                             a_dram_block_window_tmp.get_window_origin(),
+                             a_dram_block_window_tmp.get_window_origin() + offset,
                              Policy::template MakeADramTileDistribution<Problem>());
 
         // A LDS tile window for store
@@ -103,7 +104,8 @@ struct GemmPipelineAgBgCrImplBase
     template <typename BDramBlockWindowTmp, typename BLdsTensorView, typename BLdsLoadTileDistr>
     CK_TILE_DEVICE constexpr auto GetBWindows(const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                               const BLdsTensorView& b_lds_block_view,
-                                              const BLdsLoadTileDistr&) const
+                                              const BLdsLoadTileDistr&,
+                                              const array<index_t, 2>& offset = {0, 0}) const
     {
         constexpr bool is_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
@@ -113,7 +115,7 @@ struct GemmPipelineAgBgCrImplBase
         auto b_copy_dram_window =
             make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(YPerTile{}, XPerTile{}),
-                             b_dram_block_window_tmp.get_window_origin(),
+                             b_dram_block_window_tmp.get_window_origin() + offset,
                              Policy::template MakeBDramTileDistribution<Problem>());
 
         // TODO: Do we really need those two tile windows???
