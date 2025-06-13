@@ -16,7 +16,7 @@
 struct ElementWiseAddAdd
 {
     template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
     {
         const float x0_f = ck_tile::type_convert<float>(c) + ck_tile::type_convert<float>(d0) +
                            ck_tile::type_convert<float>(d1);
@@ -28,7 +28,7 @@ struct ElementWiseAddAdd
 struct MultiplyMultiply
 {
     template <typename E, typename C, typename D0, typename D1>
-    __host__ __device__ auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
     {
         const float x0_f = ck_tile::type_convert<float>(c) * ck_tile::type_convert<float>(d0) *
                            ck_tile::type_convert<float>(d1);
