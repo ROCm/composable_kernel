@@ -86,16 +86,17 @@ test_mx_fp4_scaled_convert(uint64_t N, float* p_test, uint64_t* p_completed)
     auto scale2 = e8m0_bexp_t(2.0f);
 
     float2_t f32x2 = scaled_type_convert<float2_t>(scale2, f4x2);
-    p_test[i++]    = f32x2[0];
+    p_test[i++]    = f32x2[0]; // 2* 0b1100(=-2.0) = -4.0
     if(i >= N)
     {
         return;
     }
-    p_test[i++] = f32x2[1];
+    p_test[i++] = f32x2[1];   // 2* 0b0001(=0.5) = 1.0
     if(i >= N)
     {
         return;
     }
+    // expected {-4, 1.0}
 
     // f32x2 -> f4x2
     f32x2 = {1.0f, -4.0f};
@@ -212,8 +213,8 @@ TEST(MXFP4, HostScaledConvert)
     auto i = 256 * 16;
 
     // f4x2 -> f32x2
-    EXPECT_EQ(out[i++], 1.0f);
     EXPECT_EQ(out[i++], -4.0f);
+    EXPECT_EQ(out[i++], 1.0f);
 
     // f32x2 -> f4x2
     // RNE
@@ -297,8 +298,8 @@ TEST(MXFP4, DeviceScaledConvert)
     auto i = 256 * 16;
 
     // f4x2 -> f32x2
-    EXPECT_EQ(out[i++], 1.0f);
     EXPECT_EQ(out[i++], -4.0f);
+    EXPECT_EQ(out[i++], 1.0f);
 
     // f32x2 -> f4x2
     // RNE

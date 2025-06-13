@@ -1388,8 +1388,10 @@ inline __host__ __device__ f4x2_t f4_convert_rne(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
+    // If we keep origin order, error occured:
+    value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x[0], x[1], scale, 0);
     // permute high bits and low bits to match the order of the original vector
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x[1], x[0], scale, 0);
+    // value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x[1], x[0], scale, 0);
     return value.f4x2_array[0];
 #else
     union
@@ -1397,8 +1399,8 @@ inline __host__ __device__ f4x2_t f4_convert_rne(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    uint8_t l     = utils::sat_convert_to_type<f4_t>(x[1] / scale);
-    uint8_t h     = utils::sat_convert_to_type<f4_t>(x[0] / scale);
+    uint8_t l     = utils::sat_convert_to_type<f4_t>(x[0] / scale);
+    uint8_t h     = utils::sat_convert_to_type<f4_t>(x[1] / scale);
     value.bitwise = (h << 4) | l;
     return value.f4x2_array[0];
 #endif
@@ -1418,7 +1420,7 @@ inline __host__ __device__ f4x32_t f4_convert_rne(float32_t x, float scale = 1.0
     ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
         // permute high bits and low bits to match the order of the original vector
         tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(
-            tmp_values.bitwise, x[2 * idx + 1], x[2 * idx], scale, 0);
+            tmp_values.bitwise, x[2 * idx], x[2 * idx + 1], scale, 0);
         f4_values.f4x2_array[idx] = tmp_values.f4x2_array[0];
     });
 
@@ -1489,13 +1491,13 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
     } value{0};
 // apply a temporary workaround for gfx950
 #if CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION
-    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
-    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
     value.bitwise = (h << 4) | l;
 #else
     // permute high bits and low bits to match the order of the original vector
     value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        value.bitwise, float2_t{x[1], x[0]}, rng, scale, 0);
+        value.bitwise, float2_t{x[0], x[1]}, rng, scale, 0);
 #endif // CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION
     return value.f4x2_array[0];
 #else
@@ -1504,8 +1506,8 @@ inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
-    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
+    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
     value.bitwise = (h << 4) | l;
     return value.f4x2_array[0];
 #endif
@@ -1538,7 +1540,7 @@ inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f
         // permute high bits and low bits to match the order of the original vector
         f4_values.f4x2_array[idx] = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
             f4_values.bitwise,
-            float2_t{float_values.floatx2_array[idx][1], float_values.floatx2_array[idx][0]},
+            float2_t{float_values.floatx2_array[idx][0], float_values.floatx2_array[idx][1]},
             rng,
             scale,
             0);

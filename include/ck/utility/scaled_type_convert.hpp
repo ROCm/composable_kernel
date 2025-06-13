@@ -380,7 +380,7 @@ inline __host__ __device__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_b
     float2_t tmp =
         __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, type_convert<float>(scale), 0);
     // permute high bits and low bits to match the order of the original vector
-    return float2_t{tmp[1], tmp[0]};
+    return float2_t{tmp[0], tmp[1]};
 #else
     float2_t ret{utils::to_float<f4_t>(
                      scale, x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{})),
@@ -408,8 +408,8 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m
     ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
         op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[idx], f_scale, 0);
         // permute high bits and low bits to match the order of the original vector
-        ret[2 * idx]     = op[1];
-        ret[2 * idx + 1] = op[0];
+        ret[2 * idx]     = op[0];
+        ret[2 * idx + 1] = op[1];
     });
 
     return ret;

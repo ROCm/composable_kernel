@@ -51,14 +51,14 @@ struct f4x2_pk_t
     {
         static_assert(I < 2, "Index is out of range.");
         if constexpr(I == 0)
-            return (data >> 4);
-        else
             return data & 0b00001111;
+        else
+            return (data >> 4);
     }
 
     __host__ __device__ inline type pack(const type x0, const type x1)
     {
-        return (x0 << 4) | (x1 & 0b00001111);
+        return (x1 << 4) | (x0 & 0b00001111);
     }
 };
 
