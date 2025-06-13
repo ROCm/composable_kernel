@@ -28,7 +28,8 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
 
 TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
 {
-    std::vector<int> Ms{127, 255, 312, 799, 1573};
+    //std::vector<int> Ms{127, 255, 312, 799, 1573};
+    std::vector<int> Ms{127, 255, 313, 799, 1573};
     constexpr int N           = 1024;
     constexpr int K           = 320;
     constexpr int VecLoadSize = (std::is_same_v<typename TestFixture::ADataType, ck_tile::fp8_t> ||
@@ -41,9 +42,8 @@ TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
         if constexpr(std::is_same_v<typename TestFixture::ALayout,
                                     ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
-            // TODO: Can we anyhow deduce used vector load size?
             if(M % VecLoadSize == 0)
-            {
+            {   
                 this->Run(M, N, K);
             }
             else
