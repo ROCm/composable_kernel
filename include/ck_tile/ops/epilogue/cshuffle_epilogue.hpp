@@ -54,11 +54,20 @@ struct CShuffleEpilogue
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+    
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
+    static constexpr bool IsCRowMajor =
+        std::is_same_v<CLayout, tensor_layout::gemm::RowMajor> ? true : false;
+    static constexpr bool IsCColMajor =
+        std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor> ? true : false;
+
+    static_assert(std::disjunction_v<bool_constant<IsCRowMajor>, bool_constant<IsCColMajor>>,
+                  "Unsupported CLayout!");
+
     static constexpr memory_operation_enum MemoryOperation = Problem::MemoryOperation;
     static constexpr index_t BlockSize                     = Problem::kBlockSize;
     static constexpr index_t MPerBlock                     = Problem::kMPerBlock;
-    static constexpr ind NPerBlock                     = Problem::kNPerBlock;
+    static constexpr index_t NPerBlock                     = Problem::kNPerBlock;
     static constexpr index_t MWave                         = Problem::MWave;
     static constexpr index_t NWave                         = Problem::NWave;
     static constexpr index_t MPerXdl                       = Problem::MPerXdl;
@@ -81,19 +90,15 @@ struct CShuffleEpilogue
     CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeC()
     {
         constexpr index_t max_vector_size = 16;
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(IsCRowMajor)
         {
             return std::min(static_cast<int>(NPerIteration),
                             static_cast<int>(max_vector_size / sizeof(ODataType)));
         }
-        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
+        else
         {
             return std::min(static_cast<int>(MPerIteration),
                             static_cast<int>(max_vector_size / sizeof(ODataType)));
-        }
-        else
-        {
-            static_assert(false, "Unsupported CLayout!");
         }
     }
 
@@ -114,7 +119,7 @@ struct CShuffleEpilogue
         else
         {
             constexpr index_t num_xdl_shuffles = GetVectorSizeC() / elem_per_thread;
-            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(IsCRowMajor)
             {
                 static_assert((MPerBlock % (MPerXdl * MWave) == 0) &&
                                   (MPerBlock % num_xdl_shuffles == 0),
@@ -145,6 +150,24 @@ struct CShuffleEpilogue
     }();
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
+    
+    // Below we assume {Y, X} tile dimensions, where X is always the contigyous one.
+    static constexpr index_t NumYXdlPerWavePerShuffle =
+        IsCRowMajor ? NumMXdlPerWavePerShuffle : NumNXdlPerWavePerShuffle;
+        static constexpr index_t NumXXdlPerWavePerShuffle =
+        IsCRowMajor ? NumNXdlPerWavePerShuffle : NumMXdlPerWavePerShuffle;
+        
+    static constexpr index_t YPerIterationShuffle =
+        IsCRowMajor ? MPerIterationShuffle : NPerIterationShuffle;
+        static constexpr index_t XPerIterationShuffle =
+        IsCRowMajor ? NPerIterationShuffle : MPerIterationShuffle;
+        
+    static constexpr index_t YPerBlock = IsCRowMajor ? MPerBlock : NPerBlock;
+    static constexpr index_t XPerBlock = IsCRowMajor ? NPerBlock : MPerBlock;
+
+    static constexpr index_t YWave = IsCRowMajor ? MWave : NWave;
+    static constexpr index_t XWave = IsCRowMajor ? NWave : MWave;
+
     using WG = WarpGemmMfmaDispatcher<ADataType,
                                       BTypeToUse,
                                       AccDataType,
@@ -159,32 +182,17 @@ struct CShuffleEpilogue
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
-        // N is contiguous dimension
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-        {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                make_tuple(number<NPerIterationShuffle>{}, number<1>{}));
-        }
-        // M is contiguous dimension
-        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
-        {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                make_tuple(number<1>{}, number<MPerIterationShuffle>{}));
-        }
-        else
-        {
-            static_assert(false, "Unsupported CLayout!");
-        }
+        return make_naive_tensor_descriptor(
+            make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
+            make_tuple(number<XPerIterationShuffle>{}, number<1>{}));
     }
 
     CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
     {
         constexpr auto block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                             sequence<NumNXdlPerWavePerShuffle, NWave>>,
+                                       tuple<sequence<NumYXdlPerWavePerShuffle, YWave>,
+                                             sequence<NumXXdlPerWavePerShuffle, XWave>>,
                                        tuple<sequence<1, 2>>,
                                        tuple<sequence<1, 1>>,
                                        sequence<1, 2>,
@@ -210,36 +218,30 @@ struct CShuffleEpilogue
 
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
         auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
-            static_cast<ODataType*>(p_smem), lds_block_desc);
+                                            static_cast<ODataType*>(p_smem), lds_block_desc);
 
         auto in_lds_window = make_tile_window(
             o_lds_block,
-            make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
+            make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
             {0, 0},
             LdsTileDistr);
 
         auto out_lds_window = make_tile_window(
             o_lds_block,
-            make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
+            make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
             {0, 0});
 
-        using SFC                    = space_filling_curve<sequence<MPerBlock, NPerBlock>,
+        using SFC = space_filling_curve<sequence<YPerBlock, XPerBlock>,
                                         sequence<0, 1>,
-                                        sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+                                        sequence<YPerIterationShuffle, XPerIterationShuffle>>;
         constexpr index_t num_access = SFC::get_num_of_access();
 
-        using TileEncodingPattern = std::conditional_t<
-            std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>,
-                TileDistributionEncodingPattern2D<BlockSize,
-                                                MPerIterationShuffle,
-                                                NPerIterationShuffle,
-                                                GetVectorSizeC(),
-                                                tile_distribution_pattern::thread_raked>,
-                TileDistributionEncodingPattern2D<BlockSize,
-                                                NPerIterationShuffle,
-                                                MPerIterationShuffle,
-                                                GetVectorSizeC(),
-                                                tile_distribution_pattern::thread_raked>>;
+        using TileEncodingPattern = 
+            TileDistributionEncodingPattern2D<BlockSize,
+                                              YPerIterationShuffle,
+                                              XPerIterationShuffle,
+                                              GetVectorSizeC(),
+                                              tile_distribution_pattern::thread_raked>;
         constexpr auto dram_tile_distribution = TileEncodingPattern::Make2DStaticTileDistribution();
 
         constexpr auto c_warp_y_lengths =
@@ -250,46 +252,17 @@ struct CShuffleEpilogue
             block_sync_lds();
             constexpr auto idx_y_start = SFC::get_index(iAccess);
 
-            constexpr auto mIter = [&]() {
-                if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-                {
-                    return number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-                }
-                else
-                {
-                    return number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
-                }
-            }();
-            constexpr auto nIter = [&]() {
-                if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-                {
-                    return number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
-                }
-                else
-                {
-                    return number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-                }
-            }();
+            constexpr auto yIter = number<idx_y_start.at(number<0>{}) / YPerIterationShuffle>{};
+            constexpr auto xIter = number<idx_y_start.at(number<1>{}) / XPerIterationShuffle>{};
 
             lds_tile.get_thread_buffer() = [&]() {
-                if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-                {
-                    return o_acc_tile.get_y_sliced_thread_data(
-                        merge_sequences(
-                    sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
-                    c_warp_y_index_zeros),
-                        merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
-                                c_warp_y_lengths));
-                }
-                else
-                {
-                    return o_acc_tile.get_y_sliced_thread_data(
-                        merge_sequences(
-                            sequence<nIter * NumNXdlPerWavePerShuffle, mIter * NumMXdlPerWavePerShuffle>{},
-                            c_warp_y_index_zeros),
-                        merge_sequences(sequence<NumNXdlPerWavePerShuffle, NumMXdlPerWavePerShuffle>{},
-                                        c_warp_y_lengths));
-                }
+                // TODO: here I might want to think of IsCTransposed ? 
+                return o_acc_tile.get_y_sliced_thread_data(
+                    merge_sequences(
+                        sequence<yIter * NumYXdlPerWavePerShuffle, xIter * NumXXdlPerWavePerShuffle>{},
+                        c_warp_y_index_zeros),
+                    merge_sequences(sequence<NumYXdlPerWavePerShuffle, NumXXdlPerWavePerShuffle>{},
+                                    c_warp_y_lengths));
             }();
 
             const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
@@ -311,14 +284,7 @@ struct CShuffleEpilogue
             if constexpr(iAccess != num_access - 1)
             {
                 constexpr auto step = SFC::get_forward_step(iAccess);
-                if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-                {
                     move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
-                }
-                else
-                {
-                    move_tile_window(out_dram_window, {step.at(number<1>{}), step.at(number<0>{})});
-                };
             }
         });
     }
