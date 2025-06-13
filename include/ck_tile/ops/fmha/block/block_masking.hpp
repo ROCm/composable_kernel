@@ -243,6 +243,20 @@ namespace impl {
 // this version only have 2 variation: masking and non-masking
 // This is more friendly to codegen (e.g. need generate less kernel)
 // ... with the trade-off that may have more instruction in causal mode
+
+// clang-format off
+/*  y_ratio is used to describe the step length of y-direction changes
+    in certain performance optimization scenarios like merging seqlen 
+    and qk_head_ratio, for example:
+x=1/y=6/y_ratio=2(top-left)
+1 * * * * * * * 
+1 * * * * * * *
+1 1 * * * * * * 
+1 1 * * * * * *
+1 1 1 * * * * *
+1 1 1 * * * * *
+*/
+// clang-format off
 template <bool IsMasking_ = true>
 struct SimplifiedGenericAttentionMask
 {
@@ -254,7 +268,6 @@ struct SimplifiedGenericAttentionMask
         : SimplifiedGenericAttentionMask(0, 0, y_total_, x_total_)
     {
     }
-
     // TODO: Y or i_y cannot be negative if y_ratio is not equal to 1,
     // because integer_divide_floor do not support negative numbers.
     CK_TILE_HOST_DEVICE
