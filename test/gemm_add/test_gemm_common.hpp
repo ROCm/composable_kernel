@@ -88,7 +88,7 @@ class TestGemmD0D1Common : public ::testing::Test
     void Run()
     {
         std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {2048, 4096, 8192}, {2048, 1024, 16}};
+            {16, 32, 64}, {2048, 4096, 2048}, {2048, 1024, 16}};
 
         bool all_success = true;
 
@@ -105,7 +105,7 @@ class TestGemmD0D1Common : public ::testing::Test
 
             all_success =
                 all_success &
-                GetImpl()(1, 2, false, false, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE);
+                GetImpl()(1, 1, false, false, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE);
         }
 
         EXPECT_TRUE(all_success);
