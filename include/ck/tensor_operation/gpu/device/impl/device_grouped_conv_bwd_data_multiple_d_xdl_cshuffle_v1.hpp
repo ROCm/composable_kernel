@@ -1366,9 +1366,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         {
             float ave_time = 0;
 
-            // const index_t gdy = arg.num_group_;
-            // const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
-
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
             EDataType* p_e_grid       = arg.p_e_grid_;
@@ -1648,6 +1645,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 }
                 else
                 {
+
+                    const index_t gdy = arg.num_group_;
+                    const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
                     const index_t gdx = arg.block_2_etile_map_container_[i].CalculateGridSize(
                         arg.e_grid_desc_m_n_container_[i]);
 
