@@ -337,14 +337,14 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
         args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
         args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-        args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
+        args.e_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
         args.k_batch  = kbatch;
         args.M        = M;
         args.N        = N;
         args.K        = K;
         args.stride_A = stride_A;
         args.stride_B = stride_B;
-        args.stride_C = stride_C;
+        args.stride_E = stride_C;
 
         invoke_gemm<PadM, PadN, PadK>(args, ck_tile::stream_config{nullptr, false});
 

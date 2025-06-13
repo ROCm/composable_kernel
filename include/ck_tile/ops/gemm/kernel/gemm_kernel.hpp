@@ -963,7 +963,7 @@ struct GemmKernel
                 static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
             const BDataType* b_ptr =
                 static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
-            EDataType* c_ptr = static_cast<EDataType*>(kargs.c_ptr);
+            EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
 
             // allocate LDS
             __shared__ char smem_ptr_0[GetSmemSize()];
@@ -979,7 +979,7 @@ struct GemmKernel
                     RunGemm2LDS(a_ptr,
                                 b_ptr,
                                 kargs.ds_ptr,
-                                c_ptr,
+                                e_ptr,
                                 smem_ptr_0,
                                 smem_ptr_1,
                                 kargs,
@@ -998,7 +998,7 @@ struct GemmKernel
                     RunGemm(a_ptr,
                             b_ptr,
                             kargs.ds_ptr,
-                            c_ptr,
+                            e_ptr,
                             smem_ptr_0,
                             kargs,
                             splitk_batch_offset,
