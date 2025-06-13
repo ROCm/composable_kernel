@@ -252,10 +252,13 @@ auto create_args(int argc, char* argv[])
 // host API
 template <typename ADataType,
           typename BDataType,
+          typename DsDataType,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
+          typename DsLayout,
           typename CLayout,
-          bool Persistent = false>
-float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
+          bool Persistent = false,
+          typename CDEElementWise>
+float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s);
