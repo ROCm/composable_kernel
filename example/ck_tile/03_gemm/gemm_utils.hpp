@@ -14,6 +14,7 @@
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
+#define CK_TILE_PIPELINE_COMPUTE_V5 4
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
 #define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
@@ -30,6 +31,10 @@
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV4
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV4
+#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V5)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV5
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV5
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
 #else
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
@@ -51,7 +56,8 @@ struct GemmConfig
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer = false;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
 #endif
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
     // Compute friendly for Intrawave scheduler
@@ -67,7 +73,8 @@ struct GemmConfig
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 32;
 
-    static constexpr bool DoubleSmemBuffer = false;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
     // Compute friendly for Intrawave scheduler
     // Using the ping pong reader in the lds level
@@ -83,7 +90,29 @@ struct GemmConfig
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer = true;
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V5)
+    // Compute friendly for Intrawave scheduler
+    // Using the ping pong reader in the lds level
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 32;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 2;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer = false;
+
+    // Available wavegroups will be split into `NumWaveGroups` and each of these wavegroups
+    // will be responsible for specific jobs. For instance, perform Global Memory read operations,
+    // perform block-gemm operation etc...
+    static constexpr ck_tile::index_t NumWaveGroups = 2;
 #endif
 
     static constexpr bool kPadM = false;
