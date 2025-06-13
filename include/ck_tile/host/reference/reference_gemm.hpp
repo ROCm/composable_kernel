@@ -102,9 +102,7 @@ reference_gemm_multiple_d(const HostTensor<ADataType>& a_m_k,
         CDataType v_c = 0;
         if constexpr(DsDataType::size() == 0)
         {
-            acc_element_op(v_c,
-                           ck_tile::type_convert<float>(v_acc),
-                           ck_tile::type_convert<float>(ds_m_n[0](m, n)));
+            acc_element_op(v_c, ck_tile::type_convert<float>(v_acc));
         }
         else if constexpr(DsDataType::size() == 1)
         {
