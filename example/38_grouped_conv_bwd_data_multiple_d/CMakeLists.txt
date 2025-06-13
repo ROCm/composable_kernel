@@ -15,4 +15,4 @@ add_example_dependencies(example_grouped_conv_bwd_data example_grouped_conv_bwd_
 add_example_executable(example_grouped_conv_bwd_data_dl_fp16 grouped_conv_bwd_data_dl_fp16.cpp)
 add_example_dependencies(example_grouped_conv_bwd_data example_grouped_conv_bwd_data_dl_fp16)
 
-target_compile_options(example_grouped_conv_bwd_data_dl_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+target_compile_options(example_grouped_conv_bwd_data_dl_fp16 PRIVATE -save-temps=obj -Wno-gnu-line-marker -Wno-unused-but-set-variable)
