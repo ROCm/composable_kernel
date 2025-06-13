@@ -30,7 +30,7 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
     * :doc:`Composable Kernel structure <./conceptual/Composable-Kernel-structure>`
     * :doc:`Composable Kernel mathematical basis <./conceptual/Composable-Kernel-math>`
 
-.. grid-item-card:: How to
+  .. grid-item-card:: How to
 
     * :doc:`Use CK Tile <./how-to/Composable-Kernel-CKTile-workflow>`
 
