@@ -818,9 +818,8 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
-            << "GridDim: "
-            << grid_dims.x << "x" << grid_dims.y << "x" << grid_dims.z;
+            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages ;
+            
         // clang-format on
 
         return str.str();
