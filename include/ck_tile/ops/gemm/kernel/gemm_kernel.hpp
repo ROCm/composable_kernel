@@ -639,54 +639,6 @@ struct GemmKernel
         return make_tuple(a_block_window, b_block_window, c_block_window);
     }
 
-    // ADD: Helper function to determine memory operation based on k_batch_id
-    /**
-     * @brief Determines memory operation for zeroing: first k-batch uses SET, others use ATOMIC_ADD
-     */
-    template <memory_operation_enum BaseMemOp>
-    CK_TILE_DEVICE static constexpr memory_operation_enum 
-    GetMemoryOperationForZeroing(const index_t k_batch_id)
-    {
-        if constexpr(Zeroing && BaseMemOp == memory_operation_enum::atomic_add)
-        {
-            // First k-batch: SET (zeros + writes first result)
-            // Subsequent k-batches: ATOMIC_ADD (accumulates)
-            return (k_batch_id == 0) ? memory_operation_enum::set : memory_operation_enum::atomic_add;
-        }
-        else
-        {
-            // When zeroing disabled or BaseMemOp != atomic_add, use original operation
-            return BaseMemOp;
-        }
-    }
-
-    /**
-     * @brief Creates tensor views with zeroing-aware memory operation selection - SET operation
-     */
-    template <memory_operation_enum BaseMemOp>
-    CK_TILE_DEVICE static auto MakeGemmTensorViewsZeroingSet(const ADataType* a_ptr,
-                                                            const BDataType* b_ptr,
-                                                            CDataType* c_ptr,
-                                                            const GemmKernelArgs& kargs,
-                                                            const SplitKBatchOffset& splitk_batch_offset)
-    {
-        return MakeGemmTensorViews<memory_operation_enum::set>(
-            a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
-    }
-
-    /**
-     * @brief Creates tensor views with zeroing-aware memory operation selection - ATOMIC_ADD operation
-     */
-    template <memory_operation_enum BaseMemOp>
-    CK_TILE_DEVICE static auto MakeGemmTensorViewsZeroingAdd(const ADataType* a_ptr,
-                                                            const BDataType* b_ptr,
-                                                            CDataType* c_ptr,
-                                                            const GemmKernelArgs& kargs,
-                                                            const SplitKBatchOffset& splitk_batch_offset)
-    {
-        return MakeGemmTensorViews<memory_operation_enum::atomic_add>(
-            a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
-    }
 
 
     template <typename GemmTensorViewsTuple>
@@ -716,6 +668,7 @@ struct GemmKernel
             c_block_window, c_block_tile, smem_ptr_0);
     }
 
+   
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
      *
@@ -729,6 +682,7 @@ struct GemmKernel
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
      */
+    
     CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
                                        const BDataType* b_ptr,
                                        CDataType* c_ptr,
@@ -739,21 +693,32 @@ struct GemmKernel
                                        const index_t block_idx_n,
                                        const index_t k_batch_id = 0)
     {
-        if constexpr(Zeroing && EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
+        if constexpr(Zeroing)
         {
             if(k_batch_id == 0)
             {
+                // ADD: MASSIVE delay for k_batch=0 to guarantee other k_batches start first
+                if(threadIdx.x == 0)
+                {
+                    // Force a HUGE delay that guarantees k_batch>0 starts first
+                    for(int i = 0; i < 1000; ++i)
+                    {
+                        __builtin_amdgcn_s_sleep(100);
+                        
+                    }
+                }
                 // First k-batch: Use SET operation
-                const auto& gemm_tensor_views_tuple = MakeGemmTensorViewsZeroingSet<EpiloguePipeline::MemoryOperation>(
+                const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<memory_operation_enum::set>(
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
                 
                 // Continue with GEMM execution
                 RunGemmWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, splitk_batch_offset, block_idx_m, block_idx_n);
+
             }
             else
             {
                 // Subsequent k-batches: Use ATOMIC_ADD operation
-                const auto& gemm_tensor_views_tuple = MakeGemmTensorViewsZeroingAdd<EpiloguePipeline::MemoryOperation>(
+                const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<memory_operation_enum::atomic_add>(
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
                 
                 // Continue with GEMM execution
@@ -827,12 +792,12 @@ struct GemmKernel
                                            const index_t k_batch_id = 0)  // ADD: k_batch_id parameter
     {
         
-        if constexpr(Zeroing && EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
+        if constexpr(Zeroing)
         {
             if(k_batch_id == 0)
             {
                 // First k-batch: Use SET operation
-                const auto& gemm_tensor_views_tuple = MakeGemmTensorViewsZeroingSet<EpiloguePipeline::MemoryOperation>(
+                const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<memory_operation_enum::set>(
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
                 
                 // Continue with GEMM execution
@@ -841,7 +806,7 @@ struct GemmKernel
             else
             {
                 // Subsequent k-batches: Use ATOMIC_ADD operation
-                const auto& gemm_tensor_views_tuple = MakeGemmTensorViewsZeroingAdd<EpiloguePipeline::MemoryOperation>(
+                const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<memory_operation_enum::atomic_add>(
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
                 
                 // Continue with GEMM execution
