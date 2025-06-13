@@ -427,13 +427,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     {
         MaximumActiveBlocksPerMultiprocessor()
         {
-            constexpr size_t dynSharedMemPerBlk = 0;
-            constexpr size_t ldsMemPerBlk = GridwiseGemm::GetSharedMemoryNumberOfByte();
-            if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-            {
-                std::cout << "[SPLIT-K AUTODEDUCE] Dynamic shared memory per block: " << dynSharedMemPerBlk << " bytes" << std::endl;
-                std::cout << "[SPLIT-K AUTODEDUCE] LDS memory per block: " << ldsMemPerBlk << " bytes" << std::endl;
-            }
+            constexpr int dynamic_smem_size = 0;
             int max_occupancy = 0;
             hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
                                 &max_occupancy,
@@ -450,9 +444,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                                     remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>, 
                                     remove_reference_t<DeviceOp::Block2CTileMap>,
                                     ComputePtrOffsetOfStridedBatch<>,
-                                    true>, // TODO: Do we need to test both true/false for HasMainKBlockLoop?
+                                    false>, // Both true/false give the same occupancy.
                                 BlockSize,
-                                dynSharedMemPerBlk));
+                                dynamic_smem_size));
             value_ = std::max(1, max_occupancy);
         }
         int value_;
@@ -553,14 +547,13 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                         input_right_pads,
                         k_batch_initial);
 
-                const auto& a_grid_desc_kbatch_k0_m_k1 = descs_initial[I0];
                 const auto& c_grid_desc_m_n   = descs_initial[I2];
                 const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
-                const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
-                const auto k_size = a_grid_desc_kbatch_k0_m_k1.GetLength(I0) * a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
                 
-                //const auto multiplier = static_cast<ck::index_t>(-split_k);
-                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size, k_size, Conv_G_/*, multiplier*/);
+                // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
+                // Hence, the grid is just size of the tile map.
+                const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
+                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size);
             }
             else {
                 k_batch_ = split_k;
