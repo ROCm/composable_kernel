@@ -189,13 +189,12 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
         host_tensor_descriptor(M, N, StrideE, is_row_major(e_layout)));
     e_m_n_host_ref.SetZero();
 
-    ck_tile::reference_gemm_multiple_d<
-        ADataType,
-        BDataType,
-        std::array<ck_tile::HostTensor<D0DataType>, DsDataType::size()>,
-        AccDataType,
-        EDataType,
-        CDElementWiseFn>(
+    ck_tile::reference_gemm_multiple_d<ADataType,
+                                       BDataType,
+                                       DsDataType,
+                                       AccDataType,
+                                       EDataType,
+                                       CDElementWiseFn>(
         a_m_k_tesnor, b_k_n_tensors, {d0_m_n_tensors, d1_m_n_tensors}, e_m_n_host_ref);
 
     bool pass{true};

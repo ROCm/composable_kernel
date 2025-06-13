@@ -467,7 +467,7 @@ struct GemmKernel
                 return false;
             }
         }
-        return DTesnorIsValid && true;
+        return DTesnorIsValid;
     }
 
     template <memory_operation_enum DstInMemOp = memory_operation_enum::set>

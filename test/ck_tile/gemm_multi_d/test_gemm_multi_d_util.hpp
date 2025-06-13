@@ -16,40 +16,24 @@
 struct ElementWiseAddAdd
 {
     template <typename E, typename C, typename D0, typename D1>
-    CK_TILE_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    __host__ __device__ auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
     {
         const float x0_f = ck_tile::type_convert<float>(c) + ck_tile::type_convert<float>(d0) +
                            ck_tile::type_convert<float>(d1);
 
         e = ck_tile::type_convert<E>(x0_f);
     }
-
-    // TODO (mozga-amd): Required for the apply function in the reference; reuse or implement a
-    // function similar to the one used for device..
-    template <typename E, typename ParamT>
-    CK_TILE_HOST auto operator()(E& e, const ParamT& a) const -> void
-    {
-        e = e + ck_tile::type_convert<E>(a);
-    }
 };
 
 struct MultiplyMultiply
 {
     template <typename E, typename C, typename D0, typename D1>
-    CK_TILE_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    __host__ __device__ auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
     {
         const float x0_f = ck_tile::type_convert<float>(c) * ck_tile::type_convert<float>(d0) *
                            ck_tile::type_convert<float>(d1);
 
         e = ck_tile::type_convert<E>(x0_f);
-    }
-
-    // TODO (mozga-amd): Required for the apply function in the reference; reuse or implement a
-    // function similar to the one used for device..
-    template <typename E, typename ParamT>
-    CK_TILE_HOST auto operator()(E& e, const ParamT& a) const -> void
-    {
-        e = e * ck_tile::type_convert<E>(a);
     }
 };
 
@@ -396,13 +380,12 @@ class TestCkTileGemmMultiD : public ::testing::Test
             f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
         e_m_n_host_ref.SetZero();
 
-        ck_tile::reference_gemm_multiple_d<
-            ADataType,
-            BDataType,
-            std::array<ck_tile::HostTensor<D0DataType>, DsDataType::size()>,
-            AccDataType,
-            EDataType,
-            CDElementWiseFn>(
+        ck_tile::reference_gemm_multiple_d<ADataType,
+                                           BDataType,
+                                           DsDataType,
+                                           AccDataType,
+                                           EDataType,
+                                           CDElementWiseFn>(
             a_m_k_tesnor, b_k_n_tensors, {d0_m_n_tensors, d1_m_n_tensors}, e_m_n_host_ref);
 
         const float max_accumulated_value =
