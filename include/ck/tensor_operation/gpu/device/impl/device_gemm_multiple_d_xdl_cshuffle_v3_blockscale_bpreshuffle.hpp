@@ -234,7 +234,8 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
             };
 
             // unconditional 2 to remove agpr usage
-            constexpr index_t minimum_occupancy = MPerBlock * NPerBlock * KPerBlock > (128*128*128/sizeof(ADataType))? 1: 2;
+            constexpr index_t minimum_occupancy =
+                MPerBlock * NPerBlock * KPerBlock > (128 * 128 * 128 / sizeof(ADataType)) ? 1 : 2;
 
             if(has_main_k_block_loop)
             {

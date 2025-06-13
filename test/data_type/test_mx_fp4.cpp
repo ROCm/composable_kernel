@@ -91,7 +91,7 @@ test_mx_fp4_scaled_convert(uint64_t N, float* p_test, uint64_t* p_completed)
     {
         return;
     }
-    p_test[i++] = f32x2[1];   // 2* 0b0001(=0.5) = 1.0
+    p_test[i++] = f32x2[1]; // 2* 0b0001(=0.5) = 1.0
     if(i >= N)
     {
         return;
