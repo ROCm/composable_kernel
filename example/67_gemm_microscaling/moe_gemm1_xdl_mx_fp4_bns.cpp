@@ -309,11 +309,6 @@ int main(int argc, char* argv[])
         a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.1f});
-
-        // a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
-        // b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
-        // a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
-        // b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
         break;
     case 3:
         a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
@@ -408,6 +403,7 @@ int main(int argc, char* argv[])
     auto a_element_op   = AElementOp{};
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
+
     // do GEMM
     auto device_op = DeviceOpInstance{};
 

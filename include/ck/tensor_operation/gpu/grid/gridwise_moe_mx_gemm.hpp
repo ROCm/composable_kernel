@@ -2050,6 +2050,18 @@ struct GridwiseMoeGemmMX
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
 
+        const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
+        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
+            b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+
+        // A matrix in LDS memory, dst of blockwise copy
+        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+
+        // B matrix in LDS memory, dst of blockwise copy
+        // dummy
+        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
         // A matrix blockwise copy
         auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_gather<
             ThisThreadBlock,
