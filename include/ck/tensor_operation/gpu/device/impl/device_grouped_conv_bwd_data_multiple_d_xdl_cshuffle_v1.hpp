@@ -1402,253 +1402,310 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     throw std::runtime_error("wrong! device_op has invalid setting");
                 }
 
-                // const index_t gdx =
-                // arg.block_2_etile_map_container_[i].CalculateGridSize(
-                //     arg.e_grid_desc_m_n_container_[i]);
+                if(arg.e_g_n_c_wis_lengths_[0] % 32 == 0)
+                {
+                    auto launch_kernel = [&]() {
+                        // constexpr bool has_main_loop = has_main_k_block_loop.value;
+                        constexpr index_t GroupPerBlock = 32;
+                        constexpr index_t BatchPerBlock = 8;
+                        constexpr index_t BlockDim      = 128;
 
-                // const auto GemmK = arg.a_grid_desc_m_k_container_[i].GetLength(I1);
+                        auto kernel_selector = [&]() {
+                            const index_t filter_y = arg.b_g_k_c_xs_lengths_[NDimSpatial + 1];
+                            const index_t filter_x = arg.b_g_k_c_xs_lengths_[NDimSpatial + 2];
+                            const index_t stride_y = arg.conv_filter_strides_[0];
+                            const index_t stride_x = arg.conv_filter_strides_[1];
+                            const index_t pad_y    = arg.input_left_pads_[0];
+                            const index_t pad_x    = arg.input_left_pads_[1];
 
-                auto launch_kernel = [&]() {
-                    // constexpr bool has_main_loop = has_main_k_block_loop.value;
-                    constexpr index_t GroupPerBlock = 32;
-                    constexpr index_t BatchPerBlock = 8;
-                    constexpr index_t BlockDim      = 128;
+                            if(stride_y == 1 && stride_x == 1)
+                            {
+                                if(filter_y <= 3 && filter_x <= 3)
+                                {
+                                    if(pad_y == 1 && pad_x == 1)
+                                    {
+                                        return kernel_grouped_conv_bwd_data_optimized_v2<
+                                            ADataType,
+                                            EDataType,
+                                            DIRECTION_BACKWARD,
+                                            BlockDim,
+                                            BatchPerBlock,
+                                            GroupPerBlock,
+                                            4,
+                                            4,
+                                            3,
+                                            3,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            1>;
+                                    }
+                                    else if(pad_y == 2 && pad_x == 2)
+                                    {
+                                        return kernel_grouped_conv_bwd_data_optimized_v2<
+                                            ADataType,
+                                            EDataType,
+                                            DIRECTION_BACKWARD,
+                                            BlockDim,
+                                            BatchPerBlock,
+                                            GroupPerBlock,
+                                            4,
+                                            4,
+                                            3,
+                                            3,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            2,
+                                            2>;
+                                    }
+                                }
+                                else if(filter_y <= 5 && filter_x <= 5)
+                                {
+                                    if(pad_y == 1 && pad_x == 1)
+                                    {
+                                        return kernel_grouped_conv_bwd_data_optimized_v2<
+                                            ADataType,
+                                            EDataType,
+                                            DIRECTION_BACKWARD,
+                                            BlockDim,
+                                            BatchPerBlock,
+                                            GroupPerBlock,
+                                            4,
+                                            4,
+                                            5,
+                                            5,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            1>;
+                                    }
+                                    else if(pad_y == 2 && pad_x == 2)
+                                    {
+                                        return kernel_grouped_conv_bwd_data_optimized_v2<
+                                            ADataType,
+                                            EDataType,
+                                            DIRECTION_BACKWARD,
+                                            BlockDim,
+                                            BatchPerBlock,
+                                            GroupPerBlock,
+                                            4,
+                                            4,
+                                            5,
+                                            5,
+                                            1,
+                                            1,
+                                            1,
+                                            1,
+                                            2,
+                                            2>;
+                                    }
+                                }
+                            }
+                            else if(stride_y == 2 && stride_x == 2)
+                            {
+                                if(filter_y <= 4 && filter_x <= 4)
+                                {
+                                    if(pad_y == 1 && pad_x == 1)
+                                    {
+                                        return kernel_grouped_conv_bwd_data_optimized_v2<
+                                            ADataType,
+                                            EDataType,
+                                            DIRECTION_BACKWARD,
+                                            BlockDim,
+                                            BatchPerBlock,
+                                            GroupPerBlock,
+                                            4,
+                                            4,
+                                            4,
+                                            4,
+                                            2,
+                                            2,
+                                            1,
+                                            1,
+                                            1,
+                                            1>;
+                                    }
+                                    else if(pad_y == 2 && pad_x == 2)
+                                    {
+                                        return kernel_grouped_conv_bwd_data_optimized_v2<
+                                            ADataType,
+                                            EDataType,
+                                            DIRECTION_BACKWARD,
+                                            BlockDim,
+                                            BatchPerBlock,
+                                            GroupPerBlock,
+                                            4,
+                                            4,
+                                            4,
+                                            4,
+                                            2,
+                                            2,
+                                            1,
+                                            1,
+                                            2,
+                                            2>;
+                                    }
+                                }
+                                else if(filter_y <= 6 && filter_x <= 6)
+                                {
+                                    if(pad_y == 1 && pad_x == 1)
+                                    {
+                                        return kernel_grouped_conv_bwd_data_optimized_v2<
+                                            ADataType,
+                                            EDataType,
+                                            DIRECTION_BACKWARD,
+                                            BlockDim,
+                                            BatchPerBlock,
+                                            GroupPerBlock,
+                                            4,
+                                            4,
+                                            6,
+                                            6,
+                                            2,
+                                            2,
+                                            1,
+                                            1,
+                                            1,
+                                            1>;
+                                    }
+                                    else if(pad_y == 2 && pad_x == 2)
+                                    {
+                                        return kernel_grouped_conv_bwd_data_optimized_v2<
+                                            ADataType,
+                                            EDataType,
+                                            DIRECTION_BACKWARD,
+                                            BlockDim,
+                                            BatchPerBlock,
+                                            GroupPerBlock,
+                                            4,
+                                            4,
+                                            6,
+                                            6,
+                                            2,
+                                            2,
+                                            1,
+                                            1,
+                                            2,
+                                            2>;
+                                    }
+                                }
+                            }
+                            auto default_kernel =
+                                &kernel_grouped_conv_bwd_data_optimized_v2<ADataType,
+                                                                           EDataType,
+                                                                           DIRECTION_BACKWARD,
+                                                                           BlockDim,
+                                                                           BatchPerBlock,
+                                                                           GroupPerBlock,
+                                                                           4,
+                                                                           4,
+                                                                           6,
+                                                                           6,
+                                                                           1,
+                                                                           1,
+                                                                           1,
+                                                                           1,
+                                                                           2,
+                                                                           2>;
+                            return static_cast<decltype(default_kernel)>(nullptr);
+                        };
+                        const auto kernel = kernel_selector();
 
-                    auto kernel_selector = [&]() {
-                        const index_t filter_y = arg.b_g_k_c_xs_lengths_[NDimSpatial + 1];
-                        const index_t filter_x = arg.b_g_k_c_xs_lengths_[NDimSpatial + 2];
-                        const index_t stride_y = arg.conv_filter_strides_[0];
-                        const index_t stride_x = arg.conv_filter_strides_[1];
-                        const index_t pad_y    = arg.input_left_pads_[0];
-                        const index_t pad_x    = arg.input_left_pads_[1];
-
-                        if(stride_y == 1 && stride_x == 1)
+                        if(kernel == nullptr)
                         {
-                            if(filter_y <= 3 && filter_x <= 3)
-                            {
-                                if(pad_y == 1 && pad_x == 1)
-                                {
-                                    return kernel_grouped_conv_bwd_data_optimized_v2<
-                                        ADataType,
-                                        EDataType,
-                                        DIRECTION_BACKWARD,
-                                        BlockDim,
-                                        BatchPerBlock,
-                                        GroupPerBlock,
-                                        4,
-                                        4,
-                                        3,
-                                        3,
-                                        1,
-                                        1,
-                                        1,
-                                        1,
-                                        1,
-                                        1>;
-                                }
-                                else if(pad_y == 2 && pad_x == 2)
-                                {
-                                    return kernel_grouped_conv_bwd_data_optimized_v2<
-                                        ADataType,
-                                        EDataType,
-                                        DIRECTION_BACKWARD,
-                                        BlockDim,
-                                        BatchPerBlock,
-                                        GroupPerBlock,
-                                        4,
-                                        4,
-                                        3,
-                                        3,
-                                        1,
-                                        1,
-                                        1,
-                                        1,
-                                        2,
-                                        2>;
-                                }
-                            }
-                            else if(filter_y <= 5 && filter_x <= 5)
-                            {
-                                if(pad_y == 1 && pad_x == 1)
-                                {
-                                    return kernel_grouped_conv_bwd_data_optimized_v2<
-                                        ADataType,
-                                        EDataType,
-                                        DIRECTION_BACKWARD,
-                                        BlockDim,
-                                        BatchPerBlock,
-                                        GroupPerBlock,
-                                        4,
-                                        4,
-                                        5,
-                                        5,
-                                        1,
-                                        1,
-                                        1,
-                                        1,
-                                        1,
-                                        1>;
-                                }
-                                else if(pad_y == 2 && pad_x == 2)
-                                {
-                                    return kernel_grouped_conv_bwd_data_optimized_v2<
-                                        ADataType,
-                                        EDataType,
-                                        DIRECTION_BACKWARD,
-                                        BlockDim,
-                                        BatchPerBlock,
-                                        GroupPerBlock,
-                                        4,
-                                        4,
-                                        5,
-                                        5,
-                                        1,
-                                        1,
-                                        1,
-                                        1,
-                                        2,
-                                        2>;
-                                }
-                            }
+                            throw std::runtime_error(
+                                "No optimized kernel available for the given parameters");
                         }
-                        else if(stride_y == 2 && stride_x == 2)
-                        {
-                            if(filter_y <= 4 && filter_x <= 4)
-                            {
-                                if(pad_y == 1 && pad_x == 1)
-                                {
-                                    return kernel_grouped_conv_bwd_data_optimized_v2<
-                                        ADataType,
-                                        EDataType,
-                                        DIRECTION_BACKWARD,
-                                        BlockDim,
-                                        BatchPerBlock,
-                                        GroupPerBlock,
-                                        4,
-                                        4,
-                                        4,
-                                        4,
-                                        2,
-                                        2,
-                                        1,
-                                        1,
-                                        1,
-                                        1>;
-                                }
-                                else if(pad_y == 2 && pad_x == 2)
-                                {
-                                    return kernel_grouped_conv_bwd_data_optimized_v2<
-                                        ADataType,
-                                        EDataType,
-                                        DIRECTION_BACKWARD,
-                                        BlockDim,
-                                        BatchPerBlock,
-                                        GroupPerBlock,
-                                        4,
-                                        4,
-                                        4,
-                                        4,
-                                        2,
-                                        2,
-                                        1,
-                                        1,
-                                        2,
-                                        2>;
-                                }
-                            }
-                            else if(filter_y <= 6 && filter_x <= 6)
-                            {
-                                if(pad_y == 1 && pad_x == 1)
-                                {
-                                    return kernel_grouped_conv_bwd_data_optimized_v2<
-                                        ADataType,
-                                        EDataType,
-                                        DIRECTION_BACKWARD,
-                                        BlockDim,
-                                        BatchPerBlock,
-                                        GroupPerBlock,
-                                        4,
-                                        4,
-                                        6,
-                                        6,
-                                        2,
-                                        2,
-                                        1,
-                                        1,
-                                        1,
-                                        1>;
-                                }
-                                else if(pad_y == 2 && pad_x == 2)
-                                {
-                                    return kernel_grouped_conv_bwd_data_optimized_v2<
-                                        ADataType,
-                                        EDataType,
-                                        DIRECTION_BACKWARD,
-                                        BlockDim,
-                                        BatchPerBlock,
-                                        GroupPerBlock,
-                                        4,
-                                        4,
-                                        6,
-                                        6,
-                                        2,
-                                        2,
-                                        1,
-                                        1,
-                                        2,
-                                        2>;
-                                }
-                            }
-                        }
-                        auto default_kernel =
-                            &kernel_grouped_conv_bwd_data_optimized_v2<ADataType,
-                                                                       EDataType,
-                                                                       DIRECTION_BACKWARD,
-                                                                       BlockDim,
-                                                                       BatchPerBlock,
-                                                                       GroupPerBlock,
-                                                                       4,
-                                                                       4,
-                                                                       6,
-                                                                       6,
-                                                                       1,
-                                                                       1,
-                                                                       1,
-                                                                       1,
-                                                                       2,
-                                                                       2>;
-                        return static_cast<decltype(default_kernel)>(nullptr);
+
+                        return launch_and_time_kernel(
+                            stream_config,
+                            kernel,
+                            dim3((arg.e_g_n_c_wis_lengths_[3] + 3) / 4,
+                                 (arg.e_g_n_c_wis_lengths_[4] + 3) / 4,
+                                 arg.e_g_n_c_wis_lengths_[0] / GroupPerBlock *
+                                     arg.e_g_n_c_wis_lengths_[1] / BatchPerBlock),
+                            dim3(BlockDim),
+                            0,
+                            p_a_grid,
+                            p_b_grid,
+                            p_e_grid,
+                            arg.a_g_n_k_wos_lengths_[NDimSpatial + 1],
+                            arg.a_g_n_k_wos_lengths_[NDimSpatial + 2],
+                            arg.e_g_n_c_wis_lengths_[NDimSpatial + 1],
+                            arg.e_g_n_c_wis_lengths_[NDimSpatial + 2],
+                            arg.b_g_k_c_xs_lengths_[NDimSpatial + 1],
+                            arg.b_g_k_c_xs_lengths_[NDimSpatial + 2],
+                            arg.a_g_n_k_wos_lengths_[0]);
                     };
-                    const auto kernel = kernel_selector();
 
-                    if(kernel == nullptr)
+                    ave_time += launch_kernel();
+                }
+                else
+                {
+                    const index_t gdx = arg.block_2_etile_map_container_[i].CalculateGridSize(
+                        arg.e_grid_desc_m_n_container_[i]);
+
+                    const auto GemmK = arg.a_grid_desc_m_k_container_[i].GetLength(I1);
+
+                    auto launch_kernel = [&](auto has_main_k_block_loop) {
+                        constexpr bool has_main_loop = has_main_k_block_loop.value;
+
+                        const auto kernel = kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle<
+                            GridwiseGemm,
+                            ADataType, // TODO: distiguish A/B datatype
+                            typename GridwiseGemm::DsGridPointer,
+                            EDataType,
+                            AElementwiseOp,
+                            BElementwiseOp,
+                            CDEElementwiseOp,
+                            DeviceOp::AGridDesc_AK0_M_AK1,
+                            DeviceOp::BGridDesc_BK0_N_BK1,
+                            DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                            Block2ETileMap,
+                            ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
+                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                            has_main_loop,
+                            ElementOp>;
+
+                        return launch_and_time_kernel(
+                            stream_config,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            p_a_grid,
+                            p_b_grid,
+                            arg.p_ds_grid_,
+                            p_e_grid,
+                            arg.a_element_op_,
+                            arg.b_element_op_,
+                            arg.cde_element_op_,
+                            arg.a_grid_desc_ak0_m_ak1_container_[i],
+                            arg.b_grid_desc_bk0_n_bk1_container_[i],
+                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
+                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_container_[i],
+                            arg.block_2_etile_map_container_[i],
+                            arg.compute_ptr_offset_of_batch_,
+                            arg.compute_ptr_offset_of_n_,
+                            arg.k_batch_);
+                    };
+
+                    if(GridwiseGemm::CalculateHasMainKBlockLoop(GemmK, arg.k_batch_))
                     {
-                        throw std::runtime_error(
-                            "No optimized kernel available for the given parameters");
+                        ave_time += launch_kernel(integral_constant<bool, true>{});
                     }
-
-                    return launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3((arg.e_g_n_c_wis_lengths_[3] + 3) / 4,
-                                                       (arg.e_g_n_c_wis_lengths_[4] + 3) / 4,
-                                                       arg.e_g_n_c_wis_lengths_[0] / GroupPerBlock *
-                                                           arg.e_g_n_c_wis_lengths_[1] /
-                                                           BatchPerBlock),
-                                                  dim3(BlockDim),
-                                                  0,
-                                                  p_a_grid,
-                                                  p_b_grid,
-                                                  p_e_grid,
-                                                  arg.a_g_n_k_wos_lengths_[NDimSpatial + 1],
-                                                  arg.a_g_n_k_wos_lengths_[NDimSpatial + 2],
-                                                  arg.e_g_n_c_wis_lengths_[NDimSpatial + 1],
-                                                  arg.e_g_n_c_wis_lengths_[NDimSpatial + 2],
-                                                  arg.b_g_k_c_xs_lengths_[NDimSpatial + 1],
-                                                  arg.b_g_k_c_xs_lengths_[NDimSpatial + 2],
-                                                  arg.a_g_n_k_wos_lengths_[0]);
-                };
-
-                ave_time += launch_kernel();
+                    else
+                    {
+                        ave_time += launch_kernel(integral_constant<bool, false>{});
+                    }
+                }
             }
 
             return ave_time;
