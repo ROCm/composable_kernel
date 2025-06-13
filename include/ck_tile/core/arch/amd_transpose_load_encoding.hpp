@@ -22,12 +22,18 @@ struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
     // after transpose, 16x4
     static constexpr index_t ksecondDimT = 16;
     static constexpr index_t kleadDimT   = 4;
-    using TileDistribution               = tile_distribution_encoding<sequence<>,
-                                                        tuple<sequence<4>, sequence<4, 4>>,
-                                                        tuple<sequence<1, 2>>,
-                                                        tuple<sequence<0, 0>>,
-                                                        sequence<2>,
-                                                        sequence<1>>;
+    template <index_t kOuterDistDim0,
+              index_t kOuterDistDim1,
+              index_t kInnerDistDim0,
+              index_t kInnerDistDim1>
+    using TileDistribution =
+        tile_distribution_encoding<sequence<>,
+                                   tuple<sequence<kOuterDistDim0, kOuterDistDim1, 4>,
+                                         sequence<kInnerDistDim0, kInnerDistDim1, 4, 4>>,
+                                   tuple<sequence<1, 2, 1, 2>>,
+                                   tuple<sequence<0, 0, 2, 2>>,
+                                   sequence<2, 1, 2>,
+                                   sequence<1, 1, 3>>;
 };
 
 template <typename T>
@@ -39,12 +45,18 @@ struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 1>>
     static constexpr index_t ksecondDimT = 16;
     static constexpr index_t kleadDimT   = 8;
 
-    using TileDistribution = tile_distribution_encoding<sequence<>,
-                                                        tuple<sequence<8>, sequence<2, 8>>,
-                                                        tuple<sequence<1, 2>>,
-                                                        tuple<sequence<0, 0>>,
-                                                        sequence<2>,
-                                                        sequence<1>>;
+    template <index_t kOuterDistDim0,
+              index_t kOuterDistDim1,
+              index_t kInnerDistDim0,
+              index_t kInnerDistDim1>
+    using TileDistribution =
+        tile_distribution_encoding<sequence<>,
+                                   tuple<sequence<kOuterDistDim0, kOuterDistDim1, 8>,
+                                         sequence<kInnerDistDim0, kInnerDistDim1, 2, 8>>,
+                                   tuple<sequence<1, 2, 1, 2>>,
+                                   tuple<sequence<0, 0, 2, 2>>,
+                                   sequence<2, 1, 2>,
+                                   sequence<1, 1, 3>>;
 };
 
 /*
@@ -59,10 +71,16 @@ struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 1>>
  * @tparam kInnerDistDim1 The inner distribution dimension 1, which is inner dimension for
  * consecutive.
  */
-template <typename T>
+template <typename T,
+          index_t kOuterDistDim0,
+          index_t kOuterDistDim1,
+          index_t kInnerDistDim0,
+          index_t kInnerDistDim1>
 CK_TILE_DEVICE constexpr auto make_transposed_distr_encode()
 {
-    return typename LaneGroupTransposeTraits<T>::TileDistribution{};
+    using xdllevel_dstr_encoding = typename LaneGroupTransposeTraits<T>::
+        template TileDistribution<kOuterDistDim0, kOuterDistDim1, kInnerDistDim0, kInnerDistDim1>;
+    return xdllevel_dstr_encoding{};
 }
 
 } // namespace ck_tile

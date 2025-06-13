@@ -174,38 +174,20 @@ struct OutputTileDistributionTraits
     static constexpr index_t dim1 = Policy::transpose_dims[1];
 
     // for transpose load
-    static constexpr auto quad_output_dim0 = quad_output_hs_lengthss.get(number<0>{});
-    static constexpr auto quad_output_dim1 = quad_output_hs_lengthss.get(number<1>{});
+    static constexpr auto reversed_quad_output_hs_lengthss = tuple_reverse(quad_output_hs_lengthss);
 
     static constexpr auto full_out_hs_lengthss = generate_tuple(
         [](auto i) {
-            if constexpr(i == dim0)
-            {
-                return input_hs_lengthss[i]
-                    .extract(typename arithmetic_sequence_gen<0,
-                                                              input_hs_lengthss[i].size() -
-                                                                  quad_input_hs_lengthss[i].size(),
-                                                              1>::type{})
-                    .push_back(quad_output_dim1); // Swapped!
-            }
-            else if constexpr(i == dim1)
-            {
-                return input_hs_lengthss[i]
-                    .extract(typename arithmetic_sequence_gen<0,
-                                                              input_hs_lengthss[i].size() -
-                                                                  quad_input_hs_lengthss[i].size(),
-                                                              1>::type{})
-                    .push_back(quad_output_dim0); // Swapped!
-            }
-            else
-            {
-                // Untouched dimensions
-                return input_hs_lengthss[i];
-            }
+            return input_hs_lengthss[i]
+                .extract(typename arithmetic_sequence_gen<0,
+                                                          input_hs_lengthss[i].size() -
+                                                              quad_input_hs_lengthss[i].size(),
+                                                          1>::type{})
+                .push_back(reversed_quad_output_hs_lengthss[i]);
         },
         number<InDstrEncode::NDimX>{});
 
-    static constexpr auto dst_out_hs_lengthss = full_out_hs_lengthss;
+    static constexpr auto dst_out_hs_lengthss = tuple_reverse(full_out_hs_lengthss);
 
     static constexpr auto modified_ps_to_rhss_major = generate_tuple(
         [](auto i) {
@@ -229,7 +211,7 @@ struct OutputTileDistributionTraits
         full_out_hs_lengthss[number<InDstrEncode::NDimX - 1>{}].size() - 1;
     static constexpr auto major_last_index = full_out_hs_lengthss[number<0>{}].size() - 1;
 
-    static constexpr auto modified_ps_to_rhss_minor = generate_tuple(
+    static constexpr auto dst_ps_to_rhss_minor = generate_tuple(
         [](auto i) {
             if constexpr(i == input_ps_to_rhss_minor.size() - 1)
             {
@@ -262,15 +244,6 @@ struct OutputTileDistributionTraits
                 number<seq.size()>{});
         },
         number<modified_ps_to_rhss_major.size()>{});
-
-    static constexpr auto dst_ps_to_rhss_minor = generate_tuple(
-        [](auto i) {
-            constexpr auto seq = modified_ps_to_rhss_minor[i];
-            return generate_sequence_v2(
-                [&](auto j) { return number<swap_one_and_two<seq[j]>::value>{}; },
-                number<seq.size()>{});
-        },
-        number<modified_ps_to_rhss_minor.size()>{});
 
     static constexpr auto modified_input_ys_to_rhs_major =
         input_ys_to_rhs_major.pop_back().push_back(number<1>{});
