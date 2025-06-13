@@ -218,11 +218,6 @@ struct GemmKernel
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const GemmHostArgs<NumDTensor>& hostArgs)
     {
-        // DsGridPointer p_ds_grid;
-        // static_for<0, NumDTensor, 1>{}([&](auto i) {
-        //     using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
-        //     p_ds_grid(i)     = static_cast<const DDataType_*>(hostArgs.ds_ptr[i]);
-        // });
 
         return KernelArgs{hostArgs.a_ptr,
                           hostArgs.b_ptr,

@@ -13,6 +13,42 @@
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
+struct ElementWiseAddAdd
+{
+    template <typename E, typename C, typename D0, typename D1>
+    CK_TILE_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    {
+        const float x0_f = ck_tile::type_convert<float>(c) + ck_tile::type_convert<float>(d0) +
+                           ck_tile::type_convert<float>(d1);
+
+        e = ck_tile::type_convert<E>(x0_f);
+    }
+
+    template <typename E, typename ParamT>
+    CK_TILE_HOST auto operator()(E& e, const ParamT& a) const -> void
+    {
+        e = e + ck_tile::type_convert<E>(a);
+    }
+};
+
+struct MultiplyMultiply
+{
+    template <typename E, typename C, typename D0, typename D1>
+    CK_TILE_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    {
+        const float x0_f = ck_tile::type_convert<float>(c) * ck_tile::type_convert<float>(d0) *
+                           ck_tile::type_convert<float>(d1);
+
+        e = ck_tile::type_convert<E>(x0_f);
+    }
+
+    template <typename E, typename ParamT>
+    CK_TILE_HOST auto operator()(E& e, const ParamT& a) const -> void
+    {
+        e = e * ck_tile::type_convert<E>(a);
+    }
+};
+
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -362,8 +398,8 @@ class TestCkTileGemmMultiD : public ::testing::Test
             std::array<ck_tile::HostTensor<D0DataType>, DsDataType::size()>,
             AccDataType,
             EDataType,
-            CDElementWiseFn,
-            ELayout>(a_m_k_tesnor, b_k_n_tensors, {d0_m_n_tensors, d1_m_n_tensors}, e_m_n_host_ref);
+            CDElementWiseFn>(
+            a_m_k_tesnor, b_k_n_tensors, {d0_m_n_tensors, d1_m_n_tensors}, e_m_n_host_ref);
 
         const float max_accumulated_value =
             *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());

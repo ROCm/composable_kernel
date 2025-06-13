@@ -81,7 +81,6 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIteration                 = MPerXdl * MWave;
     static constexpr index_t NPerIteration                 = NPerXdl * NWave;
     static constexpr index_t NumDTensor                    = Problem::NumDTensor;
-    static constexpr index_t MaxVectorSize                 = 16;
 
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
@@ -97,15 +96,16 @@ struct CShuffleEpilogue
      */
     CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeC()
     {
+        constexpr index_t max_vector_size = 16;
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             return std::min(static_cast<int>(NPerIteration),
-                            static_cast<int>(MaxVectorSize / sizeof(ODataType)));
+                            static_cast<int>(max_vector_size / sizeof(ODataType)));
         }
         else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
         {
             return std::min(static_cast<int>(MPerIteration),
-                            static_cast<int>(MaxVectorSize / sizeof(ODataType)));
+                            static_cast<int>(max_vector_size / sizeof(ODataType)));
         }
         else
         {
@@ -119,10 +119,26 @@ struct CShuffleEpilogue
      * @return The vector store size for Di tensor.
      */
     template <index_t I>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeD(number<I> index)
+    CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeD(number<I> index)
     {
+        constexpr index_t max_vector_size = 16;
         using DiDataType = remove_cvref_t<std::tuple_element_t<index.value, DsDataType>>;
-        return MaxVectorSize / sizeof(DiDataType);
+        using DiLayout   = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
+        if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+        {
+            return std::min(static_cast<int>(NPerIteration),
+                            static_cast<int>(max_vector_size / sizeof(DiDataType)));
+        }
+        else if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::ColumnMajor>)
+        {
+            return std::min(static_cast<int>(MPerIteration),
+                            static_cast<int>(max_vector_size / sizeof(DiDataType)));
+        }
+        else
+        {
+            static_assert(false, "Unsupported DLayout!");
+        }
+        return max_vector_size / sizeof(DiDataType);
     }
     /**
      * @brief Shuffle tile configuration parameters
@@ -172,7 +188,8 @@ struct CShuffleEpilogue
     }();
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
-    using WG                                      = WarpGemmMfmaDispatcher<ADataType,
+
+    using WG = WarpGemmMfmaDispatcher<ADataType,
                                       BTypeToUse,
                                       AccDataType,
                                       MPerXdl,

@@ -99,7 +99,7 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
     {
         return -1;
     }
-    using CDElementWiseFn = ck_tile::element_wise::ElementWiseAdd;
+    using CDElementWiseFn = MultiplyMultiply;
     using DsLayout        = ck_tile::tuple<D0Layout, D1Layout>;
 
     ck_tile::index_t M = arg_parser.get_int("m");
@@ -195,8 +195,8 @@ int run_multiple_d_gemm_example_with_layouts(int argc,
         std::array<ck_tile::HostTensor<D0DataType>, DsDataType::size()>,
         AccDataType,
         EDataType,
-        CDElementWiseFn,
-        ELayout>(a_m_k_tesnor, b_k_n_tensors, {d0_m_n_tensors, d1_m_n_tensors}, e_m_n_host_ref);
+        CDElementWiseFn>(
+        a_m_k_tesnor, b_k_n_tensors, {d0_m_n_tensors, d1_m_n_tensors}, e_m_n_host_ref);
 
     bool pass{true};
     if(arg_parser.get_int("v"))
