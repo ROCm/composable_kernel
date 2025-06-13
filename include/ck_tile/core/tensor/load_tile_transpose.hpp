@@ -284,7 +284,7 @@ struct OutputTileDistributionTraits
  * @tparam TileDistribution_      The type representing the tile distribution.
  * @tparam NumCoord               The number of coordinates (dimensions).
  * @tparam Policy                 The transpose policy to use (defaults to DefaultTranspose).
- * @tparam (Unnamed)              SFINAE to ensure the tile distribution encoding is valid.
+ * the last is SFINAE to ensure the tile distribution encoding is valid.
  *
  * @param tile_window             The tile window with static distribution to load and transpose.
  *
