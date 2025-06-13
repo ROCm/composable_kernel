@@ -126,49 +126,49 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                           << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
                           << "}" << std::endl;
             }
-            if(s.flush_cache_)
-            {
-                std::cout << "Flushing cache..." << std::endl;
-                static constexpr ck_tile::index_t APackedSize =
-                    std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-                static constexpr ck_tile::index_t BPackedSize =
-                    std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+            // if(s.flush_cache_)
+            // {
+            //     std::cout << "Flushing cache..." << std::endl;
+            //     static constexpr ck_tile::index_t APackedSize =
+            //         std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+            //     static constexpr ck_tile::index_t BPackedSize =
+            //         std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
 
-                ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-                    args.M, args.K, args.stride_A, is_row_major(ALayout{})));
-                ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-                    args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+            //     ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+            //         args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+            //     ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+            //         args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
-                auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
-                auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
+            //     auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
+            //     auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
 
-                ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                    kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
-                rotating_mem.Print();
+            //     ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+            //         kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
+            //     rotating_mem.Print();
 
-                auto run_flush_cache = [&]() {
-                    // flush icache
-                    ck_tile::flush_icache();
-                    // rotating mem
-                    rotating_mem.Next();
-                    // clear c mem
-                    if(args.k_batch > 1)
-                        hipGetErrorString(hipMemsetAsync(
-                            args.c_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
-                };
-                ave_time = ck_tile::launch_kernel_preprocess(
-                    s,
-                    run_flush_cache,
-                    ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
-                        Kernel{}, grids, blocks, 0, kargs));
-            }
-            else
-            {
+            //     auto run_flush_cache = [&]() {
+            //         // flush icache
+            //         ck_tile::flush_icache();
+            //         // rotating mem
+            //         rotating_mem.Next();
+            //         // clear c mem
+            //         if(args.k_batch > 1)
+            //             hipGetErrorString(hipMemsetAsync(
+            //                 args.c_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+            //     };
+            //     ave_time = ck_tile::launch_kernel_preprocess(
+            //         s,
+            //         run_flush_cache,
+            //         ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
+            //             Kernel{}, grids, blocks, 0, kargs));
+            // }
+            // else
+            // {
                 ave_time =
                     ck_tile::launch_kernel(s,
                                            ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
                                                Kernel{}, grids, blocks, 0, kargs));
-            }
+            // }
             return ave_time;
         };
 
@@ -180,13 +180,13 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                            ck_tile::memory_operation_enum::set>{});
         }
-        else
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
-        }
+        // else
+        // {
+        //     Run(has_hot_loop_,
+        //         tail_number_,
+        //         ck_tile::integral_constant<ck_tile::memory_operation_enum,
+        //                                    ck_tile::memory_operation_enum::atomic_add>{});
+        // }
     };
 
     BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
@@ -195,56 +195,57 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 }
 
 template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+int run_gemm_example_prec_type([[maybe_unused]] std::string a_layout, [[maybe_unused]] std::string b_layout, int argc, char* argv[])
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
-    {
-        if(a_layout == "R" && b_layout == "C")
-        {
+    // if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    // {
+    //     if(a_layout == "R" && b_layout == "C")
+    //     {
+    //         return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+    //             argc, argv, Row{}, Col{}, Row{});
+    //     }
+    //     else if(a_layout == "C" && b_layout == "C")
+    //     {
+    //         return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+    //             argc, argv, Col{}, Col{}, Row{});
+    //     }
+    //     else
+    //     {
+    //         throw std::runtime_error("Unsupported memory layout for the input matrices when "
+    //                                  "BPrecType is ck_tile::pk_int4_t!");
+    //     }
+    // }
+    // else
+    // {
+        // if(a_layout == "R" && b_layout == "R")
+        // {
+        //     return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+        //         argc, argv, Row{}, Row{}, Row{});
+        // }
+        // else if(a_layout == "R" && b_layout == "C")
+        // {
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices when "
-                                     "BPrecType is ck_tile::pk_int4_t!");
-        }
-    }
-    else
-    {
-        if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices!");
-        }
-    }
+                // argc, argv, Row{}, Col{}, Row{});
+                argc, argv, Row{}, Col{}, Col{});
+        // }
+    //     else if(a_layout == "C" && b_layout == "R")
+    //     {
+    //         return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+    //             argc, argv, Col{}, Row{}, Row{});
+    //     }
+    //     else if(a_layout == "C" && b_layout == "C")
+    //     {
+    //         return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+    //             argc, argv, Col{}, Col{}, Row{});
+    //     }
+    //     else
+    //     {
+    //         throw std::runtime_error("Unsupported memory layout for the input matrices!");
+    //     }
+    // }
 }
 
 int run_gemm_example(int argc, char* argv[])
@@ -261,29 +262,29 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "bf16")
-    {
-        return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "fp8")
-    {
-        return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "bf8")
-    {
-        return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
+//     else if(data_type == "bf16")
+//     {
+//         return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
+//     }
+//     else if(data_type == "fp8")
+//     {
+//         return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
+//             a_layout, b_layout, argc, argv);
+//     }
+//     else if(data_type == "bf8")
+//     {
+//         return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
+//             a_layout, b_layout, argc, argv);
+//     }
 
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-    else if(data_type == "pk_int4_t")
-    {
-        // TODO: Add support for bhalf_t ADataType
-        return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-#endif
+// #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+//     else if(data_type == "pk_int4_t")
+//     {
+//         // TODO: Add support for bhalf_t ADataType
+//         return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
+//             a_layout, b_layout, argc, argv);
+//     }
+// #endif
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");

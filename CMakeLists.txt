@@ -649,7 +649,7 @@ if (NOT MIOPEN_REQ_LIBS_ONLY)
         LIBRARY_NAME composablekernel
         PACKAGE_NAME ckprofiler
     )
-    add_subdirectory(profiler)
+    # add_subdirectory(profiler)
 endif()
 
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))

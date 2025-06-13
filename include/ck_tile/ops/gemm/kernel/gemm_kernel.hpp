@@ -495,7 +495,6 @@ struct GemmKernel
             }
         }();
 
-        // TODO: enable vector write for C in ColMajor
         const auto& c_tensor_view = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
