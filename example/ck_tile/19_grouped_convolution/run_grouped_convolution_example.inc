@@ -116,8 +116,8 @@ int run_grouped_conv_fwd_example_with_layouts(
 
     if(init_method == 0)
     {
-        ck_tile::FillUniformDistribution<InDataType>{-1.f, 1.f}(input);
-        ck_tile::FillUniformDistribution<WeiDataType>{-1.f, 1.f}(weight);
+        ck_tile::FillUniformDistribution<InDataType>{-5.f, 5.f}(input);
+        ck_tile::FillUniformDistribution<WeiDataType>{-5.f, 5.f}(weight);
     }
     else if(init_method == 1)
     {

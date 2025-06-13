@@ -20,12 +20,10 @@ template <ck_tile::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-float grouped_conv_fwd_calc(const ck_tile::GroupedConvHostArgs& args,
-                            const ck_tile::stream_config& s)
+float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr int kBlockPerCu = 1;
 
-    // This part comes from the Codegen
     constexpr ck_tile::index_t M_Tile = 64;
     constexpr ck_tile::index_t N_Tile = 64;
     constexpr ck_tile::index_t K_Tile = 64;

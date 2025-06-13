@@ -23,7 +23,10 @@ ck_tile::index_t fill_spatial_dimensions(std::vector<ck_tile::index_t>& filter_s
     constexpr ck_tile::index_t non_sp_dims = 3;
     const ck_tile::index_t n_dim_sp        = arg_parser.get_str("in_layout").size() - non_sp_dims;
 
-    assert(n_dim_sp >= 1 && n_dim_sp <= 3 && "Wrong layout!");
+    if(!(n_dim_sp >= 1 && n_dim_sp <= 3))
+    {
+        throw std::runtime_error("Wrong layout!\n");
+    }
 
     if(n_dim_sp == 3)
     {
@@ -101,4 +104,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-float gemm_calc(const ck_tile::GroupedConvHostArgs& args, const ck_tile::stream_config& s);
+float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::stream_config& s);
