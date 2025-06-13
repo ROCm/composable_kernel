@@ -250,8 +250,19 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
 
                     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-                    const auto actual_launch_grid_dims = argument_ptr->GetLaunchGridDims();
-                    
+                    // const auto actual_launch_grid_dims = argument_ptr->GetLaunchGridDims();
+                    const auto* typed_argument_ptr = dynamic_cast<const GridwiseGemm_xdl_cshuffle_streamk_v3<...>::Argument*>(argument_ptr);
+                    if (typed_argument_ptr)
+                    {
+                        const auto actual_launch_grid_dims = typed_argument_ptr->GetLaunchGridDims();
+                        std::cout << "Actual Grid Dimensions: " << actual_launch_grid_dims.x << "x"
+                                << actual_launch_grid_dims.y << "x" << actual_launch_grid_dims.z << std::endl;
+                    }
+                    else
+                    {
+                        std::cerr << "Error: Failed to cast argument_ptr to the correct type." << std::endl;
+                    }
+
                     std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
                               << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", Grid_size "
                               << actual_launch_grid_dims.x // Use the x-dimension of the actual launch grid
