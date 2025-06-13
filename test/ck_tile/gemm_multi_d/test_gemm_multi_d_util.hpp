@@ -24,6 +24,8 @@ struct ElementWiseAddAdd
         e = ck_tile::type_convert<E>(x0_f);
     }
 
+    // TODO (mozga-amd): Required for the apply function in the reference; reuse or implement a
+    // function similar to the one used for device..
     template <typename E, typename ParamT>
     CK_TILE_HOST auto operator()(E& e, const ParamT& a) const -> void
     {
@@ -42,8 +44,8 @@ struct MultiplyMultiply
         e = ck_tile::type_convert<E>(x0_f);
     }
 
-    // TODO (mozga-amd): Needed for the apply function in reference, use a function like the one for
-    // device.
+    // TODO (mozga-amd): Required for the apply function in the reference; reuse or implement a
+    // function similar to the one used for device..
     template <typename E, typename ParamT>
     CK_TILE_HOST auto operator()(E& e, const ParamT& a) const -> void
     {
