@@ -387,35 +387,25 @@ int run_gemm_example_with_layouts(int argc,
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
-    {
-        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+    {   
+         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
             // Restore input for B for gpu reference
             b_k_n_dev_buf.ToDevice(b_k_n.data());
         }
+
+        // memory on host to store gpu reference result
         ck_tile::HostTensor<CDataType> c_m_n_gpu_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+        // memory on device to store gpu reference result
         ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_gpu_ref.get_element_space_size_in_bytes());
+
         c_m_n_gpu_ref.SetZero();
         c_m_n_gpu_buf_ref.SetZero();
 
-        ADataType* d_A;
-        BDataType* d_B;
-        CDataType* d_C;
-
-        ck_tile::hip_check_error(hipMalloc(&d_A, a_m_k.get_element_space_size_in_bytes()));
-        ck_tile::hip_check_error(hipMalloc(&d_B, b_k_n.get_element_space_size_in_bytes()));
-        ck_tile::hip_check_error(
-            hipMalloc(&d_C, c_m_n_dev_result.get_element_space_size_in_bytes()));
-
-        ck_tile::hip_check_error(hipMemcpy(d_A,
-                                           a_m_k_dev_buf.GetDeviceBuffer(),
-                                           a_m_k.get_element_space_size_in_bytes(),
-                                           hipMemcpyHostToDevice));
-        ck_tile::hip_check_error(hipMemcpy(d_B,
-                                           b_k_n_dev_buf.GetDeviceBuffer(),
-                                           b_k_n.get_element_space_size_in_bytes(),
-                                           hipMemcpyHostToDevice));
+        ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
+        BDataType* d_B = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
+        CDataType* d_C = static_cast<CDataType*>(c_m_n_gpu_buf_ref.GetDeviceBuffer());
 
         ck_tile::reference_gemm_gpu<ADataType,
                                     BDataType,
@@ -424,15 +414,6 @@ int run_gemm_example_with_layouts(int argc,
                                     ALayout,
                                     BLayout,
                                     CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
-
-        ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
-                                           d_C,
-                                           c_m_n_dev_result.get_element_space_size_in_bytes(),
-                                           hipMemcpyDeviceToHost));
-
-        ck_tile::hip_check_error(hipFree(d_A));
-        ck_tile::hip_check_error(hipFree(d_B));
-        ck_tile::hip_check_error(hipFree(d_C));
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
 
