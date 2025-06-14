@@ -185,7 +185,7 @@ struct GemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, int32_t>
     using ADataType   = ck_tile::int8_t;
     using BDataType   = ck_tile::int8_t;
     using AccDataType = int32_t;
-    using CDataType   = int32_t;  
+    using CDataType   = int32_t;
 };
 
 template <typename T>
@@ -242,8 +242,8 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
 template <>
 struct DataTypeTraits<ck_tile::int8_t>
 {
-    static constexpr const char* name = "i8"; 
-}; 
+    static constexpr const char* name = "i8";
+};
 
 auto create_args(int argc, char* argv[])
 {

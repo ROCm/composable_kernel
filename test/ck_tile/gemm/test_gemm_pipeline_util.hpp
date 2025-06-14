@@ -48,10 +48,7 @@ struct GemmPipelineTypeSelector<GemmPipelineType::Mem, Problem>
     using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
     using pipeline      = ck_tile::GemmPipelineAgBgCrMem<Problem>;
 
-    static constexpr auto GetName()
-    {
-        return "GemmPipelineAgBgCrMem";
-    }
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrMem"; }
 };
 
 template <typename Problem>
@@ -60,10 +57,7 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV3, Problem>
     using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<Problem>;
     using pipeline      = ck_tile::GemmPipelineAgBgCrCompV3<Problem>;
 
-    static constexpr auto GetName()
-    {
-        return "GemmPipelineAgBgCrCompV3";
-    }
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV3"; }
 };
 
 template <typename Problem>
@@ -72,10 +66,7 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
     using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<Problem>;
     using pipeline      = ck_tile::GemmPipelineAgBgCrCompV4<Problem>;
 
-    static constexpr auto GetName()
-    {
-        return "GemmPipelineAgBgCrCompV4";
-    }
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV4"; }
 };
 
 template <typename Tuple>

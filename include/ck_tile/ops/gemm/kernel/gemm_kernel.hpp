@@ -296,7 +296,8 @@ struct GemmKernel
         }
         std::cout << "GetVectorSizeA: " << GemmPipeline::GetVectorSizeA() << std::endl;
 
-        std::cout << "K: " << kargs.K << ", k_batch: " << kargs.k_batch << ", KPerBlock: " << TilePartitioner::KPerBlock << std::endl;
+        std::cout << "K: " << kargs.K << ", k_batch: " << kargs.k_batch
+                  << ", KPerBlock: " << TilePartitioner::KPerBlock << std::endl;
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
@@ -337,7 +338,8 @@ struct GemmKernel
                           << std::endl;
                 return false;
             }
-            std::cout << "M: " << kargs.M << ", VecLoadSize: " << GemmPipeline::GetVectorSizeA() << std::endl;
+            std::cout << "M: " << kargs.M << ", VecLoadSize: " << GemmPipeline::GetVectorSizeA()
+                      << std::endl;
             if(kargs.M % GemmPipeline::GetVectorSizeA() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
