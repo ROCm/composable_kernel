@@ -63,6 +63,7 @@ struct GemmPipelineAGmemBGmemCRegV1
 
     // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
     static constexpr bool DoubleSmemBuffer = false;
+    static constexpr index_t NumWaveGroups = 1;
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 

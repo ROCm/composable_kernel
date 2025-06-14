@@ -23,7 +23,7 @@ template <typename GemmConfig,
           typename DsLayout,
           typename CLayout,
           bool Persistent,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+          typename CDEElementWise>
 float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s)
 
 {
