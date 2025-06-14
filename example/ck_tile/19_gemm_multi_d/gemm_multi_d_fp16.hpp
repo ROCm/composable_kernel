@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,7 +7,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
@@ -34,52 +33,47 @@
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
 
-template <typename DataType>
-struct BatchedGemmTypeConfig;
-
-template <>
-struct BatchedGemmTypeConfig<ck_tile::half_t>
-{
-    using ADataType   = ck_tile::half_t;
-    using BDataType   = ck_tile::half_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
-};
-
-using Types = BatchedGemmTypeConfig<ck_tile::half_t>;
-
-// Specific type aliases for easy access
-using ADataType   = Types::ADataType;
-using BDataType   = Types::BDataType;
-using AccDataType = Types::AccDataType;
-using CDataType   = Types::CDataType;
+using ADataType   = ck_tile::half_t;
+using BDataType   = ck_tile::half_t;
+using D0DataType  = ck_tile::half_t;
+using D1DataType  = ck_tile::half_t;
+using EDataType   = ck_tile::half_t;
+using DsDataType  = ck_tile::tuple<D0DataType, D1DataType>;
+using AccDataType = float;
 
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "512", "m dimension")
-        .insert("n", "1024", "n dimension")
-        .insert("k", "2048", "k dimension")
+    arg_parser.insert("m", "3840", "m dimension")
+        .insert("n", "4096", "n dimension")
+        .insert("k", "4096", "k dimension")
+        .insert("a_layout", "R", "A tensor data layout - Row by default")
+        .insert("b_layout", "C", "B tensor data layout - Col by default")
+        .insert("ds_layout", "R", "Ds tensor data layout - Row by default")
+        .insert("e_layout", "R", "E tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
-        .insert("stride_c", "0", "Tensor C stride")
-        .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("b_layout", "C", "B tensor data layout - Row by default")
-        .insert("c_layout", "R", "C tensor data layout - Row by default")
-        .insert("batch_stride_a", "1048576", "Batch A stride")
-        .insert("batch_stride_b", "2097152", "Batch B stride")
-        .insert("batch_stride_c", "524288", "Batch C stride")
-        .insert("batch_count", "8", "Batch count")
-        .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("stride_ds", "0", "Tensor Ds stride")
+        .insert("stride_e", "0", "Tensor E stride")
+        .insert("v", "1", "0. No validation, 1. Validation on GPU")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("split_k", "1", "splitK value");
+        .insert("kbatch", "1", "kbatch for SplitK");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
-// host API
-float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stream_config& s);
+using gemm_multi_d_kargs = ck_tile::GemmHostArgs<DsDataType::size()>;
+
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename EDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise>
+float gemm_multi_d(const gemm_multi_d_kargs& kargs, const ck_tile::stream_config& s);

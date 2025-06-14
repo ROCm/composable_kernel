@@ -1580,7 +1580,7 @@ struct WarpGemmAttributeMfmaImpl_i32_32x32x16_i8
         {
 #if defined(__gfx94__)
             c_vec = __builtin_amdgcn_mfma_i32_32x32x16_i8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);            
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
 #elif defined(__gfx908__) || defined(__gfx90a__)
             static_for<0, 8, 1>{}([&](auto k) {
                 float a_f32 =
@@ -1615,7 +1615,7 @@ struct WarpGemmAttributeMfmaImpl_i32_16x16x32_i8
     static constexpr WGAttrCtlEnum Ctrl = Ctrl_;
     using ADataType                     = int8_t;
     using BDataType                     = int8_t;
-    using CDataType                     = int32_t;  
+    using CDataType                     = int32_t;
 
     using AVecType = ext_vector_t<ADataType, 8>;
     using BVecType = ext_vector_t<BDataType, 8>;
@@ -1636,7 +1636,7 @@ struct WarpGemmAttributeMfmaImpl_i32_16x16x32_i8
     static constexpr index_t kCMLane     = 4;
     static constexpr index_t kCNLane     = 16;
     static constexpr index_t kCM0PerLane = 1;
-    static constexpr index_t kCM1PerLane = 4; // write to 4x AccVGPRs     
+    static constexpr index_t kCM1PerLane = 4; // write to 4x AccVGPRs
 
     // c_vec += a_vec * b_vec
     template <bool post_nop_ = false>
@@ -1650,7 +1650,7 @@ struct WarpGemmAttributeMfmaImpl_i32_16x16x32_i8
         {
 #if defined(__gfx94__)
             c_vec = __builtin_amdgcn_mfma_i32_16x16x32_i8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);            
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
 #else
             ck_tile::ignore = c_vec;
             ck_tile::ignore = a_vec;
@@ -1665,10 +1665,8 @@ struct WarpGemmAttributeMfmaImpl_i32_16x16x32_i8
         CVecType c_vec{0};
         operator()(c_vec, a_vec, b_vec);
         return c_vec;
-    }    
-
-}; 
-
+    }
+};
 
 #undef DISPATCH_MFMA_
 
