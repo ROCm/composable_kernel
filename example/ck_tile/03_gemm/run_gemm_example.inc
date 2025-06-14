@@ -387,8 +387,8 @@ int run_gemm_example_with_layouts(int argc,
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
-    {   
-         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+    {
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
             // Restore input for B for gpu reference
             b_k_n_dev_buf.ToDevice(b_k_n.data());

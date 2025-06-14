@@ -290,14 +290,10 @@ struct GemmKernel
                 {
                     CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
                 }
-                std::cout << "Conditions not met for Kbatch >1 !" << std::endl;
                 return false;
             }
         }
-        std::cout << "GetVectorSizeA: " << GemmPipeline::GetVectorSizeA() << std::endl;
 
-        std::cout << "K: " << kargs.K << ", k_batch: " << kargs.k_batch
-                  << ", KPerBlock: " << TilePartitioner::KPerBlock << std::endl;
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
@@ -308,20 +304,14 @@ struct GemmKernel
                     CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock "
                                   "without padding!");
                 }
-                // print value of K, k_batch, KPerBlock
-
-                std::cout << "Can't support K that is not a multiple of k_batch * KPerBlock "
-                          << "without padding!" << std::endl;
                 return false;
             }
-            // print GetVectorSizeA
             if(kargs.K % GemmPipeline::GetVectorSizeA() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
                     CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
                 }
-                std::cout << "K is not a multiple of vector load size for A tensor!" << std::endl;
                 return false;
             }
         }
@@ -334,19 +324,14 @@ struct GemmKernel
                     CK_TILE_ERROR(
                         "Can't support M that is not a multiple of MPerBlock without padding!");
                 }
-                std::cout << "Can't support M that is not a multiple of MPerBlock without padding!"
-                          << std::endl;
                 return false;
             }
-            std::cout << "M: " << kargs.M << ", VecLoadSize: " << GemmPipeline::GetVectorSizeA()
-                      << std::endl;
             if(kargs.M % GemmPipeline::GetVectorSizeA() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
                     CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
                 }
-                std::cout << "M is not a multiple of vector load size for A tensor!" << std::endl;
                 return false;
             }
         }
@@ -360,8 +345,6 @@ struct GemmKernel
                     CK_TILE_ERROR(
                         "Can't support N that is not a multiple of NPerBlock without padding!");
                 }
-                std::cout << "Can't support N that is not a multiple of NPerBlock without padding!"
-                          << std::endl;
                 return false;
             }
             if(kargs.N % GemmPipeline::GetVectorSizeB() != 0)
@@ -370,7 +353,6 @@ struct GemmKernel
                 {
                     CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
                 }
-                std::cout << "N is not a multiple of vector load size for B tensor!" << std::endl;
                 return false;
             }
         }
@@ -384,8 +366,6 @@ struct GemmKernel
                     CK_TILE_ERROR("Can't support K that is not a multiple of k_batch * KPerBlock "
                                   "without padding!");
                 }
-                std::cout << "Can't support K that is not a multiple of k_batch * KPerBlock "
-                          << "without padding!" << std::endl;
                 return false;
             }
             if(kargs.K % GemmPipeline::GetVectorSizeB() != 0)
@@ -394,7 +374,6 @@ struct GemmKernel
                 {
                     CK_TILE_ERROR("K is not a multiple of vector load size for B tensor!");
                 }
-                std::cout << "K is not a multiple of vector load size for B tensor!" << std::endl;
                 return false;
             }
         }
@@ -457,8 +436,6 @@ struct GemmKernel
                     CK_TILE_ERROR(
                         "Can't support N that is not a multiple of NPerBlock without padding!");
                 }
-                std::cout << "Can't support N that is not a multiple of NPerBlock without padding!"
-                          << std::endl;
                 return false;
             }
             if(kargs.N % EpiloguePipeline::GetVectorSizeC() != 0)
@@ -467,7 +444,6 @@ struct GemmKernel
                 {
                     CK_TILE_ERROR("N is not a multiple of vector load size for C tensor!");
                 }
-                std::cout << "N is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
             }
         }
@@ -480,8 +456,6 @@ struct GemmKernel
                     CK_TILE_ERROR(
                         "Can't support M that is not a multiple of MPerBlock without padding!");
                 }
-                std::cout << "Can't support M that is not a multiple of MPerBlock without padding!"
-                          << std::endl;
                 return false;
             }
             if(kargs.M % EpiloguePipeline::GetVectorSizeC() != 0)
@@ -490,7 +464,6 @@ struct GemmKernel
                 {
                     CK_TILE_ERROR("M is not a multiple of vector load size for C tensor!");
                 }
-                std::cout << "M is not a multiple of vector load size for C tensor!" << std::endl;
                 return false;
             }
         }
