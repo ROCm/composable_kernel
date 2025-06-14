@@ -270,10 +270,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v1<BlockGemmPipelineScheduler::I
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
         __builtin_amdgcn_sched_barrier(0);
 
-        // // Local prefill A1
+        // Local prefill A1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I0);
 
-        // // Global prefetch A2
+        // Global prefetch A2
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 

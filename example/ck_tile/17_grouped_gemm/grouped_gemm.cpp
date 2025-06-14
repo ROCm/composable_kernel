@@ -16,7 +16,16 @@
 #include "ck_tile/host.hpp"
 #include "grouped_gemm.hpp"
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                    const ck_tile::stream_config& s,
                    void* kargs_ptr)
@@ -130,9 +139,12 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
+                                             DsDataType,
                                              AccDataType,
                                              CDataType,
+                                             DsLayout,
                                              CLayout,
+                                             CDEElementWise,
                                              GemmPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
