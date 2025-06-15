@@ -18,16 +18,20 @@
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do CPU validation or not")
-        .insert("pr_i", "int32", "index data type. (currently only int32 supported now)")
-        .insert("pr_w", "fp32", "output weight data type(currently only fp32 supported now)")
-        .insert("t", "128", "number of input tokens")
-        .insert("local_t",
-                "-1",
-                "number of local input tokens, dynamic token feature, \n"
-                "will be used for EP case where each rank have different tokens.\n"
-                "This value will be stored in GPU buffer for cuda graph usage. if -1, then no this "
-                "value/buffer")
+    arg_parser.insert("v", "1", "turn CPU validation on (1) or off (0).")
+        .insert("pr_i", "int32", "index data type.  Only int32 is currently supported.")
+        .insert("pr_w", "fp32", "output weight data type. Only fp32 is currently supported.")
+        .insert("t",
+                "128",
+                "number of input tokens.\n"
+                "If \"local_t\" presents, this value indicates global concurrency of all ranks.")
+        .insert(
+            "local_t",
+            "-1",
+            "Number of local input tokens for curent rank.\n"
+            "This value must be within range \"[0, t)\", or \"-1\"(no such feature)\n"
+            "This feature is to simulate EP case where where each rank has different tokens.\n"
+            "Besides, this value will be stored in a GPU buffer, which is friendly for CUDA graph.")
         .insert("e", "8", "number of num_experts")
         .insert("k", "4", "topk")
         .insert("unit", "32", "unit_size")
@@ -36,8 +40,11 @@ auto create_args(int argc, char* argv[])
                 "-1",
                 "a list of experts enabled as local expert. e.g. \"0,1,4,5\"\n"
                 "please make sure eid is in ascending order!")
-        .insert("seed", "-1", "seed to be used, -1 means random every time")
-        .insert("kname", "0", "when set to 1 it will print kernel name")
+        .insert("seed",
+                "-1",
+                "seed to be used. When set to -1, a random seed will be generated each time "
+                "invoking this example")
+        .insert("kname", "0", "prints the kernel name when set to 1")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
