@@ -838,9 +838,9 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
                                               const bool is_valid,
                                               const index_t src_element_space_size)
 {
-// Direct loads require that each thread reads and writes a multiple of DWORDs (4 bytes).
-// For gfx950: supports 1, 3, or 4 DWORDs per thread
-// For gfx942: supports exactly 1 DWORD per thread
+    // Direct loads require that each thread reads and writes a multiple of DWORDs (4 bytes).
+    // For gfx950: supports 1, 3, or 4 DWORDs per thread
+    // For gfx942: supports exactly 1 DWORD per thread
     constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
 #if defined(__gfx950__)
     constexpr auto dword_bytes = 4;
