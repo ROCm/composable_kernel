@@ -36,7 +36,7 @@ template <typename BottomTensorView_,
           index_t HsGatherDim = 0,
           index_t NumCoord    = 1,
           index_t YsGatherDim = 0,
-          index_t HsPagesize = 1>
+          index_t HsPagesize = 16>
 struct tile_scatter_gather_debug
 {
     using BottomTensorView = remove_reference_t<BottomTensorView_>;

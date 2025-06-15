@@ -11,7 +11,7 @@ namespace ck_tile {
 // A is block distributed tensor
 // B is block distributed tensor
 // C is block distributed tensor
-template <typename Problem_, typename Policy_ = BlockGemmARegBSmemCRegV2DefaultPolicy>
+template <typename Problem_, typename Policy_>
 struct BlockGemmARegBRegCRegV2
 {
     using Problem        = remove_cvref_t<Problem_>;
@@ -26,7 +26,7 @@ struct BlockGemmARegBRegCRegV2
     // C += A * B
     template <typename CBlockTensor, typename ABlockTensorTmp, typename BBlockTensorTmp>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                   const ABlockTensorTmp& a_block_tensor_tmp,
+                                   const ABlockTensorTmp& a_block_tensor,
                                    const BBlockTensorTmp& b_block_tensor) const
     {
         static_assert(
@@ -58,7 +58,8 @@ struct BlockGemmARegBRegCRegV2
         constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
         const index_t iNWarp = get_warp_id() % NWarp;
-
+        // if(threadIdx.x%64==0)
+        // printf("tid %d %d %d %d %d KIterPerWarp %d\n",threadIdx.x, MPerBlock, NPerBlock, NIterPerWarp, iNWarp, KIterPerWarp);
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
             tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
@@ -73,10 +74,10 @@ struct BlockGemmARegBRegCRegV2
         // constrcut from A-block-tensor from A-Block-tensor-tmp
         // FIXME: need method to check a_block_tensor and a_block_tensor_tmp have equivalent
         // distribution
-        auto a_block_tensor = make_static_distributed_tensor<typename ABlockTensorTmp::DataType>(
-            MakeABlockTileDistribution());
+        // auto a_block_tensor = make_static_distributed_tensor<typename ABlockTensorTmp::DataType>(
+        //     MakeABlockTileDistribution());
 
-        a_block_tensor.get_thread_buffer() = a_block_tensor_tmp.get_thread_buffer();
+        // a_block_tensor.get_thread_buffer() = a_block_tensor_tmp.get_thread_buffer();
 
         // check C-block-distribution
         static_assert(
@@ -99,28 +100,42 @@ struct BlockGemmARegBRegCRegV2
             to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-
+        auto b_block_len = to_sequence(b_block_tensor.get_lengths());
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
         constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
-
         // hot loop:
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                 // read B warp tensor from B Block window
-                BWarpTensor b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
+                BWarpTensor b_warp_tensor;// = load_tile(b_warp_windows(nIter)(kIter));
 
                 b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
-                    merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
-                    merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+                    sequence<nIter, number<kIter.value>{}, number<0>{}>{},
+                    sequence<1, 1, 8>{});
 
+                // constexpr auto span_2d = BWarpTensor::get_distributed_spans();
+                // sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+                //     sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+                //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                //         if(blockIdx.x==0)
+                // if(threadIdx.x==0)
+                //     printf("get_thread_buffer_size %d\n", b_warp_tensor.get_thread_buffer_size());
+                    
+                // if(threadIdx.x==0)
+                //     printf("get_thread_buffer_size %d\n", b_warp_tensor.get_thread_buffer_size());
+                // auto &xx = b_warp_tensor.get_thread_buffer();
+                // printf("bid %d tid %d b %f %f %f %f\n", blockIdx.x, threadIdx.x, type_convert<float>(xx[number<0>{}]), type_convert<float>(xx[number<2>{}]), type_convert<float>(xx[number<4>{}]), type_convert<float>(xx[number<6>{}]));
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor
                     AWarpTensor a_warp_tensor;
-
+                    // if(threadIdx.x==0)
+                    //     printf("a get_thread_buffer_size %d\n", b_warp_tensor.get_thread_buffer_size());
                     a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+                    // auto &xx1 = a_warp_tensor.get_thread_buffer();
+                    // printf("bid %d tid %d a %f %f %f %f\n", blockIdx.x, threadIdx.x, type_convert<float>(xx1[number<0>{}]), type_convert<float>(xx1[number<2>{}]), type_convert<float>(xx1[number<4>{}]), type_convert<float>(xx1[number<6>{}]));
 
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
@@ -174,7 +189,33 @@ struct BlockGemmARegBRegCRegV2
         auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
         return c_block_tensor;
     }
+    template <index_t MPerBlock = BlockGemmShape::kM, index_t KPerBlock = BlockGemmShape::kK>
+    CK_TILE_DEVICE static constexpr auto MakeABlockTileDistribution()
+    {
+        constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
+        using WG = remove_cvref_t<decltype(config.template at<0>())>;
+
+        constexpr index_t MWarp = config.template at<1>();
+        constexpr index_t NWarp = config.template at<2>();
+
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
+        constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+
+        constexpr auto a_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
+
+        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
+
+        return make_static_tile_distribution(a_block_dstr_encode);
+    }
+    
     // C = A * B
     template <typename ABlockTensorTmp, typename BBlockTensorTmp>
     CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,

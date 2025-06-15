@@ -218,7 +218,7 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
                              Policy::template MakeSRegTileDistribution<Problem>());
 
         // Block GEMM
-        constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
+        constexpr auto gemm_0 = Policy::template GetQKBlockGemmPreshuffled<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
 
         auto q_dram_window =
@@ -339,13 +339,14 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
-        static_assert(2 <= k0_loops);
+        static_assert(1 <= k0_loops);
         static_assert(1 <= k1_loops);
 
         auto k_dram_window = [&] {
-            auto k_dist               = Policy::template MakeKDramTileDistribution<Problem>();
+            auto k_dist               = Policy::template MakeKDramTileDistributionPreshuffled<Problem>();
             auto k_coord              = k_dist.calculate_index();
             using KDstrEncode         = typename decltype(k_dist)::DstrEncode;
+            // constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I1];
             constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
             statically_indexed_array<index_t, NRepeat> k_offsets;
             static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -363,19 +364,24 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
         auto k_block_tile = load_tile(k_dram_window);
         // moving k_dram_window is an in-page-block operation, so there is
         // no need to invoke k_page_block_navigator.move_tile_window() here.
-        move_tile_window(k_dram_window, {0, kK0});
-        // ensure LDS access by Q is done before the over-writting by K
-        block_sync_lds();
-        store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
+        // move_tile_window(k_dram_window, {0, kK0});
+        // // ensure LDS access by Q is done before the over-writting by K
+        // block_sync_lds();
+        // store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
 
         do
         {
             // STAGE 1, QK gemm
             clear_tile(s_acc); // initialize C
 
-            // load the second tile of the first iteration
-            k_block_tile = load_tile(k_dram_window);
-
+            // constexpr auto span_2d = decltype(k_block_tile)::get_distributed_spans();
+            // sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+            //     sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+            //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
+            //         if(blockIdx.x==0)
+            //             printf("bid %d tid %d %f\n", blockIdx.x, threadIdx.x, type_convert<float>(k_block_tile(i_j_idx)));
+            //     });
+            // });
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 __builtin_amdgcn_sched_barrier(
@@ -388,23 +394,31 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
                     0); // prevent from messing up the order of global loads
             }
 
-            if constexpr(k0_loops > 2)
+            if constexpr(k0_loops > 1)
             {
-                static_for<0, k0_loops - 2, 1>{}([&](auto i_k0) {
-                    block_sync_lds();
+                static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
+                    // block_sync_lds();
+                    move_tile_window(k_dram_window, {0, kK0});
                     gemm_0(s_acc,
                            get_slice_tile(q_tile,
                                           sequence<0, i_k0 * kK0>{},
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
-                           k_lds_window);
-                    block_sync_lds();
-                    move_tile_window(k_dram_window, {0, kK0});
+                           k_block_tile);
+                    // block_sync_lds();
 
-                    store_tile(
-                        k_lds_window,
-                        tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
+                    // store_tile(
+                    //     k_lds_window,
+                    //     tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
                     k_block_tile = load_tile(k_dram_window);                // global read i + 2
                 });
+                
+                // sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+                //     sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+                //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                //         if(blockIdx.x==0)
+                //             printf("bid %d tid %d %f\n", blockIdx.x, threadIdx.x, type_convert<float>(k_block_tile(i_j_idx)));
+                //     });
+                // });
             }
 
             const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
@@ -415,22 +429,22 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
             v_dram_window.update_page_idx(v_offsets);
 
             { // tail
-                block_sync_lds();
-                gemm_0(s_acc,
-                       get_slice_tile(q_tile,
-                                      sequence<0, (k0_loops - 2) * kK0>{},
-                                      sequence<kM0, (k0_loops - 1) * kK0>{}),
-                       k_lds_window);
-                block_sync_lds();
+                // block_sync_lds();
+                // gemm_0(s_acc,
+                //        get_slice_tile(q_tile,
+                //                       sequence<0, (k0_loops - 2) * kK0>{},
+                //                       sequence<kM0, (k0_loops - 1) * kK0>{}),
+                //        k_block_tile);
+                // // block_sync_lds();
 
-                store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
-                block_sync_lds();
+                // store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
+                // block_sync_lds();
 
                 gemm_0(s_acc,
                        get_slice_tile(q_tile,
                                       sequence<0, (k0_loops - 1) * kK0>{},
                                       sequence<kM0, k0_loops * kK0>{}),
-                       k_lds_window);
+                       k_block_tile);
             }
 
             // STAGE 2, scale_s, add bias, mask, softmax
@@ -531,7 +545,7 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
                 move_tile_window(k_dram_block_window, {kN0, 0});
 
                 k_dram_window = [&] {
-                    auto k_dist       = Policy::template MakeKDramTileDistribution<Problem>();
+                    auto k_dist       = Policy::template MakeKDramTileDistributionPreshuffled<Problem>();
                     auto k_coord      = k_dist.calculate_index();
                     using KDstrEncode = typename decltype(k_dist)::DstrEncode;
                     constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
