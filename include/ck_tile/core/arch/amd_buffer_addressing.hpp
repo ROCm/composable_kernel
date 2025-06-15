@@ -1804,8 +1804,8 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     else
     {
         llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
-                                        smem,
-                                        sizeof(uint32_t),
+                                        reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(      ),
+                                        bytes,
                                         src_thread_addr_offset,
                                         src_wave_addr_offset,
                                         src_immediate_addr_offset,
