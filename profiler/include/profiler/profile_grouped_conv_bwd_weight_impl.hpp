@@ -183,6 +183,26 @@ void write_perf_results_to_file(const PerfResults& perf_results_global,
     }
 }
 
+bool is_operator_disabled(const std::string& op_name, const std::string& disabled_op)
+{
+    // Extract the base operator name (everything before the first "<")
+    size_t template_pos = op_name.find('<');
+    std::string base_op_name;
+    
+    if (template_pos != std::string::npos)
+    {
+        // If template parameters exist, extract only the base name
+        base_op_name = op_name.substr(0, template_pos);
+    }
+    else
+    {
+        // No template parameters, use the whole name
+        base_op_name = op_name;
+    }
+    
+    return base_op_name == disabled_op;
+}
+
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -342,7 +362,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
         // Skip disabled ops
         if(std::any_of(disabled_ops.begin(), disabled_ops.end(), [&op_name](const std::string& disabled_op) {
-            return op_name.find(disabled_op) == 0;
+            return is_operator_disabled(op_name, disabled_op);
         }))
         {
             std::cout << "Skipping disabled op: " << op_name << std::endl;
@@ -518,26 +538,28 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         }
     }
 
-    std::cout << "Best configuration parameters:"
+    if (perf_results_list.size() > 0)
+    {
+        std::cerr << "Best configuration parameters:"
               << perf_results_global.print_best_op() << std::endl;
 
-    if (profile_all && perf_results_list.size() > 0)
-    {
-        std::cout << "Optimized split-K results:"
-                  << perf_results_global.print_best_split_k() << std::endl;
-        const auto& local_perf_result = std::find_if(perf_results_list.begin(), perf_results_list.end(),
-            [&](const PerfResults& res) { return res.opt_split_k_best_op_name_ == perf_results_global.opt_split_k_best_op_name_; });
-        std::cout << "Global ranking: "
-                  << std::get<0>(perf_results_global.get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
-                  << " / " << std::get<1>(perf_results_global.get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
-                  << std::endl;
-        std::cout << "Local ranking: "
-                  << std::get<0>(local_perf_result->get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
-                  << " / " << std::get<1>(local_perf_result->get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
-                  << std::endl;
+        if (profile_all)
+        {
+            std::cerr << "Optimized split-K results:"
+                    << perf_results_global.print_best_split_k() << std::endl;
+            std::cerr << "Global ranking: "
+                    << std::get<0>(perf_results_global.get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
+                    << " / " << std::get<1>(perf_results_global.get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
+                    << std::endl;
 
-        write_perf_results_to_file(perf_results_global, perf_results_list);
+            write_perf_results_to_file(perf_results_global, perf_results_list);
+        }
     }
+    else 
+    {
+        std::cerr << "No supported/enabled ops found for this problem." << std::endl;
+    }
+    
 
     return all_pass;
 }
