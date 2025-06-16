@@ -36,6 +36,28 @@ struct GroupedConvHostArgs : public conv::ConvParam
     index_t k_batch;
 };
 
+struct GroupedConvBwdWeightHostArgs : public conv::ConvParam
+{
+    CK_TILE_HOST GroupedConvBwdWeightHostArgs() = delete;
+    CK_TILE_HOST GroupedConvBwdWeightHostArgs(ConvParam conv_param,
+                                              const void* in_ptr_,
+                                              void* wei_ptr_,
+                                              const void* out_ptr_,
+                                              index_t k_batch_)
+        : conv::ConvParam(conv_param),
+          in_ptr(in_ptr_),
+          wei_ptr(wei_ptr_),
+          out_ptr(out_ptr_),
+          k_batch(k_batch_)
+    {
+    }
+
+    const void* in_ptr;
+    void* wei_ptr;
+    const void* out_ptr;
+    index_t k_batch;
+};
+
 template <index_t NDimSpatial_,
           ConvolutionSpecialization ConvSpecialization_,
           typename InLayout_,
