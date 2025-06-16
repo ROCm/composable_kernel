@@ -183,6 +183,10 @@ struct DefaultGemm2DEpilogue : public Default2DEpilogue<Problem_, Policy_>
             static_assert(false, "Unsupported CLayout!");
         }
     }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeD() {
+        return 1;
+    }
 };
 
 } // namespace ck_tile
