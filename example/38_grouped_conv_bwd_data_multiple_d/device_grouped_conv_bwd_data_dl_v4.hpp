@@ -94,7 +94,7 @@ struct GridwiseGroupedConv2DBwdDataDlV4
         GetConvOut(Tile_W, FilterSize, Dilation_X, Pad_W, Stride_W);
 
     static_assert(Tile_W % InScalarPerVector == 0);
-    static_assert(TileOut_W && TileOut_W % OutScalarPerVector == 0);
+    static_assert(TileOut_W % OutScalarPerVector == 0);
 
     static constexpr index_t WeiScalarPerVector          = 2;
     static constexpr index_t InScalarPerVector_Internal  = 4;
