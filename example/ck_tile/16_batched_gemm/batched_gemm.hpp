@@ -8,6 +8,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm/kernel/batched_gemm_kernel.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
