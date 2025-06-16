@@ -1397,11 +1397,15 @@ __host__ __device__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
     if constexpr(stochastic_rounding)
     {
         constexpr int seed = 1254739;
+#if defined(__gfx950__)
+        rng = __builtin_amdgcn_prng_b32(seed);
+#else
 #ifndef CK_CODE_GEN_RTC
         rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
 #else
         rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f);
-#endif
+#endif // #ifndef CK_CODE_GEN_RTC
+#endif // #if defined(__gfx950__)
     }
     return cast_to_f8_from_f32<interp, sat == ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
         f, rng);
@@ -1417,11 +1421,15 @@ __host__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
     if constexpr(stochastic_rounding)
     {
         constexpr int seed = 1254739;
+#if defined(__gfx950__)
+        rng = __builtin_amdgcn_prng_b32(seed);
+#else
 #ifndef CK_CODE_GEN_RTC
         rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
 #else
         rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f);
-#endif
+#endif // #ifndef CK_CODE_GEN_RTC
+#endif // #if defined(__gfx950__)
     }
 
     if constexpr(interp == ck_fp8_interpretation_t::CK_E4M3_FNUZ)
@@ -1488,11 +1496,15 @@ __device__ static inline fp8x2_storage_t cvt_float_to_fp8(const float2_t f)
     if constexpr(stochastic_rounding)
     {
         constexpr int seed = 1254739;
+#if defined(__gfx950__)
+        rng = __builtin_amdgcn_prng_b32(seed);
+#else
 #ifndef CK_CODE_GEN_RTC
         rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f[0]);
 #else
         rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f[0]);
-#endif
+#endif // #ifndef CK_CODE_GEN_RTC
+#endif // #if defined(__gfx950__)
     }
     return cast_to_f8_from_f32<interp, sat == ck_saturation_t::CK_SATFINITE, stochastic_rounding>(
         f, rng);
@@ -1533,11 +1545,15 @@ __host__ static inline fp8_storage_t cvt_half_t_to_fp8(const _Float16 x)
         if constexpr(stochastic_rounding)
         {
             constexpr int seed = 1254739;
+#if defined(__gfx950__)
+            rng = __builtin_amdgcn_prng_b32(seed);
+#else
 #ifndef CK_CODE_GEN_RTC
             rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
             rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
-#endif
+#endif // #ifndef CK_CODE_GEN_RTC
+#endif // #if defined(__gfx950__)
         }
 #if defined(__gfx950__)
         return cast_to_f8_from_f16<interp,
@@ -1575,11 +1591,15 @@ __host__ static inline fp8x2_storage_t cvt_half_t_to_fp8(const half2_t x)
         if constexpr(stochastic_rounding)
         {
             constexpr int seed = 1254739;
+#if defined(__gfx950__)
+            rng = __builtin_amdgcn_prng_b32(seed);
+#else
 #ifndef CK_CODE_GEN_RTC
             rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
 #else
             rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
-#endif
+#endif // #ifndef CK_CODE_GEN_RTC
+#endif // #if defined(__gfx950__)
         }
 #if defined(__gfx950__)
         return cast_to_f8_from_f16<interp,
@@ -1617,12 +1637,16 @@ __host__ static inline fp8_storage_t cvt_bhalf_t_to_fp8(const ushort x)
         if constexpr(stochastic_rounding)
         {
             constexpr int seed = 1254739;
+#if defined(__gfx950__)
+            rng = __builtin_amdgcn_prng_b32(seed);
+#else
 #ifndef CK_CODE_GEN_RTC
             rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x),
                                                static_cast<float>(x));
 #else
             rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), static_cast<float>(x));
-#endif
+#endif // #ifndef CK_CODE_GEN_RTC
+#endif // #if defined(__gfx950__)
         }
 #if defined(__gfx950__)
         return cast_to_f8_from_bf16<interp,
@@ -1665,13 +1689,17 @@ __host__ static inline fp8x2_storage_t cvt_bhalf_t_to_fp8(const ushortx2_t x)
         if constexpr(stochastic_rounding)
         {
             constexpr int seed = 1254739;
+#if defined(__gfx950__)
+            rng = __builtin_amdgcn_prng_b32(seed);
+#else
 #ifndef CK_CODE_GEN_RTC
             rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x),
                                                static_cast<float>(x[0]));
 #else
             rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x),
                                                static_cast<float>(x[0]));
-#endif
+#endif // #ifndef CK_CODE_GEN_RTC
+#endif // #if defined(__gfx950__)
         }
 #if defined(__gfx950__)
         return cast_to_f8_from_bf16<interp,

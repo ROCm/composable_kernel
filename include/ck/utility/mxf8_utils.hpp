@@ -198,7 +198,7 @@ __host__ __device__ static inline fp8_storage_t cvt_float_to_fp8_scaled(const fl
     if constexpr(stochastic_rounding)
     {
         constexpr int seed = 1254739;
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
+        rng                = __builtin_amdgcn_prng_b32(seed);
     }
     return cast_to_f8_from_f32_scaled<interp, stochastic_rounding>(f, rng, scale);
 }
@@ -222,7 +222,7 @@ __host__ __device__ static inline fp8x2_storage_t cvt_float_to_fp8_scaled(const 
     if constexpr(stochastic_rounding)
     {
         constexpr int seed = 1254739;
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f[0]);
+        rng                = __builtin_amdgcn_prng_b32(seed);
     }
     return cast_to_f8_from_f32_scaled<interp, stochastic_rounding>(f, rng, scale);
 }
