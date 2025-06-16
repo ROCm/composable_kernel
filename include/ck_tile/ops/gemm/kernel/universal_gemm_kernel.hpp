@@ -951,9 +951,7 @@ struct UniversalGemmKernel
             // Run Epilogue Pipeline
             auto& c_block_window = gemm_tile_windows.at(I3);
 
-            EpiloguePipeline{}.template
-            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-                c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
         }
     }
 
@@ -1007,9 +1005,7 @@ struct UniversalGemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        EpiloguePipeline{}.template
-        operator()<decltype(c_block_window), decltype(c_block_tile), decltype(ds_block_window)>(
-            c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+        EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
     }
 
     // Non-persistent kernel entry point
