@@ -25,6 +25,11 @@
 namespace ck {
 namespace profiler {
 
+// NOTE: Usage of NHWGK layout for GK bias is a workaround. This test is to
+// just keep such implementation valid.
+// TODO: Add possiblity to pass GK layout and GK lengths for bias and reuse
+// the same instances.
+
 template <ck::index_t NDimSpatial>
 auto get_bias_desc(ck::index_t G, ck::index_t K)
 {
