@@ -23,6 +23,9 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
+
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
@@ -381,7 +384,58 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         decltype(GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             CGridDesc_M_N{}, 1, 1));
 
-    struct Argument : public BaseArgument
+    struct MaximumActiveBlocksPerMultiprocessor
+    {
+        MaximumActiveBlocksPerMultiprocessor()
+        {
+            constexpr int dynamic_smem_size = 0;
+            constexpr index_t minimum_occupancy =
+                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
+				
+            int max_occupancy = 0;
+
+            // We assume that the tail number doesn't affect occupancy (this is an approximation).
+            // Since we don't set it explicitly, it defaults to TailNumber::Full.
+            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+            {
+                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                                &max_occupancy,
+                                kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3_2lds<
+                                    GridwiseGemm,
+                                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                                    remove_reference_t<
+                                        DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                                    ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy>, // Tail number, does it have effect on occupancy?
+                                BlockSize,
+                                dynamic_smem_size));
+            }
+            else 
+            {
+                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                                &max_occupancy,
+                                kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3<
+                                        GridwiseGemm,
+                                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                                        remove_reference_t<
+                                            DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                                        true,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy>, // Tail number, does it have effect on occupancy?
+                                BlockSize,
+                                dynamic_smem_size));
+            }
+            value_ = std::max(1, max_occupancy);
+        }
+        int value_;
+    };
+
+    struct Argument : public BaseArgument, public ArgumentSplitK
     {
         Argument(const InDataType* p_in_grid,
                  WeiDataType* p_wei_grid,
@@ -424,9 +478,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
               output_spatial_lengths_{},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
-              input_right_pads_{input_right_pads},
-              k_batch_{split_k}
+              input_right_pads_{input_right_pads}
         {
+            static MaximumActiveBlocksPerMultiprocessor max_occupancy;
+
             c_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
                     e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
@@ -442,6 +497,50 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             std::copy(begin(a_g_n_k_wos_lengths) + spatial_offset,
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
+
+            if (split_k < 1)
+            {
+                constexpr int k_batch_initial = 1;
+
+                const auto descs_initial =
+                    conv_to_gemm_transformer
+                        .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                            Conv_N_,
+                            Conv_K_,
+                            Conv_C_,
+                            input_spatial_lengths_,
+                            filter_spatial_lengths_,
+                            output_spatial_lengths_,
+                            b_g_n_c_wis_strides,
+                            e_g_k_c_xs_strides,
+                            a_g_n_k_wos_strides,
+                            conv_filter_strides,
+                            conv_filter_dilations,
+                            input_left_pads,
+                            input_right_pads,
+                            k_batch_initial);
+
+                const auto& a_grid_desc_kbatch_k0_m_k1 = descs_initial[I0];
+                const auto& b_grid_desc_kbatch_k0_n_k1 = descs_initial[I1];
+                const index_t GemmM = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
+                const index_t GemmN = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
+                const index_t GemmK = a_grid_desc_kbatch_k0_m_k1.GetLength(I0) * a_grid_desc_kbatch_k0_m_k1.GetLength(I2);
+
+                // nullptr for output, will be set after workspace set
+                typename GridwiseGemm::Argument gemm_arg{
+                    nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, 1};
+
+                // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
+                // Hence, the grid is just size of the tile map.
+                index_t gdx, gdy, gdz;
+                std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(gemm_arg.M, gemm_arg.N, 1, 1);
+                const auto grid_size = gdx * gdy * gdz;
+                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size, GemmK);
+            }
+            else 
+            {
+                k_batch_ = split_k;
+            }
 
             const auto descs =
                 conv_to_gemm_transformer
@@ -513,7 +612,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         const std::array<ck::index_t, NDimSpatial>& conv_filter_strides_;
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
-        const index_t k_batch_;
         long_index_t c_space_size_bytes;
     };
 
@@ -550,7 +648,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             const ADataType* p_a_grid = arg.p_a_grid_;
             const BDataType* p_b_grid = arg.p_b_grid_;
             typename GridwiseGemm::Argument gemm_arg{
-                p_a_grid, p_b_grid, arg.p_c_grid_, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
+                p_a_grid, p_b_grid, arg.p_c_grid_, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch()};
 
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(
@@ -566,7 +664,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(Number<0>{}) / gemm_arg.KBatch;
 
             const auto clear_workspace = [&]() {
-                if(arg.k_batch_ > 1)
+                if(arg.k_batch() > 1)
                 {
                     hip_check_error(hipMemsetAsync(
                         gemm_arg.p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
@@ -1169,7 +1267,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                               arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2);
 
         typename GridwiseGemm::Argument gemm_arg{
-            nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
+            nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch()};
 
         const auto num_k_loop = gemm_arg.AK0 / (K0PerBlock / K1);
         if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
@@ -1186,7 +1284,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         }
 
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> &&
-           arg.k_batch_ > 1)
+           arg.k_batch() > 1)
         {
             return false;
         }
