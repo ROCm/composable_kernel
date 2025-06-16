@@ -278,13 +278,13 @@ def main():
     shapes = tuples(filename)
 
     all_results = []
+    from tqdm import tqdm
     from functools import partial
     from os import path
 
     profiler_bin = path.join(args["build_dir"], "bin", "ckProfiler")
 
-    total = len(shapes)
-    for idx, s in enumerate(shapes, 1): 
+    for s in tqdm(shapes):
         run_shape_stdout_lines = run_shape(
             s, profiler_bin, args["op_name"], args["dtype"], args["layout"]
         )
