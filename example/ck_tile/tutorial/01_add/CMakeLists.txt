@@ -1,6 +1,6 @@
 set(EXAMPLE_ADD "add")
 
-message("adding example ${EXAMPLE_ADD}")
+message(DEBUG "adding example ${EXAMPLE_ADD}")
 
 add_executable(${EXAMPLE_ADD} EXCLUDE_FROM_ALL add.cpp)
 target_include_directories(${EXAMPLE_ADD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})

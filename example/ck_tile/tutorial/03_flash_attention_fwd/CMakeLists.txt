@@ -1,6 +1,6 @@
 set(EXAMPLE_BASIC_FLASH_ATTENTION "basic_flash_attention_fwd")
 
-message("adding example ${EXAMPLE_BASIC_FLASH_ATTENTION}")
+message(DEBUG "adding example ${EXAMPLE_BASIC_FLASH_ATTENTION}")
 
 add_executable(${EXAMPLE_BASIC_FLASH_ATTENTION} EXCLUDE_FROM_ALL flash_attention_fwd.cpp)
 target_include_directories(${EXAMPLE_BASIC_FLASH_ATTENTION} PRIVATE ${CMAKE_CURRENT_LIST_DIR})

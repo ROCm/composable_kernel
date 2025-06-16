@@ -1,6 +1,6 @@
 set(EXAMPLE_BASIC_GEMM "basic_gemm")
 
-message("adding example ${EXAMPLE_BASIC_GEMM}")
+message(DEBUG "adding example ${EXAMPLE_BASIC_GEMM}")
 
 add_executable(${EXAMPLE_BASIC_GEMM} EXCLUDE_FROM_ALL gemm.cpp)
 target_include_directories(${EXAMPLE_BASIC_GEMM} PRIVATE ${CMAKE_CURRENT_LIST_DIR})

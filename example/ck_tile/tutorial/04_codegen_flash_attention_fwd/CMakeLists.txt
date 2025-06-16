@@ -30,7 +30,7 @@ add_custom_command(
 )
 
 set(EXAMPLE_FA "codegen_basic_flash_attention_fwd")
-message("adding example ${EXAMPLE_FA}")
+message(DEBUG "adding example ${EXAMPLE_FA}")
 
 add_executable(${EXAMPLE_FA}
   EXCLUDE_FROM_ALL
@@ -49,7 +49,7 @@ target_include_directories(${EXAMPLE_FA}
 
 target_sources(${EXAMPLE_FA} PRIVATE ${FLASH_ATTENTION_FWD_GEN_BLOBS})
 
-message("FLASH_ATTENTION_FWD_GEN_BLOBS = ${FLASH_ATTENTION_FWD_GEN_BLOBS}")
+message(DEBUG "FLASH_ATTENTION_FWD_GEN_BLOBS = ${FLASH_ATTENTION_FWD_GEN_BLOBS}")
 
 set(EXAMPLE_FA_COMPILE_OPTIONS)
 list(APPEND EXAMPLE_FA_COMPILE_OPTIONS
