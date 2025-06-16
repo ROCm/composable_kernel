@@ -1,0 +1,116 @@
+{
+  "problem": {
+    "layout_a": {
+      "values": [
+        "r"
+      ]
+    },
+    "layout_b": {
+      "values": [
+        "c"
+      ]
+    },
+    "layout_c": {
+      "values": [
+        "r"
+      ]
+    },
+    "datatype_a": {
+      "values": [
+        "fp16"
+      ]
+    },
+    "datatype_b": {
+      "values": [
+        "fp16"
+      ]
+    },
+    "datatype_c": {
+      "values": [
+        "fp16"
+      ]
+    }
+  },
+  "tile_config": {
+    "tile_m": {
+      "values": [
+        128
+      ]
+    },
+    "tile_n": {
+      "values": [
+        128
+      ]
+    },
+    "tile_k": {
+      "values": [
+        32
+      ]
+    },
+    "warp_m": {
+      "values": [
+        2
+      ]
+    },
+    "warp_n": {
+      "values": [
+        2
+      ]
+    },
+    "warp_k": {
+      "values": [
+        1
+      ]
+    },
+    "warp_tile_m": {
+      "values": [
+        32
+      ]
+    },
+    "warp_tile_n": {
+      "values": [
+        32
+      ]
+    },
+    "warp_tile_k": {
+      "values": [
+        16
+      ]
+    }
+  },
+  "trait_config": {
+    "pipeline": {
+      "values": [
+        "compv3",
+        "mem"
+      ]
+    },
+    "scheduler": {
+      "values": [
+        "intrawave",
+        "interwave"
+      ]
+    },
+    "epilogue": {
+      "values": [
+        "default",
+        "cshuffle"
+      ]
+    },
+    "pad_m": {
+      "values": [
+        false
+      ]
+    },
+    "pad_n": {
+      "values": [
+        false
+      ]
+    },
+    "pad_k": {
+      "values": [
+        false
+      ]
+    }
+  }
+}
