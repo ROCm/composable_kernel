@@ -447,7 +447,6 @@ struct FlatmmKernel
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window      = gemm_tile_windows.at(I0);
         const auto& b_flat_block_window = gemm_tile_windows.at(I1);
-        const auto& d_block_window      = gemm_tile_windows.at(I2);
         const auto& c_block_tile        = FlatmmPipeline{}.template operator()(
             a_block_window, b_flat_block_window, num_loop, smem_ptr);
 
@@ -455,7 +454,7 @@ struct FlatmmKernel
         auto& c_block_window = gemm_tile_windows.at(I2);
 
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr);
+            c_block_window, c_block_tile, smem_ptr);
     }
 
     CK_TILE_DEVICE void operator()(FlatmmKernelArgs kargs) const
