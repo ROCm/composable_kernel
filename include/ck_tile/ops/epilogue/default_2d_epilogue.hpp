@@ -72,8 +72,10 @@ struct Default2DEpilogue
     // TODO: this function assume store out vector size is the same as OAccTile last dimension size
     //       how do we fix this ?
     template <typename ODramWindowTmp, typename OAccTile, typename DsDramWindows>
-    CK_TILE_DEVICE auto
-    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, const DsDramWindows& ds_dram_windows, void* = nullptr)
+    CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
+                                   const OAccTile& o_acc_tile,
+                                   const DsDramWindows& ds_dram_windows,
+                                   void* = nullptr)
     {
 
         // TODO: this is ugly
@@ -114,8 +116,8 @@ struct DefaultGemm2DEpilogue : public Default2DEpilogue<Problem_, Policy_>
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
-    using DsDataType = ck_tile::tuple<>;
-    using DsLayout   = ck_tile::tuple<>;
+    using DsDataType                       = ck_tile::tuple<>;
+    using DsLayout                         = ck_tile::tuple<>;
     using CLayout                          = remove_cvref_t<typename Problem::CLayout>;
     static constexpr index_t kMPerXdl      = Problem::kMPerXdl;
     static constexpr index_t kNPerXdl      = Problem::kNPerXdl;
@@ -184,9 +186,7 @@ struct DefaultGemm2DEpilogue : public Default2DEpilogue<Problem_, Policy_>
         }
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeD() {
-        return 1;
-    }
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeD() { return 1; }
 };
 
 } // namespace ck_tile
