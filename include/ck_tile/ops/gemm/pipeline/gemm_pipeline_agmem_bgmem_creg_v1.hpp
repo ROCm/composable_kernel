@@ -30,6 +30,8 @@ struct GemmPipelineAGmemBGmemCRegV1
     using I1 = number<1>;
     using I2 = number<2>;
 
+    static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
