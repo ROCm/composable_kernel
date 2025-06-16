@@ -167,18 +167,21 @@ def main():
         'Command': ktn_commands,
     })
 
-    # Take a randomly sampled subset of Fremont commands
     if not args.full_set:
-        commands_fremont_df = commands_fremont_df.sample(n=min(n_fremont_shapes, len(commands_fremont_df)), random_state=seed)
+        # The hardest cases are at the beginning of the Fremont CSV file.
+        commands_fremont_df = commands_fremont_df.sample(n=min(n_fremont_shapes, len(commands_fremont_df)))
         commands_ktn_df = commands_ktn_df.sample(n=min(n_ktn_shapes, len(commands_ktn_df)), random_state=seed)
+
+    # Combine the two DataFrames
+    commands_df = pd.concat([commands_fremont_df, commands_ktn_df], ignore_index=True)
+    # Randomly permute the commands
+    commands_df = commands_df.sample(frac=1, random_state=seed).reset_index(drop=True)
 
     output_file = os.path.join(args.output_path, "ck_profiler_commands.csv")
     with open(output_file, "w") as f:
         csv_writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        for command in commands_fremont_df['Command']:
+        for command in commands_df['Command']:
             csv_writer.writerow(command)        
-        for command in commands_ktn_df['Command']:
-            csv_writer.writerow(command)
     print(f"Commands saved to {output_file}")
 
 if __name__ == "__main__":
