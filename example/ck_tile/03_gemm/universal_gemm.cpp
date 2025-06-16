@@ -323,14 +323,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        // run_gemm_example<GemmConfigMemoryInterwave>(argc, argv);
-        // run_gemm_example<GemmConfigMemoryIntrawave>(argc, argv);
         return !run_gemm_example<GemmConfigComputeV3>(argc, argv);
-        // run_gemm_example<GemmConfigComputeV3_1>(argc, argv);
-        // run_gemm_example<GemmConfigComputeV3_2>(argc, argv);
-        // run_gemm_example<GemmConfigComputeV4>(argc, argv);
-        // run_gemm_example<GemmConfigComputeV4_1>(argc, argv);
-        // run_gemm_example<GemmConfigComputeV5>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {
