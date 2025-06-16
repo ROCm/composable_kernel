@@ -206,7 +206,7 @@ struct DataTypeTraits<double>
 template <>
 struct DataTypeTraits<int32_t>
 {
-    static constexpr const char* name = "i32";
+    static constexpr const char* name = "int32";
 };
 
 template <>
@@ -242,7 +242,7 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
 template <>
 struct DataTypeTraits<ck_tile::int8_t>
 {
-    static constexpr const char* name = "i8";
+    static constexpr const char* name = "int8";
 };
 
 auto create_args(int argc, char* argv[])
