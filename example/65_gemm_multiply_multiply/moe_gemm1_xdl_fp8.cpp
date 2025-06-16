@@ -158,21 +158,22 @@ using BElementOp = PassThrough;
 
 static constexpr auto GemmSpec         = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr ck::index_t MPerBlock = 128;
-static constexpr ck::index_t MXDLPerWave = 4;
-static constexpr ck::index_t NXDLPerWave = 2;
-static constexpr ck::index_t BLOCKSIZE   = 256;
-static constexpr ck::index_t NPerBlock   = 64;
-static constexpr ck::index_t MNPerXDL    = 16;
-static constexpr ck::index_t KPerBlock   = 128 / sizeof(A0DataType);
-static constexpr ck::index_t Nswizzle    = false;
-static constexpr ck::index_t AK1         = 16 / sizeof(A0DataType);
-static constexpr ck::index_t BK1         = 16 / sizeof(B0DataType);
-static constexpr ck::index_t EVec        = 16 / sizeof(EDataType);
-static constexpr ck::index_t D0Vec       = 1;
-static constexpr ck::index_t D1Vec       = 1;
-static constexpr ck::index_t ActOP       = 1; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr bool MulRoutedWeight    = false;
-using DeviceOpInstance                   = ck::tensor_operation::device::DeviceMoeGemm
+static constexpr ck::index_t NPerBlock = 128;
+static constexpr ck::index_t MNPerXDL  = 16;
+static constexpr ck::index_t MXDLPerWave = MPerBlock / (MNPerXDL * 1);
+static constexpr ck::index_t NXDLPerWave = NPerBlock / (MNPerXDL * 4);
+
+static constexpr ck::index_t BLOCKSIZE = 256;
+static constexpr ck::index_t KPerBlock = 128 / sizeof(A0DataType);
+static constexpr ck::index_t Nswizzle  = false;
+static constexpr ck::index_t AK1       = 16 / sizeof(A0DataType);
+static constexpr ck::index_t BK1       = 16 / sizeof(B0DataType);
+static constexpr ck::index_t EVec      = 16 / sizeof(EDataType);
+static constexpr ck::index_t D0Vec     = 1;
+static constexpr ck::index_t D1Vec     = 1;
+static constexpr ck::index_t ActOP     = 1; // 0: gelu_and_mul, 1: silu_and_mul
+static constexpr bool MulRoutedWeight  = false;
+using DeviceOpInstance                 = ck::tensor_operation::device::DeviceMoeGemm
     // clang-format off
         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
                AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
@@ -183,15 +184,15 @@ using DeviceOpInstance                   = ck::tensor_operation::device::DeviceM
                // mn_perxdl
                MNPerXDL,   MNPerXDL,
                // mn_xdlperwave 
-               MXDLPerWave,    NXDLPerWave,
+               MXDLPerWave,  NXDLPerWave,
                // a,b: loadtranfer cluster, cluster order, srcorder,VECDIM, srcpervec, dstpervec, lds_extra
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, AK1, AK1, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, BK1, BK1, 0,
                //    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-                2,    2,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, true, MulRoutedWeight, true, int32_t, A0DataType>;
+                2,    2,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec, 1>,
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, true, MulRoutedWeight, true, int32_t, A0DataType>;
 
 // clang-format on
 
@@ -205,9 +206,9 @@ int main(int argc, char* argv[])
     ck::index_t N               = 4096;
     ck::index_t K               = 6144;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 16;
-    ck::index_t valid_tile_num  = 13;
-    ck::index_t tokens          = 64;
+    ck::index_t sorted_tile_num = 256;
+    ck::index_t valid_tile_num  = 256;
+    ck::index_t tokens          = 16384;
     ck::index_t topk            = 2;
 
     if(argc == 1)
@@ -263,11 +264,12 @@ int main(int argc, char* argv[])
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
     Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
     max_token_id.mData = {valid_size};
-    int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3};
+    // int eids[]         = {0, 0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 3, 3, 3};
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = eids[i];
+        expert_ids.mData[i] = i / (valid_tile_num / experts);
     }
+
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
 
@@ -307,7 +309,7 @@ int main(int argc, char* argv[])
     case 0: break;
     case 1:
         a0_t_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.1, 0.1});
         d0_t_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
         d1_e_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
         d2_e_n.GenerateTensorValue(GeneratorTensor_3<D2DataType>{0.0, 1.0});
