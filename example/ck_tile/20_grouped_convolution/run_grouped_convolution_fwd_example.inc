@@ -146,6 +146,7 @@ int run_grouped_conv_fwd_example_with_layouts(
     ck_tile::GroupedConvHostArgs args(conv_param,
                                       input_dev_buf.GetDeviceBuffer(),
                                       weight_dev_buf.GetDeviceBuffer(),
+                                      {},
                                       output_dev_buf.GetDeviceBuffer(),
                                       kbatch);
 
