@@ -42,7 +42,7 @@ class TestGroupedConvndFwd : public ::testing::Test
                                                                                   DataType,
                                                                                   DataType,
                                                                                   IndexType,
-                                                                                  false /*BiasGK*/>(
+                                                                                  true /*BiasGK*/>(
                                true,  // do_verification
                                1,     // init_method: integer value
                                false, // do_log
