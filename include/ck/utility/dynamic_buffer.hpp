@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -214,12 +214,8 @@ struct DynamicBuffer
                     });
                 }
             }
-            else
-            {
-                this->template Set<X>(i, is_valid_element, x + tmp);
-            }
-
 #endif
+            else { this->template Set<X>(i, is_valid_element, x + tmp); }
         }
     }
 
