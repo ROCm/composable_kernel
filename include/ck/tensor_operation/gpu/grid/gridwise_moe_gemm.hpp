@@ -2078,7 +2078,7 @@ struct GridwiseMoeGemm
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
             blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                 a_grid_desc_ak0_m_ak1,
                 a_block_desc_ak0_m_ak1,
