@@ -15,6 +15,8 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/data_type.hpp"
 
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/fill.hpp"
@@ -57,8 +59,9 @@ struct ProblemSizeStreamK_universal final
     ck::index_t StrideB = -1;
     ck::index_t StrideC = -1;
 
-    ck::index_t Grid_size   = -1; // defaults to max occupancy
-    ck::index_t Streamk_sel = 1;  // defaults to 1-tile SK
+    ck::index_t Grid_size                           = -1; // defaults to max occupancy
+    ck::index_t Streamk_sel                         = 1;  // defaults to 1-tile SK
+    ck::StreamKReductionStrategy reduction_strategy = ck::StreamKReductionStrategy::Atomic;
 };
 
 struct ProblemSizeSplitK final
@@ -173,7 +176,19 @@ bool parse_cmd_args<ProblemSizeStreamK_universal>(int argc,
         if(argc >= 11)
         {
             problem_size.Streamk_sel = std::stoi(argv[10]);
-            problem_size.Grid_size   = std::stoi(argv[11]);
+
+            if(argc >= 12)
+            {
+                problem_size.Grid_size = std::stoi(argv[11]);
+
+                if(argc >= 13)
+                {
+                    int reduction_strategy          = std::stoi(argv[12]);
+                    problem_size.reduction_strategy = reduction_strategy == 0
+                                                          ? ck::StreamKReductionStrategy::Atomic
+                                                          : ck::StreamKReductionStrategy::Reduction;
+                }
+            }
         }
     }
     else
@@ -185,7 +200,9 @@ bool parse_cmd_args<ProblemSizeStreamK_universal>(int argc,
             << "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC (default: -1 or 0)"
             << std::endl
             << "arg10: stream-k select (-1: default config, 0: all DP, 1: 1-tile SK, 2: 2-tile SK)"
-            << "\narg11: Grid_size(-1 for max occupancy)" << std::endl;
+            << std::endl
+            << "arg11: Grid_size(-1 for max occupancy)" << std::endl
+            << "arg12: Reduction strategy (0: Atomic, 1: Reduction)" << std::endl;
         return false;
     }
 
