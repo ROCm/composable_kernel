@@ -71,9 +71,9 @@ struct Default2DEpilogue
 
     // TODO: this function assume store out vector size is the same as OAccTile last dimension size
     //       how do we fix this ?
-    template <typename ODramWindowTmp, typename OAccTile>
+    template <typename ODramWindowTmp, typename OAccTile, typename DsDramWindows = ck_tile::tuple<>>
     CK_TILE_DEVICE auto
-    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void* = nullptr)
+    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, const DsDramWindows ds_dram_windows = ck_tile::tuple<>{}, void* = nullptr)
     {
 
         // TODO: this is ugly
