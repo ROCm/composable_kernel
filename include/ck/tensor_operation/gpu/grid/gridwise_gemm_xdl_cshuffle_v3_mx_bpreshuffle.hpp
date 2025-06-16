@@ -1221,7 +1221,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                 }
             }
         }
-#if 0
         // check gridwise gemm pipeline
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
@@ -1232,7 +1231,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                 return false;
             }
         }
-#endif
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }
@@ -2123,6 +2121,58 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                                        n_thread_data_on_block_idx[I3]),
                       ck::tensor_operation::element_wise::PassThrough{}};
 
+            // calculate C grid descriptor
+            constexpr auto DWORD_BYTES        = 4;
+            constexpr auto atomic_vector_size = DWORD_BYTES / sizeof(CDataType);
+
+            constexpr auto CShuffleBlockTransferClusterLengths = [&]() {
+                if constexpr(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set)
+                {
+                    return CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock{};
+                }
+                // Atomic operation
+                else
+                {
+                    return generate_sequence_v2(
+                        [&](auto i) {
+                            if constexpr(i == 3)
+                            {
+                                return Number<
+                                    CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock{}
+                                        .At(i) *
+                                    CShuffleBlockTransferScalarPerVector_NPerBlock /
+                                    atomic_vector_size>{};
+                            }
+                            else if constexpr(i == 1)
+                            {
+                                return Number<
+                                    CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock{}
+                                        .At(i) /
+                                    CShuffleBlockTransferScalarPerVector_NPerBlock *
+                                    atomic_vector_size>{};
+                            }
+                            else
+                            {
+                                return Number<
+                                    CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock{}
+                                        .At(i)>{};
+                            }
+                        },
+                        Number<4>{});
+                }
+            }();
+
+            constexpr auto CShuffleBlockTransferScalarPerVector = [&]() {
+                if constexpr(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set)
+                {
+                    return CShuffleBlockTransferScalarPerVector_NPerBlock;
+                }
+                else
+                {
+                    return atomic_vector_size;
+                }
+            }();
+
             // shuffle: blockwise copy C from LDS to global
             auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
                 ThisThreadBlock,            // ThreadGroup
@@ -2132,15 +2182,15 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                          CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
                          1,
                          CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
-                CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                decltype(CShuffleBlockTransferClusterLengths),
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                 CShuffleDataType,     // typename SrcData,
                 CDataType,            // typename DstData,
                 decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
                 decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
-                Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
-                3,                                              // index_t VectorDim,
-                CShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
+                Sequence<0, 1, 2, 3>,                 // typename DimAccessOrder,
+                3,                                    // index_t VectorDim,
+                CShuffleBlockTransferScalarPerVector, // index_t ScalarPerVector,
                 true,  // bool ThreadTransferSrcResetCoordinateAfterRun,
                 false> // bool ThreadTransferDstResetCoordinateAfterRun>
                 {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
