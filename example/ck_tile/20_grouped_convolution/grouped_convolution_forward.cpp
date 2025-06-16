@@ -19,7 +19,10 @@ template <ck_tile::index_t NDimSpatial,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename OutLayout>
+          typename OutLayout,
+          typename DsDataType     = ck_tile::tuple<>,
+          typename DsLayout       = ck_tile::tuple<>,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr int kBlockPerCu = 1;
@@ -49,7 +52,7 @@ float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::
     constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
     using TilePartitioner   = ck_tile::GemmTile1DPartitioner<CodegenShape>;
     using GroupedConvTraitsType =
-        ck_tile::GroupedConvTraits<NDimSpatial, ConvSpec, InLayout, WeiLayout, OutLayout>;
+        ck_tile::GroupedConvTraits<NDimSpatial, ConvSpec, InLayout, WeiLayout, DsLayout, OutLayout>;
     using CodegenPipelineProblem =
         ck_tile::GemmPipelineProblem<InDataType,
                                      WeiDataType,
@@ -68,9 +71,12 @@ float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::
         using ConvEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<InDataType,
                                              WeiDataType,
+                                             DsDataType,
                                              AccDataType,
                                              OutDataType,
+                                             typename GroupedConvTraitsType::ImplicitGemmDsLayout,
                                              ck_tile::tensor_layout::gemm::RowMajor,
+                                             CDEElementWise,
                                              CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
