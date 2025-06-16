@@ -17,17 +17,17 @@
     },
     "datatype_a": {
       "values": [
-        "i8"
+        "int8"
       ]
     },
     "datatype_b": {
       "values": [
-        "i8"
+        "int8"
       ]
     },
     "datatype_c": {
       "values": [
-        "i32"
+        "int32"
       ]
     }
   },

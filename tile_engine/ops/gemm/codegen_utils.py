@@ -11,15 +11,16 @@ import subprocess
 import re
 from functools import lru_cache
 
-DATA_TYPE_MAP = {'fp32': 'float',
+DATA_TYPE_MAP = {
+                 'fp32': 'float',
                  'fp16': 'ck_tile::half_t',
                  'bf16': 'ck_tile::bf16_t',
-                 'i8': 'ck_tile::int8_t',
+                 'int8': 'ck_tile::int8_t',
                  'fp8': 'ck_tile::fp8_t',
                  'bf8': 'ck_tile::bf8_t',
                  'int4': 'ck_tile::pk_int4_t',
-                 'i32': 'ck_tile::int32_t'
-                 }
+                 'int32': 'ck_tile::int32_t',
+                }
 
 LAYOUT_MAP = {'r': 'ck_tile::tensor_layout::gemm::RowMajor',
               'c': 'ck_tile::tensor_layout::gemm::ColumnMajor'}
@@ -181,7 +182,7 @@ warp_tile_supported_combinations = {
         'bf16_bf16_bf16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
         'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64]],
         'fp8_fp8_fp16': [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32]],
-        'i8_i8_i32': [[16, 16, 32]]
+        'int8_int8_int32': [[16, 16, 32]]
     },
     "gfx950": {
         'fp16_fp16_fp16': [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
@@ -205,11 +206,11 @@ def element_size(data_type: str) -> float:
     data_type = data_type.lower()
     if data_type in {'fp16', 'bf16'}:
         return 2
-    elif data_type in {'i8', 'fp8', 'bf8'}:
+    elif data_type in {'int8', 'fp8', 'bf8'}:
         return 1
     elif data_type == 'int4':
         return 0.5
-    elif data_type == 'i32':
+    elif data_type == 'int32':
         return 4
     else:
         raise ValueError(f"Unsupported data type: {data_type}")
