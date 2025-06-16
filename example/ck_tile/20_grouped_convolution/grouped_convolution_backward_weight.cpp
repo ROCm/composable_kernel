@@ -19,7 +19,10 @@ template <ck_tile::index_t NDimSpatial,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename OutLayout>
+          typename OutLayout,
+          typename DsDataType     = ck_tile::tuple<>,
+          typename DsLayout       = ck_tile::tuple<>,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                               const ck_tile::stream_config& s)
 {
@@ -47,19 +50,21 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-    using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenShape>;
-
-    using CodegenTraits          = ck_tile::GroupedConvImplicitGemmTraits;
-    using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<InDataType,
-                                                                WeiDataType,
-                                                                AccDataType,
-                                                                CodegenShape,
-                                                                CodegenTraits,
-                                                                InDataType,
-                                                                true,
-                                                                VectorSizeA,
-                                                                VectorSizeB>;
-    using CodegenPipeline        = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
+    constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
+    using TilePartitioner   = ck_tile::GemmTile1DPartitioner<CodegenShape>;
+    using GroupedConvTraitsType =
+        ck_tile::GroupedConvTraits<NDimSpatial, ConvSpec, InLayout, WeiLayout, DsLayout, OutLayout>;
+    using CodegenPipelineProblem =
+        ck_tile::GemmPipelineProblem<InDataType,
+                                     WeiDataType,
+                                     AccDataType,
+                                     CodegenShape,
+                                     typename GroupedConvTraitsType::GroupedConvImplicitGemmTraits,
+                                     InDataType,
+                                     true,
+                                     VectorSizeA,
+                                     VectorSizeB>;
+    using CodegenPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
     const auto Run = [&](const auto memory_operation_) {
         constexpr auto memory_operation = memory_operation_.value;
@@ -67,9 +72,12 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
         using ConvEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<InDataType,
                                              WeiDataType,
+                                             DsDataType,
                                              AccDataType,
                                              OutDataType,
+                                             typename GroupedConvTraitsType::ImplicitGemmDsLayout,
                                              ck_tile::tensor_layout::gemm::RowMajor,
+                                             CDEElementWise,
                                              CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
@@ -80,16 +88,11 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                                              K_Warp_Tile,
                                              CodegenPipelineProblem::TransposeC,
                                              memory_operation,
+                                             1,
                                              true,
                                              VectorSizeC>>;
 
-        constexpr auto ConvSpec = ck_tile::ConvolutionBackwardWeightSpecialization::Default;
-
-        using Kernel = ck_tile::GroupedConvolutionBackwardWeightKernel<NDimSpatial,
-                                                                       ConvSpec,
-                                                                       InLayout,
-                                                                       WeiLayout,
-                                                                       OutLayout,
+        using Kernel = ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType,
                                                                        TilePartitioner,
                                                                        CodegenPipeline,
                                                                        ConvEpilogue>;

@@ -354,8 +354,7 @@ struct GroupedConvolutionForwardKernel
     using OutLayout = remove_cvref_t<typename GroupedConvTraitsType::OutLayout>;
     using DsLayout  = remove_cvref_t<typename GroupedConvTraitsType::DsLayout>;
 
-    using GemmDsLayout = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-
+    using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType::NumDTensor;
 
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;

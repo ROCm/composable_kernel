@@ -45,11 +45,13 @@ struct GroupedConvBwdWeightHostArgs : public conv::ConvParam
     CK_TILE_HOST GroupedConvBwdWeightHostArgs(ConvParam conv_param,
                                               const void* in_ptr_,
                                               void* wei_ptr_,
+                                              const std::vector<const void*> ds_ptr_,
                                               const void* out_ptr_,
                                               index_t k_batch_)
         : conv::ConvParam(conv_param),
           in_ptr(in_ptr_),
           wei_ptr(wei_ptr_),
+          ds_ptr(ds_ptr_),
           out_ptr(out_ptr_),
           k_batch(k_batch_)
     {
@@ -57,6 +59,7 @@ struct GroupedConvBwdWeightHostArgs : public conv::ConvParam
 
     const void* in_ptr;
     void* wei_ptr;
+    const std::vector<const void*> ds_ptr;
     const void* out_ptr;
     index_t k_batch;
 };
@@ -77,6 +80,7 @@ struct GroupedConvTraits
     }
 
     public:
+    static constexpr index_t NumGroupsToMerge                     = 1;
     static constexpr index_t NDimSpatial                          = NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization = ConvSpecialization_;
     using InLayout                                                = InLayout_;

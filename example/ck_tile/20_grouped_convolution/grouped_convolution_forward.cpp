@@ -129,7 +129,7 @@ float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::
                                           ck_tile::memory_operation_enum::set>{});
 }
 
-#include "run_grouped_convolution_example.inc"
+#include "run_grouped_convolution_fwd_example.inc"
 
 template <typename InPrecType, typename WeiPrecType = InPrecType, typename OutPrecType = InPrecType>
 int run_grouped_conv_fwd_example_prec_type(

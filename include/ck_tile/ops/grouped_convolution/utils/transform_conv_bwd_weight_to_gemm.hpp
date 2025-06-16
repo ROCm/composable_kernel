@@ -4,12 +4,12 @@
 
 #pragma once
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/grouped_convolution/utils/convolution_forward_specialization.hpp"
+#include "ck_tile/ops/grouped_convolution/utils/convolution_specialization.hpp"
 
 namespace ck_tile {
 
 template <index_t NDimSpatial,
-          ConvolutionBackwardWeightSpecialization ConvolutionBackwardWeightSpecialization,
+          ConvolutionSpecialization ConvolutionSpecialization,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t GemmK1Number,

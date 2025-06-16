@@ -148,6 +148,7 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
     ck_tile::GroupedConvBwdWeightHostArgs args(conv_param,
                                                input_dev_buf.GetDeviceBuffer(),
                                                weight_dev_buf.GetDeviceBuffer(),
+                                               {},
                                                output_dev_buf.GetDeviceBuffer(),
                                                kbatch);
 
