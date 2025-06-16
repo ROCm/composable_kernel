@@ -12,7 +12,8 @@ template <bool kPadM_,
           bool kPadK_,
           typename ALayout_,
           typename BLayout_,
-          typename CLayout_>
+          typename CLayout_,
+          index_t NumWaveGroups_ = 1>
 struct TileGemmTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -28,6 +29,7 @@ struct TileGemmTraits
 
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
+    static constexpr index_t NumWaveGroups      = NumWaveGroups_;
 };
 
 template <bool kPadM_,

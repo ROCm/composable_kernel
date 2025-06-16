@@ -4,12 +4,12 @@
 
 #pragma once
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/grouped_convolution/utils/convolution_forward_specialization.hpp"
+#include "ck_tile/ops/grouped_convolution/utils/convolution_specialization.hpp"
 
 namespace ck_tile {
 
 template <index_t NDimSpatial,
-          ConvolutionForwardSpecialization ConvForwardSpecialization,
+          ConvolutionSpecialization ConvSpecialization,
           bool SplitN              = false,
           typename ADataType       = float,
           typename CDataType       = float,
@@ -422,8 +422,7 @@ struct TransformConvFwdToGemm
         IndexType NStrideTensorA_ = Di_ * Hi_ * Wi_ * G_ * C_;
         IndexType GStrideTensorA_ = C_;
 
-        if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
+        if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter1x1Stride1Pad0)
         {
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -451,7 +450,7 @@ struct TransformConvFwdToGemm
                     make_tuple(sequence<0>{}, sequence<1>{}));
             }
         }
-        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
+        else if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter3x3)
         {
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -512,8 +511,7 @@ struct TransformConvFwdToGemm
                     make_tuple(sequence<0>{}, sequence<1>{}));
             }
         }
-        else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization::Filter1x1Pad0)
+        else if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter1x1Pad0)
         {
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -639,8 +637,7 @@ struct TransformConvFwdToGemm
         IndexType NStrideTensorA_ = Di_ * Hi_ * Wi_ * G_ * C_;
         IndexType GStrideTensorA_ = C_;
 
-        if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
+        if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter1x1Stride1Pad0)
         {
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -670,7 +667,7 @@ struct TransformConvFwdToGemm
                     make_tuple(sequence<0>{}, sequence<1>{}));
             }
         }
-        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
+        else if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter3x3)
         {
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -736,8 +733,7 @@ struct TransformConvFwdToGemm
                     make_tuple(sequence<0>{}, sequence<1>{}));
             }
         }
-        else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization::Filter1x1Pad0)
+        else if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter1x1Pad0)
         {
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -884,8 +880,7 @@ struct TransformConvFwdToGemm
         IndexType NStrideTensorA_ = Di_ * Hi_ * Wi_ * G_ * C_;
         IndexType GStrideTensorA_ = C_;
 
-        if constexpr(ConvForwardSpecialization ==
-                     ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
+        if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter1x1Stride1Pad0)
         {
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -920,7 +915,7 @@ struct TransformConvFwdToGemm
                     make_tuple(sequence<0>{}, sequence<1>{}));
             }
         }
-        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
+        else if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter3x3)
         {
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -1003,8 +998,7 @@ struct TransformConvFwdToGemm
                     make_tuple(sequence<0>{}, sequence<1>{}));
             }
         }
-        else if constexpr(ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization::Filter1x1Pad0)
+        else if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter1x1Pad0)
         {
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -1196,7 +1190,7 @@ struct TransformConvFwdToGemm
         IndexType KStrideTensorB_ = Z_ * Y_ * X_ * C_;
         IndexType GStrideTensorB_ = K_ * Z_ * Y_ * X_ * C_;
 
-        if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
+        if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter3x3)
         {
             using FilterSizeNumType =
                 std::conditional_t<NDimSpatial == 1,

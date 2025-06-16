@@ -34,14 +34,14 @@ template <ck_tile::index_t NDimSpatial,
           typename OutLayout>
 float invoke_grouped_conv_fwd(ck_tile::GroupedConvHostArgs& args, int n_warmup, int n_repeat)
 {
-    float ave_time = grouped_conv_fwd_calc<NDimSpatial,
-                                           InDataType,
-                                           WeiDataType,
-                                           AccDataType,
-                                           OutDataType,
-                                           InLayout,
-                                           WeiLayout,
-                                           OutLayout>(
+    float ave_time = grouped_conv_fwd<NDimSpatial,
+                                      InDataType,
+                                      WeiDataType,
+                                      AccDataType,
+                                      OutDataType,
+                                      InLayout,
+                                      WeiLayout,
+                                      OutLayout>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = args.GetFlops();

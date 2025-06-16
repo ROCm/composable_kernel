@@ -36,11 +36,24 @@ struct GroupedConvHostArgs : public conv::ConvParam
     index_t k_batch;
 };
 
-using GroupedConvImplicitGemmTraits = TileGemmTraits<true,
-                                                     true,
-                                                     true,
-                                                     ck_tile::tensor_layout::gemm::RowMajor,
-                                                     ck_tile::tensor_layout::gemm::ColumnMajor,
-                                                     ck_tile::tensor_layout::gemm::RowMajor>;
+template <index_t NDimSpatial_,
+          ConvolutionSpecialization ConvSpecialization_,
+          typename InLayout_,
+          typename WeiLayout_,
+          typename OutLayout_>
+struct GroupedConvTraits
+{
+    static constexpr index_t NDimSpatial                          = NDimSpatial_;
+    static constexpr ConvolutionSpecialization ConvSpecialization = ConvSpecialization_;
+    using InLayout                                                = InLayout_;
+    using WeiLayout                                               = WeiLayout_;
+    using OutLayout                                               = OutLayout_;
+    using GroupedConvImplicitGemmTraits                           = TileGemmTraits<true,
+                                                         true,
+                                                         true,
+                                                         ck_tile::tensor_layout::gemm::RowMajor,
+                                                         ck_tile::tensor_layout::gemm::ColumnMajor,
+                                                         ck_tile::tensor_layout::gemm::RowMajor>;
+};
 
 } // namespace ck_tile

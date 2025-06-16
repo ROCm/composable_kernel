@@ -50,6 +50,8 @@ struct GemmPipelineProblemBase
     static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
 
+    static constexpr index_t NumWaveGroups = Traits::NumWaveGroups;
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
