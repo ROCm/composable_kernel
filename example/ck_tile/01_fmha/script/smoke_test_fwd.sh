@@ -94,7 +94,7 @@ run_fp8_tests() {
     for b in 1 2 ; do
     for hdim in 64 128 256 ; do
     
-    $EXE -prec=fp8 -init=0 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
+    $EXE -prec=fp8 -init=0 -b=$b -h=1 -d=$hdim -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
 
     done ; done ; done ; done
 }
@@ -105,7 +105,7 @@ run_fp8bf16_tests() {
     for b in 1 2 ; do
     for hdim in 64 128 256 ; do
 
-    $EXE -prec=fp8bf16 -init=0 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
+    $EXE -prec=fp8bf16 -init=0 -b=$b -h=1 -d=$hdim -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
 
     done ; done ; done ; done
 }
@@ -116,7 +116,7 @@ run_fp8fp32_tests() {
     for b in 1 2 ; do
     for hdim in 64 128 256 ; do
 
-    $EXE -prec=fp8fp32 -init=0 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
+    $EXE -prec=fp8fp32 -init=0 -b=$b -h=1 -d=$hdim -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
 
     done ; done ; done ; done
 }
