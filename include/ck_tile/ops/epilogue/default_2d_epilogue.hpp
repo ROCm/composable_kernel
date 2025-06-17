@@ -74,7 +74,7 @@ struct Default2DEpilogue
     template <typename ODramWindowTmp, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
                                    const OAccTile& o_acc_tile,
-                                   const DsDramWindows& ds_dram_windows,
+                                   const DsDramWindows& /* unused */,
                                    void* = nullptr)
     {
 
