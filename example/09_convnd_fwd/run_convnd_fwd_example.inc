@@ -13,7 +13,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
     ck::index_t split_k  = 1;
 
     ck::utils::conv::ConvParam conv_param{
-        2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
+        3, 1, 128, 256, 192, {3, 3, 3}, {48, 48, 48}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
 
     if(argc == 1)
     {
@@ -94,7 +94,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
     }
     else if(conv_param.num_dim_spatial_ == 3)
     {
-        return run(ck::Number<3>{}, ctc::GNDHWC{}, ctc::GKZYXC{}, ctc::GNDHWK{});
+        return run(ck::Number<3>{}, ctc::NGCDHW{}, ctc::GKCZYX{}, ctc::NGKDHW{});
     }
 
     return true;
