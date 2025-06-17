@@ -44,11 +44,10 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
                                          int StrideA,
                                          int StrideB,
                                          int StrideC,
-                                         int Streamk_sel,
-                                         int Grid_size,
                                          int n_warmup,
                                          int n_iter,
-                                         uint64_t rotating = 0)
+                                         uint64_t rotating    = 0,
+                                         uint32_t NumSKBlocks = 0xffffffff)
 {
     bool pass = true;
 
@@ -152,144 +151,105 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
     }
 
     std::string best_op_name;
-    float best_ave_time    = 0;
-    float best_tflops      = 0;
-    float best_gb_per_sec  = 0;
-    float best_grid_size   = 0;
-    float best_streamk_sel = 0;
+    float best_ave_time   = 0;
+    float best_tflops     = 0;
+    float best_gb_per_sec = 0;
 
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::vector<int> grid_size_list   = {38, 76, 114, 152, 190, 228, 266, 304, 342, 380};
-        std::vector<int> streamk_sel_list = {
-            0, 1, 2, 3, 4}; // 0: Data Parallel (DP) mode (Stream-K OFF), 1: 1-tile Stream-K+ DP,
-                            // 2:2-tile Stream-K + DP
+        auto argument_ptr =
+            op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                        static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                        M,
+                                        N,
+                                        K,
+                                        StrideA,
+                                        StrideB,
+                                        StrideC,
+                                        a_element_op,
+                                        b_element_op,
+                                        c_element_op,
+                                        NumSKBlocks); // NumSKBlocks parameter
 
-        if(Grid_size == -1)
+        auto invoker_ptr = op_ptr->MakeInvokerPointer();
+
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            grid_size_list = {Grid_size};
-        }
-        if(Streamk_sel != -1)
-        {
-            streamk_sel_list = {Streamk_sel};
-        }
-        for(std::size_t j = 0; j < streamk_sel_list.size(); j++)
-        {
-            for(std::size_t i = 0; i < grid_size_list.size(); i++)
+
+            // re-init C to zero before profiling next kernel
+            c_device_buf.SetZero();
+
+            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false, 0, n_warmup, n_iter});
+
+            if(do_verification)
             {
-                auto grid_size_curr      = grid_size_list[i];
-                index_t streamk_sel_curr = streamk_sel_list[j];
-                printf("streamk_sel_curr=%0d\n", streamk_sel_curr);
-                auto argument_ptr = op_ptr->MakeArgumentPointer(
-                    static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                    static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                    static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                    M,
-                    N,
-                    K,
-                    StrideA,
-                    StrideB,
-                    StrideC,
-                    streamk_sel_curr,
-                    grid_size_curr,
-                    a_element_op,
-                    b_element_op,
-                    c_element_op);
+                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-                auto invoker_ptr = op_ptr->MakeInvokerPointer();
+                // Always compare against CPU reference results computed earlier
+                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 
-                if(op_ptr->IsSupportedArgument(argument_ptr.get()))
+                if(do_log)
                 {
-
-                    // re-init C to zero before profiling next kernel
-                    c_device_buf.SetZero();
-
-                    invoker_ptr->Run(argument_ptr.get(),
-                                     StreamConfig{nullptr, false, 0, n_warmup, n_iter});
-
-                    if(do_verification)
-                    {
-                        c_device_buf.FromDevice(c_m_n_device_result.mData.data());
-
-                        // Always compare against CPU reference results computed earlier
-                        pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
-
-                        if(do_log)
-                        {
-                            LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",")
-                                << std::endl;
-                            LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",")
-                                << std::endl;
-                            LogRangeAsType<float>(
-                                std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                                << std::endl;
-                            LogRangeAsType<float>(
-                                std::cout << "c_device: ", c_m_n_device_result.mData, ",")
-                                << std::endl;
-                        }
-                    }
-
-                    std::string op_name = op_ptr->GetTypeString();
-
-                    float ave_time = invoker_ptr->Run(argument_ptr.get(),
-                                                      StreamConfig{nullptr,
-                                                                   time_kernel,
-                                                                   0,
-                                                                   n_warmup,
-                                                                   n_iter,
-                                                                   rotating_count > 1,
-                                                                   rotating_count});
-
-                    std::size_t flop = std::size_t(2) * M * N * K;
-
-                    std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
-                                            sizeof(CDataType) * M * N;
-
-                    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-                    float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-                    std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                              << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", Grid_size "
-                              << grid_size_curr << ", streamk selection strategy"
-                              << streamk_sel_curr << std::endl;
-
-#if defined CK_ENABLE_FP8
-                    // set softer tolerances for fp8
-                    if constexpr(is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
-                                 is_same_v<CDataType, f8_t>)
-                    {
-                        std::string msg = "Error: Incorrect results!";
-                        double rtol     = 1e-1;
-                        double atol     = 1e-1;
-                        pass            = pass & ck::utils::check_err(
-                                          c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
-                    }
-                    else
-                    {
-#endif
-                        pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
-#if defined CK_ENABLE_FP8
-                    }
-#endif
-
-                    if(tflops > best_tflops)
-                    {
-                        best_op_name     = op_name;
-                        best_tflops      = tflops;
-                        best_ave_time    = ave_time;
-                        best_gb_per_sec  = gb_per_sec;
-                        best_grid_size   = grid_size_curr;
-                        best_streamk_sel = streamk_sel_curr;
-                    }
-                }
-                else
-                {
-                    std::cout << op_ptr->GetTypeString() << " does not support this problem"
-                              << std::endl;
+                    LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
+                        << std::endl;
                 }
             }
+
+            std::string op_name = op_ptr->GetTypeString();
+
+            float ave_time = invoker_ptr->Run(
+                argument_ptr.get(),
+                StreamConfig{
+                    nullptr, time_kernel, 0, n_warmup, n_iter, rotating_count > 1, rotating_count});
+
+            std::size_t flop = std::size_t(2) * M * N * K;
+
+            std::size_t num_btype =
+                sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+
+            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+            float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
+                      << gb_per_sec << " GB/s, " << op_name << std::endl;
+
+#if defined CK_ENABLE_FP8
+            // set softer tolerances for fp8
+            if constexpr(is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
+                         is_same_v<CDataType, f8_t>)
+            {
+                std::string msg = "Error: Incorrect results!";
+                double rtol     = 1e-1;
+                double atol     = 1e-1;
+                pass            = pass & ck::utils::check_err(
+                                  c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
+            }
+            else
+            {
+#endif
+                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+#if defined CK_ENABLE_FP8
+            }
+#endif
+
+            if(tflops > best_tflops)
+            {
+                best_op_name    = op_name;
+                best_tflops     = tflops;
+                best_ave_time   = ave_time;
+                best_gb_per_sec = gb_per_sec;
+            }
+        }
+        else
+        {
+            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
     }
 
@@ -329,9 +289,7 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
     }
 
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
-              << " StrideB = " << StrideB << " StrideC = " << StrideC
-              << " Grid_size = " << best_grid_size
-              << " Stream-K selection strategy = " << best_streamk_sel << " : " << best_ave_time
+              << " StrideB = " << StrideB << " StrideC = " << StrideC << "Time : " << best_ave_time
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_op_name << std::endl;
 

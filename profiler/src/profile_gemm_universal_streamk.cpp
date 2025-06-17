@@ -34,7 +34,7 @@ enum struct GemmDataType
 
 int profile_gemm_universal_streamk(int argc, char* argv[])
 {
-    if(argc != 16 && argc != 19)
+    if(argc != 14 && argc != 18)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: f16, "
@@ -48,12 +48,11 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
         printf("arg6: print tensor value (0: no; 1: yes)\n");
         printf("arg7: time kernel (0=no, 1=yes)\n");
         printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n");
-        printf("arg14: Stream-k select strategy 0: all DP, 1: 1-tile SK, 2: 2-tile SK\n");
-        printf("arg15: Grid-size, -1 for max persistent kernel occupancy\n");
         printf("optional:\n");
-        printf("arg16: number of warm-up cycles (default 1)\n");
-        printf("arg17: number of iterations (default 10)\n");
-        printf("arg18: memory for rotating buffer (default 0, size in MB)\n");
+        printf("arg14: number of warm-up cycles (default 1)\n");
+        printf("arg15: number of iterations (default 10)\n");
+        printf("arg16: memory for rotating buffer (default 0, size in MB)\n");
+        printf("arg17: NumSKBlocks\n");
         exit(1);
     }
 
@@ -86,18 +85,18 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
 
     const int K = std::stoi(argv[10]);
 
-    const int StrideC     = std::stoi(argv[13]);
-    const int Streamk_sel = std::stoi(argv[14]);
-    const int Grid_size   = std::stoi(argv[15]);
+    const int StrideC = std::stoi(argv[13]);
+    const uint32_t NumSKBlocks =
+        argc >= 18 ? static_cast<uint32_t>(std::stoul(std::string(argv[17]))) : 0xffffffff;
 
     int n_warmup      = 20;
     int n_iter        = 50;
     uint64_t rotating = 0;
-    if(argc == 19)
+    if(argc == 17)
     {
-        n_warmup = std::stoi(argv[16]);
-        n_iter   = std::stoi(argv[17]);
-        rotating = std::stoull(argv[18]) * 1024 * 1024;
+        n_warmup = std::stoi(argv[14]);
+        n_iter   = std::stoi(argv[15]);
+        rotating = std::stoull(argv[16]) * 1024 * 1024;
     }
 
     using F32  = float;
@@ -151,8 +150,7 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
             (StrideA < 0) ? DefaultStrideA : StrideA,
             (StrideB < 0) ? DefaultStrideB : StrideB,
             (StrideC < 0) ? DefaultStrideC : StrideC,
-            Streamk_sel,
-            Grid_size,
+            NumSKBlocks,
             n_warmup,
             n_iter,
             rotating);
