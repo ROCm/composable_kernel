@@ -47,6 +47,8 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
+    static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
     static constexpr index_t kLdsAlignmentInBytes = 16;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()

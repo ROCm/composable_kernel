@@ -32,6 +32,8 @@ struct GemmPipelineProblemBase
 
     static constexpr bool TransposeC = Traits::TransposeC;
 
+    static constexpr index_t NumWaveGroups = Traits::NumWaveGroups;
+
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
