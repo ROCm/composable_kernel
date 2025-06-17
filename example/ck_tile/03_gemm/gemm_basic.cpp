@@ -69,9 +69,12 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
+                                             ck_tile::tuple<>,
                                              AccDataType,
                                              CDataType,
+                                             ck_tile::tuple<>,
                                              CLayout,
+                                             ck_tile::element_wise::PassThrough,
                                              CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
