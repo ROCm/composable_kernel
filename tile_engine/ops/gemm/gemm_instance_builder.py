@@ -681,8 +681,7 @@ struct GemmDispatcher {
         return kernel_map;
     }
 
-    static void init(bool structured_sparsity) {
-        (void)structured_sparsity; // suppress unused parameter warning which is thrown if structured_sparsity is not used
+    static void init([[maybe_unused]] bool structured_sparsity) {
         auto& kernel_map = get_kernel_map();
         if(!kernel_map.empty()) return;
         \n"""
