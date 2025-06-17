@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -264,6 +264,42 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
 
         constexpr auto warp_gemm = []() {
             constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
+
+            // TODO: generalize for MFMA and WMMA
+#if CK_TILE_USE_WMMA
+            if constexpr(((std::is_same_v<typename Problem::QDataType, half_t> &&
+                           std::is_same_v<typename Problem::KDataType, half_t>) ||
+                          (std::is_same_v<typename Problem::QDataType, bf16_t> &&
+                           std::is_same_v<typename Problem::KDataType, bf16_t>)) &&
+                         std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                static_assert(WarpGemmM == 16);
+
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true>{};
+            }
+            else if constexpr(((std::is_same_v<typename Problem::QDataType, fp8_t>) ||
+                               (std::is_same_v<typename Problem::QDataType, bf8_t>)) &&
+                              ((std::is_same_v<typename Problem::KDataType, fp8_t>) ||
+                               (std::is_same_v<typename Problem::KDataType, bf8_t>)) &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                static_assert(WarpGemmM == 16);
+
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true>{};
+            }
+#else
             static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
 
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -299,6 +335,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
                 return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
                     swizzle_factor>{};
             } // TODO - bf8_t
+#endif
         }();
 
         using BlockGemmPolicy =

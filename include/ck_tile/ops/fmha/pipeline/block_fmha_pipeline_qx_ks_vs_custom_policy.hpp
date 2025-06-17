@@ -73,6 +73,42 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
 
         constexpr auto warp_gemm = []() {
             constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
+
+// TODO: generalize for MFMA and WMMA
+#if CK_TILE_USE_WMMA
+            if constexpr(((std::is_same_v<typename Problem::QDataType, half_t> &&
+                           std::is_same_v<typename Problem::KDataType, half_t>) ||
+                          (std::is_same_v<typename Problem::QDataType, bf16_t> &&
+                           std::is_same_v<typename Problem::KDataType, bf16_t>)) &&
+                         std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                static_assert(WarpGemmM == 16);
+
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true>{};
+            }
+            else if constexpr(((std::is_same_v<typename Problem::QDataType, fp8_t>) ||
+                               (std::is_same_v<typename Problem::QDataType, bf8_t>)) &&
+                              ((std::is_same_v<typename Problem::KDataType, fp8_t>) ||
+                               (std::is_same_v<typename Problem::KDataType, bf8_t>)) &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                static_assert(WarpGemmM == 16);
+
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true>{};
+            }
+#else
             static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
 
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -108,6 +144,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                 return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
                     swizzle_factor>{};
             } // TODO - bf8_t
+#endif
         }();
 
         using BlockGemmPolicy =
@@ -228,10 +265,46 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
-        constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
-        static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
-
         constexpr auto warp_gemm = []() {
+            constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
+
+// TODO: generalize for MFMA and WMMA
+#if CK_TILE_USE_WMMA
+            if constexpr(((std::is_same_v<typename Problem::QDataType, half_t> &&
+                           std::is_same_v<typename Problem::KDataType, half_t>) ||
+                          (std::is_same_v<typename Problem::QDataType, bf16_t> &&
+                           std::is_same_v<typename Problem::KDataType, bf16_t>)) &&
+                         std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                static_assert(WarpGemmM == 16);
+
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true>{};
+            }
+            else if constexpr(((std::is_same_v<typename Problem::QDataType, fp8_t>) ||
+                               (std::is_same_v<typename Problem::QDataType, bf8_t>)) &&
+                              ((std::is_same_v<typename Problem::KDataType, fp8_t>) ||
+                               (std::is_same_v<typename Problem::KDataType, bf8_t>)) &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                static_assert(WarpGemmM == 16);
+
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true>{};
+            }
+#else
+            static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
+
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
                          std::is_same_v<typename Problem::KDataType, half_t> &&
                          std::is_same_v<typename Problem::SaccDataType, float>)
@@ -258,11 +331,14 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                               std::is_same_v<typename Problem::KDataType, fp8_t> &&
                               std::is_same_v<typename Problem::SaccDataType, float>)
             {
+                static_assert(WarpGemmM == 32);
+
                 // TODO: hard coded here. Otherwise, it may incorrect result
                 constexpr index_t swizzle_factor = 4;
                 return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
                     swizzle_factor>{};
             } // TODO - bf8_t
+#endif
         }();
 
         using BlockGemmPolicy =
@@ -956,6 +1032,16 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                            typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
         auto warp_gemm = [&]() {
+        // TODO: generalize for MFMA and WMMA
+#if CK_TILE_USE_WMMA
+            return WarpGemmDispatcher<typename Problem::PDataType,
+                                      typename Problem::VDataType,
+                                      typename Problem::OaccDataType,
+                                      Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                                      Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                                      Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                                      true>{};
+#else
             if constexpr(std::is_same_v<typename Problem::KDataType, fp8_t> &&
                          std::is_same_v<typename Problem::VDataType, fp8_t> &&
                          std::is_same_v<typename Problem::OaccDataType, float>)
@@ -976,6 +1062,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                           Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
                                           true>{};
             }
+#endif
         }();
 
         using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;

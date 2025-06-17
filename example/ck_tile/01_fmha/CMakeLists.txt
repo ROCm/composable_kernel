@@ -67,7 +67,7 @@ execute_process(
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
-  message(FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of FWD kernels via Python.")
+  message(FATAL_ERROR "CK Tile FMHA FAILED to generate a list of FWD kernels via Python.")
 endif()
 
 execute_process(
@@ -76,7 +76,7 @@ execute_process(
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
-  message(FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of BWD kernels via Python.")
+  message(FATAL_ERROR "CK Tile FMHA FAILED to generate a list of BWD kernels via Python.")
 endif()
 
 # NOTE: for cmake, the FMHA_FWD_GEN_BLOBS/FMHA_BWD_GEN_BLOBS files must be in the same directory
@@ -89,6 +89,7 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${FMHA_FWD_CODE_GEN_COMMON_ARGS}
   --output_dir ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${CODE_GEN_SCRIPTS}
+  COMMENT "Generate CK Tile FMHA FWD kernels"
 )
 
 add_custom_command(
@@ -96,6 +97,7 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${FMHA_BWD_CODE_GEN_COMMON_ARGS}
   --output_dir ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${CODE_GEN_SCRIPTS}
+  COMMENT "Generate CK Tile FMHA BWD kernels"
 )
 
 set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
@@ -128,6 +130,23 @@ list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
 # Allow comparing floating points directly in order to check sentinel values
 list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
+
+# TODO: Can MFMA and WMMA implementations coexist in one binary? Some host code DEPENDS on warp
+# size so it cannot launch kernels for MFMA and WMMA at the same time
+# Create separate binaries?
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+  message(STATUS "FMHA examples use WMMA")
+  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=1 -DCK_TILE_USE_MFMA=0)
+  list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=1 -DCK_TILE_USE_MFMA=0)
+elseif(NOT SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+  message(STATUS "FMHA examples use MFMA")
+  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
+  list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
+else()
+  message(WARNING "FMHA examples cannot use both MFMA and WMMA, only MFMA is forced to use")
+  list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
+  list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
+endif()
 
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this

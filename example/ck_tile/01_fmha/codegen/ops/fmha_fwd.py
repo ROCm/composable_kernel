@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
 
 import copy
@@ -529,7 +529,7 @@ class FmhaFwdKernel:
                 tr_load=self.F_pipeline.F_trload,
                 constraint=self.F_tile.F_constraint & self.F_pipeline.F_constraint)
 
-class KernelComponentFactory:
+class KernelComponentFactoryGfx9:
     # TODO: design a more practical way to do it
     # this is current supported tile size per hdim
     @staticmethod
@@ -605,10 +605,53 @@ class KernelComponentFactory:
             assert False
         return pipelines
 
-class CustomFactory(KernelComponentFactory):
+class KernelComponentFactoryGfx9:
+    # TODO: design a more practical way to do it
+    # this is current supported tile size per hdim
     @staticmethod
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
-        result = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
+        if dtype == 'fp16' or dtype == 'bf16':
+            return {
+                ( 32,  32) : [FmhaFwdTileSize(128,  64, 16,  32, 32,   32,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                ( 64,  64) : [FmhaFwdTileSize(128,  64, 32,  64, 32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (128, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (192, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (256, 256) : [FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+            }
+        elif dtype == 'fp8' or dtype == 'bf8':
+            return {
+                ( 64,  64) : [FmhaFwdTileSize(128, 64,  32, 64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (128, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (256, 256) : [FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+            }
+        else:
+            return None
+
+    @staticmethod
+    def get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl) -> List[FmhaFwdPipeline]:
+        squant = 't' if dtype == 'fp8' else 'f'
+        pipelines = []
+        if dtype in ['fp16', 'bf16']:
+            for logits, mask, bias, lse, dropout, skip in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ['t', 'f'], ['t', 'f'], ['t', 'f']):
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
+        elif dtype in ['fp8', 'bf8']:
+            # no need lse/dropout kernels
+            for logits, mask, bias in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 'f', 'f', squant, mask, 'f'))
+                # TODO: this cannot be compiled, investigate why
+                # pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 'f', 'f', squant, mask, 'f'))
+        else:
+            assert False
+        return pipelines
+
+
+class CustomFactory(KernelComponentFactoryGfx9):
+    @staticmethod
+    def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
+        result = KernelComponentFactoryGfx9.get_hdim_tile_size_dict(dtype)
         if dtype == 'fp16' or dtype == 'bf16':
             if (128, 128) in result.keys():
                 result[(128, 128)].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')))
@@ -617,6 +660,10 @@ class CustomFactory(KernelComponentFactory):
 def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
+
+    # TODO: Pass architecture as an argument?
+    use_gfx12 = True
+    KernelComponentFactory = KernelComponentFactoryGfx12 if use_gfx12 else KernelComponentFactoryGfx9
 
     factory = CustomFactory if os.environ.get('CK_TILE_FMHA_FWD_CUSTOM_FACTORY', '0') == '1' else KernelComponentFactory
 
