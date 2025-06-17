@@ -46,7 +46,8 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                            GemmConfig::kPadK,
                                            ALayout,
                                            BLayout,
-                                           ELayout>;
+                                           ELayout,
+                                           GemmConfig::NumWaveGroups>;
 
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
