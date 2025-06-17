@@ -14,13 +14,17 @@
 
 template <typename ADataType,
           typename BDataType,
+          typename DsDataType,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
+          typename DsLayout,
           typename CLayout,
-          bool Persistent>
-float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+          bool Persistent,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s)
+
 {
     if constexpr(Persistent)
         std::cout << "WARNING: Ignoring persistent kernel option for basic gemm." << std::endl;
@@ -53,8 +57,10 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
 
     using CodegenGemmTraits =
         ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
+
     using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
     const auto Run = [&](const auto memory_operation_) {
@@ -63,9 +69,12 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
+                                             ck_tile::tuple<>,
                                              AccDataType,
                                              CDataType,
+                                             ck_tile::tuple<>,
                                              CLayout,
+                                             ck_tile::element_wise::PassThrough,
                                              CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,

@@ -30,7 +30,17 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ALayout, typename BLayout, typename CLayout, bool Persistent>
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          bool Persistent,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(int n_warmup,
                   int n_repeat,
                   int group_count,
@@ -44,7 +54,16 @@ float invoke_gemm(int n_warmup,
     if constexpr(!Persistent)
     {
         // Regular version of grouped gemm
-        ave_time = grouped_gemm<ALayout, BLayout, CLayout>(
+        ave_time = grouped_gemm<ADataType,
+                                BDataType,
+                                DsDataType,
+                                AccDataType,
+                                CDataType,
+                                ALayout,
+                                BLayout,
+                                DsLayout,
+                                CLayout,
+                                CDEElementWise>(
             args,
             ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
             gemm_workspace.GetDeviceBuffer());
@@ -64,16 +83,18 @@ float invoke_gemm(int n_warmup,
         const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
         {
-            kargs.emplace_back(ck_tile::GemmKernelArgs{arg.a_ptr,
-                                                       arg.b_ptr,
-                                                       arg.c_ptr,
-                                                       arg.M,
-                                                       arg.N,
-                                                       arg.K,
-                                                       arg.stride_A,
-                                                       arg.stride_B,
-                                                       arg.stride_C,
-                                                       arg.k_batch});
+            kargs.emplace_back(ck_tile::GemmKernelArgs<>{arg.a_ptr,
+                                                         arg.b_ptr,
+                                                         {},
+                                                         arg.e_ptr,
+                                                         arg.M,
+                                                         arg.N,
+                                                         arg.K,
+                                                         arg.stride_A,
+                                                         arg.stride_B,
+                                                         {},
+                                                         arg.stride_E,
+                                                         arg.k_batch});
         }
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
@@ -219,10 +240,19 @@ int run_grouped_gemm_example_with_layouts(int argc,
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
         gemm_descs.push_back(
-            {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+            {p_a, p_b, {}, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], {}, stride_Cs[i]});
     }
 
-    invoke_gemm<ALayout, BLayout, CLayout, Persistent>(warmup, repeat, group_count, gemm_descs);
+    invoke_gemm<ADataType,
+                BDataType,
+                ck_tile::tuple<>,
+                AccDataType,
+                CDataType,
+                ALayout,
+                BLayout,
+                ck_tile::tuple<>,
+                CLayout,
+                Persistent>(warmup, repeat, group_count, gemm_descs);
 
     for(int i = 0; i < group_count; i++)
     {
