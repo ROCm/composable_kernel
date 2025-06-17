@@ -3,56 +3,50 @@
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_instance.hpp"
-#include "ck/utility/filter_tuple.hpp"
 
-namespace ck::tensor_operation::device::instance {
-
-using device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances =
+namespace ck {
+namespace tensor_operation {
+namespace device {
+namespace instance {
+// Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
+void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NGCHW,
                                                                 GKCYX,
                                                                 Empty_Tuple,
                                                                 NGKHW,
-                                                                F16,
-                                                                F16,
+                                                                BF16,
+                                                                BF16,
                                                                 Empty_Tuple,
-                                                                F16,
+                                                                BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>;
-
-// Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
-template <int Shards, int ShardIndex>
-void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances_shard(
-    device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f16_instances& instances)
+                                                                PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   ck::util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_f16_instances<2,
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
                                                                               NGCHW,
                                                                               GKCYX,
                                                                               Empty_Tuple,
                                                                               NGKHW,
-                                                                              ConvFwdDefault>,
-                                   Shards,
-                                   ShardIndex>{});
+                                                                              ConvFwdDefault>{});
     add_device_operation_instances(instances,
-                                   ck::util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_f16_instances<2,
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
                                                                               NGCHW,
                                                                               GKCYX,
                                                                               Empty_Tuple,
                                                                               NGKHW,
-                                                                              ConvFwd1x1P0>,
-                                   Shards,
-                                   ShardIndex>{});
+                                                                              ConvFwd1x1P0>{});
     add_device_operation_instances(instances,
-                                   ck::util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_f16_instances<2,
+                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
                                                                               NGCHW,
                                                                               GKCYX,
                                                                               Empty_Tuple,
                                                                               NGKHW,
-                                                                              ConvFwd1x1S1P0>,
-                                   Shards,
-                                   ShardIndex>{});
+                                                                              ConvFwd1x1S1P0>{});
 }
 
-} // namespace ck::tensor_operation::device::instance
+} // namespace instance
+} // namespace device
+} // namespace tensor_operation
+} // namespace ck
