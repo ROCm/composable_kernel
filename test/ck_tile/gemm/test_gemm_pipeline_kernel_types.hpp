@@ -58,10 +58,10 @@ using KernelTypesCompV3 = ::testing::Types<
      std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
      std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,             Intrawave,        CompV3>,
      std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,        CompV3>,
-     std::tuple<    Row,     Row,     Row,       I8,       I8,         I32,       I32,             Intrawave,        CompV3>, // int8
-     std::tuple<    Row,     Col,     Row,       I8,       I8,         I32,       I32,             Intrawave,        CompV3>, // int8
-     std::tuple<    Col,     Row,     Row,       I8,       I8,         I32,       I32,             Intrawave,        CompV3>, // int8
-     std::tuple<    Col,     Col,     Row,       I8,       I8,         I32,       I32,             Intrawave,        CompV3> // int8
+     std::tuple<    Row,     Row,     Row,       I8,       I8,         I32,       I32,             Intrawave,        CompV3>, 
+     std::tuple<    Row,     Col,     Row,       I8,       I8,         I32,       I32,             Intrawave,        CompV3>,
+     std::tuple<    Col,     Row,     Row,       I8,       I8,         I32,       I32,             Intrawave,        CompV3>, 
+     std::tuple<    Col,     Col,     Row,       I8,       I8,         I32,       I32,             Intrawave,        CompV3>
     
 >;
 
