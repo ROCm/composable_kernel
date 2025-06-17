@@ -943,8 +943,8 @@ struct UniversalGemmKernel
         const auto& bs_block_window = gemm_tile_windows.at(I1);
         const auto& ds_block_window = gemm_tile_windows.at(I2);
 
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            as_block_window[I0], bs_block_window[I0], num_loop, smem_ptr_0);
+        const auto& c_block_tile =
+            GemmPipeline{}(as_block_window[I0], bs_block_window[I0], num_loop, smem_ptr_0);
 
         if(UseDefaultScheduler || (get_warp_id() == 0))
         {
@@ -999,7 +999,7 @@ struct UniversalGemmKernel
         const auto& bs_block_window = gemm_tile_windows.at(I1);
         const auto& ds_block_window = gemm_tile_windows.at(I2);
 
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
+        const auto& c_block_tile = GemmPipeline{}(
             as_block_window[I0], bs_block_window[I0], num_loop, smem_ptr_0, smem_ptr_1);
 
         // Run Epilogue Pipeline
