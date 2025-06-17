@@ -274,7 +274,7 @@
 
 namespace ck {
 
-#if defined(__GFX9__)
+#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
 __device__ static constexpr int WarpSize = 64;
 #else
 __device__ static constexpr int WarpSize = 32;
