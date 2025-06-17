@@ -67,10 +67,10 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
-    using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
-    using I0        = number<0>;
-    using I1        = number<1>;
-    using I2        = number<2>;
+    using BlockGemm          = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
+    static constexpr auto I0 = number<0>{};
+    static constexpr auto I1 = number<1>{};
+    static constexpr auto I2 = number<2>{};
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
@@ -118,13 +118,13 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     {
         CK_TILE_DEVICE static constexpr auto HotLoopScheduler()
         {
-            constexpr index_t MPerXDL = BlockGemmShape::WarpTile::at(I0{});
-            constexpr index_t NPerXDL = BlockGemmShape::WarpTile::at(I1{});
-            constexpr index_t KPerXDL = BlockGemmShape::WarpTile::at(I2{});
+            constexpr index_t MPerXDL = BlockGemmShape::WarpTile::at(I0);
+            constexpr index_t NPerXDL = BlockGemmShape::WarpTile::at(I1);
+            constexpr index_t KPerXDL = BlockGemmShape::WarpTile::at(I2);
 
             constexpr index_t WaveSize = 64;
-            constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
-            constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
+            constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0);
+            constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1);
 
             constexpr index_t A_LDS_Read_Width = KPerXDL;
             constexpr index_t B_LDS_Read_Width = KPerXDL;
@@ -302,27 +302,26 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(is_a_col_major
-                              ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                                 MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}])
-                              : (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                                 KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                              ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                                 MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1])
+                              : (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                                 KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1]),
                           "A block window has incorrect lengths for defined ALayout!");
             static_assert(is_b_row_major
-                              ? (KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                                 NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
-                              : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                                 KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                              ? (KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                                 NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1])
+                              : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                                 KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1]),
                           "B block window has incorrect lengths for defined BLayout!");
 
             ////////////// LDS desc, window & register /////////////////
-            using aldstype =
-                remove_cvref_t<decltype(PipelineImplBase::GetABLdsTensorViews(p_smem).at(I0{}))>;
-            using bldstype =
-                remove_cvref_t<decltype(PipelineImplBase::GetABLdsTensorViews(p_smem).at(I1{}))>;
-            auto&& xd             = PipelineImplBase::GetABLdsTensorViews(p_smem);
-            aldstype& a_lds_block = xd.at(I0{});
-            bldstype& b_lds_block = xd.at(I1{});
-            // tie(a_lds_block, b_lds_block) = PipelineImplBase::GetABLdsTensorViews(p_smem);
+            using ALdsType =
+                remove_cvref_t<decltype(PipelineImplBase::GetABLdsTensorViews(p_smem).at(I0))>;
+            using BLdsType =
+                remove_cvref_t<decltype(PipelineImplBase::GetABLdsTensorViews(p_smem).at(I1))>;
+            auto&& ABLdsTensorViews = PipelineImplBase::GetABLdsTensorViews(p_smem);
+            ALdsType& a_lds_block   = ABLdsTensorViews.at(I0);
+            BLdsType& b_lds_block   = ABLdsTensorViews.at(I1);
 
             // Tile distribution for load from lds
             constexpr auto a_lds_load_tile_distr =
@@ -330,66 +329,57 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             constexpr auto b_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
 
-            // A DRAM tile window for load
-            // A LDS tile window for store
-            // A LDS tile for block GEMM
-
             using acopy_dram_type =
                 remove_cvref_t<decltype(PipelineImplBase::GetAWindows(a_dram_block_window_tmp,
                                                                       a_lds_block,
                                                                       a_lds_load_tile_distr)
-                                            .at(I0{}))>;
+                                            .at(I0))>;
             using bcopy_dram_type =
                 remove_cvref_t<decltype(PipelineImplBase::GetBWindows(b_dram_block_window_tmp,
                                                                       b_lds_block,
                                                                       b_lds_load_tile_distr)
-                                            .at(I0{}))>;
+                                            .at(I0))>;
 
             using a_copy_lds_window_type =
                 remove_cvref_t<decltype(PipelineImplBase::GetAWindows(a_dram_block_window_tmp,
                                                                       a_lds_block,
                                                                       a_lds_load_tile_distr)
-                                            .at(I1{}))>;
+                                            .at(I1))>;
             using b_copy_lds_window_type =
                 remove_cvref_t<decltype(PipelineImplBase::GetBWindows(b_dram_block_window_tmp,
                                                                       b_lds_block,
                                                                       b_lds_load_tile_distr)
-                                            .at(I1{}))>;
+                                            .at(I1))>;
 
             using a_lds_load_tile_distr_type =
                 remove_cvref_t<decltype(PipelineImplBase::GetAWindows(a_dram_block_window_tmp,
                                                                       a_lds_block,
                                                                       a_lds_load_tile_distr)
-                                            .at(I2{}))>;
+                                            .at(I2))>;
             using b_lds_load_tile_distr_type =
                 remove_cvref_t<decltype(PipelineImplBase::GetBWindows(b_dram_block_window_tmp,
                                                                       b_lds_block,
                                                                       b_lds_load_tile_distr)
-                                            .at(I2{}))>;
-
-            // tie(a_copy_dram_window, a_copy_lds_window, a_lds_gemm_window) =
-            //    PipelineImplBase::GetAWindows(
-            //        a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
+                                            .at(I2))>;
 
             auto&& aWindows = PipelineImplBase::GetAWindows(
                 a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
             auto&& bWindows = PipelineImplBase::GetBWindows(
                 b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
 
-            acopy_dram_type& a_copy_dram_window           = aWindows.at(I0{});
-            a_copy_lds_window_type& a_copy_lds_window     = aWindows.at(I1{});
-            a_lds_load_tile_distr_type& a_lds_gemm_window = aWindows.at(I2{});
-
-            bcopy_dram_type& b_copy_dram_window           = bWindows.at(I0{});
-            b_copy_lds_window_type& b_copy_lds_window     = bWindows.at(I1{});
-            b_lds_load_tile_distr_type& b_lds_gemm_window = bWindows.at(I2{});
+            // A DRAM tile window for load
+            // A LDS tile window for store
+            // A LDS tile for block GEMM
+            acopy_dram_type& a_copy_dram_window           = aWindows.at(I0);
+            a_copy_lds_window_type& a_copy_lds_window     = aWindows.at(I1);
+            a_lds_load_tile_distr_type& a_lds_gemm_window = aWindows.at(I2);
 
             // B DRAM tile window for load
             // B LDS tile window for store
             // B LDS tile for block GEMM
-            // tie(b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window) =
-            //    PipelineImplBase::GetBWindows(
-            //        b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
+            bcopy_dram_type& b_copy_dram_window           = bWindows.at(I0);
+            b_copy_lds_window_type& b_copy_lds_window     = bWindows.at(I1);
+            b_lds_load_tile_distr_type& b_lds_gemm_window = bWindows.at(I2);
 
             // Block GEMM
             auto block_gemm   = BlockGemm();
@@ -403,8 +393,8 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             using BBlockTile =
                 decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
 
-            ABlockTile a_block_tile[Base::GlobalBufferNum]; // TODO GlobalBufferNum
-            BBlockTile b_block_tile[Base::GlobalBufferNum]; // TODO GlobalBufferNum
+            ABlockTile a_block_tile[Base::GlobalBufferNum];
+            BBlockTile b_block_tile[Base::GlobalBufferNum];
 
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
@@ -429,9 +419,9 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
             // Global prefetch 1
             PipelineImplBase::GlobalPrefetch(
-                a_block_tile[I0{}], a_copy_dram_window, a_dram_tile_window_step);
+                a_block_tile[I0], a_copy_dram_window, a_dram_tile_window_step);
             PipelineImplBase::GlobalPrefetch(
-                b_block_tile[I0{}], b_copy_dram_window, b_dram_tile_window_step);
+                b_block_tile[I0], b_copy_dram_window, b_dram_tile_window_step);
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -441,38 +431,36 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                     Policy::template MakeShuffledARegTileDistribution<Problem>());
-                transpose_tile2d(a_shuffle_tmp, a_block_tile[I0{}]);
+                transpose_tile2d(a_shuffle_tmp, a_block_tile[I0]);
                 PipelineImplBase::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
             }
             else
             {
-                PipelineImplBase::LocalPrefill(
-                    a_copy_lds_window, a_block_tile[I0{}], a_element_func);
+                PipelineImplBase::LocalPrefill(a_copy_lds_window, a_block_tile[I0], a_element_func);
             }
             if constexpr(is_b_row_major)
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                     Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                transpose_tile2d(b_shuffle_tmp, b_block_tile[I0{}]);
+                transpose_tile2d(b_shuffle_tmp, b_block_tile[I0]);
                 PipelineImplBase::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
             }
             else
             {
-                PipelineImplBase::LocalPrefill(
-                    b_copy_lds_window, b_block_tile[I0{}], b_element_func);
+                PipelineImplBase::LocalPrefill(b_copy_lds_window, b_block_tile[I0], b_element_func);
             }
 
             // Global prefetch 2
             PipelineImplBase::GlobalPrefetch(
-                a_block_tile[I0{}], a_copy_dram_window, a_dram_tile_window_step);
+                a_block_tile[I0], a_copy_dram_window, a_dram_tile_window_step);
             PipelineImplBase::GlobalPrefetch(
-                b_block_tile[I0{}], b_copy_dram_window, b_dram_tile_window_step);
+                b_block_tile[I0], b_copy_dram_window, b_dram_tile_window_step);
 
             // Global prefetch 3
             PipelineImplBase::GlobalPrefetch(
-                a_block_tile[I1{}], a_copy_dram_window, a_dram_tile_window_step);
+                a_block_tile[I1], a_copy_dram_window, a_dram_tile_window_step);
             PipelineImplBase::GlobalPrefetch(
-                b_block_tile[I1{}], b_copy_dram_window, b_dram_tile_window_step);
+                b_block_tile[I1], b_copy_dram_window, b_dram_tile_window_step);
 
             block_sync_lds();
 
@@ -527,7 +515,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                         block_sync_lds();
 
                         block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
-                        // Policy::template GetVectorSizeA<Problem>();
 
                         // Local prefetch 2
                         PipelineImplBase::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
@@ -537,8 +524,8 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                         __builtin_amdgcn_sched_barrier(0);
                     };
 
-                    LoopFunc(I0{});
-                    LoopFunc(I1{});
+                    LoopFunc(I0);
+                    LoopFunc(I1);
 
                     i += Base::HotloopUnroll;
                 } while(i < (num_loop - Base::PrefetchStages));
@@ -598,13 +585,13 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
             if constexpr(TailNum == TailNumber::Odd)
             {
-                ReadWriteCompFunc(I0{});
-                ReadWriteCompFunc(I1{});
+                ReadWriteCompFunc(I0);
+                ReadWriteCompFunc(I1);
                 ReadCompFunc();
             }
             else if constexpr(TailNum == TailNumber::Even)
             {
-                ReadWriteCompFunc(I0{});
+                ReadWriteCompFunc(I0);
                 ReadCompFunc();
             }
 
