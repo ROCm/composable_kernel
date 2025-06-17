@@ -67,6 +67,9 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
     constexpr ck_tile::index_t N_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 32;
     constexpr ck_tile::index_t K_Warp_Tile = is_8bit_type<ADataType>::value ? 32 : 16;
 #endif
+
+    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+    
     using CodegenFlatmmShape =
         ck_tile::TileFlatmmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                  ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
@@ -74,15 +77,35 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenFlatmmShape>;
 
+    using GemmPipelineProblem =
+        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenFlatmmShape, Traits>;
+
+    using BaseGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<GemmPipelineProblem>;
+
+    const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
+    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
+    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
+    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+
     using CodegenGemmTraits =
         ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-    using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
-                                                                BDataType,
-                                                                AccDataType,
-                                                                CodegenFlatmmShape,
-                                                                CodegenGemmTraits>;
-    const auto Run               = [&](const auto memory_operation_) {
+
+    float ave_time{0};
+    
+    const auto Run = [&](const auto has_hot_loop_,
+                         const auto tail_number_,
+                         const auto memory_operation_) {
+        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
+        constexpr auto tail_number_v    = tail_number_.value;
         constexpr auto memory_operation = memory_operation_.value;
+        using CodegenPipelineProblem    = ck_tile::FlatmmPipelineProblem<ADataType,
+                                                                         BDataType,
+                                                                         AccDataType,
+                                                                         CodegenFlatmmShape,
+                                                                         CodegenGemmTraits,
+                                                                         has_hot_loop_v,
+                                                                         tail_number_v>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -127,21 +150,73 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
                       << std::endl;
         }
 
-        float ave_time = ck_tile::launch_kernel(
+        ave_time = ck_tile::launch_kernel(
             s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };
-    if(args.k_batch == 1)
+
+    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
+        if(args.k_batch == 1)
+        {
+            Run(has_hot_loop_,
+                tail_number_,
+                ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::set>{});
+        }
+        else
+        {
+            Run(has_hot_loop_,
+                tail_number_,
+                ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::atomic_add>{});
+        }
+    };
+
+    if(has_hot_loop)
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::set>{});
+        if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            RunSplitk(ck_tile::bool_constant<true>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+        }
+        else
+        {
+            std::ostringstream err;
+            err << "For compute pipeline tail number should always be Full, but have \"" << tail_num
+                << "\" which is not supported! PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+            throw std::runtime_error(err.str());
+        }
     }
     else
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::atomic_add>{});
+        if(tail_num == ck_tile::TailNumber::Odd)
+        {
+            RunSplitk(ck_tile::bool_constant<false>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+        }
+        else if(tail_num == ck_tile::TailNumber::Even)
+        {
+            RunSplitk(ck_tile::bool_constant<false>{},
+                      ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+        }
+        else
+        {
+            std::ostringstream err;
+            err << "Num K loop must be larger than number of prefetech stages."
+                << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages
+                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+            throw std::runtime_error(err.str());
+        }
     }
+
+    return ave_time;
 }
 
 #include "run_flatmm_example.inc"
