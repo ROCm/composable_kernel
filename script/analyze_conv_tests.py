@@ -179,7 +179,7 @@ def plot_best_split_k_values(standard_counts, optimized_count,
         equal_counts.append(equal_count)
         
         # Total is the standard count
-        total_standard_counts.append(standard_counts[key])
+        total_standard_counts.append(standard_counts[key] + equal_count)
 
     # Add the optimized count as the last category
     total_counts = total_standard_counts + [optimized_count]
@@ -306,6 +306,17 @@ def plot_perf(perf_difference, output_dir, suffix=""):
     below_100 = [x for x in perf_difference if x < 100]
     above_100 = [x for x in perf_difference if x >= 100]
     
+    # Get counts for each group with the same bins
+    if below_100:
+        counts_below, _ = np.histogram(below_100, bins=bin_edges)
+    else:
+        counts_below = np.zeros(len(bin_edges) - 1)
+        
+    if above_100:
+        counts_above, _ = np.histogram(above_100, bins=bin_edges)
+    else:
+        counts_above = np.zeros(len(bin_edges) - 1)
+    
     # Plot histogram for values below 100% (red)
     if below_100:
         plt.hist(below_100, bins=bin_edges, color='red', 
@@ -315,6 +326,26 @@ def plot_perf(perf_difference, output_dir, suffix=""):
     if above_100:
         plt.hist(above_100, bins=bin_edges, color='green', 
                 alpha=0.7, edgecolor='black', label='Above 100%')
+    
+    # Calculate total counts for each bin to place labels
+    total_counts = counts_below + counts_above
+    
+    # Add labels on top of the bars
+    for i in range(len(bin_edges) - 1):
+        if total_counts[i] > 0:  # Only add labels for non-empty bins
+            # Calculate the center of the bin
+            bin_center = (bin_edges[i] + bin_edges[i + 1]) / 2
+            
+            # Add label showing the count
+            plt.text(
+                bin_center,                 # x position (center of bar)
+                total_counts[i] + 0.5,      # y position (just above the bar)
+                f'{int(total_counts[i])}',  # Text label (count)
+                ha='center',                # Horizontal alignment
+                va='bottom',                # Vertical alignment
+                fontweight='bold',          # Make it bold
+                fontsize=9                  # Font size
+            )
     
     # Create statistics text
     stats_text = (f"Statistics:\n"
@@ -346,7 +377,19 @@ def plot_perf(perf_difference, output_dir, suffix=""):
     plt.axvline(x=100, color='black', linestyle='--', alpha=0.9, linewidth=2, 
                 label='100% Threshold')
     
-    plt.legend(loc='upper center')
+    # Add count annotations for below/above 100% in the legend
+    below_count = len(below_100)
+    above_count = len(above_100)
+    below_percent = (below_count / count) * 100 if count > 0 else 0
+    above_percent = (above_count / count) * 100 if count > 0 else 0
+
+    legend =plt.legend([
+        f'Below 100% ({below_count}, {below_percent:.1f}%)',
+        f'Above 100% ({above_count}, {above_percent:.1f}%)',
+        '100% Threshold'
+    ])
+    legend.set_bbox_to_anchor((0.225, 0.65))
+    
     plt.tight_layout()
  
     file_name = os.path.join(output_dir, f'performance{suffix}.png')
@@ -475,17 +518,26 @@ def main():
         non_opt_op = non_opt_split_k_ops.iloc[i]
         opt_op = opt_split_k_ops.iloc[i]
 
-        perf = 100.0 * (non_opt_time / opt_time) if opt_time > 1e-5 else 0.0
-        perf_change.append(perf)
+        if opt_op:
+            tol = 1e-7  # Tolerance for floating point comparison
+            perf = 100.0 * (non_opt_time / opt_time) if opt_time > tol else 0.0
 
-        if opt_value == non_opt_value and opt_op == non_opt_op:
-            standard_equal_optimized_counts[non_opt_value] += 1
- 
-        elif opt_time < non_opt_time:
-            optimized_count += 1
-        elif opt_time > non_opt_time:
-            standard_counts[non_opt_value] += 1
+            if opt_value == non_opt_value and opt_op == non_opt_op:
+                standard_equal_optimized_counts[non_opt_value] += 1
+    
+            elif opt_time < non_opt_time and opt_time > tol:
+                optimized_count += 1
+                perf_change.append(perf)
+            elif opt_time > non_opt_time and non_opt_time > tol:
+                standard_counts[non_opt_value] += 1
+                perf_change.append(perf)
 
+            if opt_time < tol and non_opt_time > tol:
+                print(f"WARNING: Optimized time is very small for row {i}. Split-K (opt): {opt_value}, Split-K (standard): {non_opt_value}")
+            elif opt_time > tol and non_opt_time < tol:
+                print(f"WARNING: Non-optimized time is very small for row {i}. Split-K (opt): {opt_value}, Split-K (stardard): {non_opt_value}")
+            elif opt_time < tol and non_opt_time < tol:
+                print(f"WARNING: Both optimized and non-optimized times are too small for row {i}, skipping this. Split-K (opt): {opt_value}, Split-K (stardard): {non_opt_value}")
 
     plot_perf(perf_change, args.output_dir, suffix)
 
