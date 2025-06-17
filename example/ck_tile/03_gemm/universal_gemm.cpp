@@ -166,7 +166,7 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                     // clear c mem
                     if(args.k_batch > 1)
                         hipGetErrorString(hipMemsetAsync(
-                            args.c_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+                            args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
                 };
                 ave_time = ck_tile::launch_kernel_preprocess(
                     s,
