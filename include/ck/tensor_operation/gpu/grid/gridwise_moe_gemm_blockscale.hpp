@@ -410,7 +410,7 @@ struct GridwiseMoeGemmBlockScale
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPack / KGroup>{};
+        constexpr index_t NkSwizzleNumber = Number<WarpSize * KPack / KGroup>{};
         return make_naive_tensor_descriptor(
             make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
             make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
@@ -1355,7 +1355,7 @@ struct GridwiseMoeGemmBlockScale
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1467,7 +1467,7 @@ struct GridwiseMoeGemmBlockScale
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
             const BScaleType* p_b_scale_grid_up =
                 p_b_scale_grid + expert_scale_stride / 2 / BPackedSize;
             const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -2105,7 +2105,7 @@ struct GridwiseMoeGemmBlockScale
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -2221,7 +2221,7 @@ struct GridwiseMoeGemmBlockScale
                       make_multi_index(n_block_data_idx_on_grid,
                                        get_warp_local_1d_id() % NWave,
                                        0,
-                                       KPack / KGroup * (get_thread_local_1d_id() % warpSize)));
+                                       KPack / KGroup * (get_thread_local_1d_id() % WarpSize)));
             const BScaleType* p_b_scale_grid_up =
                 p_b_scale_grid + expert_scale_stride / 2 / BPackedSize;
             const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
