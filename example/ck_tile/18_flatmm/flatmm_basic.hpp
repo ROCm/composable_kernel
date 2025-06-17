@@ -35,7 +35,7 @@ template <typename DataType>
 struct GemmConfig
 {
     static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 256;
     static constexpr ck_tile::index_t K_Tile = 256;
 
     static constexpr ck_tile::index_t M_Warp = 1;
