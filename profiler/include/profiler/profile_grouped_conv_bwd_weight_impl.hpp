@@ -63,6 +63,18 @@ struct PerfResults
         }
     };
 
+    void update_non_opt_split_k(std::string& op_name, float avg_time, float tflops, float gb_per_sec, ck::index_t split_k_arg)
+    {
+        if(tflops > non_opt_split_k_tflops_)
+        {
+            non_opt_split_k_best_op_name_    = op_name;
+            non_opt_split_k_avg_time_        = avg_time;
+            non_opt_split_k_tflops_          = tflops;
+            non_opt_split_k_gb_per_sec_      = gb_per_sec;
+            non_opt_split_k_best_arg_        = split_k_arg;
+        }
+    };
+
     std::tuple<size_t, size_t> get_ranking(const std::string& op_name, ck::index_t split_k) const
     {
         auto it = std::find_if(ranking_.begin(), ranking_.end(),
@@ -101,38 +113,30 @@ struct PerfResults
         return ss.str();
     }
 
+    // Global best results
     std::string best_op_name_;
     float best_avg_time_      = 0;
     float best_tflops_        = 0;
     float best_gb_per_sec_    = 0;
     ck::index_t best_split_k_ = 1;
     ck::index_t best_split_k_arg_ = 1;
+
+    // Best non-optimized split-K results
+    std::string non_opt_split_k_best_op_name_;
+    float non_opt_split_k_avg_time_      = 0;
+    float non_opt_split_k_tflops_        = 0;
+    float non_opt_split_k_gb_per_sec_    = 0;
+    ck::index_t non_opt_split_k_best_arg_ = 1;
+
+    // Best optimized split-K results
     std::string opt_split_k_best_op_name_;
     float opt_split_k_avg_time_      = 0;
     float opt_split_k_tflops_        = 0;
     float opt_split_k_gb_per_sec_    = 0;
     ck::index_t opt_split_k_best_arg_ = 1;
+
     std::vector<std::tuple<std::string, ck::index_t, float>> ranking_;
 };
-
-std::vector<std::string> get_disabled_ops()
-{
-    const auto& disabled_ops = ck::EnvGetString(CK_ENV(CK_PROFILER_DISABLED_OPS));
-    std::vector<std::string> result;  
-    std::stringstream ss(disabled_ops);  
-    std::string item;  
-  
-    while (std::getline(ss, item, ';')) {  
-        result.push_back(item);  
-    }  
-
-    std::cout << "Disabled " << result.size() << " ops: " << std::endl;
-    for (const auto& op : result) {
-        std::cout << "\t" << op << std::endl;
-    }
-
-    return result;  
-}
 
 void write_perf_results_to_file(const PerfResults& perf_results_global, 
                                 const std::vector<PerfResults>& perf_results_list)
@@ -141,12 +145,11 @@ void write_perf_results_to_file(const PerfResults& perf_results_global,
 
     const std::string separator(";");
     const auto& write_to_file = [&](const PerfResults res, std::ofstream& file, bool only_one_op = false) {
-        auto best_split_k = res.best_split_k_ > 0 ? res.best_split_k_ : res.best_split_k_arg_;
         ck::index_t rank, total_num;
         std::tie(rank, total_num) = res.get_ranking(res.opt_split_k_best_op_name_, res.opt_split_k_best_arg_);
-        file << res.best_op_name_ << separator
-             << res.best_avg_time_ << separator
-             << best_split_k << separator;
+        file << res.non_opt_split_k_best_op_name_ << separator
+             << res.non_opt_split_k_avg_time_ << separator
+             << res.non_opt_split_k_best_arg_ << separator;
         if (!only_one_op) 
         {
             file << res.opt_split_k_best_op_name_ << separator;
@@ -181,6 +184,25 @@ void write_perf_results_to_file(const PerfResults& perf_results_global,
             std::cerr << "Failed to open results file: " << results_file << std::endl;
         }
     }
+}
+
+std::vector<std::string> get_disabled_ops()
+{
+    const auto& disabled_ops = ck::EnvGetString(CK_ENV(CK_PROFILER_DISABLED_OPS));
+    std::vector<std::string> result;  
+    std::stringstream ss(disabled_ops);  
+    std::string item;  
+  
+    while (std::getline(ss, item, ';')) {  
+        result.push_back(item);  
+    }  
+
+    std::cout << "Disabled " << result.size() << " ops: " << std::endl;
+    for (const auto& op : result) {
+        std::cout << "\t" << op << std::endl;
+    }
+
+    return result;  
 }
 
 bool is_operator_disabled(const std::string& op_name, const std::string& disabled_op)
@@ -460,6 +482,20 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                                 tflops,
                                                                 gb_per_sec,
                                                                 split_k_arg_value);
+                    }
+                    else
+                    {
+                        perf_results_global.update_non_opt_split_k(op_name,
+                                                                    avg_time,
+                                                                    tflops,
+                                                                    gb_per_sec,
+                                                                    split_k_arg_value);
+
+                        perf_results_local.update_non_opt_split_k(op_name,
+                                                                    avg_time,
+                                                                    tflops,
+                                                                    gb_per_sec,
+                                                                    split_k_arg_value);
                     }         
                 }
                 

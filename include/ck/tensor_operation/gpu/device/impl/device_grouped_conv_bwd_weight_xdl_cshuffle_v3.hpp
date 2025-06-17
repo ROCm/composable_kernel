@@ -390,12 +390,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         {
             constexpr int dynamic_smem_size = 0;
             constexpr index_t minimum_occupancy =
-                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
-				
+                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;            
             int max_occupancy = 0;
 
-            // We assume that the tail number doesn't affect occupancy (this is an approximation).
-            // Since we don't set it explicitly, it defaults to TailNumber::Full.
             if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
             {
                 hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
@@ -409,7 +406,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy>, // Tail number, does it have effect on occupancy?
+                                    minimum_occupancy>,
                                 BlockSize,
                                 dynamic_smem_size));
             }
@@ -426,7 +423,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                                         ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                                         true,
                                         InMemoryDataOperationEnum::AtomicAdd,
-                                        minimum_occupancy>, // Tail number, does it have effect on occupancy?
+                                        minimum_occupancy>,
                                 BlockSize,
                                 dynamic_smem_size));
             }
