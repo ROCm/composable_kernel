@@ -27,7 +27,7 @@
     },
     "datatype_c": {
       "values": [
-        "int32"
+        "int32"  
       ]
     }
   },
@@ -64,36 +64,36 @@
     },
     "warp_tile_m": {
       "values": [
-        16,
-        32
+        16, 32
       ]
     },
     "warp_tile_n": {
       "values": [
-        16,
-        32
+        16, 32
       ]
     },
     "warp_tile_k": {
       "values": [
-        32,
-        16
+        16, 32
       ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
-        "compv3"
+        "compv3",
+        "mem"
       ]
     },
     "scheduler": {
       "values": [
-        "intrawave"
+        "intrawave",
+        "interwave"
       ]
     },
     "epilogue": {
       "values": [
+        "default",
         "cshuffle"
       ]
     },
