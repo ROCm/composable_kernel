@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "ck/host/device_batched_gemm_softmax_gemm/problem.hpp"
 #include "ck/host/stringutils.hpp"
 #include "ck/host/utils.hpp"
