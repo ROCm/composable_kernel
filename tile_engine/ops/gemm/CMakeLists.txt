@@ -1,4 +1,3 @@
-
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
