@@ -548,9 +548,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 block_sync_lds();
                 block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
 
-                // Local prefetch 3
-                PipelineImplBase::LocalPrefetch(a_lds_tile, a_lds_gemm_window_cap);
-                PipelineImplBase::LocalPrefetch(b_lds_tile, b_lds_gemm_window_cap);
                 HotLoopScheduler();
             };
 
@@ -567,13 +564,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 std::ignore = a_copy_lds_window_cap;
                 std::ignore = b_copy_dram_window_cap;
                 std::ignore = b_copy_lds_window_cap;
-                block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
-
-                // Local prefetch 4
-                PipelineImplBase::LocalPrefetch(a_lds_tile, a_lds_gemm_window_cap);
-                PipelineImplBase::LocalPrefetch(b_lds_tile, b_lds_gemm_window_cap);
-
-                // TODO verify
                 block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
 
                 HotLoopScheduler();
