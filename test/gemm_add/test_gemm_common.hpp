@@ -12,6 +12,7 @@ using I8   = int8_t;
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
+using I32 = int32_t;
 
 template <typename Tuple>
 class TestGemmD0Common : public ::testing::Test

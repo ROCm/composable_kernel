@@ -47,6 +47,7 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using Row_Tuple     = ck::Tuple<Row>;
 using Row_Row_Tuple = ck::Tuple<Row, Row>;
+using Row_Col_Tuple = ck::Tuple<Row, Col>;
 
 // Conv layout
 //

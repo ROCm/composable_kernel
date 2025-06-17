@@ -13,6 +13,8 @@ static void print_helper_message()
 
 int main(int argc, char* argv[])
 {
+    printf("cicc2\n");
+    
     if(argc == 1)
     {
         print_helper_message();
