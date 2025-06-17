@@ -256,7 +256,7 @@ x=1/y=6/y_ratio=2(top-left)
 1 1 1 * * * * *
 1 1 1 * * * * *
 */
-// clang-format off
+// clang-format on
 template <bool IsMasking_ = true>
 struct SimplifiedGenericAttentionMask
 {
