@@ -28,6 +28,7 @@ struct TileGemmTraits
 
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
+    static constexpr index_t NumWaveGroups      = 1;
 };
 
 template <bool kPadM_,
