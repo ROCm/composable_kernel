@@ -278,8 +278,6 @@ int main(int argc, char* argv[])
     Tensor<XDataType> b1_e_n_k(
         HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N},
                              {(N * Scale_Stride_BN), 1, Scale_Stride_BN}));
-    // B preshuffle
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
 
     // A, B Scale preshuffle
     Tensor<XDataType> a_scale_sorted(HostTensorDescriptor(

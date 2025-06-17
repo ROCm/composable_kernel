@@ -65,7 +65,6 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
                 MRepeat,
                 NRepeat,
                 KPack>{};
-            ;
         }
         else
         {

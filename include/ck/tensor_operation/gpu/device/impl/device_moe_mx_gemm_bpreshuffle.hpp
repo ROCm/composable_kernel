@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_moe_mx_gemm.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_moe_mx_gemm_bpreshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
@@ -91,63 +91,63 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                                                            CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
-    using GridwiseGemm =
-        GridwiseMoeGemmMX<ALayout,
-                          BLayout,
-                          DsLayout,
-                          CLayout,
-                          ADataType,
-                          AScaleDataType,
-                          BDataType,
-                          BScaleDataType,
-                          GemmAccDataType,
-                          CShuffleDataType,
-                          DsDataType,
-                          CDataType,
-                          AElementwiseOperation,
-                          BElementwiseOperation,
-                          CElementwiseOperation,
-                          GemmSpec,
-                          ScaleBlockSize,
-                          BlockSize,
-                          MPerBlock,
-                          NPerBlock,
-                          KPerBlock,
-                          AK1,
-                          BK1,
-                          MPerXDL,
-                          NPerXDL,
-                          MXdlPerWave,
-                          NXdlPerWave,
-                          ABlockTransferThreadClusterLengths_AK0_M_AK1,
-                          ABlockTransferThreadClusterArrangeOrder,
-                          ABlockTransferSrcAccessOrder,
-                          ABlockTransferSrcVectorDim,
-                          ABlockTransferSrcScalarPerVector,
-                          ABlockTransferDstScalarPerVector_AK1,
-                          false,
-                          ABlockLdsExtraM,
-                          BBlockTransferThreadClusterLengths_BK0_N_BK1,
-                          BBlockTransferThreadClusterArrangeOrder,
-                          BBlockTransferSrcAccessOrder,
-                          BBlockTransferSrcVectorDim,
-                          BBlockTransferSrcScalarPerVector,
-                          BBlockTransferDstScalarPerVector_BK1,
-                          false,
-                          BBlockLdsExtraN,
-                          CShuffleMXdlPerWavePerShuffle,
-                          CShuffleNXdlPerWavePerShuffle,
-                          CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                          CDEShuffleBlockTransferScalarPerVectors,
-                          BlkGemmPipeSched,
-                          BlkGemmPipelineVer,
-                          ActivationOP,
-                          NSwizzle,
-                          IsInputGemm,
-                          MulRoutedWeight,
-                          IndexType,
-                          ComputeTypeA,
-                          ComputeTypeB>;
+    using GridwiseGemm                  = GridwiseMoeGemmMX_BPreshuffle<
+                         ALayout,
+                         BLayout,
+                         DsLayout,
+                         CLayout,
+                         ADataType,
+                         AScaleDataType,
+                         BDataType,
+                         BScaleDataType,
+                         GemmAccDataType,
+                         CShuffleDataType,
+                         DsDataType,
+                         CDataType,
+                         AElementwiseOperation,
+                         BElementwiseOperation,
+                         CElementwiseOperation,
+                         GemmSpec,
+                         ScaleBlockSize,
+                         BlockSize,
+                         MPerBlock,
+                         NPerBlock,
+                         KPerBlock,
+                         AK1,
+                         BK1,
+                         MPerXDL,
+                         NPerXDL,
+                         MXdlPerWave,
+                         NXdlPerWave,
+                         ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                         ABlockTransferThreadClusterArrangeOrder,
+                         ABlockTransferSrcAccessOrder,
+                         ABlockTransferSrcVectorDim,
+                         ABlockTransferSrcScalarPerVector,
+                         ABlockTransferDstScalarPerVector_AK1,
+                         false,
+                         ABlockLdsExtraM,
+                         BBlockTransferThreadClusterLengths_BK0_N_BK1,
+                         BBlockTransferThreadClusterArrangeOrder,
+                         BBlockTransferSrcAccessOrder,
+                         BBlockTransferSrcVectorDim,
+                         BBlockTransferSrcScalarPerVector,
+                         BBlockTransferDstScalarPerVector_BK1,
+                         false,
+                         BBlockLdsExtraN,
+                         CShuffleMXdlPerWavePerShuffle,
+                         CShuffleNXdlPerWavePerShuffle,
+                         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                         CDEShuffleBlockTransferScalarPerVectors,
+                         BlkGemmPipeSched,
+                         BlkGemmPipelineVer,
+                         ActivationOP,
+                         NSwizzle,
+                         IsInputGemm,
+                         MulRoutedWeight,
+                         IndexType,
+                         ComputeTypeA,
+                         ComputeTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -194,10 +194,10 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                     const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
                         arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
 
-                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
-                                         sizeof(ADataType) / APackedSize;
-                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
-                                         sizeof(BDataType) / BPackedSize;
+                    auto size_a_buffer =
+                        a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
+                    auto size_b_buffer =
+                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
 
                     const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
                         arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
@@ -245,21 +245,18 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                 }
             };
 
-            constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) /
-                                             APackedSize / BlockSize / 4 *
-                                             (1 + GridwiseGemm::NWave);
-            constexpr auto estimated_reg_b = NPerBlock * KPerBlock * sizeof(BDataType) /
-                                             BPackedSize / BlockSize / 4 * (2) *
-                                             (IsInputGemm ? 2 : 1);
-            constexpr auto estimated_reg_c = MPerBlock * NPerBlock * sizeof(GemmAccDataType) /
-                                             BlockSize / 4 * (IsInputGemm ? 2 : 1);
-            constexpr auto estimated_reg_total =
-                estimated_reg_a + estimated_reg_b + estimated_reg_c;
-
-            constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
+            // TODO: Check if this is the right algorithm for minimum_occupancy
+            constexpr index_t minimum_occupancy =
+                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave
+                    ? (BlkGemmPipelineVer == BlockGemmPipelineVersion::v3 &&
+                       MPerBlock * NPerBlock * KPerBlock * sizeof(ADataType) <= 128 * 128 * 64 * 2)
+                          ? 2
+                          : 1
+                    : 2;
 
             constexpr auto MemoryDataOp =
                 IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+
             if(has_main_k_block_loop)
             {
                 // Tail number always full
@@ -286,8 +283,7 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                         }
                     }
                 }
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
-                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
