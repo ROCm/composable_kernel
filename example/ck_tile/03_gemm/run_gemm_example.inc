@@ -30,7 +30,8 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename Tensor,
+template <typename GemmConfig,
+          typename Tensor,
           typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -63,11 +64,12 @@ void permute_tensor_b(Tensor& tensor)
                                                                        AccDataType,
                                                                        GemmShape,
                                                                        GemmUniversalTraits,
-                                                                       GEMM_PIPELINE_SCHEDULER,
+                                                                       GemmConfig::Scheduler,
                                                                        true,
                                                                        ck_tile::TailNumber::Full>;
 
-    using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+    using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
+        UniversalGemmProblem>;
 
     const ck_tile::index_t K  = tensor.get_length(0);
     const ck_tile::index_t N  = tensor.get_length(1);
@@ -144,13 +146,31 @@ void permute_vectors_i4x4_b(Tensor& tensor)
     }
 }
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
+          typename DsDataType,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename DsLayout,
+          typename CLayout,
+          bool Persistent,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s);
+
+template <typename GemmConfig,
+          typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   ck_tile::DeviceMem& b_k_n_dev_buf,
                   ck_tile::DeviceMem& c_m_n_dev_buf,
@@ -165,41 +185,50 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_repeat,
                   bool persistent)
 {
-    ck_tile::GemmHostArgs args;
-    args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-    args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-    args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-    args.k_batch  = kbatch;
-    args.M        = M;
-    args.N        = N;
-    args.K        = K;
-    args.stride_A = stride_A;
-    args.stride_B = stride_B;
-    args.stride_C = stride_C;
+    ck_tile::GemmHostArgs</*NumDTensor = 0*/> args = {a_m_k_dev_buf.GetDeviceBuffer(),
+                                                      b_k_n_dev_buf.GetDeviceBuffer(),
+                                                      {},
+                                                      c_m_n_dev_buf.GetDeviceBuffer(),
+                                                      kbatch,
+                                                      M,
+                                                      N,
+                                                      K,
+                                                      stride_A,
+                                                      stride_B,
+                                                      {},
+                                                      stride_C};
 
     float ave_time;
     if(persistent)
     {
-        ave_time = gemm_calc<ADataType,
-                             BDataType,
-                             AccDataType,
-                             CDataType,
-                             ALayout,
-                             BLayout,
-                             CLayout,
-                             true>(
+        ave_time = gemm<GemmConfig,
+                        ADataType,
+                        BDataType,
+                        DsDataType,
+                        AccDataType,
+                        CDataType,
+                        ALayout,
+                        BLayout,
+                        DsLayout,
+                        CLayout,
+                        true,
+                        CDEElementWise>(
             args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
     }
     else
     {
-        ave_time = gemm_calc<ADataType,
-                             BDataType,
-                             AccDataType,
-                             CDataType,
-                             ALayout,
-                             BLayout,
-                             CLayout,
-                             false>(
+        ave_time = gemm<GemmConfig,
+                        ADataType,
+                        BDataType,
+                        DsDataType,
+                        AccDataType,
+                        CDataType,
+                        ALayout,
+                        BLayout,
+                        DsLayout,
+                        CLayout,
+                        false,
+                        CDEElementWise>(
             args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
     }
 
@@ -222,7 +251,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType = ADataType,
           typename CDataType = ADataType,
           typename ALayout,
@@ -302,7 +332,8 @@ int run_gemm_example_with_layouts(int argc,
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
         if constexpr(GemmConfig::PermuteB)
         {
-            permute_tensor_b<decltype(b_k_n_dev),
+            permute_tensor_b<GemmConfig,
+                             decltype(b_k_n_dev),
                              ADataType,
                              BDataType,
                              AccDataType,
@@ -328,20 +359,28 @@ int run_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_gemm<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
-        a_m_k_dev_buf,
-        b_k_n_dev_buf,
-        c_m_n_dev_buf,
-        M,
-        N,
-        K,
-        stride_A,
-        stride_B,
-        stride_C,
-        kbatch,
-        n_warmup,
-        n_repeat,
-        persistent);
+    invoke_gemm<GemmConfig,
+                ADataType,
+                BDataType,
+                ck_tile::tuple<>,
+                AccDataType,
+                CDataType,
+                ALayout,
+                BLayout,
+                ck_tile::tuple<>,
+                CLayout>(a_m_k_dev_buf,
+                         b_k_n_dev_buf,
+                         c_m_n_dev_buf,
+                         M,
+                         N,
+                         K,
+                         stride_A,
+                         stride_B,
+                         stride_C,
+                         kbatch,
+                         n_warmup,
+                         n_repeat,
+                         persistent);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
