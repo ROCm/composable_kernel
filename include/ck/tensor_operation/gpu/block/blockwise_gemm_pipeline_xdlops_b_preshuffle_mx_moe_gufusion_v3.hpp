@@ -164,8 +164,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
 
     static constexpr auto num_buffer_load_a_scale = MRepeat / MXdlPack * KRepeat / KXdlPack;
     static constexpr auto num_buffer_load_b_scale = NRepeat / NXdlPack * KRepeat / KXdlPack * 2;
-    static constexpr auto async_vmcnt =
-        num_buffer_load_a_scale + num_buffer_load_b_scale + HotLoopInstList::B_Buffer_Load_Inst_Num;
+    static constexpr auto async_vmcnt = num_buffer_load_a_scale + num_buffer_load_b_scale +
+                                        HotLoopInstList::B_Buffer_Load_Inst_Num * 2;
     static constexpr auto async_vmcnt_encoding = 3952 + async_vmcnt % 16 + async_vmcnt / 16 * 16384;
 
     static constexpr auto ScalesPerKBlockSize =
@@ -728,7 +728,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                         });
                     });
 
-                    HotLoopScheduler();
+                    // HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
                 };
 
@@ -747,7 +747,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
             b_blockwise_copy_up.Run(
                 b_grid_desc, b_grid_buf_up, b_block_desc, b_block_origin_idx, b_thread_bufs_up(I1));
 
-            // Prefetch a_scales
+            // Prefetch a_scales_up
             static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                 static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                     a_scale_thread_copy.Run(a_scale_grid_desc,
@@ -882,7 +882,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                             a_scale_thread_vec.template AsType<mfma_scale_input_type_a>(),
                             b_thread_vec_up.template AsType<mfma_input_type_b>(),
                             b_scale_thread_vec_up.template AsType<mfma_scale_input_type_b>(),
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                            c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
                     });
                 });
                 if constexpr(m0.value == SwitchM)
@@ -1133,7 +1133,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                                "0x%08x>, "
                                "b_thread_vec=<0x%08x, 0x%08x, 0x%08x, 0x%08x>, "
                                "a_scale=0x%08x, "
-                               "b_scale=0x%08x, c_thread_buf=<%.2f, %.2f, %.2f, %.2f>\n",
+                               "b_scale=0x%08x, c_thread_buf=<%.2f, %.2f, %.2f, %.2f>, "
+                               "b_thread_vec_up=<0x%08x, 0x%08x, 0x%08x, 0x%08x>, "
+                               "b_scale_up=0x%08x, c_thread_buf_up=<%.2f, %.2f, %.2f, %.2f>\n",
                                blockIdx.x,
                                blockIdx.y,
                                threadIdx.x,
@@ -1173,6 +1175,29 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                                        .template AsType<float>()[Number<2>{}]),
                                type_convert<float>(
                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                       .template AsType<float>()[Number<3>{}]),
+                               *(reinterpret_cast<const uint32_t*>(
+                                   &(b_thread_vec_up.template AsType<f4x8_t>()[Number<0>{}]))),
+                               *(reinterpret_cast<const uint32_t*>(
+                                   &(b_thread_vec_up.template AsType<f4x8_t>()[Number<1>{}]))),
+                               *(reinterpret_cast<const uint32_t*>(
+                                   &(b_thread_vec_up.template AsType<f4x8_t>()[Number<2>{}]))),
+                               *(reinterpret_cast<const uint32_t*>(
+                                   &(b_thread_vec_up.template AsType<f4x8_t>()[Number<3>{}]))),
+                               *(reinterpret_cast<const uint32_t*>(
+                                   &(b_scale_thread_vec_up
+                                         .template AsType<BScaleDataType>()[Number<0>{}]))),
+                               type_convert<float>(
+                                   c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{})
+                                       .template AsType<float>()[Number<0>{}]),
+                               type_convert<float>(
+                                   c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{})
+                                       .template AsType<float>()[Number<1>{}]),
+                               type_convert<float>(
+                                   c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{})
+                                       .template AsType<float>()[Number<2>{}]),
+                               type_convert<float>(
+                                   c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{})
                                        .template AsType<float>()[Number<3>{}]));
 #endif
                     });

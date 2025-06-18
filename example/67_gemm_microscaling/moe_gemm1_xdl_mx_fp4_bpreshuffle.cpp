@@ -207,15 +207,16 @@ int main(int argc, char* argv[])
 
     // per expert:
     // GEMM shape
-    ck::index_t N               = 6144;
-    ck::index_t K               = 4096;
-    ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 13;
-    ck::index_t valid_tile_num  = 13;
-    ck::index_t sorted_size     = sorted_tile_num * MPerBlock;
-    ck::index_t valid_size      = valid_tile_num * MPerBlock;
-    ck::index_t tokens          = 832;
-    ck::index_t topk            = 2;
+    constexpr ck::index_t sorted_tile_num = 13;
+    constexpr ck::index_t valid_tile_num  = sorted_tile_num;
+    ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size                = valid_tile_num * MPerBlock;
+
+    ck::index_t N       = 6144;
+    ck::index_t K       = 4096;
+    ck::index_t experts = 8;
+    ck::index_t tokens  = 832;
+    ck::index_t topk    = 2;
 
     if(argc == 1)
     {
@@ -263,8 +264,8 @@ int main(int argc, char* argv[])
 
     Tensor<ck::index_t> expert_ids(HostTensorDescriptor({sorted_tile_num}, {1}));
     Tensor<ck::index_t> sorted_token_ids(HostTensorDescriptor({sorted_size}, {1}));
-    Tensor<ck::index_t> max_token_id(HostTensorDescriptor({1 + sorted_tile_num}));
-    max_token_id.mData = {valid_size};
+    Tensor<ck::index_t> max_token_id(HostTensorDescriptor({sorted_tile_num + 1}));
+    max_token_id.mData[0] = valid_size;
 
     if(tokens * topk > valid_size)
     {
@@ -340,29 +341,28 @@ int main(int argc, char* argv[])
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
         a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
-
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.1f});
         break;
     case 3:
         a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-1, 1});
-        a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.1f});
         break;
     case 4:
-        a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
-        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 5.0});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{});
+        a0_t_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b0_e_n_k.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.1f});
         break;
     case 5:
         a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
         a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
-        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{1});
+        d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.1f});
         break;
     case 6:
         a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
@@ -433,23 +433,19 @@ int main(int argc, char* argv[])
     printf("a0_t_k_k:\n");
     for(int t = 0; t < tokens; ++t)
     {
-        //for(int tk = 0; tk < topk; ++tk)
+        for(int k = 0; k < K; ++k)
         {
-            for(int k = 0; k < K; ++k)
+            auto f4x2 = a0_t_k(t, k).data;
+            if(k % 2 == 0)
             {
-                auto f4x2 = a0_t_k(t, k).data;
-                if(k % 2 == 0)
-                {
-                    ck::f4_t f4 = (f4x2 >> 4) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-                else
-                {
-                    ck::f4_t f4 = (f4x2 >> 0) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
+                ck::f4_t f4 = (f4x2 >> 4) & 0xf;
+                printf("%.2f ", ck::type_convert<float>(f4));
             }
-            printf("\n");
+            else
+            {
+                ck::f4_t f4 = (f4x2 >> 0) & 0xf;
+                printf("%.2f ", ck::type_convert<float>(f4));
+            }
         }
         printf("\n");
     }
@@ -457,13 +453,9 @@ int main(int argc, char* argv[])
     printf("a1_t_k_k:\n");
     for(int t = 0; t < tokens; ++t)
     {
-        for(int tk = 0; tk < topk; ++tk)
+        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
         {
-            for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-            {
-                printf("%.2f ", ck::type_convert<float>(a1_t_k_k(t, tk, k)));
-            }
-            printf("\n");
+            printf("%.2f ", ck::type_convert<float>(a1_t_k(t, k)));
         }
         printf("\n");
     }
@@ -613,8 +605,6 @@ int main(int argc, char* argv[])
     if(do_verification)
     {
         invoker.Run(argument, StreamConfig{nullptr, false, 0, 0, 1});
-
-        e_device_buf.FromDevice(e_t_k_n_device_result.mData.data());
 
         Tensor<float> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
 

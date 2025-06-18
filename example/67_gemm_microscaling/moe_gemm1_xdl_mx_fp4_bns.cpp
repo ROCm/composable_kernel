@@ -86,38 +86,6 @@ struct MulABScaleExpertWeight
 
 using CDEElementOp = MulABScaleExpertWeight;
 
-// B preshuffle
-void preShuffleBuffer(const F4* src, F4* dst, int N, int K, int NXdl)
-{
-    int KPack = 16;
-    int NLane = NXdl;
-    int KLane = 64 / NLane;
-    int K_pk  = K / 2;
-    int K0    = K_pk / (KLane * KPack);
-    // K -> K0 KLane KPack
-    // N -> N0 NLane
-    // N, K -> N0 K0 KLane NLane KPack
-    I64 tempk;
-    for(I64 n = 0; n < N; ++n)
-    {
-        for(I64 k = 0; k < K_pk; ++k)
-        {
-            I64 n0 = n / NLane;
-            I64 n1 = n % NLane;
-
-            I64 k0 = k / (KLane * KPack);
-            tempk  = k % (KLane * KPack);
-            I64 k1 = tempk / KPack;
-            I64 k2 = tempk % KPack;
-
-            I64 outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
-                              k1 * KPack * NLane + n1 * KPack + k2;
-
-            dst[outputIndex] = src[n * K_pk + k];
-        }
-    }
-}
-
 // A, B Scale preshuffle
 template <bool KLast>
 void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
@@ -214,8 +182,8 @@ int main(int argc, char* argv[])
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
 
-    ck::index_t N       = 4096;
-    ck::index_t K       = 6144;
+    ck::index_t N       = 6144;
+    ck::index_t K       = 4096;
     ck::index_t experts = 8;
     ck::index_t tokens  = 832;
     ck::index_t topk    = 2;
@@ -224,7 +192,7 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    else if(argc == 3)
+    else if(argc == 4)
     {
         // use default case
         do_verification = std::stoi(argv[1]);
@@ -344,11 +312,6 @@ int main(int argc, char* argv[])
         a1_t_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
         b1_e_n_k.GenerateTensorValue(GeneratorTensor_1<XDataType>{});
         d2_e_n.GenerateTensorValue(GeneratorTensor_1<D2DataType>{0.1f});
-
-        // a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
-        // b0_e_n_k.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
-        // a1_t_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
-        // b1_e_n_k.GenerateTensorValue(GeneratorTensor_3<XDataType>{0, 1.0});
         break;
     case 3:
         a0_t_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-1, 1});
@@ -448,23 +411,19 @@ int main(int argc, char* argv[])
     printf("a0_t_k_k:\n");
     for(int t = 0; t < tokens; ++t)
     {
-        //for(int tk = 0; tk < topk; ++tk)
+        for(int k = 0; k < K; ++k)
         {
-            for(int k = 0; k < K; ++k)
+            auto f4x2 = a0_t_k(t, k).data;
+            if(k % 2 == 0)
             {
-                auto f4x2 = a0_t_k(t, k).data;
-                if(k % 2 == 0)
-                {
-                    ck::f4_t f4 = (f4x2 >> 4) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-                else
-                {
-                    ck::f4_t f4 = (f4x2 >> 0) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
+                ck::f4_t f4 = (f4x2 >> 4) & 0xf;
+                printf("%.2f ", ck::type_convert<float>(f4));
             }
-            printf("\n");
+            else
+            {
+                ck::f4_t f4 = (f4x2 >> 0) & 0xf;
+                printf("%.2f ", ck::type_convert<float>(f4));
+            }
         }
         printf("\n");
     }
@@ -472,13 +431,9 @@ int main(int argc, char* argv[])
     printf("a1_t_k_k:\n");
     for(int t = 0; t < tokens; ++t)
     {
-        for(int tk = 0; tk < topk; ++tk)
+        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
         {
-            for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-            {
-                printf("%.2f ", ck::type_convert<float>(a1_t_k_k(t, tk, k)));
-            }
-            printf("\n");
+            printf("%.2f ", ck::type_convert<float>(a1_t_k(t, k)));
         }
         printf("\n");
     }
