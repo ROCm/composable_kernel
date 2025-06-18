@@ -42,12 +42,12 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_moe_mxgemm(typename GridwiseGemm::Argument karg)
 {
-#if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
@@ -79,12 +79,12 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_moe_mxgemm_2lds(typename GridwiseGemm::Argument karg)
 {
-#if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -885,7 +885,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
         {
             // contiguous in LDS
             return make_naive_tensor_descriptor(
-                make_tuple(Number<AK0Number>{}, Number<MPerBlock>{}, AK1Number),
+                make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
                 make_tuple(AK1Number, Number<KPerBlock>{}, I1));
         }
         // xor tensor transformation request more unnecessary vgpr usage, would cause register spill
@@ -2025,17 +2025,30 @@ struct GridwiseMoeGemmMX_BPreshuffle
             problem.NPadded,
             problem.StrideC);
 
-        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
-            make_tuple(problem.M / (MXdlPack * MPerXdl),
+        // We pad the M unconditionaly for Scale
+        const auto Padded_Scale_M =
+            math::integer_divide_ceil(problem.M, ScaleBlockSize) * ScaleBlockSize;
+        const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
+            make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
                            (KXdlPack * 64 / MPerXdl),
-                       64 * KXdlPack * MXdlPack / scale_pack_size_a));
+                       64 * KXdlPack * MXdlPack / scale_pack_size_a),
+            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
+                                                 (ScaleBlockSize / APackedSize)) *
+                           MPerXdl * MXdlPack / scale_pack_size_a,
+                       64 * KXdlPack * MXdlPack / scale_pack_size_a,
+                       1));
 
-        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor_packed(
+        const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
             make_tuple(problem.N / (NXdlPack * NPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / BPackedSize)) /
                            (KXdlPack * 64 / NPerXdl),
-                       64 * KXdlPack * NXdlPack / scale_pack_size_b));
+                       64 * KXdlPack * NXdlPack / scale_pack_size_b),
+            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
+                                                 (ScaleBlockSize / BPackedSize)) *
+                           NPerXdl * NXdlPack / scale_pack_size_b,
+                       64 * KXdlPack * NXdlPack / scale_pack_size_b,
+                       1));
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -2102,23 +2115,15 @@ struct GridwiseMoeGemmMX_BPreshuffle
 
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
+            __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave / NXdlPack);
 
         // Gride buffer creation
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-
-#if 0
-        printf("blkx: %u, blky: %u, tidx: %u, a_grid_size: %ld\n",
-               blockIdx.x,
-               blockIdx.y,
-               threadIdx.x,
-               a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-
-#endif
-
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
+        const auto b_grid_buf =
+            make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT1>(
+                p_b_grid + expert_id * expert_stride,
+                b_grid_desc_bpreshuffled.GetElementSpaceSize());
 
         // A, B scale buffer
         const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -2585,16 +2590,18 @@ struct GridwiseMoeGemmMX_BPreshuffle
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_desc_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_buf_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_buf),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_buf[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_buf[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin =
@@ -2615,40 +2622,41 @@ struct GridwiseMoeGemmMX_BPreshuffle
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
             constexpr index_t scatter_weight_idx  = 3; // hack fix felix
             auto cde_block_copy_lds_and_global    = ThreadGroupTensorSliceTransfer_v7r3_scatter<
-                   ThisThreadBlock,
-                   decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
-                   Tuple<EDataType>,
-                   decltype(c_ds_desc_refs),
-                   decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
-                   CElementwiseOperation,
-                   Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make Sequence
-                                                                               // support arbitray type
-                   Sequence<1,
-                            CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
-                            1,
-                            CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
-                   CDEBlockTransferCluster,
-                   Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                   Sequence<0, 1, 2, 3>, // typename SrcDimAccessOrder,
-                   Sequence<0, 1, 2, 3>, // typename DstDimAccessOrder,
-                   3,                    // index_t SrcVectorDim,
-                   3,                    // index_t DstVectorDim,
-                   CDEShuffleBlockTransferScalarPerVectors,
-                   CShuffleBlockTransferScalarPerVector_NPerBlock,
-                   sequence_merge_t<
-                       Sequence<true>,
-                       uniform_sequence_gen_t<NumDTensor,
-                                              false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
-                   Sequence<false>, // ThreadTransferDstResetCoordinateAfterRunFlags
-                   IndexType,
-                   1,                 // ScatterDim
-                   true,              // OutputScatter: false, only use scatter weights
-                   scatter_weight_idx // ScatterWeightIdx: ascale
-                   >{c_ds_desc_refs,
-                     idx_c_ds_block_begin,
-                     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                     make_tuple(make_multi_index(0, 0, block_n_id, 0)),
-                     c_element_op};
+                ThisThreadBlock,
+                decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
+                Tuple<EDataType>,
+                decltype(c_ds_desc_refs),
+                decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
+                CElementwiseOperation,
+                Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make
+                                                                            // Sequence support
+                                                                            // arbitray type
+                Sequence<1,
+                         CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                         1,
+                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
+                CDEBlockTransferCluster,
+                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                Sequence<0, 1, 2, 3>, // typename SrcDimAccessOrder,
+                Sequence<0, 1, 2, 3>, // typename DstDimAccessOrder,
+                3,                    // index_t SrcVectorDim,
+                3,                    // index_t DstVectorDim,
+                CDEShuffleBlockTransferScalarPerVectors,
+                CShuffleBlockTransferScalarPerVector_NPerBlock,
+                sequence_merge_t<
+                    Sequence<true>,
+                    uniform_sequence_gen_t<NumDTensor,
+                                           false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
+                Sequence<false>, // ThreadTransferDstResetCoordinateAfterRunFlags
+                IndexType,
+                1,                 // ScatterDim
+                true,              // OutputScatter: false, only use scatter weights
+                scatter_weight_idx // ScatterWeightIdx: ascale
+                >{c_ds_desc_refs,
+                  idx_c_ds_block_begin,
+                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                  make_tuple(make_multi_index(0, 0, block_n_id, 0)),
+                  c_element_op};
 
             auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
                 p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
