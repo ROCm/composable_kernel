@@ -752,6 +752,48 @@ struct GridwiseGroupedConv2DBwdDataDlV4
         };
     }
 
+      
+    #define PR(X)  << #X << ":" << X << ", "
+    static void print_const()
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "DeviceGroupedConvBwdDlV4 contants:"
+            PR(TileIn_H)
+            PR(TileIn_W)
+            PR(TileOut_H)
+            PR(TileOut_W)
+
+            PR(TileOut_Pack_W)
+            PR(TileOut_Pack_Group)
+            PR(TileOut_Pack_H)
+            PR(TileOut_Align_H)
+
+            PR(TileIn_Pack_W)
+            PR(TileIn_Pack_Group)
+            PR(TileIn_Pack_H)
+            PR(TileIn_Align_H)
+  
+            PR(HRepeate)
+            PR(WRepeate)
+            PR(TilePerWave)
+            PR(ThreadPerTile)
+
+            PR(TileIn_Max_W)
+            PR(TileOut_Max_W)
+            PR(TileIn_Stride)
+            PR(TileOut_Stride)
+            PR(CheckSubTileRange)
+
+            PR(ShareMemInTileSize)
+            PR(ShareMemInSize)
+            PR(ShareMemOutTileSize)
+            PR(ShareMemOutSize);
+
+            printf("%s\n", str.str().c_str());
+    }
+
     struct Argument
     {
         Argument(const InDataType* p_in_grid,
@@ -923,6 +965,7 @@ struct DeviceGroupedConvBwdDlV4 : public DeviceGroupedConvBwdDataMultipleD<NDimS
             auto gdx = CalculateGridSize(arg);
 
             float ave_time = 0;
+           //  GridwiseConvBwd::print_const(); //debug
             typename GridwiseConvBwd::Argument conv_arg{arg.p_in_grid_,
                                                         arg.p_wei_grid_,
                                                         arg.p_out_grid_,
