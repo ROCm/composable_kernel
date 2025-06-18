@@ -32,7 +32,6 @@ from codegen_utils import (
     get_gpu_name_by_id
 )
 import logging
-import time
 
 logging.basicConfig(level=logging.INFO)
 
@@ -143,11 +142,10 @@ class GemmCodeGenerator:
         b_type = self.config.problem.datatype_map['matrix_b']
         c_type = self.config.problem.datatype_map['matrix_c']
         
-        # For integer inputs, use integer accumulation; for floating point, use float
         if a_type in ['int8', 'int4'] and b_type in ['int8', 'int4']:
-            acc_type = 'ck_tile::int32_t'  # int8/int4 operations accumulate in int32
+            acc_type = 'ck_tile::int32_t'
         else:
-            acc_type = 'float'  # floating point operations accumulate in float
+            acc_type = 'float'
             
         content = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
@@ -619,14 +617,12 @@ struct GemmDispatcher {
         if(!kernel_map.empty()) return;
         \n"""
 
-        total_kernels_added = 0
         for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
             content += f"""         kernel_map["{trait}"] = {{"""
             for _, tile in enumerate(tile_valid_params):
                 for j in range(len(tile)):
                     tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k = tile[
                         j]
-                    kernel_name = f"{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}_{warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
                     
                     content += f"""[=](ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream) {{ """
                     content += f""" 
