@@ -332,8 +332,8 @@ struct FlatmmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     c_ptr,
-                    make_tuple(kargs.M, kargs.N),
-                    make_tuple(1, kargs.stride_C),
+                    make_tuple(kargs.N, kargs.M),
+                    make_tuple(kargs.stride_C, 1),
                     number<1>{},
                     number<1>{});
             }

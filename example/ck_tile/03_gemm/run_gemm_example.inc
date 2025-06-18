@@ -232,6 +232,22 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
+template <typename GemmConfig, typename T>
+auto shuffle_b(const ck_tile::HostTensor<T>& t)
+{
+    assert(t.get_lengths().size() == 2);
+    int n_                = t.get_lengths()[1];
+    int k_                = t.get_lengths()[0];
+    constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                   GemmConfig::N_Warp_Tile,
+                                   k_ / GemmConfig::K_Warp_Tile,
+                                   divisor,
+                                   GemmConfig::K_Warp_Tile / divisor});
+    std::copy(t.begin(), t.end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+}
+
 template <typename ADataType,
           typename BDataType = ADataType,
           typename CDataType = ADataType,
@@ -263,6 +279,7 @@ int run_gemm_example_with_layouts(int argc,
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
     bool persistent              = arg_parser.get_int("persistent");
+    bool preshuffle              = arg_parser.get_int("preshuffle"); 
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -296,7 +313,7 @@ int run_gemm_example_with_layouts(int argc,
         b_k_n.SetZero();
     }
 
-    if(GemmConfig::UseStructuredSparsity)
+    if(!preshuffle && GemmConfig::UseStructuredSparsity)
     {
         ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
     }
@@ -306,6 +323,12 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
     static_assert(!GemmConfig::PermuteA, "Not implemented");
+    
+    if(preshuffle){
+        ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_origin_host);
+        //shuffled buffer B for device implementation
+        b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
+    }
     if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
     {
         // Permute vector pk_i4x4 data for device implementation
