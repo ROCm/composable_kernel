@@ -616,8 +616,8 @@ struct tile_window_linear
     template <typename Policy, index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE auto load_transpose() const
     {
-        constexpr auto tile_dstr = TileDstr{};
-        auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
+        constexpr auto tile_dstr = typename Base::TileDstr{};
+        auto dst_tensor = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
         this->template load_transpose_linear<Policy>(
             dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
         return dst_tensor;
@@ -634,7 +634,7 @@ struct tile_window_linear
         using vector_t = typename traits::vector_t;
         using SFC_Ys   = typename traits::SFC_Ys;
 
-        constexpr auto tile_dstr = TileDstr{};
+        constexpr auto tile_dstr = typename Base::TileDstr{};
 
         constexpr auto group_func = Policy::group_func;
 
@@ -648,7 +648,7 @@ struct tile_window_linear
 
             // read from bottom tensor
             const vector_t vec_value =
-                get_bottom_tensor_view().template get_transpose_vectorized_elements<vector_t>(
+                this->get_bottom_tensor_view().template get_transpose_vectorized_elements<vector_t>(
                     bottom_tensor_thread_coord, 0);
             // write into distributed tensor
             static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
@@ -656,12 +656,12 @@ struct tile_window_linear
                     [&](auto jj) {
                         return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
                     },
-                    number<NDimY>{});
+                    number<Base::NDimY>{});
 
                 constexpr index_t linear_distributed_index =
                     tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
                 dst_tensor.get_thread_buffer().template at<linear_distributed_index>() =
-                    vec_value.template get_as<DataType>()[j];
+                    vec_value.template get_as<typename Base::DataType>()[j];
             });
         };
         WINDOW_DISPATCH_ISSUE();
