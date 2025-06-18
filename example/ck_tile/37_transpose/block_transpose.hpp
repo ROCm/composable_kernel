@@ -98,10 +98,6 @@ struct BlockTranspose
     static constexpr index_t kBlockSize          = Problem::kBlockSize;
     static constexpr index_t kLeadSizePerBlock   = Problem::kLeadSizePerBlock;
     static constexpr index_t kSecondSizePerBlock = Problem::kSecondSizePerBlock;
-    static constexpr index_t kLeadSizePerXdl     = Problem::kLeadSizePerXdl;
-    static constexpr index_t kSecondSizePerXdl   = Problem::kSecondSizePerXdl;
-    static constexpr index_t kLeadNumWarps       = Problem::kLeadNumWarps;
-    static constexpr index_t kSecondNumWarps     = Problem::kSecondNumWarps;
 
     static constexpr index_t GetVectorSize() { return Policy::template GetVectorSize<Problem>(); }
 

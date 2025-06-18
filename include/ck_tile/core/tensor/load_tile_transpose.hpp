@@ -172,9 +172,6 @@ struct OutputTileDistributionTraits
     static constexpr auto quad_ps_to_rhss_major = Policy::QuadInputEncoding::ps_to_rhss_major_;
     static constexpr auto quad_ps_to_rhss_minor = Policy::QuadInputEncoding::ps_to_rhss_minor_;
 
-    static constexpr index_t dim0 = Policy::transpose_dims[0];
-    static constexpr index_t dim1 = Policy::transpose_dims[1];
-
     // for transpose load
     // append the reversed quad output hs lengths to the input hs lengthss after removing
     // the quad_input_hs_lengthss
@@ -237,26 +234,18 @@ struct OutputTileDistributionTraits
         number<input_ps_to_rhss_minor.size()>{});
 
     // for major because of dst_out_hs_lengthss is reversed, this index also need to be reversed
-    template <index_t Idx>
-    struct swap_one_and_two
-    {
-        static constexpr index_t value = (Idx == 1) ? 2 : (Idx == 2 ? 1 : Idx);
+    static constexpr auto swap_one_and_two = [](const index_t idx) {
+        return (idx == 1) ? 2 : (idx == 2) ? 1 : idx;
     };
-
     static constexpr auto dst_ps_to_rhss_major = generate_tuple(
-        [](auto i) {
-            constexpr auto seq = modified_ps_to_rhss_major[i];
-            return generate_sequence_v2(
-                [&](auto j) { return number<swap_one_and_two<seq[j]>::value>{}; },
-                number<seq.size()>{});
-        },
+        [](auto i) { return modified_ps_to_rhss_major[i].transform(swap_one_and_two); },
         number<modified_ps_to_rhss_major.size()>{});
 
     static constexpr auto modified_input_ys_to_rhs_major =
         input_ys_to_rhs_major.pop_back().push_back(number<1>{});
 
     static constexpr auto dst_ys_to_rhs_major = generate_sequence_v2(
-        [](auto i) { return number<swap_one_and_two<modified_input_ys_to_rhs_major[i]>::value>{}; },
+        [](auto i) { return number<swap_one_and_two(modified_input_ys_to_rhs_major[i])>{}; },
         number<modified_input_ys_to_rhs_major.size()>{});
 
     static constexpr auto dst_ys_to_rhs_minor =
@@ -269,6 +258,27 @@ struct OutputTileDistributionTraits
                                                      remove_cvref_t<decltype(dst_ys_to_rhs_major)>,
                                                      remove_cvref_t<decltype(dst_ys_to_rhs_minor)>>;
 };
+
+template <typename InnerEncode,
+          index_t kLeadIterPerWarp,
+          index_t kSecondIterPerWarp,
+          index_t kLeadNumWarps,
+          index_t kSecondNumWarps>
+CK_TILE_HOST_DEVICE constexpr auto InputTileDistributionEncoding()
+{
+    constexpr auto block_outer_dst_encoding =
+        tile_distribution_encoding<sequence<>,
+                                   tuple<sequence<kSecondIterPerWarp, kSecondNumWarps>,
+                                         sequence<kLeadIterPerWarp, kLeadNumWarps>>,
+                                   tuple<sequence<2, 1>>,
+                                   tuple<sequence<1, 1>>,
+                                   sequence<2, 1>,
+                                   sequence<0, 0>>{};
+    constexpr auto blk_distr_encode =
+        detail::make_embed_tile_distribution_encoding(block_outer_dst_encoding, InnerEncode{});
+
+    return blk_distr_encode;
+}
 
 /**
  * @brief transpose loads tile from a tensor and returns the resulting tensor with a new

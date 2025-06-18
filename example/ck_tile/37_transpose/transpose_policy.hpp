@@ -136,18 +136,14 @@ struct TransposePolicy
                                                                              kSecondDimIterations,
                                                                              kLeadRepetitions,
                                                                              1>();
-        // Create block-level outer distribution
-        constexpr auto block_outer_dst_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<kSecondIterPerWarp, kSecondNumWarps>,
-                                             sequence<kLeadIterPerWarp, kLeadNumWarps>>,
-                                       tuple<sequence<2, 1>>,
-                                       tuple<sequence<1, 1>>,
-                                       sequence<2, 1>,
-                                       sequence<0, 0>>{};
-        constexpr auto blk_distr_encode = detail::make_embed_tile_distribution_encoding(
-            block_outer_dst_encoding, xdllevel_dstr_encoding);
-        constexpr auto block_dstr = make_static_tile_distribution(blk_distr_encode);
+
+        constexpr auto input_tile_encode =
+            InputTileDistributionEncoding<decltype(xdllevel_dstr_encoding),
+                                          kLeadIterPerWarp,
+                                          kSecondIterPerWarp,
+                                          kLeadNumWarps,
+                                          kSecondNumWarps>();
+        constexpr auto block_dstr = make_static_tile_distribution(input_tile_encode);
         return block_dstr;
     }
 };
