@@ -14,7 +14,7 @@
 #include "hstu_block_masking.hpp"
 
 #ifndef HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-#define HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM 0
+#define HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM 1
 #endif
 
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
