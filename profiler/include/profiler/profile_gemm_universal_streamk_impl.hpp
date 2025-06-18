@@ -199,49 +199,48 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
     float best_grid_size   = 0;
     float best_streamk_sel = 0;
 
+    // Get number of SMs on the current GPU
+    int device_id;
+    hipError_t err = hipGetDevice(&device_id);
+    if(err != hipSuccess)
+    {
+        std::cerr << "hipGetDevice failed: " << hipGetErrorString(err) << std::endl;
+        return false;
+    }
+
+    hipDeviceProp_t props;
+    err = hipGetDeviceProperties(&props, device_id);
+    if(err != hipSuccess)
+    {
+        std::cerr << "hipGetDeviceProperties failed: " << hipGetErrorString(err) << std::endl;
+        return false;
+    }
+    int num_sms = props.multiProcessorCount;
+
+    // Generate grid sizes based on SM count with multipliers
+    std::vector<float> multipliers = {0.2f, 0.4f, 0.6f, 0.8f, 1.0f, 1.2f, 1.4f, 1.6f, 2.0f};
+    std::vector<int> grid_size_list;
+
+    for(float mult : multipliers)
+    {
+        int grid_size = static_cast<int>(num_sms * mult);
+        if(grid_size > 0)
+        {
+            grid_size_list.push_back(grid_size);
+        }
+    }
+
+    std::cout << "Number of SMs: " << num_sms << std::endl;
+    std::cout << "Grid sizes to test: ";
+    for(auto gs : grid_size_list)
+    {
+        std::cout << gs << " ";
+    }
+    std::cout << std::endl;
+
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        // Get number of SMs on the current GPU
-        int device_id;
-        hipError_t err = hipGetDevice(&device_id);
-        if(err != hipSuccess)
-        {
-            std::cerr << "hipGetDevice failed: " << hipGetErrorString(err) << std::endl;
-            return false;
-        }
-
-        hipDeviceProp_t props;
-        err = hipGetDeviceProperties(&props, device_id);
-        if(err != hipSuccess)
-        {
-            std::cerr << "hipGetDeviceProperties failed: " << hipGetErrorString(err) << std::endl;
-            return false;
-        }
-        int num_sms = props.multiProcessorCount;
-
-        // Generate grid sizes based on SM count with multipliers
-        std::vector<float> multipliers = {0.2f, 0.4f, 0.6f, 0.8f, 1.0f, 1.2f, 1.4f, 1.6f, 2.0f};
-        std::vector<int> grid_size_list;
-
-        for(float mult : multipliers)
-        {
-            int grid_size = static_cast<int>(num_sms * mult);
-            if(grid_size > 0)
-            {
-                grid_size_list.push_back(grid_size);
-            }
-        }
-
-        std::cout << "Number of SMs: " << num_sms << std::endl;
-        std::cout << "Grid sizes to test: ";
-        for(auto gs : grid_size_list)
-        {
-            std::cout << gs << " ";
-        }
-        std::cout << std::endl;
-
-        // std::vector<int> grid_size_list   = {38, 76, 114, 152, 190, 228, 266, 304, 342, 380};
         std::vector<int> streamk_sel_list = {
             0, 1, 2, 3, 4}; // 0: Data Parallel (DP) mode (Stream-K OFF), 1: 1-tile Stream-K+ DP,
                             // 2:2-tile Stream-K + DP
