@@ -30,6 +30,7 @@ using BF16            = ck::bhalf_t;
 using F32             = float;
 using XDataType       = ck::e8m0_bexp_t;
 using XPackedDataType = int32_t; // 4 packed e8m0_bexp_t
+using I64             = int64_t;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -94,20 +95,20 @@ void preShuffleBuffer(const F4* src, F4* dst, int N, int K, int NXdl)
     // K -> K0 KLane KPack
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
-    int tempk;
-    for(int n = 0; n < N; ++n)
+    I64 tempk;
+    for(I64 n = 0; n < N; ++n)
     {
-        for(int k = 0; k < K_pk; ++k)
+        for(I64 k = 0; k < K_pk; ++k)
         {
-            int n0 = n / NLane;
-            int n1 = n % NLane;
+            I64 n0 = n / NLane;
+            I64 n1 = n % NLane;
 
-            int k0 = k / (KLane * KPack);
+            I64 k0 = k / (KLane * KPack);
             tempk  = k % (KLane * KPack);
-            int k1 = tempk / KPack;
-            int k2 = tempk % KPack;
+            I64 k1 = tempk / KPack;
+            I64 k2 = tempk % KPack;
 
-            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+            I64 outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
                               k1 * KPack * NLane + n1 * KPack + k2;
 
             dst[outputIndex] = src[n * K_pk + k];

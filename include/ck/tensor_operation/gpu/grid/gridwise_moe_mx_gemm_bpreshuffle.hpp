@@ -2120,10 +2120,8 @@ struct GridwiseMoeGemmMX_BPreshuffle
         // Gride buffer creation
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        const auto b_grid_buf =
-            make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT1>(
-                p_b_grid + expert_id * expert_stride,
-                b_grid_desc_bpreshuffled.GetElementSpaceSize());
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
 
         // A, B scale buffer
         const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(

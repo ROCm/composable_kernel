@@ -639,7 +639,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                         });
                     });
 
-                    // HotLoopScheduler();
+                    HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
                 };
 
