@@ -78,6 +78,10 @@ struct GridwiseGroupedConv2DBwdDataDlV4
     static constexpr index_t Stride_H = tuple_element_t<1, FilterParam>{}.At(I0);
     static constexpr index_t Stride_W = tuple_element_t<1, FilterParam>{}.At(I1);
 
+    // Only support pad left = pad right for now
+    static constexpr index_t PadOut_H = Pad_H / Stride_H;
+    static constexpr index_t PadOut_W = Pad_W / Stride_W;
+
     // Only support dilation = 1 for now
     static constexpr index_t Dilation_Y = tuple_element_t<0, FilterParam>{}.At(I0);
     static constexpr index_t Dilation_X = tuple_element_t<0, FilterParam>{}.At(I1);
@@ -85,13 +89,13 @@ struct GridwiseGroupedConv2DBwdDataDlV4
     static constexpr index_t Filter_Y = FilterSize;
     static constexpr index_t Filter_X = FilterSize;
 
-    static constexpr index_t TileIn_H = Tile_H;// + 2 * Pad_H;
-    static constexpr index_t TileIn_W = Tile_W;// + 2 * Pad_W;
+    static constexpr index_t TileIn_H = Tile_H;
+    static constexpr index_t TileIn_W = Tile_W;
 
     static constexpr index_t TileOut_H =
-        GetConvOut(Tile_H, FilterSize, Dilation_Y, Pad_H, Stride_H) + 2 * Pad_H;
+        GetConvOut(Tile_H, FilterSize, Dilation_Y, Pad_H, Stride_H);
     static constexpr index_t TileOut_W =
-        GetConvOut(Tile_W, FilterSize, Dilation_X, Pad_W, Stride_W) + 2 * Pad_W;
+        GetConvOut(Tile_W, FilterSize, Dilation_X, Pad_W, Stride_W);
 
     static_assert(Tile_W % InScalarPerVector == 0);
     static_assert(TileIn_W % InScalarPerVector == 0);
@@ -114,11 +118,11 @@ struct GridwiseGroupedConv2DBwdDataDlV4
     using WeiDataVector  = typename vector_type<WeiDataType, WeiScalarPerVector>::type;
 
     // constants for data load/store
-    static constexpr index_t TileOut_Pack_W     = GetAlignedPackW<Tile_W, OutScalarPerVector>();
+    static constexpr index_t TileOut_Pack_W     = GetAlignedPackW<TileOut_W, OutScalarPerVector>();
     static constexpr index_t TileOut_Pack_Group = WaveSize / TileOut_Pack_W;
-    static constexpr index_t TileOut_Pack_H = math::integer_divide_ceil(Tile_H, TileOut_Pack_Group);
+    static constexpr index_t TileOut_Pack_H = math::integer_divide_ceil(TileOut_H, TileOut_Pack_Group);
     static constexpr index_t TileOut_Align_H =
-        math::max(TileOut_Pack_H * TileOut_Pack_Group + Pad_H, TileOut_H);
+        math::max(TileOut_Pack_H * TileOut_Pack_Group + PadOut_H, TileOut_H + 2 * PadOut_H);
 
     static constexpr index_t TileIn_Pack_W     = GetAlignedPackW<TileIn_W, InScalarPerVector>();
     static constexpr index_t TileIn_Pack_Group = WaveSize / TileIn_Pack_W;
@@ -133,10 +137,15 @@ struct GridwiseGroupedConv2DBwdDataDlV4
     static constexpr index_t ThreadPerTile = WaveSize / TilePerWave;
     static_assert(NBatch % TilePerWave == 0);
 
-    static constexpr index_t TileOut_Max_W =
-        SubTileW * (WRepeate - 1) +
-        math::integer_least_multiple(SubTileW + (Filter_X - 1) * Dilation_X,
+    static constexpr index_t SubTileOutW2 = SubTileW;// / Stride_W;
+    static constexpr index_t TileOut_Max_W = 
+    #if 0
+    12;
+    #else
+        SubTileOutW2 * (WRepeate - 1) +
+        math::integer_least_multiple(SubTileOutW2 + (Filter_X - 1) * Dilation_X / Stride_W,
                                      OutScalarPerVector_Internal);
+    #endif
     static constexpr index_t TileIn_Max_W =
         SubTileW * (WRepeate - 1) +
         math::integer_least_multiple(SubTileW, InScalarPerVector_Internal);
@@ -335,27 +344,30 @@ struct GridwiseGroupedConv2DBwdDataDlV4
             });
         };
 
-        constexpr auto SubTileOutW = math::integer_least_multiple(SubTileW + (Filter_X - 1) * Dilation_X, OutScalarPerVector_Internal);
+        constexpr auto SubTileOutW = math::integer_least_multiple(SubTileW + (Filter_X - 1) * Dilation_X / Stride_W, OutScalarPerVector_Internal);
         static_assert(SubTileOutW % OutScalarPerVector_Internal == 0);
         static_assert(SubTileW % InScalarPerVector_Internal == 0);
 
-        OutShareVector tmp_out[Filter_Y][SubTileOutW / OutScalarPerVector_Internal];
+        constexpr auto filter_y =  math::integer_divide_ceil(Filter_Y, Stride_H);
+        constexpr auto filter_x =  math::integer_divide_ceil(Filter_X, Stride_W);
+
+        OutShareVector tmp_out[filter_y][SubTileOutW / OutScalarPerVector_Internal];
 
         // fetch filter 0 - y-1
-        static_for<0, Filter_Y - 1, 1>{}(
+        static_for<0, filter_y - 1, 1>{}(
             [&](auto ho) { get_out(ho, Number<SubTileOutW>{}, tmp_out[ho]); });
 
         using OutData2                = typename vector_type<OutDataType, 2>::type;
-        constexpr auto Filter_X_Pack = math::integer_divide_ceil(Filter_X, 2);
+        constexpr auto Filter_X_Pack = math::integer_divide_ceil(filter_x, 2);
         
         //static_for<0, SubTileH, 1>{}([&](auto hi) {
         for (int hi = 0; hi < SubTileH; hi++) {
             float tmp_in[SubTileW] = {};
-          //  constexpr index_t ho        = hi + Filter_Y - 1;
-          //  constexpr index_t tmp_y_idx = (hi + Filter_Y - 1) % Filter_Y;
+          //  constexpr index_t ho        = hi + filter_y - 1;
+          //  constexpr index_t tmp_y_idx = (hi + filter_y - 1) % filter_y;
 
-             index_t ho        = hi + Filter_Y - 1;
-             index_t tmp_y_idx = (hi + Filter_Y - 1) % Filter_Y;
+             index_t ho        = hi + filter_y - 1;
+             index_t tmp_y_idx = (hi + filter_y - 1) % filter_y;
 
             get_out(ho, Number<SubTileOutW>{}, tmp_out[tmp_y_idx]);
 
@@ -363,15 +375,15 @@ struct GridwiseGroupedConv2DBwdDataDlV4
             {
                 #if 0
                 static_for<0, SubTileW, 2>{}([&](auto wi) {
-                    static_for<0, Filter_Y, 1>{}([&](auto y) {
+                    static_for<0, filter_y, 1>{}([&](auto y) {
                         static_for<0, Filter_X_Pack, 1>{}([&](auto x_pack) {
                 #else
                     for (int wi =0; wi < SubTileW; wi +=2){
-                    for (int y =0; y < Filter_Y; y++){
+                    for (int y =0; y < filter_y; y++){
                     for (int x_pack =0; x_pack < Filter_X_Pack; x_pack++){
                 #endif
                             const OutData2* p_out =
-                                reinterpret_cast<OutData2*>(tmp_out[(hi + y) % Filter_Y]) +
+                                reinterpret_cast<OutData2*>(tmp_out[(hi + y) % filter_y]) +
                                 wi * Stride_W / 2 + x_pack;
                             inner_product(
                                 *p_out, p_wei_even[y * Filter_X_Pack + x_pack], tmp_in[wi]);
@@ -390,10 +402,10 @@ struct GridwiseGroupedConv2DBwdDataDlV4
             {
                 static_assert(Stride_W == 2);
                 static_for<0, SubTileW, 2>{}([&](auto wi) {
-                    static_for<0, Filter_Y, 1>{}([&](auto y) {
+                    static_for<0, filter_y, 1>{}([&](auto y) {
                         static_for<0, Filter_X_Pack, 1>{}([&](auto x_pack) {
                             const OutData2* p_out =
-                                reinterpret_cast<OutData2*>(tmp_out[(hi + y) % Filter_Y]) +
+                                reinterpret_cast<OutData2*>(tmp_out[(hi + y) % filter_y]) +
                                 wi / 2 + x_pack; // wo = ?
                             index_t wei_idx = (hi % 2 * 2 + wi % 2) * wei_stride;
                             inner_product(
@@ -437,26 +449,60 @@ struct GridwiseGroupedConv2DBwdDataDlV4
         });
         #endif
         {
+            #if 1
             static_for<0, Filter_Y, 1>{}([&](auto y) {
                 auto p_wei = arg.p_wei_grid_ + Wei_G_Stride * g;
-                constexpr auto stride = math::integer_divide_ceil(Filter_X, WeiScalarPerVector);
+                constexpr auto stride = math::integer_divide_ceil(math::integer_divide_ceil(Filter_X,Stride_W), WeiScalarPerVector);
                 static_assert(WeiScalarPerVector == 2, "WeiScalarPerVector must be 2");
                 static_for<0, Filter_X, 1>{}([&](auto x) {
-                    constexpr auto ho = (Pad_H + Pad_H - y) / Stride_H;
-                    constexpr auto wo = (Pad_W + Pad_W - x) / Stride_W;
+                    constexpr auto ho = (Pad_H + Pad_H - y);
+                    constexpr auto wo = (Pad_W + Pad_W - x);
+
                     if constexpr(Stride_W == 1){
                         weight[ho * stride + wo / WeiScalarPerVector][wo % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
                         weight_odd[ho * stride + (wo+1) / WeiScalarPerVector][(wo+1) % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
                     }
                     else{
                         static_assert(Stride_H == 2);
-                        constexpr auto wei_idx = (ho % 2 * 2 + wo % 2) * VectorCount;
 
-                        weight[wei_idx + ho * stride + wo / WeiScalarPerVector][wo % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
-                        weight_odd[wei_idx+ ho * stride + (wo+1) / WeiScalarPerVector][(wo+1) % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
+                        constexpr auto  hi = ho / 2 + ho %2;
+                        constexpr auto  wi = wo / 2 + wo %2;
+                        constexpr auto  wei_idx = (ho % 2 * 2 + wo % 2) * VectorCount;
+                       // printf("%d: (%d %d): %d %d\n", wei_idx, ho, wo, hi , wi);
+
+                        weight[wei_idx + hi * stride + wi / WeiScalarPerVector][wi % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
+                        weight_odd[wei_idx+ hi * stride + (wi+1) / WeiScalarPerVector][(wi+1) % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
                     }
                 });
+            });
+            #else
+                for(int y =0; y < Filter_Y; y++) {
+                auto p_wei = arg.p_wei_grid_ + Wei_G_Stride * g;
+                constexpr auto stride = math::integer_divide_ceil(math::integer_divide_ceil(Filter_X,Stride_W), WeiScalarPerVector);
+                static_assert(WeiScalarPerVector == 2, "WeiScalarPerVector must be 2");
+     
+                for(int x = 0; x < Filter_X; x++) {
+                    int ho = (Pad_H + Pad_H - y);
+                    int wo = (Pad_W + Pad_W - x);
 
+                    if constexpr(Stride_W == 1){
+           
+                        weight[ho * stride + wo / WeiScalarPerVector][wo % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
+                        weight_odd[ho * stride + (wo+1) / WeiScalarPerVector][(wo+1) % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
+                    }
+                    else{
+                        static_assert(Stride_H == 2);
+
+                        int hi = ho / 2 + ho %2;
+                        int wi = wo / 2 + wo %2;
+                        int wei_idx = (ho % 2 * 2 + wo % 2) * VectorCount;
+                        printf("%d: (%d %d): %d %d\n", wei_idx, ho, wo, hi , wi);
+                        weight[wei_idx + hi * stride + wi / WeiScalarPerVector][wi % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
+                        weight_odd[wei_idx+ hi * stride + (wi+1) / WeiScalarPerVector][(wi+1) % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
+                    }
+                }
+            }
+            #endif
                 #if 0
                 if constexpr(Filter_Y == 5)
                 {
@@ -490,7 +536,6 @@ struct GridwiseGroupedConv2DBwdDataDlV4
                     static_assert(!"unsupportted filter");
                 }
                 #endif
-            });
         }
 
         // to do: check result in SGPR
@@ -643,29 +688,29 @@ struct GridwiseGroupedConv2DBwdDataDlV4
                 });
             };
 
-        constexpr index_t TopPadingSize     = Pad_H * TileOut_Stride;
-        constexpr index_t TileOutEnd         = (Tile_H + Pad_H) * TileOut_Stride;
+        constexpr index_t TopPadingSize     = PadOut_H * TileOut_Stride;
+        constexpr index_t TileOutEnd         = (TileOut_H + PadOut_H) * TileOut_Stride;
         constexpr index_t ButtomPaddingSize = ShareMemOutTileSize - TileOutEnd;
         static_assert(ButtomPaddingSize >= 0);
         static_for<0, TilePerWave, 1>{}([&](auto i) {
-            if constexpr(Pad_H > 0)
+            if constexpr(PadOut_H > 0)
             {
                 init_pading(share_out + ShareMemOutTileSize * i, Number<TopPadingSize>{});
                 init_pading(share_out + ShareMemOutTileSize * i + TileOutEnd,
                             Number<ButtomPaddingSize>{});
             }
 
-            if constexpr(Pad_W > 0)
+            if constexpr(PadOut_W > 0)
             {
                 init_array_pading(share_out + ShareMemOutTileSize * i + TopPadingSize,
-                                  Number<Pad_W>{},
+                                  Number<PadOut_W>{},
                                   Number<Tile_H>{},
                                   TileOut_Stride);
             }
-            if constexpr(TileOut_Stride - Tile_H - Pad_W > 0)
+            if constexpr(TileOut_Stride - Tile_H - PadOut_W > 0)
             {
-                constexpr auto Pad_Right = TileOut_Stride - Tile_H - Pad_W;
-                init_array_pading(share_out + ShareMemOutTileSize * i + TopPadingSize + Pad_W +
+                constexpr auto Pad_Right = TileOut_Stride - Tile_H - PadOut_W;
+                init_array_pading(share_out + ShareMemOutTileSize * i + TopPadingSize + PadOut_W +
                                       Tile_H,
                                   Number<Pad_Right>{},
                                   Number<Tile_H>{},
@@ -689,13 +734,15 @@ struct GridwiseGroupedConv2DBwdDataDlV4
         ignore = in_y_offset;
 #endif
         // load weight data
-        constexpr auto WeiVectorCount =
-            math::integer_divide_ceil(Filter_X, WeiScalarPerVector) * Filter_Y;
-        constexpr auto weiCnt = ((Stride_H - 1) * 3 + 1) * WeiVectorCount;
+        constexpr auto WeiVectorCount = math::integer_divide_ceil(Filter_Y, Stride_H) *
+            math::integer_divide_ceil(math::integer_divide_ceil(Filter_Y, Stride_H), WeiScalarPerVector);
+        constexpr auto weiCnt = Stride_H == 1 ? WeiVectorCount : 4 * WeiVectorCount;
         
         WeiDataVector weight[weiCnt]     = {};
         WeiDataVector weight_odd[weiCnt] = {};
-
+        #if 0
+        if (g_n_idx == 0 && threadIdx.x == 0)
+        #endif
         load_filter_data<WeiVectorCount>(arg, g_idx, weight, weight_odd);
 
         index_t x               = (lane_id % ThreadPerTile) % WRepeate;
@@ -708,21 +755,21 @@ struct GridwiseGroupedConv2DBwdDataDlV4
                         x * SubTileW));
         auto p_share_subtile_out = reinterpret_cast<OutShareVector*>(
             share_out +
-            (tile_idx * ShareMemOutTileSize + y * SubTileH * TileOut_Stride + x * SubTileW));
+            (tile_idx * ShareMemOutTileSize + y * (SubTileH / Stride_H) * TileOut_Stride + x * SubTileW / Stride_W));
 #if defined(DISABLE_INPUT_LDS)
         p_in += tile_idx * in_n_stride + y * SubTileH * hi_stride + x * SubTileW * wi_stride;
 #endif
          
         // adjust share memory offset for copy
-        share_out += (TileOut_Stride * Pad_H + Pad_W);
+        share_out += (TileOut_Stride * PadOut_H + PadOut_W);
 #if 0
-#if 1
+#if 0
         if(out_x < Tile_W / OutScalarPerVector)
         {
             printf("threadIdx %u out_x %d out_y %d\n", threadIdx.x, out_x, out_y_offset);
-            load_data_from_global<Tile_H, TileOut_Pack_W, OutScalarPerVector>(
+            load_data_from_global<TileOut_H, TileOut_Pack_W, OutScalarPerVector>(
                 p_out, out_x, out_y_offset, out_n_stride, ho, wo, ho_stride, wo_stride, tmp_out_2);
-            write_data_to_lds<Tile_H,
+            write_data_to_lds<TileOut_H,
                               TileOut_Pack_W,
                               TileOut_Stride,
                               ShareMemOutTileSize,
@@ -740,9 +787,9 @@ struct GridwiseGroupedConv2DBwdDataDlV4
         {
             if(out_x < Tile_W / OutScalarPerVector)
             {
-                load_data_from_global<Tile_H, TileOut_Pack_W, OutScalarPerVector>(
+                load_data_from_global<TileOut_H, TileOut_Pack_W, OutScalarPerVector>(
                     p_out, out_x, out_y_offset, out_n_stride, ho, wo, ho_stride, wo_stride, tmp_out_2);
-                write_data_to_lds<Tile_H,
+                write_data_to_lds<TileOut_H,
                                   TileOut_Pack_W,
                                   TileOut_Stride,
                                   ShareMemOutTileSize,
