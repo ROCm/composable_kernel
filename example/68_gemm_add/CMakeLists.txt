@@ -1,8 +1,18 @@
-add_example_executable(example_gemm_add_xdl_fp16 gemm_add_xdl_fp16.cpp)
 add_example_executable(example_gemm_add_wmma_bf16 gemm_add_wmma_bf16.cpp)
 add_example_executable(example_gemm_add_wmma_fp16 gemm_add_wmma_fp16.cpp)
 add_example_executable(example_gemm_add_wmma_v3_fp16 gemm_add_wmma_v3_fp16.cpp)
 add_example_executable(example_gemm_add_wmma_v3_bf16 gemm_add_wmma_v3_bf16.cpp)
+
+add_custom_target(example_gemm_add_xdl)
+set_source_files_properties(example_gemm_add_xdl_fp16/gemm_add_xdl_fp16.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+add_library(example_gemm_add_xdl_fp16 gemm_add_xdl_fp16.cpp)
+add_example_executable(example_gemm_add_xdl_fp16 gemm_add_xdl_fp16.cpp)
+add_example_dependencies(example_gemm_add_xdl example_gemm_add_xdl_fp16)
+
+set_source_files_properties(example_gemm_add_xdl_bf16/gemm_add_xdl_bf16.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")
+add_library(example_gemm_add_xdl_bf16 gemm_add_xdl_bf16.cpp)
+add_example_executable(example_gemm_add_xdl_bf16 gemm_add_xdl_bf16.cpp)
+add_example_dependencies(example_gemm_add_xdl example_gemm_add_xdl_bf16)
 
 
 
