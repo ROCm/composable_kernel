@@ -8,7 +8,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_moe_mx_gemm_bns.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_moe_mx_gemm.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    else if(argc == 3)
+    else if(argc == 4)
     {
         // use default case
         do_verification = std::stoi(argv[1]);

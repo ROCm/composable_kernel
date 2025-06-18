@@ -184,7 +184,7 @@ static constexpr ck::index_t MPerBlock = 128;
 static constexpr bool MulRoutedWeight  = true;
 
 // clang-format off
-using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmMX<
+using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmMXBPreShuffle<
     A0Layout,    B0Layout,    DsLayout,    ELayout, 
     A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
     AElementOp,  BElementOp, CDEElementOp, GemmSpec,   

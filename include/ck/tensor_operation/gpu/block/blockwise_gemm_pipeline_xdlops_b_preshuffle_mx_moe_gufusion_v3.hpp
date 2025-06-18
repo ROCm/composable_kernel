@@ -728,7 +728,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                         });
                     });
 
-                    // HotLoopScheduler();
+                    HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
                 };
 
