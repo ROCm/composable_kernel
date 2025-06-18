@@ -86,6 +86,38 @@ struct MulABScaleExpertWeight
 
 using CDEElementOp = MulABScaleExpertWeight;
 
+// B preshuffle
+void preShuffleBuffer(const F4* src, F4* dst, int N, int K, int NXdl)
+{
+    int KPack = 16;
+    int NLane = NXdl;
+    int KLane = 64 / NLane;
+    int K_pk  = K / 2;
+    int K0    = K_pk / (KLane * KPack);
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> N0 K0 KLane NLane KPack
+    I64 tempk;
+    for(I64 n = 0; n < N; ++n)
+    {
+        for(I64 k = 0; k < K_pk; ++k)
+        {
+            I64 n0 = n / NLane;
+            I64 n1 = n % NLane;
+
+            I64 k0 = k / (KLane * KPack);
+            tempk  = k % (KLane * KPack);
+            I64 k1 = tempk / KPack;
+            I64 k2 = tempk % KPack;
+
+            I64 outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
+
+            dst[outputIndex] = src[n * K_pk + k];
+        }
+    }
+}
+
 // A, B Scale preshuffle
 template <bool KLast>
 void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
@@ -583,7 +615,7 @@ int main(int argc, char* argv[])
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
         std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
-                  << " GB/s" << device_op.GetTypeString() << std::endl;
+                  << " GB/s, " << device_op.GetTypeString() << std::endl;
     }
 
     if(do_verification)
