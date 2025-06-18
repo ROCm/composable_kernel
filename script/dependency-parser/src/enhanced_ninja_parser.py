@@ -181,18 +181,18 @@ class EnhancedNinjaDependencyParser:
         # Include files that are clearly part of the project
         if any(file_path.startswith(prefix) for prefix in [
             'include/', 'library/', 'test/', 'example/', 'src/', 'profiler/',
-            'build-ninja/include/', 'build-ninja/_deps/gtest'
+            'build-ninja/include/', 'build-ninja/_deps/gtest', 'client_example', 'codegen', 'tile_engine'
         ]):
             return True
             
         # Exclude system files
         if any(file_path.startswith(prefix) for prefix in [
-            '/usr/', '/opt/rocm', '/lib/', '/system/'
+            '/usr/', '/opt/rocm', '/lib/', '/system/', '/local/'
         ]):
             return False
             
         # Include files with common source/header extensions
-        if file_path.endswith(('.cpp', '.hpp', '.h', '.c', '.cc', '.cxx', '.cu', '.hip')):
+        if file_path.endswith(('.cpp', '.hpp', '.h', '.c', '.cc', '.cxx', '.cu', '.hip', '.inc')):
             return True
             
         return False
