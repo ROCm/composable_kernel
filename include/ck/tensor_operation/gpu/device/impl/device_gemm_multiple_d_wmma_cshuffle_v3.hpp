@@ -362,6 +362,13 @@ struct DeviceGemmMultipleD_Wmma_CShuffleV3
                 }
             }();
 
+            static constexpr auto I0 = Number<0>{};
+            constexpr bool FallbackToAtomics =
+                (CDEShuffleBlockTransferScalarPerVectors{}[I0] % 2 == 1);
+            constexpr bool ValidImplementationWithAtomics =
+                !(std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t>) ||
+                !FallbackToAtomics;
+
             if(has_main_k_block_loop)
             {
                 // Tail number always full
@@ -370,12 +377,16 @@ struct DeviceGemmMultipleD_Wmma_CShuffleV3
                 {
                     if(arg.KBatch > 1)
                     {
-                        const auto kernel =
-                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                         true,
-                                                         InMemoryDataOperationEnum::AtomicAdd,
-                                                         minimum_occupancy>;
-                        Run(kernel);
+
+                        if constexpr(ValidImplementationWithAtomics)
+                        {
+                            const auto kernel =
+                                kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::AtomicAdd,
+                                                            minimum_occupancy>;
+                            Run(kernel);
+                        }
                     }
                     else
                     {
@@ -399,12 +410,15 @@ struct DeviceGemmMultipleD_Wmma_CShuffleV3
                 {
                     if(arg.KBatch > 1)
                     {
-                        const auto kernel =
-                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                         false,
-                                                         InMemoryDataOperationEnum::AtomicAdd,
-                                                         minimum_occupancy>;
-                        Run(kernel);
+                        if constexpr(ValidImplementationWithAtomics)
+                        {
+                            const auto kernel =
+                                kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                            false,
+                                                            InMemoryDataOperationEnum::AtomicAdd,
+                                                            minimum_occupancy>;
+                            Run(kernel);
+                        }
                     }
                     else
                     {
