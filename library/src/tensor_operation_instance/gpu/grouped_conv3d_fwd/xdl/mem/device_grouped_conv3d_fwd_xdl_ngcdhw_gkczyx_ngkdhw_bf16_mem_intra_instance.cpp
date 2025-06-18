@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_mem_instance.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_instance.hpp"
-#include "ck/utility/filter_tuple.hpp"
 
-namespace ck::tensor_operation::device::instance {
+namespace ck {
+namespace tensor_operation {
+namespace device {
+namespace instance {
 
-// Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
-using device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances =
+void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_intra_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NGCDHW,
                                                                 GKCZYX,
@@ -20,43 +21,35 @@ using device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances =
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                PassThrough>>>;
-template <int Shards, int ShardIndex>
-void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances_shard(
-    device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances& instances)
+                                                                PassThrough>>>& instances)
 {
-    add_device_operation_instances(
-        instances,
-        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_bf16_instances<3,
+    add_device_operation_instances(instances,
+                                   device_grouped_conv_fwd_xdl_bf16_mem_instances<3,
                                                                                   NGCDHW,
                                                                                   GKCZYX,
                                                                                   Empty_Tuple,
                                                                                   NGKDHW,
-                                                                                  ConvFwdDefault>,
-                                       Shards,
-                                       ShardIndex>{});
-
-    add_device_operation_instances(
-        instances,
-        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_bf16_instances<3,
+                                                                                  ConvFwdDefault,
+                                                                                  Intrawave>{});
+    add_device_operation_instances(instances,
+                                   device_grouped_conv_fwd_xdl_bf16_mem_instances<3,
                                                                                   NGCDHW,
                                                                                   GKCZYX,
                                                                                   Empty_Tuple,
                                                                                   NGKDHW,
-                                                                                  ConvFwd1x1P0>,
-                                       Shards,
-                                       ShardIndex>{});
-
-    add_device_operation_instances(
-        instances,
-        util::filter_tuple_by_modulo_t<device_grouped_conv_fwd_xdl_bf16_instances<3,
+                                                                                  ConvFwd1x1P0,
+                                                                                  Intrawave>{});
+    add_device_operation_instances(instances,
+                                   device_grouped_conv_fwd_xdl_bf16_mem_instances<3,
                                                                                   NGCDHW,
                                                                                   GKCZYX,
                                                                                   Empty_Tuple,
                                                                                   NGKDHW,
-                                                                                  ConvFwd1x1S1P0>,
-                                       Shards,
-                                       ShardIndex>{});
+                                                                                  ConvFwd1x1S1P0,
+                                                                                  Intrawave>{});
 }
 
-} // namespace ck::tensor_operation::device::instance
+} // namespace instance
+} // namespace device
+} // namespace tensor_operation
+} // namespace ck
