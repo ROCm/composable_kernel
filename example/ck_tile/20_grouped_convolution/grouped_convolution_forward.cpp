@@ -185,7 +185,7 @@ int run_grouped_conv_fwd_example(int argc, char* argv[])
 
     std::string data_type  = arg_parser.get_str("prec");
     std::string in_layout  = arg_parser.get_str("in_layout");
-    std::string wei_layout = arg_parser.get_str("wei_layout");
+    std::string wei_layout = arg_parser.get_str("weight_layout");
     std::string out_layout = arg_parser.get_str("out_layout");
 
     if(data_type == "fp16")

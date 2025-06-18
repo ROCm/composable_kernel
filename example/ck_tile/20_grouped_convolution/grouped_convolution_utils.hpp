@@ -90,7 +90,7 @@ auto create_args(int argc, char* argv[])
         .insert("rpad_w", "0", "right pad for w dimension")
 
         .insert("in_layout", "NHWGC", "Input image layout - NHWGC by default")
-        .insert("wei_layout", "GKYXC", "Weight layout - GKYXC by default")
+        .insert("weight_layout", "GKYXC", "Weight layout - GKYXC by default")
         .insert("out_layout", "NHWGK", "Output image layout - NHWGK by default")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")

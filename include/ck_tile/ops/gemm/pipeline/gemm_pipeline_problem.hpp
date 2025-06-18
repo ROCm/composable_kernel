@@ -203,8 +203,8 @@ struct UniversalGemmPipelineProblem
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     static constexpr bool FixedVectorSize = FixedVectorSize_;
-    static constexpr bool VectorSizeA     = VectorSizeA_;
-    static constexpr bool VectorSizeB     = VectorSizeB_;
+    static constexpr index_t VectorSizeA  = VectorSizeA_;
+    static constexpr index_t VectorSizeB  = VectorSizeB_;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
