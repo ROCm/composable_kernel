@@ -1876,7 +1876,7 @@ struct FmhaBwdConvertQGradKernel
         return
             _SS_("fmha_bwd_convert_dq_d") + _TS_(kQKHeaddim) + "_"
             + _SS_(t2s<QGradDataType>::name) + "_"
-            + "b" + _TS_(kM0) + "x" + _TS_(kN0) + "_"Add commentMore actions
+            + "b" + _TS_(kM0) + "x" + _TS_(kN0) + "_"
             + (kIsGroupMode ? "group" : "batch") + "_"
             + ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn)
             + (kIsDeterministic ? "_deterministic" : "_ndeterministic") ;
