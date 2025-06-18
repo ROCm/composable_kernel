@@ -69,19 +69,14 @@ class GemmCodeGenerator:
             f.write(str(w_p / "gemm_dispatcher.hpp") + "\n")
             for trait in self.valid_trait_names:
                 f.write(str(w_p / f"gemm_{trait}.hpp") + "\n")
+            file_name = set()
             for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
                 for tile in tile_valid_params:
                     for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
-                        sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
-                            self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
-                            self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
-                            ((warp_tile_m == 32 and warp_tile_n == 32 and warp_tile_k == 16) or
-                             (warp_tile_m == 16 and warp_tile_n == 16 and warp_tile_k == 32))
-                        if sparse:
-                            f.write(str(
-                                w_p / f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}_{warp_tile_m}x{warp_tile_n}x{warp_tile_k}_true.cpp") + "\n")
-                        f.write(str(
-                                w_p / f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}_{warp_tile_m}x{warp_tile_n}x{warp_tile_k}_false.cpp") + "\n")
+                        file_name.add(f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp")
+            for name in file_name:
+                f.write(str(
+                    w_p / name) + "\n")
 
     def _generate_all_traits(self):
         """Generate all possible kernel traits names."""
@@ -502,10 +497,22 @@ struct GemmKernel {{
 
     def _generate_instantiation_source_files(self):
         """Generate kernel instance instantiation source files """
+        tile_map = {}
         for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
             for tile in tile_valid_params:
                 for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
-                    content = f"""
+                    key = f'{tile_m}x{tile_n}x{tile_k}x{warp_m}x{warp_n}x{warp_k}'
+                    value = f'{warp_tile_m}x{warp_tile_n}x{warp_tile_k}'
+                    if key not in tile_map:
+                        tile_map[key] = set()
+                    tile_map[key].add(value)
+        #print(f"Generating {len(tile_map)} tiles and warps...")
+        #print(f"Valid traits: {tile_map}")
+
+        for trait, _ in self.valid_trait_tile_combinations.items():
+            for block_tile, warp_tiles in tile_map.items():
+                tile_m, tile_n, tile_k, warp_m, warp_n, warp_k = map(int, block_tile.split('x'))
+                content = f"""
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -514,23 +521,23 @@ struct GemmKernel {{
 #include "gemm_{trait}.hpp" 
 
 """
+                for warp_tile in warp_tiles:
+                    warp_tile_m, warp_tile_n, warp_tile_k = map(int, warp_tile.split('x'))
+                    
                     sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
-                        self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
-                        self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
-                        ((warp_tile_m == 32 and warp_tile_n == 32 and warp_tile_k == 16) or
-                            (warp_tile_m == 16 and warp_tile_n == 16 and warp_tile_k == 32))
+                            self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
+                            self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
+                            ((warp_tile_m == 32 and warp_tile_n == 32 and warp_tile_k == 16) or
+                                (warp_tile_m == 16 and warp_tile_n == 16 and warp_tile_k == 32))
                     if sparse:
-                        sparse_content = content + f"""
-template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;
+                        content = content + f"""
+template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;"""
+                    content = content + f"""
+template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, false>;"""
+                content += f"""
 """
-                        (self.output_dir /
-                         f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}_{warp_tile_m}x{warp_tile_n}x{warp_tile_k}_true.cpp").write_text(sparse_content)
-
-                    no_sparse_content = content + f"""
-template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, false>;
-"""
-                    (self.output_dir /
-                     f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}_{warp_tile_m}x{warp_tile_n}x{warp_tile_k}_false.cpp").write_text(no_sparse_content)
+                (self.output_dir /
+                    f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp").write_text(content)
 
     def _generate_dispatcher_file(self):
         """Generate the code block of dispatch mechanism."""
