@@ -13,7 +13,6 @@ set(REGRESSION_TESTS
     test_gemm_standalone_xdl_fp16
     test_gemm_fp16
     test_gemm_splitk
-    test_batched_gemm
     test_gemm_universal_wmma_fp16
     test_gemm_universal_xdl_fp16
     test_gemm_universal_streamk_fp16
@@ -252,7 +251,7 @@ add_subdirectory(reduce)
 add_subdirectory(convnd_fwd)
 add_subdirectory(convnd_bwd_data)
 add_subdirectory(grouped_convnd_fwd)
-add_subdirectory(grouped_convnd_fwd_bias_clamp)
+add_subdirectory(grouped_convnd_fwd_activation)
 add_subdirectory(grouped_convnd_bwd_weight)
 add_subdirectory(block_to_ctile_map)
 add_subdirectory(softmax)

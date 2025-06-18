@@ -141,7 +141,7 @@ struct BlockwiseGemmXdlops_pipeline_v2_b_scale<BlockGemmPipelineScheduler::Intra
     using Base::BMmaKStride;
 
     static constexpr index_t WgpPerCU =
-        (4 * warpSize / BlockSize) >= 1 ? 4 * warpSize / BlockSize : 1;
+        (4 * WarpSize / BlockSize) >= 1 ? 4 * WarpSize / BlockSize : 1;
     static constexpr index_t FullMemBandPrefetchStages = math::integer_divide_ceil(
         32768 / WgpPerCU,
         (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
@@ -632,7 +632,7 @@ struct BlockwiseGemmXdlops_pipeline_v2_b_scale<BlockGemmPipelineScheduler::Inter
     static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
 
     static constexpr index_t WgpPerCU =
-        (4 * warpSize / BlockSize) >= 1 ? 4 * warpSize / BlockSize : 1;
+        (4 * WarpSize / BlockSize) >= 1 ? 4 * WarpSize / BlockSize : 1;
     static constexpr index_t FullMemBandPrefetchStages = math::integer_divide_ceil(
         32768 / WgpPerCU,
         (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);

@@ -210,7 +210,7 @@ struct BlockReduce2dCrossWarpSync
         //    | w0 | w1 | w2 | w3 |   ----->  | w0123 |
         //
         //   -> also store data from every wave into LDS
-        constexpr index_t num_warps = BlockShape::BlockSize / warpSize;
+        constexpr index_t num_warps = BlockShape::BlockSize / get_warp_size();
         return num_warps * thread_buf_size * sizeof(DataType);
     }
 
@@ -226,7 +226,7 @@ struct BlockReduce2dCrossWarpSync
         const index_t lane_id           = get_lane_id();
         const index_t warp_id           = get_warp_id();
         constexpr auto num_reduce_warps = GetReduceWarps<YDistributedTensor_>();
-        constexpr index_t num_warps     = BlockShape::BlockSize / warpSize;
+        constexpr index_t num_warps     = BlockShape::BlockSize / get_warp_size();
         const index_t smem_offset       = warp_id;
 
         // skip if nonthing to do
