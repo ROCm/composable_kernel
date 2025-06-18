@@ -15,7 +15,16 @@
 #include "ck_tile/host.hpp"
 #include "batched_gemm.hpp"
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stream_config& s)
 {
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
@@ -123,12 +132,16 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
                                                                                tail_number_v>;
 
             using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
+
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
+                                                 DsDataType,
                                                  AccDataType,
                                                  CDataType,
+                                                 DsLayout,
                                                  CLayout,
+                                                 CDEElementWise,
                                                  GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
@@ -139,6 +152,7 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
                                                  K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
+
             using Kernel = ck_tile::BatchedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 

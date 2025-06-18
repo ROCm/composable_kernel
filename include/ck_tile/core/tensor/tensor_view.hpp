@@ -251,6 +251,33 @@ struct tensor_view
                                               bool_constant<pre_nop>{});
     }
 
+    template <typename X,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
+    get_transpose_vectorized_elements(const TensorCoord& coord, index_t linear_offset) const
+    {
+        return buf_.template transpose_get<X>(
+            coord.get_offset(),
+            linear_offset,
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord));
+    }
+
+    template <typename X,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
+    get_transpose_vectorized_elements(const TensorCoord& coord,
+                                      index_t linear_offset,
+                                      bool is_valid_element // flag
+    ) const
+    {
+        return buf_.template transpose_get<X>(coord.get_offset(), linear_offset, is_valid_element);
+    }
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
     template <typename X,
