@@ -136,7 +136,7 @@ A tensor in which most elements are zero, allowing for memory and computation op
 The smallest unit of parallel execution, each running an independent instruction stream on a single data element. Threads are grouped for efficient scheduling and resource sharing.
 
 ### Warp / Wavefront
-A group of threads (32 on NVIDIA, 64 on AMD) that execute instructions in lockstep, forming the SIMD group. Divergence within these groups can impact performance due to serialization.
+A group of threads that execute instructions in lockstep, forming the SIMD group. Divergence within these groups can impact performance due to serialization.
 
 ### Thread Block / Work Group
 A collection of threads/work-items that can synchronize and share memory. Blocks/groups are scheduled independently and mapped to hardware units for execution.
