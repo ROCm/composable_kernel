@@ -90,7 +90,7 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
     const int Streamk_sel = std::stoi(argv[14]);
     const int Grid_size   = std::stoi(argv[15]);
 
-    int n_warmup      = 4;
+    int n_warmup      = 1;
     int n_iter        = 10;
     uint64_t rotating = 0;
     if(argc == 19)
