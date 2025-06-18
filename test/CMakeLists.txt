@@ -13,7 +13,6 @@ set(REGRESSION_TESTS
     test_gemm_standalone_xdl_fp16
     test_gemm_fp16
     test_gemm_splitk
-    test_batched_gemm
     test_gemm_universal_wmma_fp16
     test_gemm_universal_xdl_fp16
     test_gemm_universal_streamk_fp16
