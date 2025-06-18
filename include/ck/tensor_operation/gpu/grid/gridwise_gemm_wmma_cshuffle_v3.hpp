@@ -200,12 +200,12 @@ template <typename ALayout,
           index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
-          BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v4,
-          typename ComputeTypeA                       = CDataType,
-          typename ComputeTypeB                       = ComputeTypeA,
-          bool PermuteA                               = false,
-          bool PermuteB                               = false>
+          BlockGemmPipelineScheduler BlkGemmPipeSched,
+          BlockGemmPipelineVersion BlkGemmPipelineVer,
+          typename ComputeTypeA,
+          typename ComputeTypeB,
+          bool PermuteA,
+          bool PermuteB>
 struct GridwiseGemm_wmma_cshuffle_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -302,7 +302,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
     template <index_t MNRepeat, index_t MNWaves, index_t MNPerWmma, typename BlockDesc>
     __host__ __device__ static constexpr auto MakeWmmaTileDescriptor(const BlockDesc&)
     {
-        // K0_N_K1 -> K0_MNRepeat_MNWaves_MNPerWmma_K1
+        // K0_MN_K1 -> K0_MNRepeat_MNWaves_KRow_MNPerWmma_K1
         constexpr auto K0 = BlockDesc{}.GetLength(I0);
         constexpr auto K1 = BlockDesc{}.GetLength(I2);
 #ifdef __gfx12__
@@ -420,7 +420,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
 
         using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
-        static_assert(!(is_same_v<remove_cvref_t<ADataType>, pk_i4_t> &&
+        static_assert(!(is_same_v<remove_cvref_t<BDataType>, pk_i4_t> &&
                         GemmSpec != GemmSpecialization::Default),
                       "pk_i4_t does not support padding");
 

@@ -12,7 +12,8 @@ template <bool kPadM_,
           bool kPadK_,
           typename ALayout_,
           typename BLayout_,
-          typename CLayout_>
+          typename CLayout_,
+          index_t NumWaveGroups_ = 1>
 struct TileGemmTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -28,6 +29,7 @@ struct TileGemmTraits
 
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
+    static constexpr index_t NumWaveGroups      = NumWaveGroups_;
 };
 
 template <bool kPadM_,
@@ -38,7 +40,9 @@ template <bool kPadM_,
           typename BLayout_,
           typename CLayout_,
           bool TransposeC_            = false,
-          bool UseStructuredSparsity_ = false>
+          bool UseStructuredSparsity_ = false,
+          bool UsePersistentKernel_   = false,
+          index_t NumWaveGroups_      = 1>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -53,6 +57,28 @@ struct TileGemmUniversalTraits
 
     static constexpr bool TransposeC            = TransposeC_;
     static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
+    static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
+    static constexpr index_t NumWaveGroups      = NumWaveGroups_;
 };
+
+template <bool kPadM_,
+          bool kPadN_,
+          bool kPadK_,
+          bool DoubleSmemBuffer_,
+          typename ALayout_,
+          typename BLayout_,
+          typename CLayout_,
+          bool TransposeC_            = false,
+          bool UseStructuredSparsity_ = false>
+using PersistentTileGemmUniversalTraits = TileGemmUniversalTraits<kPadM_,
+                                                                  kPadN_,
+                                                                  kPadK_,
+                                                                  DoubleSmemBuffer_,
+                                                                  ALayout_,
+                                                                  BLayout_,
+                                                                  CLayout_,
+                                                                  TransposeC_,
+                                                                  UseStructuredSparsity_,
+                                                                  true>;
 
 } // namespace ck_tile

@@ -315,24 +315,18 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         // Local prefetch 1
         block_sync_lds();
         static_for<0, KRepeat, 1>{}([&](auto k0) {
-            static_for<0, MRepeat, 1>{}([&](auto m0) {
-                a_thread_copy_.Run(
-                    a_block_desc_k0_m0_m1_m2_k1,
-                    make_tuple(Number<k0 * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
-                    a_block_buf,
-                    a_thread_desc_,
-                    make_tuple(I0, m0, k0, I0, I0, I0),
-                    a_thread_buf);
-            });
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                b_thread_copy_.Run(
-                    b_block_desc_k0_n0_n1_n2_k1,
-                    make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
-                    b_block_buf,
-                    b_thread_desc_,
-                    make_tuple(I0, n0, k0, I0, I0, I0),
-                    b_thread_buf);
-            });
+            a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
+                               make_tuple(Number<k0 * KPack / A_K1 / A_KRow>{}, I0, I0, I0, I0, I0),
+                               a_block_buf,
+                               a_thread_desc_,
+                               make_tuple(I0, I0, k0, I0, I0, I0),
+                               a_thread_buf);
+            b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
+                               make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, I0, I0, I0, I0, I0),
+                               b_block_buf,
+                               b_thread_desc_,
+                               make_tuple(I0, I0, k0, I0, I0, I0),
+                               b_thread_buf);
         });
 
         __builtin_amdgcn_sched_barrier(0);
@@ -363,12 +357,22 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                             static_for<0, KPack / A_KRow, 1>{}([&](auto ik) {
                                 a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                     a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                        make_tuple(ik / A_K1, m0, k0, 0, 0, ik % A_K1))>{}];
+                                        make_tuple(Number<ik / A_K1>{},
+                                                   m0,
+                                                   k0,
+                                                   I0,
+                                                   I0,
+                                                   Number<ik % A_K1>{}))>{}];
                             });
                             static_for<0, KPack / B_KRow, 1>{}([&](auto ik) {
                                 b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                     b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                        make_tuple(ik / B_K1, n0, k0, 0, 0, ik % B_K1))>{}];
+                                        make_tuple(Number<ik / B_K1>{},
+                                                   n0,
+                                                   k0,
+                                                   I0,
+                                                   I0,
+                                                   Number<ik % B_K1>{}))>{}];
                             });
 
                             using wmma_input_type_a =
@@ -377,7 +381,7 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                 typename vector_type<ComputeTypeB, WmmaK / B_KRow>::type;
 
                             constexpr index_t c_offset =
-                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, I0));
 
                             wmma_gemm.Run(a_thread_vec.template AsType<wmma_input_type_a>(),
                                           b_thread_vec.template AsType<wmma_input_type_b>(),
@@ -389,24 +393,20 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                 block_sync_lds();
 
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
-                    static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        a_thread_copy_.Run(
-                            a_block_desc_k0_m0_m1_m2_k1,
-                            make_tuple(Number<k0 * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
-                            a_block_buf,
-                            a_thread_desc_,
-                            make_tuple(I0, m0, k0, I0, I0, I0),
-                            a_thread_buf);
-                    });
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        b_thread_copy_.Run(
-                            b_block_desc_k0_n0_n1_n2_k1,
-                            make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
-                            b_block_buf,
-                            b_thread_desc_,
-                            make_tuple(I0, n0, k0, I0, I0, I0),
-                            b_thread_buf);
-                    });
+                    a_thread_copy_.Run(
+                        a_block_desc_k0_m0_m1_m2_k1,
+                        make_tuple(Number<k0 * KPack / A_K1 / A_KRow>{}, I0, I0, I0, I0, I0),
+                        a_block_buf,
+                        a_thread_desc_,
+                        make_tuple(I0, I0, k0, I0, I0, I0),
+                        a_thread_buf);
+                    b_thread_copy_.Run(
+                        b_block_desc_k0_n0_n1_n2_k1,
+                        make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, I0, I0, I0, I0, I0),
+                        b_block_buf,
+                        b_thread_desc_,
+                        make_tuple(I0, I0, k0, I0, I0, I0),
+                        b_thread_buf);
                 });
 
                 HotLoopScheduler();
@@ -426,13 +426,13 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
 
                         static_for<0, KPack / A_KRow, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(ik / A_K1, m0, k0, 0, 0, ik % A_K1))>{}];
+                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(
+                                    Number<ik / A_K1>{}, m0, k0, I0, I0, Number<ik % A_K1>{}))>{}];
                         });
                         static_for<0, KPack / B_KRow, 1>{}([&](auto ik) {
                             b_thread_vec.template AsType<ComputeTypeB>()(ik) =
-                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(ik / B_K1, n0, k0, 0, 0, ik % B_K1))>{}];
+                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(make_tuple(
+                                    Number<ik / B_K1>{}, n0, k0, I0, I0, Number<ik % B_K1>{}))>{}];
                         });
 
                         using wmma_input_type_a =
@@ -441,7 +441,7 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                             typename vector_type<ComputeTypeB, WmmaK / B_KRow>::type;
 
                         constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, I0));
 
                         wmma_gemm.Run(a_thread_vec.template AsType<wmma_input_type_a>(),
                                       b_thread_vec.template AsType<wmma_input_type_b>(),
