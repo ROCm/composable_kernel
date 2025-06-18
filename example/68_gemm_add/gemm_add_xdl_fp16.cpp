@@ -8,7 +8,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle_v3.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/device_memory.hpp"
@@ -17,7 +17,6 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/host_utility/device_prop.hpp"
 
 struct Add
 {
@@ -40,60 +39,55 @@ struct Add
 
     template <>
     __host__ __device__ constexpr void
-    operator()<float>(float& y, const float& x0, const ck::bhalf_t& x1) const
+    operator()<float>(float& y, const float& x0, const ck::half_t& x1) const
     {
-        const float x1_tmp = ck::type_convert<float>(x1);
-        y                  = x0 + x1_tmp;
-    }
+        y = x0 + ck::type_convert<ck::half_t>(x1);
+    };
 
     template <>
     __host__ __device__ constexpr void
-    operator()<ck::bhalf_t>(ck::bhalf_t& y, const ck::bhalf_t& x0, const ck::bhalf_t& x1) const
+    operator()<ck::half_t>(ck::half_t& y, const float& x0, const float& x1) const
     {
-        const float x1_tmp = ck::type_convert<float>(x0);
-        const float x2_tmp = ck::type_convert<float>(x1);
-        const float y_tmp  = x1_tmp + x2_tmp;
-        y                  = ck::type_convert<ck::bhalf_t>(y_tmp);
-    }
+        y = ck::type_convert<ck::half_t>(x0 + x1);
+    };
 
     template <>
     __host__ __device__ constexpr void
-    operator()<ck::bhalf_t>(ck::bhalf_t& y, const float& x0, const ck::bhalf_t& x1) const
+    operator()<ck::half_t>(ck::half_t& y, const float& x0, const ck::half_t& x1) const
     {
-        const float x2_tmp = ck::type_convert<float>(x1);
-        const float y_tmp  = x0 + x2_tmp;
-        y                  = ck::type_convert<ck::bhalf_t>(y_tmp);
-    }
+        y = ck::type_convert<ck::half_t>(x0) + x1;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<ck::half_t>(ck::half_t& y, const ck::half_t& x0, const ck::half_t& x1) const
+    {
+        y = x0 + x1;
+    };
 };
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using BF16 = ck::bhalf_t;
-using F32  = float;
+using F16 = ck::half_t;
+using F32 = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-using BF16_Tuple = ck::Tuple<BF16>;
-
-using ADataType        = BF16;
-using BDataType        = BF16;
+using ADataType        = F16;
+using BDataType        = F16;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
-using DDataType        = BF16;
-using DsDataType       = BF16_Tuple;
-using EDataType        = BF16;
+using DDataType        = F16;
+using EDataType        = F16;
 
-using Row_Tuple = ck::Tuple<Row>;
-
-using ALayout  = Row;
-using BLayout  = Row;
-using DLayout  = Row;
-using DsLayout = Row_Tuple;
-using ELayout  = Row;
+using ALayout = Row;
+using BLayout = Col;
+using DLayout = Row;
+using ELayout = Row;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
@@ -101,57 +95,56 @@ using CDEElementOp = Add;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Wmma_CShuffleV3<
-    Row,
-    Row,
-    Row_Tuple,
-    Row,
-    BF16,
-    BF16,
-    BF16_Tuple,
-    BF16,
-    F32,
-    F32,
-    PassThrough,
-    PassThrough,
-    Add,
-    GemmSpec,
-    128,
-    128,
-    64,
-    64,
-    8,
-    8,
-    16,
-    16,
-    4,
-    2,
-    S<4, 32, 1>,
-    S<1, 0, 2>,
-    S<1, 0, 2>,
-    2,
-    8,
-    8,
-    0,
-    S<4, 32, 1>,
-    S<0, 2, 1>,
-    S<0, 2, 1>,
-    1,
-    1,
-    8,
-    0,
-    1,
-    1,
-    S<1, 32, 1, 4>,
-    S<8, 8, 8>,
-    ck::BlockGemmPipelineScheduler::Intrawave,
-    ck::BlockGemmPipelineVersion::v1>;
+using DeviceOpInstance =
+    ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<ALayout,
+                                                                   BLayout,
+                                                                   ck::Tuple<DLayout>,
+                                                                   ELayout,
+                                                                   ADataType,
+                                                                   BDataType,
+                                                                   AccDataType,
+                                                                   CShuffleDataType,
+                                                                   ck::Tuple<DDataType>,
+                                                                   EDataType,
+                                                                   AElementOp,
+                                                                   BElementOp,
+                                                                   CDEElementOp,
+                                                                   GemmSpec,
+                                                                   1,
+                                                                   256,
+                                                                   256,
+                                                                   128,
+                                                                   32,
+                                                                   8,
+                                                                   8,
+                                                                   32,
+                                                                   32,
+                                                                   4,
+                                                                   2,
+                                                                   S<4, 64, 1>,
+                                                                   S<1, 0, 2>,
+                                                                   S<1, 0, 2>,
+                                                                   2,
+                                                                   8,
+                                                                   8,
+                                                                   1,
+                                                                   S<4, 64, 1>,
+                                                                   S<1, 0, 2>,
+                                                                   S<1, 0, 2>,
+                                                                   2,
+                                                                   8,
+                                                                   8,
+                                                                   1,
+                                                                   1,
+                                                                   1,
+                                                                   S<1, 32, 1, 8>,
+                                                                   8>;
 
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     // GEMM shape
     ck::index_t M = 3840;
@@ -199,17 +192,8 @@ int main(int argc, char* argv[])
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE"
-               "beta\n");
+        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE\n");
         exit(0);
-    }
-
-    bool is_supported = ck::is_gfx11_supported();
-    if(!is_supported)
-    {
-        std::cout << "WARNING: wmma example not supported on the platform " << ck::get_device_name()
-                  << std::endl;
-        return 0;
     }
 
     auto f_host_tensor_descriptor =
@@ -280,7 +264,6 @@ int main(int argc, char* argv[])
                                StrideB,
                                std::array<ck::index_t, 1>{StrideD},
                                StrideE,
-                               1,
                                a_element_op,
                                b_element_op,
                                cde_element_op);
@@ -303,7 +286,7 @@ int main(int argc, char* argv[])
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
-              << device_op.GetTypeString() << std::endl;
+              << std::endl;
 
     e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 

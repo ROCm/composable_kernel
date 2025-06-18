@@ -64,13 +64,6 @@ struct Add
         const float y_tmp  = x0 + x2_tmp;
         y                  = ck::type_convert<ck::bhalf_t>(y_tmp);
     }
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()<int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
-    {
-        y = x0 + x1;
-    };
 };
 
 template <ck::index_t... Is>
