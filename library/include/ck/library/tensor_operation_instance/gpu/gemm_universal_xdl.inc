@@ -470,7 +470,7 @@ void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_i
                                                         PassThrough,
                                                         PassThrough>>>& instances);
 
-void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part3(
+void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma16x16_nk_mn_comp_default_instances_part3(
     std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
                                                         Col,
                                                         Row,

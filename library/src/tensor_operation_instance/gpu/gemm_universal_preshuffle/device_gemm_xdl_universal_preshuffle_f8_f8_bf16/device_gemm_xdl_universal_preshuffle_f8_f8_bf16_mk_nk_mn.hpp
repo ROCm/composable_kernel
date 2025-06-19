@@ -86,7 +86,7 @@ using device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_instances_pa
         // clang-format on
         >;
 template <GemmSpecialization GemmSpec>
-using device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_instances_part3 = 
+using device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma16x16_nk_mn_comp_instances_part3 = 
     std::tuple<
         // clang-format off
         //############################################| ALayout| BLayout|         DsLayout| ELayout|AData| BData|          DsData| EData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
