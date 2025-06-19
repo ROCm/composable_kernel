@@ -14,8 +14,10 @@ cd client_example/build
 cmake                                                                 \
 -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                             \
 -D CMAKE_PREFIX_PATH="/opt/rocm;${PATH_TO_CK_INSTALL_DIRECTORY}"      \
+-D GPU_TARGETS="gfx908;gfx90a"                                        \
 ..
 ```
+You must set the `GPU_TARGETS` macro to specify the GPU target architecture(s).
 
 ### Build client example
 ```bash
