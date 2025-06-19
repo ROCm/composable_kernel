@@ -331,15 +331,10 @@ struct SimplifiedGenericAttentionMask
             {
                 // get the tile start/end range assum we loop over along X tile by tile
                 index_t x_start = [&]() {
-                    index_t temp_offset = -y + i_y + y_ratio;
-                    // index_t tmp         = temp_offset > 0 ? static_cast<index_t>(y_ratio_mdiv.div(
-                    //                                     static_cast<uint32_t>(temp_offset)))
-                    //                                       : 0; // clamp by zero
-            
-                    // index_t tmp         = temp_offset > 0 ? temp_offset / y_ratio
-                    //                                       : 0; // clamp by zero
-
-                    index_t tmp         = max(temp_offset / y_ratio, 0);
+                    index_t tmp_offset = -y + i_y + y_ratio;
+                    index_t tmp_div =
+                        static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(tmp_offset)));
+                    index_t tmp = tmp_offset > 0 ? tmp_div : 0; // clamp by zero
 
                     return (tmp / XTile) * XTile; // round to tile aligned
                 }();
@@ -445,17 +440,9 @@ struct SimplifiedGenericAttentionMask
             else
             {
                 index_t start_tmp = -y + i_y + y_ratio;
-                // index_t x_start =
-                //     start_tmp > 0
-                //         ? static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(start_tmp)))
-                //         : 0; // clamp by zero
-
-                // index_t x_start =
-                //     start_tmp > 0
-                //         ? start_tmp / y_ratio
-                //         : 0; // clamp by zero
-                // index_t x_start = max(start_tmp / y_ratio, 0); // clamp by zero
-                index_t x_start = start_tmp / y_ratio;
+                index_t start_tmp_div =
+                    static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(start_tmp)));
+                index_t x_start = start_tmp > 0 ? start_tmp_div : 0; // clamp by zero
 
                 uint32_t end_tmp = static_cast<uint32_t>(i_y);
                 index_t x_end    = min(static_cast<index_t>(y_ratio_mdiv.div(end_tmp)) + x,
