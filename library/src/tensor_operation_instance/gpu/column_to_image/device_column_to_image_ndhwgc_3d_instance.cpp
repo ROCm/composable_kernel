@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// dummy change to test the CI
 
 #include "ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange/device_column_to_image_instance.hpp"
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"

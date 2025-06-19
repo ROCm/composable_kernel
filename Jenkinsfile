@@ -343,15 +343,8 @@ def cmake_build(Map conf=[:]){
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        if (setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE){
-            echo "running ninja build trace"
-            setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
-            build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
-        }
-        else{
-            setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-            build_cmd = conf.get("build_cmd", "${build_envs} make -j${nt} ${config_targets}")
-        }
+        setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
+        build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
         cmd = conf.get("cmd", """
             ${setup_cmd}
             ${build_cmd}
@@ -379,7 +372,7 @@ def cmake_build(Map conf=[:]){
                 archiveArtifacts "clang_build_analysis.log"
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
-                    sh "ninja check"
+                    sh "../scipt/launch_tests.sh"
                 }
                 if(params.BUILD_INSTANCES_ONLY){
                     // build deb packages
@@ -393,7 +386,7 @@ def cmake_build(Map conf=[:]){
             else{
                 // run unit tests unless building library for all targets
                 if (!params.BUILD_INSTANCES_ONLY){
-                    sh "make check"
+                    sh "../scipt/launch_tests.sh"
                 }
             }
         }
@@ -1025,7 +1018,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_CODEGEN_TESTS.toBoolean() }
+                        expression { params.RUN_CODEGEN_TESTS.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a")}
                     environment{
