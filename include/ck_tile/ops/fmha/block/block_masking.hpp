@@ -445,10 +445,10 @@ struct SimplifiedGenericAttentionMask
             else
             {
                 index_t start_tmp = -y + i_y + y_ratio;
-                index_t x_start =
-                    start_tmp > 0
-                        ? static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(start_tmp)))
-                        : 0; // clamp by zero
+                // index_t x_start =
+                //     start_tmp > 0
+                //         ? static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(start_tmp)))
+                //         : 0; // clamp by zero
 
                 // index_t x_start =
                 //     start_tmp > 0
