@@ -556,7 +556,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
             return false;
 
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K0 % K0PerBlock == 0))
+        {   
             return false;
+        }
 
         if(!block_2_ctile_map.CheckValidity(c_m_n_grid_desc))
         {

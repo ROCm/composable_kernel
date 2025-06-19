@@ -549,13 +549,29 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
                 const auto& c_grid_desc_m_n   = descs_initial[I2];
                 const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
-                const auto gemmK = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
 
                 // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
                 // Hence, the grid is just size of the tile map.
                 const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
-                k_dim_size_ = gemmK;
-                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size);
+                k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
+                const bool enable_oversubscription = k_dim_size_ > 1 << 13;
+                
+                // For small GemmK size, cap the max value of the k_batch.
+                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size, BlockSize, enable_oversubscription);
+                const auto k_batch_max = static_cast<index_t>((k_dim_size_ - 1) / K0PerBlock);
+                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "[SPLIT-K AUTODEDUCE] k_dim_size: " 
+                                << k_dim_size_ << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] K0PerBlock: " << K0PerBlock << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " 
+                                << k_batch_max << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] Optimal k_batch value: " 
+                                << k_batch_ << std::endl;
+                    k_batch_ = std::min(k_batch_, k_batch_max);
+                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
+                                << k_batch_ << std::endl; 
+                }
             }
             else 
             {

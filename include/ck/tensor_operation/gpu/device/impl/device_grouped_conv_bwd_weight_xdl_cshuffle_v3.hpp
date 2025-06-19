@@ -526,7 +526,25 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 // Hence, the grid is just size of the tile map.
                 const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(GemmM, GemmN);
                 k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
-                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size);
+                const bool enable_oversubscription = k_dim_size_ > 1 << 13;
+                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size, BlockSize, enable_oversubscription);
+
+                // Cap the k_batch_ value such that it doesn't violate the limit for the number of prefetch stages for the pipeline.
+                if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+                {
+                    const auto k_batch_max = static_cast<index_t>(std::floor(
+                        (k_dim_size_ - 1.0) / ((GridwiseGemm::BlockwiseGemmPipe::PrefetchStages-1.0) * K0PerBlock)));
+                    if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " 
+                                  << k_batch_max << std::endl;
+                        std::cout << "[SPLIT-K AUTODEDUCE] Optimal k_batch value: " 
+                                  << k_batch_ << std::endl;
+                        k_batch_ = std::min(k_batch_, k_batch_max);
+                        std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
+                                  << k_batch_ << std::endl; 
+                    }
+                }
             }
             else 
             {
