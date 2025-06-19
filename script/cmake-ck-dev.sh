@@ -1,4 +1,7 @@
 #!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
 rm -f CMakeCache.txt
 rm -f *.cmake
 rm -rf CMakeFiles
