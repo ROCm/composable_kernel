@@ -31,21 +31,6 @@
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
 
-template <typename DataType>
-struct GemmConfig
-{
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 256;
-
-    static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 128;
-};
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmBasicTypeConfig;
 
@@ -122,6 +107,61 @@ template <typename T>
 struct is_8bit_type
     : std::bool_constant<std::is_same_v<T, ck_tile::fp8_t> || std::is_same_v<T, ck_tile::bf8_t>>
 {
+};
+
+template <typename DataType>
+struct GemmConfig
+{
+#if defined(USING_MFMA_16x16x128)
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 256;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 128;
+#elif defined(USING_MFMA_16x16x32) || defined(ENABLE_FP16)
+    static constexpr ck_tile::index_t M_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 128;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = is_8bit_type<DataType>::value ? 16 : 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = is_8bit_type<DataType>::value ? 16 : 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = is_8bit_type<DataType>::value ? 64 : 16;
+
+#elif defined(USING_MFMA_32x32x16) && defined(ENABLE_FP8)
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 128;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 8;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = is_8bit_type<DataType>::value ? 32 : 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = is_8bit_type<DataType>::value ? 32 : 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = is_8bit_type<DataType>::value ? 32 : 16;
+#else    
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 256;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 128;
+#endif
 };
 
 auto create_args(int argc, char* argv[])
