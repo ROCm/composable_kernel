@@ -41,6 +41,8 @@ list(APPEND GEMM_MULTIPLY_MULTIPLY_INSTANCES
 
         device_gemm_multiply_multiply_wmma_c_shuffle_i8_i8_f16_mk_nk_mn.cpp
         device_gemm_multiply_multiply_wmma_c_shuffle_i8_i8_bf16_mk_nk_mn.cpp
+        device_gemm_multiply_multiply_wmma_c_shuffle_f8_f8_f16_mk_nk_mn.cpp
+        device_gemm_multiply_multiply_wmma_c_shuffle_f8_f8_bf16_mk_nk_mn.cpp
         )
 
 set_source_files_properties(device_gemm_multiply_multiply_xdl_f8_f8_bf16/device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_default_instance_part1.cpp PROPERTIES COMPILE_OPTIONS ";-mllvm;-greedy-reverse-local-assignment=1")

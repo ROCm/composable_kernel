@@ -9,10 +9,11 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using I8   = int8_t;
+using I32  = int32_t;
+using F8   = ck::f8_t;
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
-using I32 = int32_t;
 
 template <typename Tuple>
 class TestGemmMultiplyMultiply : public ::testing::Test
@@ -47,10 +48,8 @@ class TestGemmMultiplyMultiply : public ::testing::Test
 public:
     void Run()
     {
-        std::vector<std::vector<ck::index_t>> lengths = {{1024, 1024, 128}};
-
-        // std::vector<std::vector<ck::index_t>> lengths = {
-        //     {16, 32, 64}, /*{2048, 4096, 8192},*/ {2048, 4096, 128}};
+        std::vector<std::vector<ck::index_t>> lengths = {
+            {16, 32, 64}, {2048, 4096, 8192}, {2048, 4096, 128}};
 
         bool all_success = true;
 
@@ -75,8 +74,10 @@ public:
 };
 
 using KernelTypes =
-    ::testing::Types<std::tuple<I8, I8, I32, F16, F16, F16, Row, Col, Row, Col, Row>/*,
-                     std::tuple<I8, I8, I32, F32, F32, BF16, Row, Col, Row, Col, Row>*/>;
+    ::testing::Types<std::tuple<I8, I8, I32, F16, F16, F16, Row, Col, Row, Col, Row>,
+                     std::tuple<I8, I8, I32, F32, F32, BF16, Row, Col, Row, Col, Row>,
+                     std::tuple<F8, F8, F32, F32, F32, F16, Row, Col, Row, Col, Row>,
+                     std::tuple<F8, F8, F32, F32, F32, BF16, Row, Col, Row, Col, Row>>;
 
 TYPED_TEST_SUITE(TestGemmMultiplyMultiply, KernelTypes);
 TYPED_TEST(TestGemmMultiplyMultiply, Test_BF16FP16) { this->Run(); }

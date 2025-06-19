@@ -98,6 +98,8 @@ builtin_wmma_naive_selector<int4x16_t,
 template <typename src_t, typename dst_t, typename acc_t, index_t acc_num>
 __global__ void matmul(const src_t* a, const src_t* b, dst_t* c)
 {
+    printf("dev matmul cicc\n");
+
     __shared__ src_t p_shared[16 * 16 * 2];
     const int lIdx = threadIdx.x;
     // a and b fragments are stored in 8 VGPRs each, in packed format, so 16 elements each for a and
@@ -130,7 +132,7 @@ __global__ void matmul(const src_t* a, const src_t* b, dst_t* c)
     }
 
     __syncthreads();
-
+        
     for(int ele = 0; ele < 8; ++ele)
     {
         p_shared[8 * 16 * lane_hi + 8 * lane_lo + ele] = a_temp[ele];
@@ -196,6 +198,8 @@ template <typename src_t, typename dst_t, typename acc_t, index_t acc_num>
 __global__ void matmul_swizzle_a(const src_t* a, const src_t* b, dst_t* c)
 {
     const int lIdx = threadIdx.x;
+
+    printf("dev matmul_swizzle_a cicc\n");
 
     using src_vec  = typename vector_type<src_t, 16>::type;
     src_vec a_frag = {};
@@ -374,7 +378,7 @@ struct TestWmma
             a, b, c_host, a_element_op, b_element_op, c_element_op);
 
         // Act
-        bool is_supported = ck::is_gfx11_supported() &&
+        bool is_supported = (ck::is_gfx11_supported() || ck::is_gfx12_supported()) &&
                             ck::wmma_op_util::RunDeviceGEMM(wmma_kernel, a, b, c_device);
 
         if(is_supported)
@@ -418,6 +422,7 @@ struct TestWmma
         }
         else
         {
+            std::cout << "UNSUPPORTED hardware. Skipping test." << std::endl;
             return true;
         }
     }

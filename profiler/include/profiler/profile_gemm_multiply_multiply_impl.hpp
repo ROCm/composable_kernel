@@ -69,8 +69,6 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
             }
         };
 
-    std::cout << "cicc: " << StrideD0 << " " << StrideD1 << std::endl;
-
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
     Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
@@ -99,8 +97,8 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{1, 3});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{1, 3});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-5, 5});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-1, 1});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
