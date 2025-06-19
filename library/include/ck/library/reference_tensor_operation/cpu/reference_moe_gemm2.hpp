@@ -142,7 +142,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                             ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                     }
                     CDataType v_c{0};
-                    D0DataType v_d0 = arg.d0_(m, n); // a
+                    D0DataType v_d0 = arg.d0_(m, topk_id, n); // a
                     D0DataType v_d1 = arg.d1_(e, n); // b
                     if constexpr(MulRoutedWeight)
                     {
