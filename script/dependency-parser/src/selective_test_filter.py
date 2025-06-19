@@ -6,7 +6,7 @@ Given two git refs (branches or commit IDs), this tool:
 - Identifies changed files between the refs
 - Loads the enhanced dependency mapping JSON (from enhanced_ninja_parser.py)
 - Maps changed files to affected test executables (optionally filtering for "test_" prefix)
-- Exports the list of tests to run to tests-to-run.json
+- Exports the list of tests to run to tests_to_run.json
 
 Usage:
   python selective_test_filter.py <depmap_json> <ref1> <ref2> [--all | --test-prefix] [--output <output_json>]
@@ -19,7 +19,7 @@ Arguments:
 Options:
   --all           Include all executables (default)
   --test-prefix   Only include executables starting with "test_"
-  --output        Output JSON file (default: tests-to-run.json)
+  --output        Output JSON file (default: tests_to_run.json)
 """
 
 import sys
@@ -104,7 +104,7 @@ def main():
     ref1 = sys.argv[2]
     ref2 = sys.argv[3]
     filter_mode = "all"
-    output_json = "tests-to-run.json"
+    output_json = "tests_to_run.json"
 
     if "--test-prefix" in sys.argv:
         filter_mode = "test_prefix"

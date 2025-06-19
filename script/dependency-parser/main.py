@@ -40,7 +40,7 @@ def main():
     parser_test.add_argument("ref2", help="Target git ref")
     parser_test.add_argument("--all", action="store_true", help="Include all executables")
     parser_test.add_argument("--test-prefix", action="store_true", help="Only include executables starting with 'test_'")
-    parser_test.add_argument("--output", help="Output JSON file", default="tests-to-run.json")
+    parser_test.add_argument("--output", help="Output JSON file", default="tests_to_run.json")
 
     # Code auditing
     parser_audit = subparsers.add_parser("audit", help="List all files and their dependent executables")
