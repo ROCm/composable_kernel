@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -61,11 +61,11 @@ struct BlockGemmARegBSmemCRegV2
 
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
+            tuple<sequence<MIterPerWarp, MWarp>, sequence<NWarp, NIterPerWarp>>,
             tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
+            tuple<sequence<1, 0>>,
             sequence<1, 2>,
-            sequence<0, 0>>{};
+            sequence<0, 1>>{};
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
@@ -214,11 +214,11 @@ struct BlockGemmARegBSmemCRegV2
 
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
+            tuple<sequence<MIterPerWarp, MWarp>, sequence<NWarp, NIterPerWarp>>,
             tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
+            tuple<sequence<1, 0>>,
             sequence<1, 2>,
-            sequence<0, 0>>{};
+            sequence<0, 1>>{};
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
