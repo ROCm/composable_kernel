@@ -43,10 +43,15 @@ struct ExecutionConfig final
 
 struct ProblemSizeSplitK final
 {
-
+#if 1
     ck::index_t M = 256;
     ck::index_t N = 256;
     ck::index_t K = 512;
+#else
+    ck::index_t M = 512;
+    ck::index_t N = 512;
+    ck::index_t K = 1024;
+#endif
 
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;
@@ -315,32 +320,36 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
-#if 1
+#if 0
+        ck::utils::FillConstant<ADataType>{a_data_element(0.5f)}(a_m_k);
+#else
         ck::utils::FillConstant<ADataType>{a_data_element(0.0f)}(a_m_k);
         for(ck::index_t j = 0; j < K; j += ck::packed_size_v<ADataType>)
         {
-            a_m_k(0, j) = a_data_element(1.0f);
-            // a_m_k(0, j) = a_data_element(0.0f);
+            a_m_k(0, j) = a_data_element(0.5f);
+            a_m_k(1, j) = a_data_element(0.5f);
         }
 #endif
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(a_m_k_scale);
+
+#if 0
         ck::utils::FillConstant<BDataType>{b_data_element(2.0f)}(*b_k_n);
-#if 1
+#else
         ck::utils::FillConstant<BDataType>{b_data_element(0.0f)}(*b_k_n);
         for(ck::index_t i = 0; i < K; i += ck::packed_size_v<BDataType>)
         {
             (*b_k_n)(i, 0) = b_data_element(2.0f);
-            //(*b_k_n)(i, 0) = b_data_element(0.0f);
+            (*b_k_n)(i, 1) = b_data_element(2.0f);
         }
 #endif
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
+
         if(config.verbosity > 0)
         {
-            std::cout << "Init A = {1}" << std::endl;
+            std::cout << "Init A = {0.5}" << std::endl;
             std::cout << "Init A scale = {2.0}" << std::endl;
-            std::cout << "Init B = {0.5}" << std::endl;
-            std::cout << "Init B scale = {1.0}" << std::endl;
+            std::cout << "Init B = {2.0}" << std::endl;
+            std::cout << "Init B scale = {0.5}" << std::endl;
             std::cout << "Expect C = {K}" << std::endl;
         }
         break;
@@ -947,14 +956,14 @@ std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
                 std::cout << std::endl;
             }
 #endif
-
+#endif
 #if 1
             std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
-                for(int j = 0; j < 16; ++j)
+                for(int j = 0; j < 32; ++j)
                 {
-                    std::cout << std::setw(8) << type_convert<float>(c_m_n_device_result(i, j));
+                    std::cout << std::setw(6) << type_convert<float>(c_m_n_device_result(i, j));
                 }
                 // std::cout << "\t\t";
                 // for(int j = 0; j < 16; ++j)
@@ -974,10 +983,8 @@ std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
             }
 #endif
 
-#endif
-
             auto expected = static_cast<float>(K);
-            auto computed = type_convert<float>(c_m_n_device_result(0, 0));
+            auto computed = type_convert<float>(c_m_n_device_result(0, 1));
 
             res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
             std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
@@ -1384,10 +1391,8 @@ std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
 #endif
         }
 
-        res_verified =
-            res_verified &&
-            ck::utils::check_err(
-                c_m_n_device_result, c_m_n_host_result, "Error: Incorrect results!", 5e-1, 5e-1);
+        res_verified = ck::utils::check_err(
+            c_m_n_device_result, c_m_n_host_result, "Error: Incorrect results!", 5e-1, 5e-1);
 
         if(config.verbosity > 0 && res_verified)
             std::cout << "Verification Successful!" << std::endl;

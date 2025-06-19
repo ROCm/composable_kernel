@@ -284,33 +284,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
         b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
 
-#if 1
-        if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
-        {
-            auto a_grid0  = a_grid_buf[0];
-            auto a_block0 = a_block_buf[0];
-
-            // print ComputeTypeA
-            auto print_cmp_t = [](const char* str, const ComputeTypeA& v) {
-                if constexpr(APackedSize == 16)
-                {
-                    printf("%s = 0x", str);
-                    for(int ii = 0; ii < v.vector_size; ++ii)
-                    {
-                        printf("%08x ", v.data.data_[ii]);
-                    }
-                    printf("\n");
-                }
-                else if constexpr(APackedSize == 1)
-                {
-                    printf("%s = 0x%02x\n", str, v.data);
-                }
-            };
-
-            print_cmp_t("a_grid0", a_grid0);
-            print_cmp_t("a_block0", a_block0);
-        }
-#endif
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
@@ -360,6 +333,42 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         // Local prefill 1
         __builtin_amdgcn_s_waitcnt(3952); // wait for EXP_CNT, LDS, GDS, Constant and Message
         block_sync_lds();
+
+#if 1
+        if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
+        {
+            auto a_grid0   = a_grid_buf[0];
+            auto a_block0  = a_block_buf[0];
+            auto a_grid1   = a_grid_buf[1];
+            auto a_block1  = a_block_buf[1];
+            auto a_grid10  = a_grid_buf[10];
+            auto a_block10 = a_block_buf[10];
+
+            // print ComputeTypeA
+            auto print_cmp_t = [](const char* str, const ComputeTypeA& v) {
+                if constexpr(APackedSize == 16)
+                {
+                    printf("%s = 0x", str);
+                    for(int ii = 0; ii < v.vector_size; ++ii)
+                    {
+                        printf("%08x ", v.data.data_[ii]);
+                    }
+                    printf("\n");
+                }
+                else if constexpr(APackedSize == 1)
+                {
+                    printf("%s = 0x%02x\n", str, v.data);
+                }
+            };
+
+            print_cmp_t("a_grid0", a_grid0);
+            print_cmp_t("a_block0", a_block0);
+            print_cmp_t("a_grid1", a_grid1);
+            print_cmp_t("a_block1", a_block1);
+            print_cmp_t("a_grid10", a_grid10);
+            print_cmp_t("a_block10", a_block10);
+        }
+#endif
 
         // Initialize C
         c_thread_buf.Clear();
@@ -534,7 +543,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                                     make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
 
-#if 1 // check for zero A and B
+#if 0 // check for zero A and B
                                             if(b_thread_vec.template AsType<ComputeTypeB>()(ik) ==
                                                ComputeTypeB{0})
                                             {
@@ -1255,7 +1264,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                                 make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
 
-#if 1 // check for zero A and B
+#if 0 // check for zero A and B
                                         if(b_thread_vec.template AsType<ComputeTypeB>()(ik) ==
                                            ComputeTypeB{0})
                                         {

@@ -53,19 +53,19 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     16, // NPerXDL
     4,  // MXdlPerWave
     4,  // NXdlPerWave
-    S<16, 16, 1>,   // ABlockTransferThreadClusterLengths_AK0_M_AK1
+    S<1, 16, 1>,    // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
     2,              // ABlockTransferSrcVectorDim
-    16,             // ABlockTransferSrcScalarPerVector
-    16,             // ABlockTransferDstScalarPerVector_AK1
+    1,              // ABlockTransferSrcScalarPerVector
+    1,              // ABlockTransferDstScalarPerVector_AK1
     true,           // ABlockLdsExtraM
-    S<16, 16, 1>,   // BBlockTransferThreadClusterLengths_BK0_N_BK1
+    S<1, 16, 1>,    // BBlockTransferThreadClusterLengths_BK0_N_BK1
     S<1, 0, 2>,     // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,     // BBlockTransferSrcAccessOrder
     2,              // BBlockTransferSrcVectorDim
-    16,             // BBlockTransferSrcScalarPerVector
-    16,             // BBlockTransferDstScalarPerVector_BK1
+    1,              // BBlockTransferSrcScalarPerVector
+    1,              // BBlockTransferDstScalarPerVector_BK1
     true,           // BBlockLdsExtraN
     2,              // CShuffleMXdlPerWavePerShuffle
     2,              // CShuffleNXdlPerWavePerShuffle
