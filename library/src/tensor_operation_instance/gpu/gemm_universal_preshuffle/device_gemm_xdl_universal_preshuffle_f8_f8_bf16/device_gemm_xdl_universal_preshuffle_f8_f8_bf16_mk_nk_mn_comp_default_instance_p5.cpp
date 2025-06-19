@@ -9,7 +9,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(
+void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part5( 
     std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
                                                         Col,
                                                         Row,
@@ -19,18 +19,12 @@ void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_kpadding_
                                                         PassThrough,
                                                         PassThrough,
                                                         PassThrough>>>& instances)
-{   (void)instances;
-    // add_device_operation_instances(
-    //     instances,
-    //     device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_instances<GemmKPadding>{});
+{
 
-    // if(ck::get_device_name() != "gfx950")
-    // {
-    //     add_device_operation_instances(
-    //         instances,
-    //         device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_instances_part2<
-    //             GemmKPadding>{});
-    // }
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_instances_part5<
+            GemmDefault>{});
 }
 
 } // namespace instance

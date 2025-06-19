@@ -898,7 +898,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
-        //printf("*******************Checking validity************************\n");
+        // printf("*******************Checking validity************************\n");
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
