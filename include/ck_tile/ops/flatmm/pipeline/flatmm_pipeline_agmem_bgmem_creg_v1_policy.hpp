@@ -19,7 +19,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         using namespace ck_tile;
-#if (defined(USING_MFMA_16x16x32) || defined(USING_MFMA_16x16x128)) && defined(ENABLE_FP8)
+#if (defined(USING_MFMA_16x16x32_F8) || defined(USING_MFMA_16x16x128_F8))
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
         /*reduce transform layers,compare with old ck*/
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
@@ -49,7 +49,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return a_lds_block_desc;
-#elif defined(USING_MFMA_32x32x16)
+#elif defined(USING_MFMA_32x32x16_F8)
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t kKPack     = GetSmemPackA<Problem>();
