@@ -13,6 +13,7 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
@@ -508,23 +509,20 @@ template <index_t NumDimG,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
-    : public DeviceBatchedGemmSoftmaxGemmPermute<NumDimG,
-                                                 NumDimM,
-                                                 NumDimL,
-                                                 NumDimK,
-                                                 NumDimN,
-                                                 ADataType,
-                                                 B0DataType,
-                                                 B1DataType,
-                                                 CDataType,
-                                                 Acc0BiasDataType,
-                                                 Acc1BiasDataType,
-                                                 AElementwiseOperation,
-                                                 B0ElementwiseOperation,
-                                                 AccElementwiseOperation,
-                                                 B1ElementwiseOperation,
-                                                 CElementwiseOperation,
-                                                 MaskingSpec>
+    : public DeviceBatchedGemmGemm<tensor_layout::gemm::RowMajor,    // ALayout,
+                                   tensor_layout::gemm::ColumnMajor, // B0Layout,
+                                   tensor_layout::gemm::RowMajor,    // B1Layout,
+                                   tensor_layout::gemm::RowMajor,    // CLayout, // TODO: properly
+                                                                     // handle layouts
+                                   ADataType,
+                                   B0DataType,
+                                   B1DataType,
+                                   CDataType,
+                                   AElementwiseOperation,
+                                   B0ElementwiseOperation,
+                                   AccElementwiseOperation,
+                                   B1ElementwiseOperation,
+                                   CElementwiseOperation>
 {
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimL > 0 && NumDimK > 0 && NumDimN > 0,
                   "Number of dimension must be greater than 0");
@@ -1576,97 +1574,153 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
 #endif
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(
-        const void* p_a,
-        const void* p_b0,
-        const void* p_b1,
-        void* p_c,
-        const std::array<void*, NumAcc0Bias> p_acc0_biases,
-        const std::array<void*, NumAcc1Bias> p_acc1_biases,
-        const std::vector<index_t>& a_gs_ms_ks_lengths,
-        const std::vector<index_t>& a_gs_ms_ks_strides,
-        const std::vector<index_t>& b0_gs_ls_ks_lengths,
-        const std::vector<index_t>& b0_gs_ls_ks_strides,
-        const std::vector<index_t>& b1_gs_ns_ls_lengths,
-        const std::vector<index_t>& b1_gs_ns_ls_strides,
-        const std::vector<index_t>& c_gs_ms_ns_lengths,
-        const std::vector<index_t>& c_gs_ms_ns_strides,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ls_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ls_strides,
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias> acc1_biases_gs_ms_ns_lengths,
-        const std::array<std::vector<ck::index_t>, NumAcc1Bias> acc1_biases_gs_ms_ns_strides,
-        AElementwiseOperation a_element_op,
-        B0ElementwiseOperation b0_element_op,
-        AccElementwiseOperation acc_element_op,
-        B1ElementwiseOperation b1_element_op,
-        CElementwiseOperation c_element_op) override
+    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
+                                                      const void* p_b0,
+                                                      const void* p_b1,
+                                                      void* p_c,
+                                                      ck::index_t M,
+                                                      ck::index_t N,
+                                                      ck::index_t K,
+                                                      ck::index_t O,
+                                                      ck::index_t Batch,
+                                                      ck::index_t StrideA,
+                                                      ck::index_t StrideB0,
+                                                      ck::index_t StrideB1,
+                                                      ck::index_t StrideC,
+                                                      ck::index_t BatchStrideA,
+                                                      ck::index_t BatchStrideB0,
+                                                      ck::index_t BatchStrideB1,
+                                                      ck::index_t BatchStrideC,
+                                                      AElementwiseOperation a_element_op,
+                                                      B0ElementwiseOperation b0_element_op,
+                                                      AccElementwiseOperation acc0_element_op,
+                                                      B1ElementwiseOperation b1_element_op,
+                                                      CElementwiseOperation c_element_op) override
     {
-        std::array<index_t, NumDimG + NumDimM + NumDimN> a_lengths;
-        std::array<index_t, NumDimG + NumDimM + NumDimN> a_strides;
-        std::array<index_t, NumDimG + NumDimM + NumDimN> b0_lengths;
-        std::array<index_t, NumDimG + NumDimM + NumDimN> b0_strides;
-        std::array<index_t, NumDimG + NumDimM + NumDimN> b1_lengths;
-        std::array<index_t, NumDimG + NumDimM + NumDimN> b1_strides;
-        std::array<index_t, NumDimG + NumDimM + NumDimN> c_lengths;
-        std::array<index_t, NumDimG + NumDimM + NumDimN> c_strides;
-        std::transform(a_gs_ms_ks_lengths.begin(),
-                       a_gs_ms_ks_lengths.end(),
-                       a_lengths.begin(),
-                       [](index_t i) { return i; });
-        std::transform(a_gs_ms_ks_strides.begin(),
-                       a_gs_ms_ks_strides.end(),
-                       a_strides.begin(),
-                       [](index_t i) { return i; });
-        std::transform(b0_gs_ls_ks_lengths.begin(),
-                       b0_gs_ls_ks_lengths.end(),
-                       b0_lengths.begin(),
-                       [](index_t i) { return i; });
-        std::transform(b0_gs_ls_ks_strides.begin(),
-                       b0_gs_ls_ks_strides.end(),
-                       b0_strides.begin(),
-                       [](index_t i) { return i; });
-        std::transform(b1_gs_ns_ls_lengths.begin(),
-                       b1_gs_ns_ls_lengths.end(),
-                       b1_lengths.begin(),
-                       [](index_t i) { return i; });
-        std::transform(b1_gs_ns_ls_strides.begin(),
-                       b1_gs_ns_ls_strides.end(),
-                       b1_strides.begin(),
-                       [](index_t i) { return i; });
-        std::transform(c_gs_ms_ns_lengths.begin(),
-                       c_gs_ms_ns_lengths.end(),
-                       c_lengths.begin(),
-                       [](index_t i) { return i; });
-        std::transform(c_gs_ms_ns_strides.begin(),
-                       c_gs_ms_ns_strides.end(),
-                       c_strides.begin(),
-                       [](index_t i) { return i; });
-        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                          static_cast<const B0DataType*>(p_b0),
-                                          static_cast<const B1DataType*>(p_b1),
-                                          static_cast<CDataType*>(p_c),
-                                          p_acc0_biases,
-                                          p_acc1_biases,
-                                          a_lengths,
-                                          a_strides,
-                                          b0_lengths,
-                                          b0_strides,
-                                          b1_lengths,
-                                          b1_strides,
-                                          c_lengths,
-                                          c_strides,
-                                          acc0_biases_gs_ms_ls_lengths,
-                                          acc0_biases_gs_ms_ls_strides,
-                                          acc1_biases_gs_ms_ns_lengths,
-                                          acc1_biases_gs_ms_ns_strides,
-                                          1,
-                                          1,
-                                          a_element_op,
-                                          b0_element_op,
-                                          acc_element_op,
-                                          b1_element_op,
-                                          c_element_op);
+        (void)StrideA;
+        (void)StrideB0;
+        (void)StrideB1;
+        (void)StrideC;
+        (void)BatchStrideA;
+        (void)BatchStrideB0;
+        (void)BatchStrideB1;
+        (void)BatchStrideC;
+        (void)a_element_op;
+        (void)b0_element_op;
+        (void)acc0_element_op;
+        (void)b1_element_op;
+        (void)c_element_op; // TODO: Most of these arguments should actually be used / checked.
+        return std::make_unique<RawArg>(static_cast<const ADataType*>(p_a),
+                                        static_cast<const B0DataType*>(p_b0),
+                                        static_cast<const B1DataType*>(p_b1),
+                                        static_cast<CDataType*>(p_c),
+                                        M,
+                                        N,
+                                        K,
+                                        O,
+                                        1,     // G0
+                                        Batch, // G1 TODO: Maybe this makes more sense as G0,
+                                               // depends on if we want permute functionality.
+                                        1.0, // Alpha TODO: This should just be an acc0 element op?
+                                        false, // input_permute
+                                        false  // output_permute
+        );
     }
+
+    // TODO: This more complex argument maker may hold the key to adding support for other layouts!
+    // Keep for now.
+    // polymorphic
+    // std::unique_ptr<BaseArgument> MakeArgumentPointer(
+    //     const void* p_a,
+    //     const void* p_b0,
+    //     const void* p_b1,
+    //     void* p_c,
+    //     const std::array<void*, NumAcc0Bias> p_acc0_biases,
+    //     const std::array<void*, NumAcc1Bias> p_acc1_biases,
+    //     const std::vector<index_t>& a_gs_ms_ks_lengths,
+    //     const std::vector<index_t>& a_gs_ms_ks_strides,
+    //     const std::vector<index_t>& b0_gs_ls_ks_lengths,
+    //     const std::vector<index_t>& b0_gs_ls_ks_strides,
+    //     const std::vector<index_t>& b1_gs_ns_ls_lengths,
+    //     const std::vector<index_t>& b1_gs_ns_ls_strides,
+    //     const std::vector<index_t>& c_gs_ms_ns_lengths,
+    //     const std::vector<index_t>& c_gs_ms_ns_strides,
+    //     const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ls_lengths,
+    //     const std::array<std::vector<ck::index_t>, NumAcc0Bias> acc0_biases_gs_ms_ls_strides,
+    //     const std::array<std::vector<ck::index_t>, NumAcc1Bias> acc1_biases_gs_ms_ns_lengths,
+    //     const std::array<std::vector<ck::index_t>, NumAcc1Bias> acc1_biases_gs_ms_ns_strides,
+    //     AElementwiseOperation a_element_op,
+    //     B0ElementwiseOperation b0_element_op,
+    //     AccElementwiseOperation acc_element_op,
+    //     B1ElementwiseOperation b1_element_op,
+    //     CElementwiseOperation c_element_op) override
+    // {
+    //     std::array<index_t, NumDimG + NumDimM + NumDimN> a_lengths;
+    //     std::array<index_t, NumDimG + NumDimM + NumDimN> a_strides;
+    //     std::array<index_t, NumDimG + NumDimM + NumDimN> b0_lengths;
+    //     std::array<index_t, NumDimG + NumDimM + NumDimN> b0_strides;
+    //     std::array<index_t, NumDimG + NumDimM + NumDimN> b1_lengths;
+    //     std::array<index_t, NumDimG + NumDimM + NumDimN> b1_strides;
+    //     std::array<index_t, NumDimG + NumDimM + NumDimN> c_lengths;
+    //     std::array<index_t, NumDimG + NumDimM + NumDimN> c_strides;
+    //     std::transform(a_gs_ms_ks_lengths.begin(),
+    //                    a_gs_ms_ks_lengths.end(),
+    //                    a_lengths.begin(),
+    //                    [](index_t i) { return i; });
+    //     std::transform(a_gs_ms_ks_strides.begin(),
+    //                    a_gs_ms_ks_strides.end(),
+    //                    a_strides.begin(),
+    //                    [](index_t i) { return i; });
+    //     std::transform(b0_gs_ls_ks_lengths.begin(),
+    //                    b0_gs_ls_ks_lengths.end(),
+    //                    b0_lengths.begin(),
+    //                    [](index_t i) { return i; });
+    //     std::transform(b0_gs_ls_ks_strides.begin(),
+    //                    b0_gs_ls_ks_strides.end(),
+    //                    b0_strides.begin(),
+    //                    [](index_t i) { return i; });
+    //     std::transform(b1_gs_ns_ls_lengths.begin(),
+    //                    b1_gs_ns_ls_lengths.end(),
+    //                    b1_lengths.begin(),
+    //                    [](index_t i) { return i; });
+    //     std::transform(b1_gs_ns_ls_strides.begin(),
+    //                    b1_gs_ns_ls_strides.end(),
+    //                    b1_strides.begin(),
+    //                    [](index_t i) { return i; });
+    //     std::transform(c_gs_ms_ns_lengths.begin(),
+    //                    c_gs_ms_ns_lengths.end(),
+    //                    c_lengths.begin(),
+    //                    [](index_t i) { return i; });
+    //     std::transform(c_gs_ms_ns_strides.begin(),
+    //                    c_gs_ms_ns_strides.end(),
+    //                    c_strides.begin(),
+    //                    [](index_t i) { return i; });
+    //     return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
+    //                                       static_cast<const B0DataType*>(p_b0),
+    //                                       static_cast<const B1DataType*>(p_b1),
+    //                                       static_cast<CDataType*>(p_c),
+    //                                       p_acc0_biases,
+    //                                       p_acc1_biases,
+    //                                       a_lengths,
+    //                                       a_strides,
+    //                                       b0_lengths,
+    //                                       b0_strides,
+    //                                       b1_lengths,
+    //                                       b1_strides,
+    //                                       c_lengths,
+    //                                       c_strides,
+    //                                       acc0_biases_gs_ms_ls_lengths,
+    //                                       acc0_biases_gs_ms_ls_strides,
+    //                                       acc1_biases_gs_ms_ns_lengths,
+    //                                       acc1_biases_gs_ms_ns_strides,
+    //                                       1,
+    //                                       1,
+    //                                       a_element_op,
+    //                                       b0_element_op,
+    //                                       acc_element_op,
+    //                                       b1_element_op,
+    //                                       c_element_op);
+    // }
 
     static auto MakeInvoker() { return Invoker{}; }
 

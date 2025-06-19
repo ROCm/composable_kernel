@@ -17,13 +17,13 @@ int run(int argc, char* argv[])
     // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
     // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])
     // C_g0_m_g1_o = permute(C_g0_g1_m_o, [0, 2, 1, 3])
-    ck::index_t G0 = 7;
-    ck::index_t G1 = 13;
+    ck::index_t G0 = 1;      // Will not be supported in batched gemm gemm
+    ck::index_t G1 = 7 * 13; // Takes the role of "Batch"
 
-    float alpha = 1;
+    float alpha = 1; // TODO: Not implemented, should be generic elementwise op now.
 
-    bool input_permute  = false;
-    bool output_permute = true;
+    bool input_permute  = false; // Not supported in normal batched gemm gemm op
+    bool output_permute = false; // Not supported in normal batched gemm gemm op
 
     if(argc == 1)
     {
@@ -186,22 +186,32 @@ int run(int argc, char* argv[])
 
         using DeviceMHAInstance = ck::remove_cvref_t<decltype(device_mha_instance)>;
         auto gemm               = DeviceMHAInstance{};
-        auto invoker            = gemm.MakeInvoker();
-        auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                          static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
-                                          static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
-                                          static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                          M,
-                                          N,
-                                          K,
-                                          O,
-                                          G0,
-                                          G1,
-                                          alpha,
-                                          input_permute,
-                                          output_permute);
+        auto invoker_ptr        = gemm.MakeInvokerPointer();
+        auto argument_ptr =
+            gemm.MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                     static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),
+                                     static_cast<B1DataType*>(b1_device_buf.GetDeviceBuffer()),
+                                     static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                     M,
+                                     N,
+                                     K,
+                                     O,
+                                     G1, // Batch,
+                                     0,  // StrideA,
+                                     0,  // StrideB0,
+                                     0,  // StrideB1,
+                                     0,  // StrideC,
+                                     0,  // BatchStrideA
+                                     0,  // BatchStrideB0
+                                     0,  // BatchStrideB1
+                                     0,  // BatchStrideC
+                                     a_element_op,
+                                     b0_element_op,
+                                     acc0_element_op,
+                                     b1_element_op,
+                                     c_element_op);
 
-        if(!gemm.IsSupportedArgument(argument))
+        if(!gemm.IsSupportedArgument(argument_ptr.get()))
         {
             std::cout << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
@@ -210,7 +220,7 @@ int run(int argc, char* argv[])
 
         ck::index_t BatchCount = G0 * G1;
 
-        float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+        float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
         std::size_t flop      = (size_t(M) * N * K * 2 + size_t(M) * N * O * 2) * BatchCount;
         std::size_t num_btype = (sizeof(ADataType) * M * K + sizeof(B0DataType) * K * N +
