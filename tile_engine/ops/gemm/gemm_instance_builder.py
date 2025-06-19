@@ -508,7 +508,7 @@ struct GemmKernel {{
                     tile_map[key].add(value)
         #print(f"Generating {len(tile_map)} tiles and warps...")
         #print(f"Valid traits: {tile_map}")
-
+        count = 0
         for trait, _ in self.valid_trait_tile_combinations.items():
             for block_tile, warp_tiles in tile_map.items():
                 tile_m, tile_n, tile_k, warp_m, warp_n, warp_k = map(int, block_tile.split('x'))
@@ -530,14 +530,17 @@ struct GemmKernel {{
                             ((warp_tile_m == 32 and warp_tile_n == 32 and warp_tile_k == 16) or
                                 (warp_tile_m == 16 and warp_tile_n == 16 and warp_tile_k == 32))
                     if sparse:
+                        count = count + 1
                         content = content + f"""
 template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;"""
+                    count = count + 1
                     content = content + f"""
 template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, false>;"""
                 content += f"""
 """
                 (self.output_dir /
                     f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp").write_text(content)
+        print(f'********************************Generating {count} instamces of GEMM kernels********************************')
 
     def _generate_dispatcher_file(self):
         """Generate the code block of dispatch mechanism."""
