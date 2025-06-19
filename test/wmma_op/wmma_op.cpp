@@ -54,11 +54,6 @@ bool run_test()
 }
 int main(int, char*[])
 {
-    int deviceCount;
-    std::cout << hipGetDeviceCount(&deviceCount) << std::endl;
-    std::cout << deviceCount << std::endl;
-    std::cout << hipSetDevice(2) << std::endl;
-
     bool pass = true;
     // clang-format off
     //              |SrcType     |DstType     |GPUAccType  |CPUAccType |AccNum
@@ -67,7 +62,9 @@ int main(int, char*[])
     pass &= run_test<ck::half_t,  ck::half_t,  ck::half_t,  ck::half_t, 16    >();
     pass &= run_test<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, float,      16    >();
     pass &= run_test<int8_t,      int8_t,      int32_t,     int32_t,    8     >();
-    // pass &= run_test<ck::f8_t,    ck::f8_t,    float,       float,      8     >();
+#if defined(CK_USE_WMMA_FP8)
+    pass &= run_test<ck::f8_t,    ck::f8_t,    float,       float,      8     >();
+#endif
     // clang-format on
 
     std::cout << "TestGemm ..... " << (pass ? "SUCCESS" : "FAILURE") << std::endl;
