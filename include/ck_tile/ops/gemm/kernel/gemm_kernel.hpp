@@ -15,6 +15,9 @@
 
 namespace ck_tile {
 
+// ADD: Global barrier for Split-K synchronization
+static __device__ volatile uint32_t g_splitk_barrier = 0;
+
 /// @brief The GEMM problem definition.
 ///
 /// @par Overview
@@ -695,18 +698,32 @@ struct GemmKernel
     {
         if constexpr(Zeroing)
         {
+            // Calculate total number of M,N blocks for barrier synchronization
+            const auto M_blocks = static_cast<uint32_t>((kargs.M + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock);
+            const auto N_blocks = static_cast<uint32_t>((kargs.N + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock);
+            const auto total_blocks = M_blocks * N_blocks;
+
             if(k_batch_id == 0)
             {
-                // ADD: MASSIVE delay for k_batch=0 to guarantee other k_batches start first
-                if(threadIdx.x == 0)
+                
+                // STEP 1: Reset barrier (only once per kernel launch)
+                if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0)
                 {
-                    // Force a HUGE delay that guarantees k_batch>0 starts first
-                    for(int i = 0; i < 1000; ++i)
-                    {
-                        __builtin_amdgcn_s_sleep(100);
-                        
-                    }
+                    g_splitk_barrier = 0;
                 }
+              
+                // ADD: MASSIVE delay for k_batch=0 to guarantee other k_batches start first
+                // if(threadIdx.x == 0)
+                // {
+                //     // Force a HUGE delay that guarantees k_batch>0 starts first
+                //     for(int i = 0; i < 1000; ++i)
+                //     {
+                //         __builtin_amdgcn_s_sleep(100);
+                        
+                //     }
+                // }
+
+                // STEP 2: First k-batch: Use SET operation (zero + write first result)
                 // First k-batch: Use SET operation
                 const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<memory_operation_enum::set>(
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
@@ -714,10 +731,25 @@ struct GemmKernel
                 // Continue with GEMM execution
                 RunGemmWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, splitk_batch_offset, block_idx_m, block_idx_n);
 
+                // STEP 3: Signal completion (each k_batch_id=0 block increments)
+                if(threadIdx.x == 0)
+                {
+                    atomicAdd(const_cast<uint32_t*>(&g_splitk_barrier), 1);
+                }
+
             }
             else
             {
-                // Subsequent k-batches: Use ATOMIC_ADD operation
+                // STEP 4: Wait for ALL k_batch_id=0 blocks to complete
+                if(threadIdx.x == 0)
+                {
+                    while(__atomic_load_n(&g_splitk_barrier, __ATOMIC_RELAXED) < total_blocks) {}
+                }
+                
+                // STEP 5: CRITICAL - All threads wait for thread 0 to complete barrier check
+                __syncthreads();
+
+                // STEP 6: Subsequent k-batches: Use ATOMIC_ADD operation
                 const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<memory_operation_enum::atomic_add>(
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
                 
