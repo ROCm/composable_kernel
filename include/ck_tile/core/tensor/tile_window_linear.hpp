@@ -613,6 +613,60 @@ struct tile_window_linear
         WINDOW_DISPATCH_ISSUE();
     }
 
+    template <typename Policy, index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load_transpose() const
+    {
+        constexpr auto tile_dstr = typename Base::TileDstr{};
+        auto dst_tensor = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
+        this->template load_transpose_linear<Policy>(
+            dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
+        return dst_tensor;
+    }
+
+    template <typename Policy,
+              typename DistributedTensor,
+              index_t i_access           = -1,
+              bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load_transpose_linear(DistributedTensor& dst_tensor,
+                                              number<i_access>                     = {},
+                                              bool_constant<oob_conditional_check> = {}) const
+    {
+        using vector_t = typename traits::vector_t;
+        using SFC_Ys   = typename traits::SFC_Ys;
+
+        constexpr auto tile_dstr = typename Base::TileDstr{};
+
+        constexpr auto group_func = Policy::group_func;
+
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess          = number<i_access_>{};
+            constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
+            auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
+            auto bottom_tensor_flag         = cached_flags_[IAccess];
+
+            constexpr auto idx_ys_start = SFC_Ys::get_index(IAccess);
+
+            // read from bottom tensor
+            const vector_t vec_value =
+                this->get_bottom_tensor_view().template get_transpose_vectorized_elements<vector_t>(
+                    bottom_tensor_thread_coord, 0);
+            // write into distributed tensor
+            static_for<0, traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_tuple(
+                    [&](auto jj) {
+                        return jj == traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                    },
+                    number<Base::NDimY>{});
+
+                constexpr index_t linear_distributed_index =
+                    tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                dst_tensor.get_thread_buffer().template at<linear_distributed_index>() =
+                    vec_value.template get_as<typename Base::DataType>()[j];
+            });
+        };
+        WINDOW_DISPATCH_ISSUE();
+    }
+
     template <index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void store(const static_distributed_tensor<typename Base::DataType,
                                                               typename Base::TileDstr>& dstr_tensor,

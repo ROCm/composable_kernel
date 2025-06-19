@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1841,7 +1841,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                         Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                         CShuffleDataType,     // typename SrcData,
-                        CShuffleDataType,     // typename DstData,
+                        AccDataType,          // typename DstData,
                         decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
                         decltype(c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle),
                         Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
@@ -2591,7 +2591,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                         Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                         CShuffleDataType,     // typename SrcData,
-                        CShuffleDataType,     // typename DstData,
+                        AccDataType,          // typename DstData,
                         decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
                         decltype(c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle),
                         Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
