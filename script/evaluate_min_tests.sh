@@ -28,4 +28,4 @@ fi
 branch=$(git rev-parse --abbrev-ref HEAD)
 
 # Run the command
-python3 dependency-parser/main.py select "$JSON_FILE" origin/amd-develop $branch
+python3 dependency-parser/main.py select "$JSON_FILE" origin/develop $branch
