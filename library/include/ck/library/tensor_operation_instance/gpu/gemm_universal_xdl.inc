@@ -447,6 +447,51 @@ void add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_comp_default_instances(
         DeviceGemmV2<Row, Row, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
+
+void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part1(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        BF16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part2(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        BF16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part3(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        BF16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part4(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        BF16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);    
+
 void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part5(
     std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
                                                         Col,
@@ -469,16 +514,7 @@ void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_i
                                                         PassThrough,
                                                         PassThrough>>>& instances);
 
-void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part4(
-    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
-                                                        Col,
-                                                        Row,
-                                                        F8,
-                                                        F8,
-                                                        BF16,
-                                                        PassThrough,
-                                                        PassThrough,
-                                                        PassThrough>>>& instances);    
+    
                                                         
                                                                                                          
 void add_device_gemm_xdl_universal_f8_f8_bf16_mk_kn_mn_comp_kpadding_instances(
