@@ -2093,8 +2093,6 @@ struct vector_type<T, 64, typename ck::enable_if_t<!is_native_type<T>()>>
     }
 };
 
-using int64_t = long;
-
 // fp32
 using float2_t  = typename vector_type<float, 2>::type;
 using float4_t  = typename vector_type<float, 4>::type;
@@ -2125,14 +2123,6 @@ using int32x8_t  = typename vector_type<int32_t, 8>::type;
 using int32x16_t = typename vector_type<int32_t, 16>::type;
 using int32x32_t = typename vector_type<int32_t, 32>::type;
 using int32x64_t = typename vector_type<int32_t, 64>::type;
-
-// i16
-using int16x2_t  = typename vector_type<int16_t, 2>::type;
-using int16x4_t  = typename vector_type<int16_t, 4>::type;
-using int16x8_t  = typename vector_type<int16_t, 8>::type;
-using int16x16_t = typename vector_type<int16_t, 16>::type;
-using int16x32_t = typename vector_type<int16_t, 32>::type;
-using int16x64_t = typename vector_type<int16_t, 64>::type;
 
 // i8
 using int8x2_t  = typename vector_type<int8_t, 2>::type;

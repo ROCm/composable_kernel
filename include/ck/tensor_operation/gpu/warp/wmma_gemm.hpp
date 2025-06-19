@@ -16,13 +16,11 @@ enum struct WmmaInstr
     wmma_f32_16x16x16_bf16,
     wmma_f16_16x16x16_f16,
     wmma_bf16_16x16x16_bf16,
-    wmma_i32_16x16x16_iu16,
     wmma_i32_16x16x16_iu8,
     wmma_i32_16x16x16_iu4,
     // gfx12
     wmma_f32_16x16x16_f16_gfx12,
     wmma_f32_16x16x16_bf16_gfx12,
-    wmma_i32_16x16x16_iu16_gfx12,
     wmma_i32_16x16x16_iu8_gfx12,
     wmma_f32_16x16x16_f8f8_gfx12,
     wmma_f32_16x16x16_f8bf8_gfx12,
@@ -590,16 +588,6 @@ struct WmmaSelector
     constexpr auto GetWmma<bhalf_t, bhalf_t, bhalf_t, 16, 16>()
     {
         return WmmaInstr::wmma_bf16_16x16x16_bf16;
-    }
-
-    template <>
-    constexpr auto GetWmma<unsigned short, unsigned short, int, 16, 16>()
-    {
-#ifdef __gfx12__
-        return WmmaInstr::wmma_i32_16x16x16_iu16_gfx12;
-#else
-        return WmmaInstr::wmma_i32_16x16x16_iu16;
-#endif
     }
 
     template <>
