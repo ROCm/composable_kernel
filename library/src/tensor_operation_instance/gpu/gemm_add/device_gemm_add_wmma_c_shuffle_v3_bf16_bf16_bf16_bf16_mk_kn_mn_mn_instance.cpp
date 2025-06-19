@@ -25,6 +25,10 @@ static constexpr auto V1 = BlockGemmPipelineVersion::v1;
 static constexpr auto V3 = BlockGemmPipelineVersion::v3;
 
 template <GemmSpecialization GemmSpec>
+
+// e = elementwise((a * b), d0, d1)
+// outout: e[m, n]
+// input: a[m, k], b[k, n], d0[m, n], d1[m, n]
 using device_gemm_add_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_instances = std::tuple<
     // clang-format off
         //##################################| ALayout| BLayout|  DsLayout| ELayout| AData| BData|    DsData| EData| AccData| CShuffle|           A|           B|          CDE| GemmSpec| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|   CShuffle|   CShuffle| CShuffleBlockTransfer| CDEShuffleBlockTransfer|   BlkGemm|     BlkGemm|
