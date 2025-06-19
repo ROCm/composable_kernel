@@ -11,10 +11,13 @@ run_and_check() {
 }
 
 echo "I: Installing tools required for pre-commit checks..."
-run_and_check apt install clang-format-12
+run_and_check sudo apt install -y clang-format-12
 
+run_and_check python3 -m venv .venv
+# Activate the virtual environment for the rest of the script
+eval "$(.venv/bin/activate && export VIRTUAL_ENV=\"$VIRTUAL_ENV\" && export PATH=\"$PATH\")"
 echo "I: Installing pre-commit itself..."
-run_and_check pip3 install pre-commit
-run_and_check pre-commit install
+run_and_check .venv/bin/pip install pre-commit
+run_and_check .venv/bin/pre-commit install
 
 echo "I: Installation successful."
