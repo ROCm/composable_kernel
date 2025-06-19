@@ -113,6 +113,16 @@ struct PerfResults
         return ss.str();
     }
 
+    void set_k_dim_size(ck::index_t k_dim_size)
+    {
+        if (k_dim_size_ > 0 && k_dim_size != k_dim_size_)
+        {
+            std::cerr << "Error: k_dim_size cannot be set multiple times. Old value " << k_dim_size_ << ". New value " << k_dim_size << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        k_dim_size_ = k_dim_size;
+    }
+
     // Global best results
     std::string best_op_name_;
     float best_avg_time_      = 0;
@@ -135,6 +145,9 @@ struct PerfResults
     float opt_split_k_gb_per_sec_    = 0;
     ck::index_t opt_split_k_best_arg_ = 1;
 
+    // K-dim size
+    ck::index_t k_dim_size_ = -1;
+
     std::vector<std::tuple<std::string, ck::index_t, float>> ranking_;
 };
 
@@ -156,6 +169,7 @@ void write_perf_results_to_file(const PerfResults& perf_results_global,
         }
         file << res.opt_split_k_avg_time_ << separator
              << res.opt_split_k_best_arg_ << separator
+             << res.k_dim_size_ << separator
              << rank << separator
              << total_num;
     };
@@ -364,7 +378,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     range_copy(conv_param.input_left_pads_, begin(input_left_pads));
     range_copy(conv_param.input_right_pads_, begin(input_right_pads));
 
-    std::vector<ck::index_t> split_k_list = {/*Split-k parameter autodeduction*/-1, 1, 2, 4, 8, 16, 32, 64, 128};
+    std::vector<ck::index_t> split_k_list = {/*Split-k parameter autodeduction*/-1, 1, 2, 4, 8, 16, 32, 64, 128, 256};
     bool profile_all = true;
     if(split_k != "all")
     {
@@ -421,6 +435,12 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             if (split_k_arg)
             {
                 split_k_arg_value = split_k_arg->k_batch();
+                const auto k_dim_size = split_k_arg->k_dim_size();
+                if (k_dim_size > 0)
+                {
+                    perf_results_local.set_k_dim_size(k_dim_size);
+                    perf_results_global.set_k_dim_size(k_dim_size);
+                }
                 supports_split_k_optimization = true;
             }
 
@@ -587,6 +607,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     << std::get<0>(perf_results_global.get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
                     << " / " << std::get<1>(perf_results_global.get_ranking(perf_results_global.opt_split_k_best_op_name_, perf_results_global.opt_split_k_best_arg_))
                     << std::endl;
+            std::cerr << "K-dim size: " << perf_results_global.k_dim_size_ << std::endl;
 
             write_perf_results_to_file(perf_results_global, perf_results_list);
         }

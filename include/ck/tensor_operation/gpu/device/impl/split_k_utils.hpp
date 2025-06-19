@@ -4,6 +4,7 @@
 #pragma once
 #include <hip/hip_runtime.h>
 #include "ck/utility/env.hpp"
+#include "ck/utility/number.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/ck.hpp"
 
@@ -27,18 +28,15 @@ struct DeviceProperties
   int num_cu_;
 };
 
-inline ck::index_t get_k_batch_value(int max_occupancy, ck::index_t grid_size, ck::index_t k_size)
+inline ck::index_t get_k_batch_value(int max_occupancy, ck::index_t grid_size)
 {
     static DeviceProperties device_properties;
     const int num_cu = device_properties.num_cu_;
     auto k_batch = 1;
-    //constexpr ck::index_t min_k_per_batch = 16;
-    //const auto max_split_k = math::integer_divide_ceil(k_size, min_k_per_batch);
 
     const auto optimal_split = static_cast<ck::index_t>(std::floor((max_occupancy * num_cu) / (grid_size)));
     if (optimal_split > 1)
     {
-      //k_batch = std::min(optimal_split, max_split_k);
       k_batch = optimal_split;
     }
     
@@ -46,12 +44,26 @@ inline ck::index_t get_k_batch_value(int max_occupancy, ck::index_t grid_size, c
     {
       std::cout << "[SPLIT-K AUTODEDUCE] Max active thread blocks per CU for GEMM kernel:  " << max_occupancy << std::endl;
       std::cout << "[SPLIT-K AUTODEDUCE] Output grid size:  " << grid_size << std::endl;
-      std::cout << "[SPLIT-K AUTODEDUCE] K-dim size:  " << k_size << std::endl;
-      //std::cout << "[SPLIT-K AUTODEDUCE] Max split-k value:  " << max_split_k << std::endl;
       std::cout << "[SPLIT-K AUTODEDUCE] Optimal split value:  " << optimal_split << std::endl;
       std::cout << "[SPLIT-K AUTODEDUCE] Optimal split-k value " << k_batch << " for K-batch."<< std::endl;
     }
     return k_batch;
+}
+
+template <ck::index_t NDimSpatial>
+inline index_t get_bwd_weight_gemm_k(const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths)
+{
+  static constexpr auto I1 = Number<1>{};
+
+  // The input array has elements in the order: G, N, K, Do, Ho, Wo
+  // GemmK = N * Do * Ho * Wo for the BWD weight pass.
+  constexpr index_t spatial_offset = 3; 
+  const index_t DoHoWo = std::accumulate(begin(a_g_n_k_wos_lengths) + spatial_offset,
+                                      end(a_g_n_k_wos_lengths),
+                                      index_t{1},
+                                      std::multiplies<>{});
+  const auto gemmK = a_g_n_k_wos_lengths[I1] * DoHoWo;
+  return gemmK;
 }
 
 } // namespace device

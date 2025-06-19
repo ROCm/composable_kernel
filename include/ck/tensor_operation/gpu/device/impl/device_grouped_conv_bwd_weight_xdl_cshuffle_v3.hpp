@@ -521,18 +521,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 const auto& b_grid_desc_kbatch_k0_n_k1 = descs_initial[I1];
                 const index_t GemmM = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
                 const index_t GemmN = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
-                const index_t GemmK = a_grid_desc_kbatch_k0_m_k1.GetLength(I0) * a_grid_desc_kbatch_k0_m_k1.GetLength(I2);
-
-                // nullptr for output, will be set after workspace set
-                typename GridwiseGemm::Argument gemm_arg{
-                    nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, 1};
 
                 // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
                 // Hence, the grid is just size of the tile map.
-                index_t gdx, gdy, gdz;
-                std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(gemm_arg.M, gemm_arg.N, 1, 1);
-                const auto grid_size = gdx * gdy * gdz;
-                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size, GemmK);
+                const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(GemmM, GemmN);
+                k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
+                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size);
             }
             else 
             {
