@@ -36,13 +36,13 @@
             "max": 256,
             "min": 64,
             "step": 64,
-            "exclude": []
+            "exclude": [192]
         },
         "tile_n": {
             "max": 256,
             "min": 64,
-            "step": 64,
-            "exclude": []
+            "step": 32,
+            "exclude": [96, 160, 192]
         },
         "tile_k": {
             "max": 256,
