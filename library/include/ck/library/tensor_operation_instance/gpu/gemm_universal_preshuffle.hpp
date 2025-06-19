@@ -64,9 +64,9 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<CLayout, Row>)
             {
-                add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part5(
+                add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma16x16_nk_mn_comp_default_instances_part5(
                     op_ptrs);
-                add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part6(
+                add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma16x16_nk_mn_comp_default_instances_part6(
                     op_ptrs);
                 add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part4(
                     op_ptrs);
