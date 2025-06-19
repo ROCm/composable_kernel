@@ -67,7 +67,9 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part5(
                     op_ptrs);
                 add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part6(
-                    op_ptrs);   
+                    op_ptrs);
+                add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_instances_part4(
+                    op_ptrs);
                 // add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(
                 //     op_ptrs);
             }
