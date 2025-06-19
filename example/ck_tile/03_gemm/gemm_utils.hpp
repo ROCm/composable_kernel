@@ -90,7 +90,8 @@ struct GemmConfigComputeV3 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 16 : 64;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        sizeof(PrecType) == 2 || sizeof(PrecType) == 1 ? 16 : 64;
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
