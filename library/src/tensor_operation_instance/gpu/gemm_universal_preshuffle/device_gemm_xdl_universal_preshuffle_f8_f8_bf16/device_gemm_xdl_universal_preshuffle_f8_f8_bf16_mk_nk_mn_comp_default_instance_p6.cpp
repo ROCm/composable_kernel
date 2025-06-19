@@ -22,15 +22,10 @@ void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_default_i
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_instances<GemmDefault>{});
-
-    if(ck::get_device_name() != "gfx950")
-    {
-        add_device_operation_instances(
-            instances,
-            device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_instances_part2<
-                GemmDefault>{});
-    }
+        device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_instances_part6<GemmDefault>{});
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_nk_mn_comp_instances_part5<GemmDefault>{});
 }
 
 } // namespace instance
