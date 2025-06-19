@@ -7,7 +7,7 @@ PACKAGE_HOME="$(dirname "$BUILD_DIR")"
 SCRIPT_DIR="$PACKAGE_HOME/script/"
 
 # Search for build.ninja under PACKAGE_HOME
-BUILD_NINJA_FILE="$PACKAGE_HOME/build/build.ninja"
+BUILD_NINJA_FILE="$PACKAGE_HOME/build/build/build.ninja"
 
 if [ -z "$BUILD_NINJA_FILE" ]; then
     echo "Error: build.ninja not found under $PACKAGE_HOME"

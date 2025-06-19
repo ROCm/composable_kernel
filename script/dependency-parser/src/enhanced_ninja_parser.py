@@ -181,7 +181,7 @@ class EnhancedNinjaDependencyParser:
         # Include files that are clearly part of the project
         if any(file_path.startswith(prefix) for prefix in [
             'include/', 'library/', 'test/', 'example/', 'src/', 'profiler/',
-            'build-ninja/include/', 'build-ninja/_deps/gtest', 'client_example', 'codegen', 'tile_engine'
+            'build/include/', 'build/_deps/gtest', 'client_example', 'codegen', 'tile_engine'
         ]):
             return True
             
@@ -280,7 +280,7 @@ def main():
         ninja_path = "ninja"
         workspace_root = default_workspace_root
     else:
-        build_file = f"{default_workspace_root}/build-ninja/build.ninja"
+        build_file = f"{default_workspace_root}/build/build.ninja"
         ninja_path = "ninja"
         workspace_root = default_workspace_root
 
