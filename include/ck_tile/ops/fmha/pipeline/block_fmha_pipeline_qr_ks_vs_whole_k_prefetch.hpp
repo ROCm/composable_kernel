@@ -30,7 +30,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
     using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
     using AttentionVariant      = remove_cvref_t<typename Problem::AttentionVariant>;
 
-
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true;
@@ -57,7 +56,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
     static constexpr bool kHasDropout  = Problem::kHasDropout;
     static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
-
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
