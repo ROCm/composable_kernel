@@ -14,7 +14,6 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/block/blockwise_softmax.hpp"
 
 namespace ck {
 
@@ -494,14 +493,14 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             (SharedMemTrait::b1_block_space_offset +
              SharedMemTrait::b1_block_space_size_aligned * sizeof(B1DataType));
 
-        const index_t softmax_bytes_end =
+        const index_t acc0_bytes_end =
             SharedMemTrait::reduction_space_offset +
             SharedMemTrait::reduction_space_size_aligned * sizeof(Acc0DataType);
 
         const index_t c_block_bytes_end =
             SharedMemTrait::c_block_space_size * sizeof(CShuffleDataType);
 
-        return math::max(gemm0_bytes_end, gemm1_bytes_end, softmax_bytes_end, c_block_bytes_end);
+        return math::max(gemm0_bytes_end, gemm1_bytes_end, acc0_bytes_end, c_block_bytes_end);
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -997,58 +996,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         }();
 
         const index_t KBlockMainLoop = __builtin_amdgcn_readfirstlane(K / KPerBlock);
-/*******************************************************************************/
-// softmax
-/*******************************************************************************/
-        // auto workspace_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-        //     static_cast<Acc0DataType*>(p_shared) + SharedMemTrait::reduction_space_offset, 
-        //     SharedMemTrait::reduction_space_size_aligned);
-        // get acc0 7D thread cluster
-        constexpr auto thread_cluster_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs =
-            blockwise_gemm0.GetCBlockDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs().GetLengths() /
-            blockwise_gemm0.GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs().GetLengths();
-        constexpr auto t_mrepeat            = thread_cluster_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.At(I0);
-        constexpr auto t_mwave              = thread_cluster_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.At(I1);
-        constexpr auto t_mthreadpersubgroup = thread_cluster_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.At(I2);
-        constexpr auto t_lrepeat            = thread_cluster_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.At(I3);
-        constexpr auto t_lwave              = thread_cluster_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.At(I4);
-        constexpr auto t_lsubgroup          = thread_cluster_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.At(I5);
-        constexpr auto t_laccvgprs          = thread_cluster_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.At(I6);
-        // get acc0 thread map
-        constexpr auto m0_l_m1_to_m_l_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_unmerge_transform(make_tuple(t_mrepeat * t_mwave, t_mthreadpersubgroup)),
-                       make_pass_through_transform(I1)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-        constexpr auto threadid_to_m0_l_m1_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(
-                make_merge_transform(
-                    make_tuple(t_mrepeat * t_mwave, t_lrepeat * t_lwave * t_lsubgroup * t_laccvgprs, t_mthreadpersubgroup))),
-            make_tuple(Sequence<0, 1, 2>{}),
-            make_tuple(Sequence<0>{}));
-        const auto threadid_to_l_n_thread_cluster_adaptor =
-            chain_tensor_adaptors(m0_l_m1_to_m_l_adaptor, threadid_to_m0_l_m1_adaptor);
-
-        // get acc0 2D thread cluster & 2D thread slice
-        constexpr auto thread_cluster_desc_m_l = make_naive_tensor_descriptor_packed(
-            make_tuple(t_mrepeat * t_mwave * t_mthreadpersubgroup, t_lrepeat * t_lwave * t_lsubgroup * t_laccvgprs));
-
-        constexpr auto thread_slice_desc_m_l   = make_naive_tensor_descriptor_packed(
-            make_tuple(mrepeat * mwave * mthreadpersubgroup, lrepeat * lwave * lsubgroup * laccvgprs));
-            
-        auto blockwise_softmax = BlockwiseSoftmax<BlockSize,
-                                                  Acc0DataType,
-                                                  decltype(threadid_to_l_n_thread_cluster_adaptor),
-                                                  decltype(thread_cluster_desc_m_l),
-                                                  decltype(thread_slice_desc_m_l)>{};
         
-        // Initialize running sum and max of exponentiating row vectors
-        using SoftmaxBuf = typename decltype(blockwise_softmax)::BufferType;
-        SoftmaxBuf running_sum, running_sum_new, running_max, running_max_new;
-        running_sum     = 0;
-        running_sum_new = 0;
-        running_max     = NumericLimits<Acc0DataType>::Lowest();
-        running_max_new = NumericLimits<Acc0DataType>::Lowest();
 /*******************************************************************************/
 // set up Gemm1
 /*******************************************************************************/
@@ -1235,17 +1183,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                     [&](auto i) { acc_element_op(acc0_thread_buf(i), acc0_thread_buf[i]); });
 
             block_sync_lds();
-            // Tiled softmax start
-            // softmax
-            SoftmaxBuf& max = blockwise_softmax.max_value_buf;
-            SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;
-
-            //blockwise_softmax.Run(acc0_thread_buf, workspace_buf);
-            
-            // TODO: may convert to log domain
-            running_max_new = mathext::max(max, running_max);
-            running_sum_new = mathext::exp(running_max - running_max_new) * running_sum +
-                              mathext::exp(max - running_max_new) * sum;
 
             // gemm1
             {
@@ -1343,10 +1280,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                                 a_block_reset_copy_step); // rewind K
             b0_blockwise_copy.MoveSrcSliceWindow(b0_grid_desc,
                                                 b0_block_reset_copy_step); // rewind K and step N
-
-            // update before next j iteration
-            running_max = running_max_new;
-            running_sum = running_sum_new;
 
             block_sync_lds(); // wait for gemm1 LDS read
         }while(++gemm1_l_block_outer_index < num_gemm1_l_block_outer_loop);

@@ -247,7 +247,7 @@ int run(int argc, char* argv[])
             Tensor<B0DataType> b0_g_k_n({BatchCount, K, N});
             Tensor<B1DataType> b1_g_n_o({BatchCount, N, O});
             Tensor<Acc0DataType> acc0_g_m_n({BatchCount, M, N}); // scratch object after gemm0
-            Tensor<ADataType> a1_g_m_n({BatchCount, M, N});      // scratch object after softmax
+            Tensor<ADataType> a1_g_m_n({BatchCount, M, N});      // scratch object after conversion
             Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
 
             // permute
@@ -269,13 +269,6 @@ int run(int argc, char* argv[])
 
             ref_gemm0_invoker.Run(ref_gemm0_argument);
 
-            // softmax
-            auto ref_softmax          = ReferenceSoftmaxInstance{};
-            auto ref_softmax_invoker  = ref_softmax.MakeInvoker();
-            auto ref_softmax_argument = ref_softmax.MakeArgument(acc0_g_m_n, a1_g_m_n, 1, 0, {2});
-
-            // ref_softmax_invoker.Run(ref_softmax_argument);
-            printf("Skipping softmax\n");
             acc0_g_m_n.ForEach([&](auto& self, auto idx) {
                 // Passthrough instead of softmax, DOES involve data type conversion.
                 a1_g_m_n(idx) = self(idx);
