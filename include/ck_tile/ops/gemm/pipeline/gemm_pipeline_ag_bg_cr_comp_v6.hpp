@@ -39,9 +39,8 @@ struct BaseGemmPipelineAgBgCrCompV6
     }
 
     template <typename RunFunction>
-    CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func,
-                                                [[maybe_unused]] bool has_hot_loop,
-                                                TailNumber tail_num)
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_num)
     {
         if(tail_num == ck_tile::TailNumber::Three)
         {
