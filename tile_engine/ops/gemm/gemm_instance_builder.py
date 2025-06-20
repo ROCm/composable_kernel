@@ -540,7 +540,7 @@ template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {war
 """
                 (self.output_dir /
                     f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp").write_text(content)
-        print(f'********************************Generating {count} instamces of GEMM kernels********************************')
+        print(f"Generated {count} kernel instances in total.")
 
     def _generate_dispatcher_file(self):
         """Generate the code block of dispatch mechanism."""

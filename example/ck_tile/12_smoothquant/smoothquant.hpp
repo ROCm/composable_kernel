@@ -49,22 +49,22 @@ struct smoothquant_traits_
 {
     using DataType = ck_tile::remove_cvref_t<DataType_>;
 
-    static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= warpSize;
-    static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % warpSize == 0);
+    static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= WarpSize;
+    static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % WarpSize == 0);
     static constexpr ck_tile::index_t total_warps =
-        (ThreadPerBlock_M_ * ThreadPerBlock_N_) / warpSize;
+        (ThreadPerBlock_M_ * ThreadPerBlock_N_) / WarpSize;
 
     // num of warps along m
     static constexpr ck_tile::index_t BlockWarps_M = []() {
         if constexpr(is_warp_per_row)
         {
-            static_assert(warpSize % ThreadPerBlock_N_ == 0);
-            return total_warps * (warpSize / ThreadPerBlock_N_);
+            static_assert(WarpSize % ThreadPerBlock_N_ == 0);
+            return total_warps * (WarpSize / ThreadPerBlock_N_);
         }
         else
         {
-            // static_assert(warpSize % ThreadPerBlock_M_ == 0);
-            return total_warps / (ThreadPerBlock_N_ / warpSize);
+            // static_assert(WarpSize % ThreadPerBlock_M_ == 0);
+            return total_warps / (ThreadPerBlock_N_ / WarpSize);
         }
     }();
 
@@ -72,13 +72,13 @@ struct smoothquant_traits_
     static constexpr ck_tile::index_t BlockWarps_N = []() {
         if constexpr(is_warp_per_row)
         {
-            static_assert(warpSize % ThreadPerBlock_N_ == 0);
+            static_assert(WarpSize % ThreadPerBlock_N_ == 0);
             return 1;
         }
         else
         {
-            static_assert(ThreadPerBlock_N_ % warpSize == 0);
-            return ThreadPerBlock_N_ / warpSize;
+            static_assert(ThreadPerBlock_N_ % WarpSize == 0);
+            return ThreadPerBlock_N_ / WarpSize;
         }
     }();
 

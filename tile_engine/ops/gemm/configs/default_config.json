@@ -95,12 +95,15 @@
     "trait_config": {
         "pipeline": {
             "values": [
-                "compv3"
+                "compv3",
+                "compv4",
+                "mem"
             ]
         },
         "scheduler": {
             "values": [
-                "intrawave"
+                "intrawave",
+                "interwave"
             ]
         },
         "epilogue": {

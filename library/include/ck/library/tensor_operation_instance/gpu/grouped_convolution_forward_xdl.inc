@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -688,6 +688,7 @@ void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances(
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
+
 void add_device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_16x16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NGCDHW,
