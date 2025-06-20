@@ -343,15 +343,8 @@ def cmake_build(Map conf=[:]){
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        if (setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE){
-            echo "running ninja build trace"
-            setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
-            build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
-        }
-        else{
-            setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-            build_cmd = conf.get("build_cmd", "${build_envs} make -j${nt} ${config_targets}")
-        }
+        setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
+        build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
         cmd = conf.get("cmd", """
             ${setup_cmd}
             ${build_cmd}
@@ -379,7 +372,12 @@ def cmake_build(Map conf=[:]){
                 archiveArtifacts "clang_build_analysis.log"
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
-                    sh "ninja check"
+                    if (!params.RUN_ALL_UNIT_TESTS){
+                        sh "../script/launch_tests.sh"
+                    }
+                    else{
+                        sh "ninja check"
+                    }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
                     // build deb packages
@@ -393,7 +391,12 @@ def cmake_build(Map conf=[:]){
             else{
                 // run unit tests unless building library for all targets
                 if (!params.BUILD_INSTANCES_ONLY){
-                    sh "make check"
+                    if (!params.RUN_ALL_UNIT_TESTS){
+                        sh "../script/launch_tests.sh"
+                    }
+                    else{
+                        sh "ninja check"
+                    }
                 }
             }
         }
@@ -793,10 +796,10 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily jobs
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=false
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX950=true
-                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=false;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
+                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
+                                              0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 13 * * * % BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
 
@@ -859,8 +862,8 @@ pipeline {
             description: "Run the cppcheck static analysis (default: OFF)")
         booleanParam(
             name: "RUN_PERFORMANCE_TESTS",
-            defaultValue: true,
-            description: "Run the performance tests (default: ON)")
+            defaultValue: false,
+            description: "Run the performance tests (default: OFF)")
         booleanParam(
             name: "RUN_GROUPED_CONV_LARGE_CASES_TESTS",
             defaultValue: false,
@@ -913,6 +916,10 @@ pipeline {
             name: "RUN_INDUCTOR_TESTS",
             defaultValue: true,
             description: "Run inductor codegen tests (default: ON)")
+        booleanParam(
+            name: "RUN_ALL_UNIT_TESTS",
+            defaultValue: false,
+            description: "Run all unit tests (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -1025,7 +1032,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_CODEGEN_TESTS.toBoolean() }
+                        expression { params.RUN_CODEGEN_TESTS.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a")}
                     environment{
