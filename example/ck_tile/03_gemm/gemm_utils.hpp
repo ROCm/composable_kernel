@@ -14,10 +14,10 @@
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
-#define CK_TILE_PIPELINE_COMPUTE_V5 4
+#define CK_TILE_PIPELINE_COMPUTE_V6 5
 
 #ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V5
+#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V6
 #endif
 
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
@@ -32,9 +32,9 @@
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV4
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV4
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V5)
-#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV5
-#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV5
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V6)
+#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV6
+#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV6
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
 #else
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
@@ -89,7 +89,7 @@ struct GemmConfig
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     static constexpr bool DoubleSmemBuffer = true;
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V5)
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V6)
     // Compute friendly for Intrawave scheduler
     // Using the ping pong reader in the lds level
     static constexpr ck_tile::index_t M_Tile = 256;

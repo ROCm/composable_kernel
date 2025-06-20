@@ -4,7 +4,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v5_default_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v6_default_policy.hpp"
 
 namespace ck_tile {
 
@@ -12,7 +12,7 @@ namespace ck_tile {
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 template <typename Problem>
-struct BaseGemmPipelineAgBgCrCompV5
+struct BaseGemmPipelineAgBgCrCompV6
 {
     static constexpr index_t PrefetchStages  = 3;
     static constexpr index_t PrefillStages   = 1;
@@ -45,10 +45,10 @@ struct BaseGemmPipelineAgBgCrCompV5
  *
  * @note TODO
  */
-template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV5DefaultPolicy>
-struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
+template <typename Problem, typename Policy = GemmPipelineAgBgCrCompV6DefaultPolicy>
+struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
 {
-    using Base             = BaseGemmPipelineAgBgCrCompV5<Problem>;
+    using Base             = BaseGemmPipelineAgBgCrCompV6<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;

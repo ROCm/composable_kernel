@@ -211,7 +211,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             RunSplitk(ck_tile::bool_constant<true>{},
                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
         }
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V5)
+#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V6)
         if(tail_num == ck_tile::TailNumber::Three)
         {
             RunSplitk(

@@ -9,13 +9,13 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 
 namespace ck_tile {
-// Default policy for GemmPipelineAGmemBGmemCregComputeV5, except the block gemm method, it shares
+// Default policy for GemmPipelineAGmemBGmemCregComputeV6, except the block gemm method, it shares
 // the same vector size implementation, SmemSize, Global memory tile distiribution as the
 // UniversalGemm Pipeline Policy.
 // Default policy class should not be templated, put template on
 // member functions instead.
-struct GemmPipelineAgBgCrCompV5DefaultPolicy
-    : public UniversalGemmBasePolicy<GemmPipelineAgBgCrCompV5DefaultPolicy>
+struct GemmPipelineAgBgCrCompV6DefaultPolicy
+    : public UniversalGemmBasePolicy<GemmPipelineAgBgCrCompV6DefaultPolicy>
 {
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
