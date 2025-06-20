@@ -854,17 +854,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 
         // dS_i_j = P_i_j .* (dP_i_j - dO_i dot O_i)
-        ds_hp_host_ref.ForEach([&](auto& self, auto idx_gmn) {
-            AccDataType do_dot_o = 0;
-            for(int o = 0; o < hdim_v; o++)
-            {
-                do_dot_o +=
-                    ck_tile::type_convert<AccDataType>(do_host_ref(idx_gmn[0], idx_gmn[1], o)) *
-                    ck_tile::type_convert<AccDataType>(o_host_refs[wb](idx_gmn[0], idx_gmn[1], o));
-            }
-            self(idx_gmn) = ck_tile::type_convert<AccDataType>(
-                p_hp_host_refs[wb](idx_gmn) * (dp_hp_host_ref(idx_gmn) - do_dot_o));
-        });
+        ck_tile::make_ParallelTensorFunctor(
+            [&](auto i0, auto i1, auto i2) {
+                AccDataType do_dot_o = 0;
+                for(int o = 0; o < hdim_v; o++)
+                {
+                    do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(i0, i1, o)) *
+                                ck_tile::type_convert<AccDataType>(o_host_refs[wb](i0, i1, o));
+                }
+                ds_hp_host_ref(i0, i1, i2) = ck_tile::type_convert<AccDataType>(
+                    p_hp_host_refs[wb](i0, i1, i2) * (dp_hp_host_ref(i0, i1, i2) - do_dot_o));
+            },
+            ds_hp_host_ref.mDesc.get_lengths()[0],
+            ds_hp_host_ref.mDesc.get_lengths()[1],
+            ds_hp_host_ref.mDesc.get_lengths()[2])(std::thread::hardware_concurrency());
 
         if(use_dbias)
         {
