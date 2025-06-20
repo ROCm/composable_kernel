@@ -370,6 +370,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
                              is_same_v<ComputeTypeB, half_t>)
                 {
+                    add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_16x16_instances(
+                        op_ptrs);
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
                         op_ptrs);
 
@@ -427,6 +429,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<ComputeTypeA, ck::bhalf_t> &&
                              is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
+                    add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_16x16_instances(
+                        op_ptrs);
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
                         op_ptrs);
 
@@ -616,6 +620,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
                              is_same_v<ComputeTypeB, half_t>)
                 {
+                    add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_16x16_instances(
+                        op_ptrs);
                     add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                         op_ptrs);
 
@@ -673,6 +679,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<ComputeTypeA, ck::bhalf_t> &&
                              is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
+                    add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_16x16_instances(
+                        op_ptrs);
                     add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
                         op_ptrs);
 
