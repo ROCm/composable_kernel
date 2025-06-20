@@ -372,7 +372,12 @@ def cmake_build(Map conf=[:]){
                 archiveArtifacts "clang_build_analysis.log"
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
-                    sh "../script/launch_tests.sh"
+                    if (!params.RUN_ALL_UNIT_TESTS){
+                        sh "../script/launch_tests.sh"
+                    }
+                    else{
+                        sh "ninja check"
+                    }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
                     // build deb packages
@@ -386,7 +391,12 @@ def cmake_build(Map conf=[:]){
             else{
                 // run unit tests unless building library for all targets
                 if (!params.BUILD_INSTANCES_ONLY){
-                    sh "../script/launch_tests.sh"
+                    if (!params.RUN_ALL_UNIT_TESTS){
+                        sh "../script/launch_tests.sh"
+                    }
+                    else{
+                        sh "ninja check"
+                    }
                 }
             }
         }
@@ -852,8 +862,8 @@ pipeline {
             description: "Run the cppcheck static analysis (default: OFF)")
         booleanParam(
             name: "RUN_PERFORMANCE_TESTS",
-            defaultValue: true,
-            description: "Run the performance tests (default: ON)")
+            defaultValue: false,
+            description: "Run the performance tests (default: OFF)")
         booleanParam(
             name: "RUN_GROUPED_CONV_LARGE_CASES_TESTS",
             defaultValue: false,
@@ -906,6 +916,10 @@ pipeline {
             name: "RUN_INDUCTOR_TESTS",
             defaultValue: true,
             description: "Run inductor codegen tests (default: ON)")
+        booleanParam(
+            name: "RUN_ALL_UNIT_TESTS",
+            defaultValue: false,
+            description: "Run all unit tests (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
