@@ -109,8 +109,7 @@
         },
         "epilogue": {
             "values": [
-                "cshuffle",
-                "default"
+                "cshuffle"
             ]
         },
         "pad_m": {

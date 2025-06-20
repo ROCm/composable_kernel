@@ -38,7 +38,7 @@ foreach(blob ${GEMM_CODEGEN_BLOBS})
 endforeach()
 
 
-set(chunk_size 9)
+set(chunk_size 15)
 set(chunk_index 0)
 set(intermediate_libs "")
 
