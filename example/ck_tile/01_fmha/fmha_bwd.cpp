@@ -756,22 +756,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(p_drop > 0)
         {
-            p_hp_host_ref.ForEach(
-                [&](auto& self, auto idx) { p_dropped_hp_host_ref(idx) = self(idx); });
+            p_dropped_hp_host_ref = p_hp_host_ref;
             randval_host_ref.ForEach([&](auto& self, auto idx) {
                 self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
             ck_tile::reference_batched_dropout(
                 p_dropped_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
-            p_dropped_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-            });
+            p_lp_host_ref = p_dropped_hp_host_ref.template CopyAsType<GemmDataType>();
         }
         else
         {
-            p_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-            });
+            p_lp_host_ref = p_hp_host_ref.template CopyAsType<GemmDataType>();
         }
 
         // O = P * V
@@ -871,14 +866,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(use_dbias)
         {
-            ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                dbias_host_ref(idx) = ck_tile::type_convert<BiasGradDataType>(self(idx));
-            });
+            dbias_host_ref = ds_hp_host_ref.template CopyAsType<BiasGradDataType>();
         }
 
-        ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-            ds_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
-        });
+        ds_lp_host_ref = ds_hp_host_ref.template CopyAsType<GemmDataType>();
 
         // dV = P_drop^T@dO^T
         // dV = P^T@dO^T w/o dropout
