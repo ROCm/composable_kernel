@@ -902,8 +902,9 @@ struct buffer_view<address_space_enum::lds,
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto
-    transpose_get(index_t i, index_t linear_offset, bool is_valid_element) const
+    CK_TILE_DEVICE constexpr auto transpose_get([[maybe_unused]] index_t i,
+                                                [[maybe_unused]] index_t linear_offset,
+                                                bool is_valid_element) const
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -913,13 +914,16 @@ struct buffer_view<address_space_enum::lds,
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
-        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
         if(is_valid_element)
         {
+#if defined(__gfx950__)
+            constexpr index_t t_per_x               = scalar_per_x_vector / scalar_per_t_vector;
             constexpr address_space_enum addr_space = get_address_space();
             return amd_transpose_load_to_vgpr<remove_cvref_t<T>, t_per_x, addr_space>(
                 p_data_ + i + linear_offset);
+#else
+            return X{numeric<remove_cvref_t<T>>::zero()};
+#endif
         }
         else
         {

@@ -2784,10 +2784,13 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
 #endif
 }
 
+#if defined(__gfx950__)
 template <typename T, index_t N, address_space_enum BufferAddressSpace>
 __device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
 {
 
+    static_assert(__has_builtin(__builtin_amdgcn_raw_buffer_load_b32),
+                  "We need to have the compatible compiler version to build this instruction");
     if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::half_t>)
     {
         typedef __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16 llvm_fp16x4_t;
@@ -2817,6 +2820,7 @@ __device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
         static_assert(false, "not implemented");
     }
 }
+#endif
 
 } // namespace ck_tile
 
