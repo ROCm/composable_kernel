@@ -426,10 +426,11 @@ struct UniversalGemmBasePolicy
     {
         using ALayout = remove_cvref_t<typename Problem::ALayout>;
 
-        constexpr index_t BlockSize     = Problem::kBlockSize;
-        constexpr index_t MPerBlock     = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock     = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize   = GetVectorSizeA<Problem>();
+        constexpr index_t BlockSize = Problem::kBlockSize;
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize =
+            Problem::FixedVectorSize ? Problem::VectorSizeA : GetVectorSizeA<Problem>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
         // Tile: MPerBlock X KPerBlock
@@ -461,10 +462,11 @@ struct UniversalGemmBasePolicy
     {
         using BLayout = remove_cvref_t<typename Problem::BLayout>;
 
-        constexpr index_t BlockSize     = Problem::kBlockSize;
-        constexpr index_t NPerBlock     = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock     = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize   = GetVectorSizeB<Problem>();
+        constexpr index_t BlockSize = Problem::kBlockSize;
+        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize =
+            Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
         // Tile: KPerBlock X NPerBlock
