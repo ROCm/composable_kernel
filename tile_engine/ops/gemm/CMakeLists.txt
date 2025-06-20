@@ -17,15 +17,6 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/gemm_instance_blobs.txt GEMM_CODEGEN_BL
 set(GEMM_CODEGEN_CPP_FILES "")
 set(GEMM_CODEGEN_HPP_FILES "")
 
-foreach(blob ${GEMM_CODEGEN_BLOBS})
-    string(STRIP "${blob}" stripped_blob)
-    
-    if(stripped_blob MATCHES "\\.cpp$")
-        list(APPEND GEMM_CODEGEN_CPP_FILES "${stripped_blob}")
-    elseif(stripped_blob MATCHES "\\.hpp$")
-        list(APPEND GEMM_CODEGEN_HPP_FILES "${stripped_blob}")
-    endif()
-endforeach()
 
 add_custom_command(
     OUTPUT  ${GEMM_CODEGEN_BLOBS}
@@ -35,7 +26,45 @@ add_custom_command(
             --gen_blobs
 )
 
-add_library(gemm_template_instances OBJECT EXCLUDE_FROM_ALL ${GEMM_CODEGEN_CPP_FILES})
+foreach(blob ${GEMM_CODEGEN_BLOBS})
+    string(STRIP "${blob}" stripped_blob)
+    
+    if(stripped_blob MATCHES "\\.cpp$")
+        message(STATUS "Adding gemm codegen file: ${stripped_blob}")
+        list(APPEND GEMM_CODEGEN_CPP_FILES "${stripped_blob}")
+    elseif(stripped_blob MATCHES "\\.hpp$")
+        list(APPEND GEMM_CODEGEN_HPP_FILES "${stripped_blob}")
+    endif()
+endforeach()
+
+
+set(chunk_size 15)
+set(chunk_index 0)
+set(intermediate_libs "")
+
+list(LENGTH GEMM_CODEGEN_CPP_FILES total_files)
+message(STATUS "Total gemm codegen files: ${total_files}")
+math(EXPR num_chunks "( ${total_files} + ${chunk_size} - 1 ) / ${chunk_size}")
+
+foreach(i RANGE 0 ${num_chunks})
+    set(chunk_files "")
+    math(EXPR start "${i} * ${chunk_size}")
+    math(EXPR end "${start} + ${chunk_size} - 1")
+    foreach(j RANGE ${start} ${end})
+        if(j LESS total_files)
+            list(GET GEMM_CODEGEN_CPP_FILES ${j} file)
+            list(APPEND chunk_files ${file})
+        endif()
+    endforeach()
+    if(chunk_files)
+        set(lib_name "gemm_objlib_${i}")
+        add_library(${lib_name} OBJECT ${chunk_files})
+        list(APPEND intermediate_libs $<TARGET_OBJECTS:${lib_name}>)
+    endif()
+endforeach()
+add_library(gemm_template_instances STATIC EXCLUDE_FROM_ALL ${intermediate_libs})
+
+#add_library(gemm_template_instances STATIC EXCLUDE_FROM_ALL ${GEMM_CODEGEN_CPP_FILES})
 # Explicitly set LINKER_LANGUAGE to avoid build config failures with Ninja.
 set_target_properties(gemm_template_instances PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(gemm_template_instances PRIVATE ${CMAKE_CURRENT_LIST_DIR})
