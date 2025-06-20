@@ -16,7 +16,6 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_n = Softmax(A_g_m_k * B0_g
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -44,14 +43,6 @@ using Acc0DataType     = F32;
 using Acc1DataType     = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
-using Acc0BiasDataType = ck::Tuple<>;
-using Acc1BiasDataType = ck::Tuple<>;
-
-static constexpr ck::index_t NumDimG = 2;
-static constexpr ck::index_t NumDimM = 1;
-static constexpr ck::index_t NumDimN = 1;
-static constexpr ck::index_t NumDimK = 1;
-static constexpr ck::index_t NumDimO = 1;
 
 using AElementOp    = PassThrough;
 using B0ElementOp   = PassThrough;
@@ -60,11 +51,6 @@ using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
-
-static constexpr auto TensorSpecA  = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
-static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
 
 // clang-format off
 #define CK_MHA_USE_WAVE_1
@@ -76,10 +62,9 @@ using DeviceMHAFactory =
 #ifdef CK_MHA_USE_WAVE_1
         // 1 wave, mrepeat = 1, nrepeat = 2, k/o repeat = 1~5
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
-            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
-            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            GemmSpec, 1,
             32,
             //      Gemm 0
             16, 128, 64, 8,  8,
@@ -97,10 +82,9 @@ using DeviceMHAFactory =
             // CShuffleBlockTransfer MN
             1, 1, S<1, 16, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
-            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
-            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            GemmSpec, 1,
             32,
             //      Gemm 0
             16, 64, 64, 8,  8,
@@ -120,10 +104,9 @@ using DeviceMHAFactory =
 #endif
 #ifdef CK_MHA_USE_WAVE_2
          ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
-            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
-            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            GemmSpec, 1,
             64,
             //      Gemm 0
             32, 128, 64, 8, 8,
@@ -141,10 +124,9 @@ using DeviceMHAFactory =
             // CShuffleBlockTransfer MN
             1, 1, S<1, 32, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
-            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
-            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            GemmSpec, 1,
             64,
             //      Gemm 0
             32, 64, 64, 8, 8,
@@ -164,10 +146,9 @@ using DeviceMHAFactory =
 #endif
 #ifdef CK_MHA_USE_WAVE_4
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
-            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
-            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            GemmSpec, 1,
             128,
             //      Gemm 0
             64, 128, 64, 8, 8,
@@ -185,10 +166,9 @@ using DeviceMHAFactory =
             // CShuffleBlockTransfer MN
             1, 1, S<1, 64, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
-            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
-            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            GemmSpec, 1,
             128,
             //      Gemm 0
             64, 64, 64, 8, 8,
@@ -208,10 +188,9 @@ using DeviceMHAFactory =
 #endif
 #ifdef CK_MHA_USE_WAVE_8
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
-            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
-            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            GemmSpec, 1,
             256,
             //      Gemm 0
             128, 128, 64, 8, 8,   
@@ -229,10 +208,9 @@ using DeviceMHAFactory =
             // CShuffleBlockTransfer MN
             1, 1, S<1, 128, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
-            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
-            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            GemmSpec, 1,
             256,
             //      Gemm 0
             128, 128, 64, 8, 8,   

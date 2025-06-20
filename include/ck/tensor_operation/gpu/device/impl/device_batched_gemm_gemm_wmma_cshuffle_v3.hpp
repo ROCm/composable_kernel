@@ -166,18 +166,11 @@ __global__ void
 //         MN = MK * KL * LN
 //              ^^^^^^ (Acc0)
 //              ^^^^^^^^^^^ (Acc1)
-template <index_t NumDimG,
-          index_t NumDimM,
-          index_t NumDimL,
-          index_t NumDimK,
-          index_t NumDimN,
-          typename ADataType,
+template <typename ADataType,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
-          typename Acc0BiasDataType,
           typename Acc0DataType,
-          typename Acc1BiasDataType,
           typename Acc1DataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
@@ -186,10 +179,6 @@ template <index_t NumDimG,
           typename B1ElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
-          TensorSpecialization ASpec,
-          TensorSpecialization B0Spec,
-          TensorSpecialization B1Spec,
-          TensorSpecialization CSpec,
           ck::index_t NumPrefetch,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
@@ -249,22 +238,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
                                    B1ElementwiseOperation,
                                    CElementwiseOperation>
 {
-    static_assert(NumDimG > 0 && NumDimM > 0 && NumDimL > 0 && NumDimK > 0 && NumDimN > 0,
-                  "Number of dimension must be greater than 0");
-
-    static constexpr index_t NumAcc0Bias = Acc0BiasDataType::Size();
-    static constexpr index_t NumAcc1Bias = Acc1BiasDataType::Size();
-
-    // TODO ANT: implement bias combination
-    static_assert(NumAcc0Bias == 0 && NumAcc0Bias == 0, "Bias addition is unimplemented");
-
-    static constexpr index_t NumDimGemm0M = NumDimM;
-    static constexpr index_t NumDimGemm0N = NumDimL;
-    static constexpr index_t NumDimGemm0K = NumDimK;
-    static constexpr index_t NumDimGemm1M = NumDimM;
-    static constexpr index_t NumDimGemm1N = NumDimN;
-    static constexpr index_t NumDimGemm1K = NumDimL;
-
     using DeviceOp = DeviceBatchedGemmGemm_Wmma_CShuffleV3;
 
     static constexpr auto I0 = Number<0>{};
@@ -293,18 +266,20 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
     static constexpr auto B0EnableLds = B0EnableLds_auto || B0EnableLds_manu || (NumPrefetch > 1);
     static constexpr auto B1EnableLds = B1EnableLds_auto || B1EnableLds_manu || (NumPrefetch > 1);
 
+    // TODO: Now that we are no longer using NumDim or TensorSpec, we can probably use a simpler
+    // Transform operator or just not use one at all.
     using Transform = TransformBatchedContractionContractionToBatchedGemmGemm_Wmma<
-        Sequence<NumDimG, NumDimM, NumDimL, NumDimK, NumDimN>,
+        Sequence<2, 1, 1, 1, 1>,
         Sequence<MPerBlock, LPerBlock, KPerBlock, NPerBlock>,
         GemmSpec,
-        ASpec,
-        B0Spec,
-        B1Spec,
-        CSpec>;
+        TensorSpecialization::Default,  // ASpec
+        TensorSpecialization::Default,  // B0Spec
+        TensorSpecialization::Default,  // B1Spec
+        TensorSpecialization::Default>; // CSpec
 
-    __host__ __device__ static auto MakeAGridDescriptor(
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_lengths_vec,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& a_gs_ms_ks_strides_vec)
+    __host__ __device__ static auto
+    MakeAGridDescriptor(const std::array<index_t, 4>& a_gs_ms_ks_lengths_vec,
+                        const std::array<index_t, 4>& a_gs_ms_ks_strides_vec)
     {
         if constexpr(AEnableLds)
         {
@@ -326,9 +301,9 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
         }
     }
 
-    __host__ __device__ static auto MakeB0GridDescriptor(
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ls_ks_lengths_vec,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b0_gs_ls_ks_strides_vec)
+    __host__ __device__ static auto
+    MakeB0GridDescriptor(const std::array<index_t, 4>& b0_gs_ls_ks_lengths_vec,
+                         const std::array<index_t, 4>& b0_gs_ls_ks_strides_vec)
     {
         if constexpr(B0EnableLds)
         {
@@ -351,9 +326,9 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
         }
     }
 
-    __host__ __device__ static auto MakeB1GridDescriptor(
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_ns_ls_lengths_vec,
-        const std::array<index_t, NumDimG + NumDimM + NumDimN>& b1_gs_ns_ls_strides_vec)
+    __host__ __device__ static auto
+    MakeB1GridDescriptor(const std::array<index_t, 4>& b1_gs_ns_ls_lengths_vec,
+                         const std::array<index_t, 4>& b1_gs_ns_ls_strides_vec)
     {
         if constexpr(B1EnableLds)
         {
@@ -661,18 +636,10 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
             return false;
         }
 
-        std::array<index_t, NumDimG + NumDimM + NumDimN> a_mz_kz_strides_{
-            a_gs_ms_ks_strides[NumDimG + NumDimM - 1],
-            a_gs_ms_ks_strides[NumDimG + NumDimM + NumDimK - 1]};
-        std::array<index_t, NumDimG + NumDimM + NumDimN> b0_lz_kz_strides_{
-            b0_gs_ns_ks_strides[NumDimG + NumDimL - 1],
-            b0_gs_ns_ks_strides[NumDimG + NumDimL + NumDimK - 1]};
-        std::array<index_t, NumDimG + NumDimM + NumDimN> b1_nz_lz_strides_{
-            b1_gs_os_ns_strides[NumDimG + NumDimN - 1],
-            b1_gs_os_ns_strides[NumDimG + NumDimN + NumDimL - 1]};
-        std::array<index_t, NumDimG + NumDimM + NumDimN> c_mz_nz_strides_{
-            c_gs_ms_os_strides[NumDimG + NumDimM - 1],
-            c_gs_ms_os_strides[NumDimG + NumDimM + NumDimN - 1]};
+        std::array<index_t, 4> a_mz_kz_strides_{a_gs_ms_ks_strides[2], a_gs_ms_ks_strides[3]};
+        std::array<index_t, 4> b0_lz_kz_strides_{b0_gs_ns_ks_strides[2], b0_gs_ns_ks_strides[3]};
+        std::array<index_t, 4> b1_nz_lz_strides_{b1_gs_os_ns_strides[2], b1_gs_os_ns_strides[3]};
+        std::array<index_t, 4> c_mz_nz_strides_{c_gs_ms_os_strides[2], c_gs_ms_os_strides[3]};
 
         // Check vector load/store requirement
         const auto a_stride_lowest =
@@ -856,11 +823,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
             << NPerBlock << ", "
             << LTilePerBlock << ", "
             << L1 << ", "
-            << getGemmSpecializationString(GemmSpec) << ", "
-            << "ASpec" << getTensorSpecializationString(ASpec) << ", "
-            << "B0Spec" << getTensorSpecializationString(B0Spec) << ", "
-            << "B1Spec" << getTensorSpecializationString(B1Spec) << ", "
-            << "CSpec" << getTensorSpecializationString(CSpec)
+            << getGemmSpecializationString(GemmSpec)
             << ">"
             << " AEnableLds: "
             << AEnableLds << ", "
