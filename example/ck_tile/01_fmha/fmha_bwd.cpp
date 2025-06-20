@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "fmha_bwd.hpp"
 #include "ck_tile/host.hpp"
@@ -858,10 +858,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
             AccDataType do_dot_o = 0;
             for(int o = 0; o < hdim_v; o++)
             {
-                auto idx_gmo = idx_gmn;
-                idx_gmo[2]   = o;
-                do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(idx_gmo)) *
-                            ck_tile::type_convert<AccDataType>(o_host_refs[wb](idx_gmo));
+                do_dot_o +=
+                    ck_tile::type_convert<AccDataType>(do_host_ref(idx_gmn[0], idx_gmn[1], o)) *
+                    ck_tile::type_convert<AccDataType>(o_host_refs[wb](idx_gmn[0], idx_gmn[1], o));
             }
             self(idx_gmn) = ck_tile::type_convert<AccDataType>(
                 p_hp_host_refs[wb](idx_gmn) * (dp_hp_host_ref(idx_gmn) - do_dot_o));
