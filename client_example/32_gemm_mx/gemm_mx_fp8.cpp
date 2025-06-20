@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 #include <iomanip>
 #include <vector>
 #include <iostream>
@@ -11,15 +11,6 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_mx.hpp"
 #include "ck/library/tensor_operation_instance/gpu/gemm_mx.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx.hpp"
-
-#ifdef VERIFY
-#include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_mx_gemm.hpp"
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/fill.hpp"
-#include <type_traits>
-#endif
 
 using F16 = ck::half_t;
 using F32 = float;
@@ -96,10 +87,6 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
     }
 }
 
-#ifdef VERIFY
-using AccDataType = float;
-#endif
-
 struct SimpleDeviceMem
 {
     SimpleDeviceMem() = delete;
@@ -111,24 +98,6 @@ struct SimpleDeviceMem
     }
 
     void* GetDeviceBuffer() { return p_mem_; }
-
-#ifdef VERIFY
-    void FromDevice(void* p) const
-    {
-        if(p_mem_)
-        {
-            HIP_CHECK_ERROR(hipMemcpy(p, p_mem_, mem_size_, hipMemcpyDeviceToHost));
-        }
-    }
-    void ToDevice(const void* p) const
-    {
-        if(p_mem_)
-        {
-            HIP_CHECK_ERROR(
-                hipMemcpy(p_mem_, const_cast<void*>(p), mem_size_, hipMemcpyHostToDevice));
-        }
-    }
-#endif
 
     ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
 
@@ -220,72 +189,6 @@ int main(int argc, char* argv[])
         sizeof(XDataType) *
         f_matrix_space_size(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
 
-    /* initialize data */
-#ifdef VERIFY
-    /* host */
-    auto f_host_tensor_descriptor =
-        [](ck::index_t row, ck::index_t col, ck::index_t stride, auto layout) {
-            if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
-                return HostTensorDescriptor({row, col}, {stride, 1});
-            else
-                return HostTensorDescriptor({row, col}, {1, stride});
-        };
-    Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-    Tensor<ADataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
-    Tensor<XDataType> a_m_k_scale(f_host_tensor_descriptor(
-        Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
-    Tensor<XDataType> b_k_n_scale(
-        f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
-    Tensor<CDataType> c_m_n_host_result(
-        f_host_tensor_descriptor(M, N, StrideC, CLayout{})); // host verification
-    Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
-
-    int init_method = 2;
-    switch(init_method)
-    {
-    case 0:
-        ck::utils::FillConstant<ADataType>{ck::type_convert<ADataType>(1.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
-        ck::utils::FillConstant<BDataType>{ck::type_convert<BDataType>(0.5f)}(b_k_n);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(b_k_n_scale);
-        break;
-    case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 6}); // Z[-5,5]
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 6}); // Z[-5,5]
-        static_assert(ck::is_same_v<XDataType, ck::e8m0_bexp_t>);
-        a_m_k_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
-        b_k_n_scale.GenerateTensorValue(
-            GeneratorTensor_2<XDataType>{125, 129}); // scales: {0.25, 0.5, 1, 2}
-        break;
-    default:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2.0, 2.0});
-        a_m_k_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
-
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2.0, 2.0});
-        b_k_n_scale.GenerateTensorValue(GeneratorTensor_3<XDataType>{powf(2.0f, -125.0f), 1.0f});
-        break;
-    }
-
-    // shuffled scales for A and B
-    Tensor<XDataType> a_shuffled_scale(f_host_tensor_descriptor(
-        Scale_Padded_M, K / ScaleBlockSize, Scale_Stride_AM, AScaleLayout{}));
-    Tensor<XDataType> b_shuffled_scale(
-        f_host_tensor_descriptor(K / ScaleBlockSize, N, Scale_Stride_BN, BScaleLayout{}));
-
-    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(a_m_k_scale.mData.data(),
-                                                       a_shuffled_scale.mData.data(),
-                                                       Scale_Padded_M,
-                                                       K / ScaleBlockSize);
-    preShuffleScaleBuffer<ck::is_same_v<BLayout, Col>>(
-        b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
-
-    a_device_buf.ToDevice(a_m_k.mData.data());
-    b_device_buf.ToDevice(b_k_n.mData.data()); // b_input ?
-    a_scale_device_buf.ToDevice(a_shuffled_scale.mData.data());
-    b_scale_device_buf.ToDevice(b_shuffled_scale.mData.data());
-#endif
-
     using DeviceOp =
         ck::tensor_operation::device::DeviceGemmMX<ALayout,
                                                    BLayout,
@@ -351,67 +254,6 @@ int main(int argc, char* argv[])
         {
             float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
-#ifdef VERIFY
-            int verbosity     = 1;
-            bool res_verified = true;
-            c_device_buf.FromDevice(c_m_n_device_result.mData.data());
-
-            if(verbosity > 0)
-            {
-                std::cout << "Done." << std::endl;
-                std::cout << "Computing GEMM on host..." << std::endl;
-            }
-
-            using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMXGemm<ADataType,
-                                                                                      BDataType,
-                                                                                      CDataType,
-                                                                                      AccDataType,
-                                                                                      XDataType,
-                                                                                      PassThrough,
-                                                                                      PassThrough,
-                                                                                      PassThrough,
-                                                                                      float,
-                                                                                      float>;
-            auto ref_gemm               = ReferenceGemmInstance{};
-            auto ref_invoker            = ref_gemm.MakeInvoker();
-
-            auto ref_argument = ref_gemm.MakeArgument(a_m_k,
-                                                      a_m_k_scale,
-                                                      b_k_n,
-                                                      b_k_n_scale,
-                                                      c_m_n_host_result,
-                                                      PassThrough{},
-                                                      PassThrough{},
-                                                      PassThrough{});
-
-            ref_invoker.Run(ref_argument);
-
-            if(verbosity > 0)
-            {
-                std::cout << "Done." << std::endl;
-                std::cout << "Comparing results..." << std::endl;
-            }
-
-            if(init_method == 0)
-            {
-                auto expected = static_cast<float>(K);
-                auto computed = ck::type_convert<float>(c_m_n_device_result(1, 1));
-
-                res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
-                std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
-                          << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl
-                          << std::endl;
-            }
-
-            res_verified = res_verified && ck::utils::check_err(c_m_n_device_result,
-                                                                c_m_n_host_result,
-                                                                "Error: Incorrect results!",
-                                                                5e-1,
-                                                                5e-1);
-
-            if(verbosity > 0 && res_verified)
-                std::cout << "Verification Successful!" << std::endl;
-#endif
             std::size_t flop =
                 std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / ScaleBlockSize;
 
