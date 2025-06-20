@@ -1779,17 +1779,17 @@ struct TransformConv
         if(NDimSpatial == 2)
         {
             return conv_fwd_to_gemm
-                .template MakeCDescriptor_M_N<ck::tensor_layout::convolution::NHWGK, 2>();
+                .template MakeCDescriptor_M_N<ck::tensor_layout::convolution::NHWGK, false, 2>();
         }
         else if(NDimSpatial == 3)
         {
             return conv_fwd_to_gemm
-                .template MakeCDescriptor_M_N<tensor_layout::convolution::NDHWGK, 3>();
+                .template MakeCDescriptor_M_N<tensor_layout::convolution::NDHWGK, false, 3>();
         }
         else if(NDimSpatial == 1)
         {
             return conv_fwd_to_gemm
-                .template MakeCDescriptor_M_N<tensor_layout::convolution::NWGK, 1>();
+                .template MakeCDescriptor_M_N<tensor_layout::convolution::NWGK, false, 1>();
         }
     }
 };
