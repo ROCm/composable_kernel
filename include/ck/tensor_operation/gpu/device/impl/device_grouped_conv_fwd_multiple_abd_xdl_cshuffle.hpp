@@ -381,11 +381,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-             is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-             ctc::NHWGC,
-             std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-                                ctc::NDHWGC,
-                                ALay>>;
+            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+            ctc::NHWGC,
+            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+                               ctc::NDHWGC,
+                               ALay>>;
 
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<Layout>();
@@ -401,11 +401,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-             is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-             ctc::GKYXC,
-             std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-                                ctc::GKZYXC,
-                                BLay>>;
+            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+            ctc::GKYXC,
+            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+                               ctc::GKZYXC,
+                               BLay>>;
 
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<Layout>();
@@ -421,11 +421,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-             is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-             ctc::NHWGK,
-             std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
-                                ctc::NDHWGK,
-                                ELay>>;
+            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+            ctc::NHWGK,
+            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTransposeKernel,
+                               ctc::NDHWGK,
+                               ELay>>;
 
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<Layout, CTranspose>();
@@ -536,10 +536,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         std::conditional_t<isMultiB, std::array<const void*, NumBTensor>&, const void*>;
     // Use Tuple for the both cases for GridPointer to initialize it in Argument constructor (not
     // in initializer list what is required for single const pointer).
-    using AGridPointer =
-        remove_cvref_t<decltype(GetAGridPointer<isMultiA || isMultiB, GridwiseGemm, ADataType>())>;
-    using BGridPointer =
-        remove_cvref_t<decltype(GetBGridPointer<isMultiA || isMultiB, GridwiseGemm, BDataType>())>;
+    using AGridPointer = remove_cvref_t<
+        decltype(GetAGridPointer < isMultiA || isMultiB, GridwiseGemm, ADataType > ())>;
+    using BGridPointer = remove_cvref_t<
+        decltype(GetBGridPointer < isMultiA || isMultiB, GridwiseGemm, BDataType > ())>;
 
     // desc for blockwise copy
     using AGridDesc_AK0_M_AK1 =
