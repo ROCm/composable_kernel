@@ -634,7 +634,7 @@ option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
 add_subdirectory(library)
 
-if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
+if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY)
    rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
