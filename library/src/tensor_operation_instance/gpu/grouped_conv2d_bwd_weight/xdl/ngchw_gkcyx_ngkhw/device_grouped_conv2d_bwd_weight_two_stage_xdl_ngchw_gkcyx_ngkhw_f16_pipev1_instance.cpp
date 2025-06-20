@@ -25,7 +25,7 @@ void add_device_grouped_conv2d_bwd_weight_two_stage_xdl_ngchw_gkcyx_ngkhw_f16_pi
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_f16_generic_instances<
+        device_grouped_conv_bwd_weight_two_stage_ngchw_xdl_c_shuffle_f16_instances<
             2,
             NGCHW,
             GKCYX,

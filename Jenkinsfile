@@ -12,6 +12,23 @@ def show_node_info() {
     """
 }
 
+class Version {
+    int major, minor, patch
+    @Override
+    String toString() {
+        return [major, minor, patch].findAll().join('.')
+    }
+}
+def parseVersion(String versionString) {
+    if (!versionString) return null
+    int[] tokens = versionString.split(/\./).collect { it as int } // Splits the string by '.' and converts each part to an integer.
+    return new Version(
+        major: tokens[0],
+        minor: tokens.length > 1 ? tokens[1] : null,
+        patch: tokens.length > 2 ? tokens[2] : null,
+    )
+}
+
 def nthreads() {
     def nproc = sh(returnStdout: true, script: 'nproc')
     echo "Number of cores: ${nproc}"
@@ -38,8 +55,8 @@ def getBaseDockerImageName(){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-        def ROCM_numeric = "${params.ROCMVERSION}" as float
-        if ( ROCM_numeric < 6.5 ){
+        def ROCM_numeric = parseVersion("${params.ROCMVERSION}")
+        if ( ROCM_numeric.major <= 6 && ROCM_numeric.minor < 5 ){
             img = "${env.CK_DOCKERHUB}:ck_ub24.04_rocm${params.ROCMVERSION}"
             }
         else{
@@ -93,6 +110,33 @@ def build_compiler(){
     return compiler
 }
 
+def check_arch(){
+    def arch_type = 0
+    sh 'rocminfo | tee rocminfo.log'
+    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
+        arch_type = 1
+    }
+    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
+        arch_type = 2
+    }
+    else if ( runShell('grep -n "gfx10" rocminfo.log') ) {
+        arch_type = 3
+    }
+    else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
+        arch_type = 4
+    }
+    else if ( runShell('grep -n "gfx12" rocminfo.log') ) {
+        arch_type = 5
+    }
+    else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
+        arch_type = 6
+    }
+    else if ( runShell('grep -n "gfx950" rocminfo.log') ) {
+        arch_type = 7
+    }
+    return arch_type
+}
+
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
     def prefixpath = conf.get("prefixpath", "/opt/rocm")
@@ -107,6 +151,10 @@ def getDockerImage(Map conf=[:]){
     if ( params.BUILD_LEGACY_OS && conf.get("docker_name", "") != "" ){
         image = conf.get("docker_name", "")
         echo "Using legacy docker: ${image}"
+    }
+    else if ( params.BUILD_GFX950 && conf.get("docker_name", "") != "" ){
+        image = conf.get("docker_name", "")
+        echo "Using special docker: ${image}"
     }
     else{
         image = getDockerImageName()
@@ -184,6 +232,11 @@ def cmake_build(Map conf=[:]){
 
     def build_type_debug = (conf.get("build_type",'release') == 'debug')
 
+    // use special compiler for gfx950
+    if ( check_arch() == 7){
+        compiler = "/llvm-project/build/bin/clang++"
+    }
+
     //cmake_env can overwrite default CXX variables.
     def cmake_envs = "CXX=${compiler} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
 
@@ -239,6 +292,9 @@ def cmake_build(Map conf=[:]){
     if (setup_args.contains("gfx94")){
         invocation_tag="gfx94"
     }
+    if (setup_args.contains("gfx95")){
+        invocation_tag="gfx95"
+    }
     echo "invocation tag: ${invocation_tag}"
     def redis_pre_setup_cmd = pre_setup_cmd
     if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
@@ -287,7 +343,7 @@ def cmake_build(Map conf=[:]){
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
+        if (setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE){
             echo "running ninja build trace"
             setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
             build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
@@ -315,7 +371,7 @@ def cmake_build(Map conf=[:]){
         sh cmd
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
+            if ((setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE) || params.BUILD_INSTANCES_ONLY){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
                 sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
                 sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
@@ -323,7 +379,15 @@ def cmake_build(Map conf=[:]){
                 archiveArtifacts "clang_build_analysis.log"
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
-                    sh "ninja test"
+                    sh "ninja check"
+                }
+                if(params.BUILD_INSTANCES_ONLY){
+                    // build deb packages
+                    echo "Build packages"
+                    sh 'ninja -j64 package'
+                    archiveArtifacts artifacts: 'composablekernel-dev*.deb'
+                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.1.0_amd64.deb'
+                    stash includes: "composablekernel-dev_all_targets_1.1.0_amd64.deb", name: "packages"
                 }
             }
             else{
@@ -340,22 +404,29 @@ def cmake_build(Map conf=[:]){
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
     //check the node gpu architecture
-    def arch_type = 0
-    sh 'rocminfo | tee rocminfo.log'
-    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
-        arch_type = 1
-    }
-    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
-        arch_type = 2
-    }
+    def arch = check_arch()
     if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
             archiveArtifacts "perf_fmha_*.log"
-            if (arch_type == 1){
+            if (arch == 1){
                 stash includes: "perf_fmha_**_gfx90a.log", name: "perf_fmha_log_gfx90a"
             }
-            else if (arch_type == 2){
+            else if (arch == 2){
                 stash includes: "perf_fmha_**_gfx942.log", name: "perf_fmha_log_gfx942"
+            }
+        }
+        catch(Exception err){
+            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
+        }
+    }
+    if (params.RUN_CK_TILE_TRANSPOSE_TESTS){
+        try{
+            archiveArtifacts "perf_transpose_*.log"
+            if (arch_type == 1){
+                stash includes: "perf_transpose_**_gfx90a.log", name: "perf_transpose_log_gfx90a"
+            }
+            else if (arch_type == 2){
+                stash includes: "perf_transpose_**_gfx942.log", name: "perf_transpose_log_gfx942"
             }
         }
         catch(Exception err){
@@ -365,10 +436,10 @@ def cmake_build(Map conf=[:]){
     if (params.RUN_CK_TILE_GEMM_TESTS){
         try{
             archiveArtifacts "perf_tile_gemm_**.log"
-            if (arch_type == 1){
+            if (arch == 1){
                 stash includes: "perf_tile_gemm_**_gfx90a.log", name: "perf_tile_gemm_log_gfx90a"
             }
-            else if (arch_type == 2){
+            else if (arch == 2){
                 stash includes: "perf_tile_gemm_**_gfx942.log", name: "perf_tile_gemm_log_gfx942"
             }
         }
@@ -383,20 +454,16 @@ def buildHipClangJob(Map conf=[:]){
 
         env.HSA_ENABLE_SDMA=0
         checkout scm
-
-        def image
-        if ( params.BUILD_LEGACY_OS  && conf.get("docker_name", "") != "" ){
-            image = conf.get("docker_name", "")
-            echo "Using legacy docker: ${image}"
-        }
-        else{
-            image = getDockerImageName()
-            echo "Using default docker: ${image}"
-        }
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
-        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts
+        if ( params.BUILD_INSTANCES_ONLY ){
+            dockerOpts = "--group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        }
+        else{
+            dockerOpts = "--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        }
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
@@ -410,7 +477,7 @@ def buildHipClangJob(Map conf=[:]){
         echo "Docker flags: ${dockerOpts}"
 
         def variant = env.STAGE_NAME
-
+        def image
         def retimage
         (retimage, image) = getDockerImage(conf)
 
@@ -451,17 +518,6 @@ def Build_CK(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         env.DOCKER_BUILDKIT=1
         checkout scm
-
-        def image
-        if ( params.BUILD_LEGACY_OS  && conf.get("docker_name", "") != "" ){
-            image = conf.get("docker_name", "")
-            echo "Using legacy docker: ${image}"
-        }
-        else{
-            image = getDockerImageName()
-            echo "Using default docker: ${image}"
-        }
-
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
@@ -482,6 +538,7 @@ def Build_CK(Map conf=[:]){
         echo "Docker flags: ${dockerOpts}"
 
         def variant = env.STAGE_NAME
+        def image
         def retimage
 
         gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
@@ -507,28 +564,9 @@ def Build_CK(Map conf=[:]){
                 timeout(time: 20, unit: 'HOURS')
                 {
                     //check whether to run performance tests on this node
-                    def arch_type = 0
-                    sh 'rocminfo | tee rocminfo.log'
-                    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
-                        arch_type = 1
-                    }
-                    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
-                        arch_type = 2
-                    }
-                    else if ( runShell('grep -n "gfx10" rocminfo.log') ) {
-                        arch_type = 3
-                    }
-                    else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
-                        arch_type = 4
-                    }
-                    else if ( runShell('grep -n "gfx12" rocminfo.log') ) {
-                        arch_type = 5
-                    }
-                    else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
-                        arch_type = 6
-                    }
+                    def arch = check_arch()
                     cmake_build(conf)
-                    if ( params.RUN_INDUCTOR_TESTS && !params.BUILD_LEGACY_OS && arch_type == 1 ){
+                    if ( params.RUN_INDUCTOR_TESTS && !params.BUILD_LEGACY_OS && arch == 1 ){
                             echo "Run inductor codegen tests"
                             sh """
                                   python3 -m venv ${env.WORKSPACE}
@@ -539,9 +577,9 @@ def Build_CK(Map conf=[:]){
                             """
                     }
                     dir("build"){
-                        if (params.RUN_FULL_QA && arch_type == 2 ){
-                            // build deb packages for all gfx9 targets on gfx90a system and prepare to export
-                            echo "Build ckProfiler package"
+                        if (params.RUN_FULL_QA && arch == 2 ){
+                            // build deb packages
+                            echo "Build packages"
                             sh 'make -j package'
                             archiveArtifacts artifacts: 'composablekernel*.deb'
                             sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
@@ -554,7 +592,7 @@ def Build_CK(Map conf=[:]){
                     // run performance tests, stash the logs, results will be processed on the master node
 					dir("script"){
                         if (params.RUN_PERFORMANCE_TESTS){
-                        if (params.RUN_FULL_QA && arch_type == 1){
+                        if (params.RUN_FULL_QA && arch == 1){
                             // run full tests on gfx90a
                             echo "Run full performance tests"
                             sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
@@ -573,7 +611,7 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_mixed_gemm.log"
                             stash includes: "perf_**.log", name: "perf_log"
                         }
-                        else if ( arch_type == 1 ){
+                        else if ( arch == 1 ){
                             // run standard tests on gfx90a
                             echo "Run performance tests"
                             sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
@@ -584,37 +622,44 @@ def Build_CK(Map conf=[:]){
                             stash includes: "perf_**.log", name: "perf_log"
                         }
                         // disable performance tests on gfx1030 for now.
-                        //else if ( arch_type == 3){
+                        //else if ( arch == 3){
                             // run basic tests on gfx1030
                         //    echo "Run gemm performance tests"
                         //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
                         //    archiveArtifacts "perf_onnx_gemm_gfx10.log"
                         //    stash includes: "perf_onnx_gemm_gfx10.log", name: "perf_log_gfx10"
                         //}
-                        else if ( arch_type == 4){
+                        else if ( arch == 4){
                             // run basic tests on gfx11
                             echo "Run gemm performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx11"
                             archiveArtifacts "perf_onnx_gemm_gfx11.log"
                             stash includes: "perf_onnx_gemm_gfx11.log", name: "perf_log_gfx11"
                         }
-                        else if ( arch_type == 5 ){
+                        else if ( arch == 5 ){
                             // run basic tests on gfx12
                             echo "Run gemm performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
                             archiveArtifacts "perf_onnx_gemm_gfx12.log"
                             stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
                         }
-                        else if ( arch_type == 6 ){
+                        else if ( arch == 6 ){
                             // run basic tests on gfx908
                             echo "Run performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx908"
                             archiveArtifacts "perf_onnx_gemm_gfx908.log"
                             stash includes: "perf_onnx_gemm_gfx908.log", name: "perf_log_gfx908"
                         }
+                        else if ( arch == 7 ){
+                            // run basic tests on gfx950
+                            echo "Run performance tests"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx950"
+                            archiveArtifacts "perf_onnx_gemm_gfx950.log"
+                            stash includes: "perf_onnx_gemm_gfx950.log", name: "perf_log_gfx950"
+                        }
                         }
                     }
-                    if (params.hipTensor_test && arch_type == 1 ){
+                    if (params.hipTensor_test && arch == 1 ){
                         // build and test hipTensor on gfx90a node
                         sh """#!/bin/bash
                             rm -rf "${params.hipTensor_branch}".zip
@@ -698,6 +743,15 @@ def process_results(Map conf=[:]){
                             echo "could not locate the FMHA performance logs: ${err.getMessage()}."
                         }
                     }
+                    if (params.RUN_CK_TILE_TRANSPOSE_TESTS){
+                        try{
+                            unstash "perf_transpose_log_gfx942"
+                            unstash "perf_transpose_log_gfx90a"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the Transpose performance logs: ${err.getMessage()}."
+                        }
+                    }
                     if (params.RUN_CK_TILE_GEMM_TESTS){
                         try{
                             unstash "perf_tile_gemm_log_gfx942"
@@ -707,24 +761,10 @@ def process_results(Map conf=[:]){
                             echo "could not locate the GEMM performance logs: ${err.getMessage()}."
                         }
                     }
-                    if (params.RUN_FULL_QA){
-                        // unstash perf files to master
+                    if (params.RUN_FULL_QA || params.BUILD_INSTANCES_ONLY){
+                        // unstash deb packages
                         unstash "packages"
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
-                        try{
-                            unstash "perf_log"
-                        }
-                        catch(Exception err){
-                            echo "could not locate perf_log: ${err.getMessage()}."
-                        }
-                        try{
-                            unstash "perf_log_gfx11"
-                            unstash "perf_log_gfx12"
-                        }
-                        catch(Exception err){
-                            echo "could not locate the GEMM gfx11/gfx12 performance logs: ${err.getMessage()}."
-                        }
-                        sh "./process_qa_data.sh"
                     }
                     else{
                         // unstash perf files to master
@@ -752,12 +792,12 @@ def process_results(Map conf=[:]){
     }
 }
 
-//launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;ROCMVERSION=6.4;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
-                                              0 21 * * * % ROCMVERSION=6.4;hipTensor_test=true;RUN_CODEGEN_TESTS=true;BUILD_GFX908=true
+//launch develop branch daily jobs
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=false
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX950=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false
+                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 13 * * * % BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
 
 pipeline {
@@ -779,8 +819,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '6.4',
-            description: 'Specify which ROCM version to use: 6.3 (default).')
+            defaultValue: '6.4.1',
+            description: 'Specify which ROCM version to use: 6.4.1 (default).')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
@@ -827,16 +867,24 @@ pipeline {
             description: "Run the grouped conv large cases tests (default: OFF)")
         booleanParam(
             name: "RUN_CODEGEN_TESTS",
-            defaultValue: false,
-            description: "Run codegen tests (default: OFF)")
+            defaultValue: true,
+            description: "Run codegen tests (default: ON)")
         booleanParam(
             name: "RUN_CK_TILE_FMHA_TESTS",
             defaultValue: false,
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
+            name: "RUN_CK_TILE_TRANSPOSE_TESTS",
+            defaultValue: false,
+            description: "Run the ck_tile Transpose tests (default: OFF)")
+        booleanParam(
             name: "RUN_CK_TILE_GEMM_TESTS",
             defaultValue: false,
             description: "Run the ck_tile GEMM tests (default: OFF)")
+        booleanParam(
+            name: "RUN_TILE_ENGINE_GEMM_TESTS",
+            defaultValue: false,
+            description: "Run the tile_engine_gemm tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
@@ -845,6 +893,10 @@ pipeline {
             name: "BUILD_GFX908",
             defaultValue: false,
             description: "Build CK and run tests on gfx908 (default: OFF)")
+        booleanParam(
+            name: "BUILD_GFX950",
+            defaultValue: false,
+            description: "Build CK and run tests on gfx950 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX12",
             defaultValue: true,
@@ -1032,6 +1084,50 @@ pipeline {
                 }
             }
         }
+        stage("Run CK_TILE_TRANSPOSE Tests")
+        {
+            parallel
+            {
+                stage("Run CK_TILE_TRANSPOSE Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_TRANSPOSE_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                                           make -j64 tile_example_batched_transpose && \
+                                           cd ../ &&
+                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+                stage("Run CK_TILE_TRANSPOSE Tests on gfx942")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_TRANSPOSE_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx942") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
+                                           make -j64 tile_example_batched_transpose && \
+                                           cd ../ &&
+                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+            }
+        }
         stage("Run CK_TILE_GEMM Tests")
         {
             parallel
@@ -1068,6 +1164,56 @@ pipeline {
                                            make -j64 tile_example_gemm_universal && \
                                            cd ../ &&
                                            example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run TILE_ENGINE_GEMM Tests")
+        {
+            parallel
+            {
+                stage("Run TILE_ENGINE_GEMM Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                            -D CMAKE_BUILD_TYPE=Release \
+                                            -D GPU_TARGETS="gfx90a" \
+                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j64 benchmark_gemm && \
+                                           ./bin/benchmark_gemm """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+                stage("Run TILE_ENGINE_GEMM Tests on gfx942")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx942") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                            -D CMAKE_BUILD_TYPE=Release \
+                                            -D GPU_TARGETS="gfx942" \
+                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j128 benchmark_gemm && \
+                                           ./bin/benchmark_gemm """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1119,7 +1265,7 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK for all gfx9 targets")
+                stage("Build CK and run Tests on gfx942")
                 {
                     when {
                         beforeAgent true
@@ -1134,10 +1280,34 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx942" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
+                    }
+                }
+                stage("Build CK and run Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_GFX950.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install \
+                                         -DGPU_TARGETS="gfx950" \
+                                         -DCMAKE_CXX_FLAGS=" -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx950" \
+                                           -DCMAKE_CXX_COMPILER=/llvm-project/build/bin/clang++ \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "rocm/composable_kernel-private:ck_ub22.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1154,6 +1324,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx908" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1174,6 +1345,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx90a" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1181,7 +1353,7 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK instances for different targets")
+                stage("Build CK instances for all supported targets")
                 {
                     when {
                         beforeAgent true
@@ -1192,8 +1364,7 @@ pipeline {
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1151;gfx1201"  \
-                                           -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
+                                           -D CMAKE_CXX_FLAGS=" -O3 -ftime-trace" .. && ninja -j64 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1208,11 +1379,12 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1030") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" -DCMAKE_CXX_FLAGS=" -O3 " """ 
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx10-3-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx1030" \
+                                           -DGPU_TARGETS="gfx10-3-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1228,11 +1400,12 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1101") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1101" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx1101" \
+                                           -DGPU_TARGETS="gfx11-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1248,11 +1421,12 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1201") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1201" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx1201" \
+                                           -DGPU_TARGETS="gfx12-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{

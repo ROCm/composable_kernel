@@ -37,6 +37,25 @@ struct BaseGemmPipelineAgBgCrCompV6
             return TailNumber::Even;
         }
     }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func,
+                                                [[maybe_unused]] bool has_hot_loop,
+                                                TailNumber tail_num)
+    {
+        if(tail_num == ck_tile::TailNumber::Three)
+        {
+            return run_func(
+                has_hot_loop,
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
+        }
+        else
+        {
+            return run_func(
+                has_hot_loop,
+                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
+        }
+    }
 };
 
 /**

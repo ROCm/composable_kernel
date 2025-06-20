@@ -1437,8 +1437,10 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
     static_assert(
         (std::is_same<T, double>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, fp16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
-            (std::is_same<T, bf16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
+            (std::is_same<T, fp16_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32)) ||
+            (std::is_same<T, bf16_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32)) ||
             (std::is_same<T, int32_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, fp8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
@@ -1561,6 +1563,54 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
 
             return bit_cast<rtn_type>(tmp);
         }
+        else if constexpr(N == 16)
+        {
+            thread_buffer<float, 8> tmp;
+
+            tmp.template get_as<fp32x4_t>()(number<0>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset,
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<1>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 4 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            return bit_cast<rtn_type>(tmp);
+        }
+        else if constexpr(N == 32)
+        {
+            thread_buffer<float, 16> tmp;
+
+            tmp.template get_as<fp32x4_t>()(number<0>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset,
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<1>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 4 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<2>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 8 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<3>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 12 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            return bit_cast<rtn_type>(tmp);
+        }
     }
     else if constexpr(std::is_same<T, bf16_t>::value) // bf16
     {
@@ -1594,6 +1644,54 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                               src_thread_addr_offset,
                                                               src_wave_addr_offset,
                                                               static_cast<index_t>(coherence));
+
+            return bit_cast<rtn_type>(tmp);
+        }
+        else if constexpr(N == 16)
+        {
+            thread_buffer<float, 8> tmp;
+
+            tmp.template get_as<fp32x4_t>()(number<0>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset,
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<1>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 4 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            return bit_cast<rtn_type>(tmp);
+        }
+        else if constexpr(N == 32)
+        {
+            thread_buffer<float, 16> tmp;
+
+            tmp.template get_as<fp32x4_t>()(number<0>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset,
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<1>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 4 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<2>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 8 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
+
+            tmp.template get_as<fp32x4_t>()(number<3>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 12 * sizeof(float),
+                                                   static_cast<index_t>(coherence));
 
             return bit_cast<rtn_type>(tmp);
         }
@@ -2684,6 +2782,40 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
     llvm_amdgcn_raw_buffer_load_lds(
         src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0, 0, 0);
 #endif
+}
+
+template <typename T, index_t N, address_space_enum BufferAddressSpace>
+__device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
+{
+
+    if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::half_t>)
+    {
+        typedef __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16 llvm_fp16x4_t;
+        __attribute__((address_space(3))) llvm_fp16x4_t* lds_ptr =
+            reinterpret_cast<__attribute__((address_space(3))) llvm_fp16x4_t*>(
+                reinterpret_cast<uintptr_t>(in_ptr));
+        return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
+    }
+    else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::bf16_t>)
+    {
+        typedef __attribute__((__vector_size__(4 * sizeof(__bf16)))) __bf16 llvm_bf16x4_t;
+        __attribute__((address_space(3))) llvm_bf16x4_t* lds_ptr =
+            reinterpret_cast<__attribute__((address_space(3))) llvm_bf16x4_t*>(
+                reinterpret_cast<uintptr_t>(in_ptr));
+        return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4bf16(lds_ptr));
+    }
+    else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::fp8_t>)
+    {
+        typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_fp8x8_t;
+        __attribute__((address_space(3))) llvm_fp8x8_t* lds_ptr =
+            reinterpret_cast<__attribute__((address_space(3))) llvm_fp8x8_t*>(
+                reinterpret_cast<uintptr_t>(in_ptr));
+        return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr8_b64_v2i32(lds_ptr));
+    }
+    else
+    {
+        static_assert(false, "not implemented");
+    }
 }
 
 } // namespace ck_tile
