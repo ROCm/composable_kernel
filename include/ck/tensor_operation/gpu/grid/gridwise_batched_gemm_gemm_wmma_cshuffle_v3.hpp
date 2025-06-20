@@ -84,7 +84,6 @@ template <typename ADataType,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           bool PadN,
-          bool MaskOutUpperTriangle,
           index_t NumGemmKPrefetchStage = 1,
           LoopScheduler LoopSched       = make_default_loop_scheduler(),
           PipelineVersion PipelineVer   = PipelineVersion::v1>
@@ -700,9 +699,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                 .GetElementSpaceSize();
     };
 
-    template <bool HasMainKBlockLoop,
-              typename C0MatrixMask,
-              typename Block2CTileMap = DefaultBlock2CTileMap>
+    template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void Run(const ADataType* __restrict__ p_a_grid,
                                const B0DataType* __restrict__ p_b0_grid,
                                const B1DataType* __restrict__ p_b1_grid,
@@ -718,7 +715,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                const AccElementwiseOperation& acc_element_op,
                                const B1ElementwiseOperation& b1_element_op,
                                const CElementwiseOperation& c_element_op,
-                               const C0MatrixMask& c0_matrix_mask,
                                const Block2CTileMap& block_2_ctile_map)
     {
         // clang-format off
@@ -1219,13 +1215,6 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         // Outer loop, along GEMM_L
         // Inner loop, along GEMM_K
         do{
-            auto l_block_data_idx_on_grid =
-                __builtin_amdgcn_readfirstlane(gemm1_l_block_outer_index * LPerBlock);
-            if(c0_matrix_mask.IsTileSkippable(
-                   m_block_data_idx_on_grid, l_block_data_idx_on_grid, MPerBlock, LPerBlock))
-            {
-                continue;
-            }
             // gemm0 start, A-B swaped
             GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc,
                                                               a_block_desc,
@@ -1242,62 +1231,8 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                                               blockwise_gemm0,
                                                               acc0_thread_buf,
                                                               KBlockMainLoop);
-            // do MNK padding or upper triangular masking
-            if constexpr(MaskOutUpperTriangle || PadN)
-            {
-                // 7d thread_desc in thread scope
-                constexpr auto c_thread_lengths =
-                    blockwise_gemm0.GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs().GetLengths();
-
-                // 7d block_desc in block scope
-                constexpr auto c_block_lengths =
-                    blockwise_gemm0.GetCBlockDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs().GetLengths();
-
-                constexpr auto MREPEAT         = c_block_lengths[I0];
-                constexpr auto MWAVE           = c_block_lengths[I1];
-                constexpr auto MTHREADSubGroup = c_block_lengths[I2];
-                constexpr auto LREPEAT         = c_block_lengths[I3];
-                constexpr auto LWAVE           = c_block_lengths[I4];
-                constexpr auto LSUBGROUP       = c_block_lengths[I5];
-                constexpr auto LACCVGPRS       = c_block_lengths[I6];
-
-                // works like multi-dimension static_for (static_ford), but provides both the linear
-                // index as well as n-d index
-                using Acc0TileIterator = SpaceFillingCurve<
-                    decltype(c_thread_lengths),
-                    typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
-                    typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
-                    false>; // SnakeCurved
-
-                auto acc0_thread_origin = blockwise_gemm0.CalculateCThreadOriginDataIndex7D(
-                    Number<0>{}, Number<0>{});
-
-                constexpr auto block_idx_to_m_l_adaptor = make_single_stage_tensor_adaptor(
-                    make_tuple(make_unmerge_transform(make_tuple(MREPEAT, MWAVE, MTHREADSubGroup)),
-                               make_unmerge_transform(make_tuple(LREPEAT, LWAVE, LSUBGROUP, LACCVGPRS))),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}),
-                    make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5, 6>{}));
-
-                static_for<0, Acc0TileIterator::GetNumOfAccess(), 1>{}([&](auto i) {
-                    auto acc0_thread_idx = Acc0TileIterator::GetIndex(i) + acc0_thread_origin;
-                    auto m_local = block_idx_to_m_l_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
-                    auto l_local = block_idx_to_m_l_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
-                    auto m_global = m_local + m_block_data_idx_on_grid;
-                    auto l_global = l_local + l_block_data_idx_on_grid;
-                    if(c0_matrix_mask.IsMaskedElement(m_global, l_global))
-                    {
-                        acc0_thread_buf(i) = 0; // Mask with zero instead of -inf since we are no longer using softmax.
-                    }
-                    else
-                    {
-                        acc_element_op(acc0_thread_buf(i), acc0_thread_buf[i]);
-                    }
-                });
-            }
-            else
-            {   static_for<0, acc0_thread_buf.Size(), 1>{}(
+            static_for<0, acc0_thread_buf.Size(), 1>{}(
                     [&](auto i) { acc_element_op(acc0_thread_buf(i), acc0_thread_buf[i]); });
-            }
 
             block_sync_lds();
             // Tiled softmax start

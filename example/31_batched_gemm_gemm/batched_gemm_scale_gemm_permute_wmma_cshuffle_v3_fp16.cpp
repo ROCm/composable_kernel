@@ -60,8 +60,6 @@ using B1ElementOp   = PassThrough;
 using CElementOp    = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
-static constexpr auto MaskingSpec =
-    ck::tensor_operation::device::MaskingSpecialization::MaskDisabled;
 
 static constexpr auto TensorSpecA  = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecialization::Default;
@@ -97,8 +95,7 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 2, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 8, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 16, 1, 2>, 8,             
-            MaskingSpec>,
+            1, 1, S<1, 16, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
@@ -119,8 +116,7 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 2, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 8, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 16, 1, 2>, 8,             
-            MaskingSpec>
+            1, 1, S<1, 16, 1, 2>, 8>
 #endif
 #ifdef CK_MHA_USE_WAVE_2
          ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
@@ -143,8 +139,7 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 4, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 32, 1, 2>, 8,             
-            MaskingSpec>,
+            1, 1, S<1, 32, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
@@ -165,8 +160,7 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 4, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 32, 1, 2>, 8,             
-            MaskingSpec>,
+            1, 1, S<1, 32, 1, 2>, 8>,
 #endif
 #ifdef CK_MHA_USE_WAVE_4
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
@@ -189,8 +183,7 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 8, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 64, 1, 2>, 8,
-            MaskingSpec>,
+            1, 1, S<1, 64, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
@@ -211,8 +204,7 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2, 8, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 64, 1, 2>, 8,             
-            MaskingSpec>,
+            1, 1, S<1, 64, 1, 2>, 8>,
 #endif
 #ifdef CK_MHA_USE_WAVE_8
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
@@ -235,8 +227,7 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2,  16, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 128, 1, 2>, 8,             
-            MaskingSpec>,
+            1, 1, S<1, 128, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
             ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
@@ -257,8 +248,7 @@ using DeviceMHAFactory =
             // B1BlockTransfer NL -> L0 N L1
             S<2,  16, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 128, 1, 2>, 8,             
-            MaskingSpec>
+            1, 1, S<1, 128, 1, 2>, 8>
 #endif
     >;
 // clang-format on

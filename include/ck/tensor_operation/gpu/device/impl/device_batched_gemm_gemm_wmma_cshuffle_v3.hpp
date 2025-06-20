@@ -14,9 +14,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm_arraybase.hpp"
@@ -116,7 +114,6 @@ __global__ void
     const auto compute_base_ptr_of_batch = 
                   typename DeviceOp::ComputeBasePtrOfStridedBatch{a_grid_desc_g_m_k, b0_grid_desc_g_l_k, b1_grid_desc_g_n_l, c_grid_desc_g_m_n};
     index_t batch_count = c_grid_desc_g_m_n.GetLength(Number<0>{});
-    const auto c0_matrix_mask = typename DeviceOp::C0MatrixMask{b0_grid_desc_g_l_k.GetLength(Number<1>{})};
 
     // clang-format on
     __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
@@ -147,7 +144,6 @@ __global__ void
                                                 acc0_element_op,
                                                 b1_element_op,
                                                 c_element_op,
-                                                c0_matrix_mask,
                                                 block_2_ctile_map);
 #else
     ignore = p_a_grid;
@@ -235,7 +231,6 @@ template <index_t NumDimG,
           index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          MaskingSpecialization MaskingSpec,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
@@ -390,19 +385,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
     using B1GridDesc_G_N_L = decltype(Transform::MakeB1GridDescriptor_G_N_K({}, {}));
     using CGridDesc_G_M_N  = decltype(Transform::MakeCGridDescriptor_G_M_N({}, {}));
 
-    __host__ __device__ constexpr static auto make_MaskOutPredicate()
-    {
-        if constexpr(MaskingSpec == MaskingSpecialization::MaskDisabled)
-        {
-            return MaskDisabledPredicate{};
-        }
-        else if constexpr(MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle)
-        {
-            return MaskOutUpperTrianglePredicate{};
-        }
-    }
-    using C0MatrixMask = C0MatrixMask_impl<decltype(make_MaskOutPredicate())>;
-
     struct ComputeBasePtrOfStridedBatch
     {
         __host__ __device__ ComputeBasePtrOfStridedBatch(const AGridDesc_G_M_K& a_grid_desc_g_m_k,
@@ -514,7 +496,6 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         Transform::matrix_padder.PadN,
-        MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
         NumPrefetch,
         LoopSched,
         PipelineVer>;
@@ -879,8 +860,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
             << "ASpec" << getTensorSpecializationString(ASpec) << ", "
             << "B0Spec" << getTensorSpecializationString(B0Spec) << ", "
             << "B1Spec" << getTensorSpecializationString(B1Spec) << ", "
-            << "CSpec" << getTensorSpecializationString(CSpec) << ", "
-            << getMaskingSpecializationString(MaskingSpec)
+            << "CSpec" << getTensorSpecializationString(CSpec)
             << ">"
             << " AEnableLds: "
             << AEnableLds << ", "

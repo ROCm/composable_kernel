@@ -9,10 +9,10 @@ int run(int argc, char* argv[])
 
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
-    ck::index_t M = 120;
-    ck::index_t N = 1000;
-    ck::index_t K = 64;
-    ck::index_t O = 128;
+    ck::index_t M = 113;
+    ck::index_t N = 937;
+    ck::index_t K = 64;  // Can't handle unusual sizes
+    ck::index_t O = 128; // Can't handle unusual sizes
 
     // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
     // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])
@@ -268,14 +268,6 @@ int run(int argc, char* argv[])
                 a_g_m_k, b0_g_k_n, acc0_g_m_n, a_element_op, b0_element_op, acc0_element_op);
 
             ref_gemm0_invoker.Run(ref_gemm0_argument);
-
-            // masking
-            const auto mask = typename DeviceMHAInstance::C0MatrixMask(N);
-            acc0_g_m_n.ForEach([&](auto& self, auto idx) {
-                if(mask.IsMaskedElement(idx[1], idx[2]))
-                    // Mask with zero instead of -inf since we are no longer using softmax.
-                    self(idx) = 0;
-            });
 
             // softmax
             auto ref_softmax          = ReferenceSoftmaxInstance{};
