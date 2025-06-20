@@ -335,7 +335,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         block_sync_lds();
 
 #if 1
-        if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
+        if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1))
         {
             auto a_grid0   = a_grid_buf[0];
             auto a_block0  = a_block_buf[0];
@@ -345,6 +345,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             auto a_block10 = a_block_buf[10];
             auto a_grid17  = a_grid_buf[17];
             auto a_block17 = a_block_buf[17];
+            auto b_grid17  = b_grid_buf[17];
+            auto b_block17 = b_block_buf[17];
 
             // print ComputeTypeA
             auto print_cmp_t = [](const char* str, const ComputeTypeA& v) {
@@ -363,14 +365,22 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 }
             };
 
-            print_cmp_t("a_grid0", a_grid0);
-            print_cmp_t("a_block0", a_block0);
-            print_cmp_t("a_grid1", a_grid1);
-            print_cmp_t("a_block1", a_block1);
-            print_cmp_t("a_grid10", a_grid10);
-            print_cmp_t("a_block10", a_block10);
-            print_cmp_t("a_grid17", a_grid17);
-            print_cmp_t("a_block17", a_block17);
+            if(threadIdx.x == 0)
+            {
+                print_cmp_t("thread 0; a_grid0", a_grid0);
+                print_cmp_t("thread 0; a_block0", a_block0);
+                print_cmp_t("thread 0; a_grid1", a_grid1);
+                print_cmp_t("thread 0; a_block1", a_block1);
+                print_cmp_t("thread 0; a_grid10", a_grid10);
+                print_cmp_t("thread 0; a_block10", a_block10);
+            }
+            else if(threadIdx.x == 1)
+            {
+                print_cmp_t("thread 1; a_grid17", a_grid17);
+                print_cmp_t("thread 1; a_block17", a_block17);
+                print_cmp_t("thread 1; b_grid17", b_grid17);
+                print_cmp_t("thread 1; b_block17", b_block17);
+            }
         }
 #endif
 
@@ -413,21 +423,21 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 printf("MRepeat = %d\n", MRepeat); // 4
                                 printf("NRepeat = %d\n", NRepeat); // 4
                                 printf("KRepeat = %d\n", KRepeat); // 2
-                                printf("KPack = %d\n", KPack);     // 32
+                                printf("KPack = %d\n", KPack);     // 2
 
-                                printf("KXdlPack = %d\n", KXdlPack); //
-                                printf("MXdlPack = %d\n", MXdlPack); //
-                                printf("NXdlPack = %d\n", NXdlPack); //
+                                printf("KXdlPack = %d\n", KXdlPack); // 2
+                                printf("MXdlPack = %d\n", MXdlPack); // 2
+                                printf("NXdlPack = %d\n", NXdlPack); // 2
 
-                                printf("APackedSize = %d\n", APackedSize); //
-                                printf("BPackedSize = %d\n", BPackedSize); //
-                                printf("AMmaKStride = %d\n", AMmaKStride); //
-                                printf("BMmaKStride = %d\n", BMmaKStride); //
+                                printf("APackedSize = %d\n", APackedSize); // 16
+                                printf("BPackedSize = %d\n", BPackedSize); // 16
+                                printf("AMmaKStride = %d\n", AMmaKStride); // 2
+                                printf("BMmaKStride = %d\n", BMmaKStride); // 2
 
                                 printf("a_scale_thread_vec_size = %lu\n",
-                                       a_scale_thread_vec_size); //
+                                       a_scale_thread_vec_size); // 4
                                 printf("b_scale_thread_vec_size = %lu\n",
-                                       b_scale_thread_vec_size); //
+                                       b_scale_thread_vec_size); // 4
 
                                 printf("xdlops_gemm.GetRegSizePerXdlops() = %d\n",
                                        xdlops_gemm.GetRegSizePerXdlops()); // 4
@@ -438,10 +448,10 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                 printf("xdlops_gemm.K1PerXdlops = %d\n",
                                        xdlops_gemm.K1PerXdlops); // 32
                                 printf("xdlops_gemm.K0PerXdlops = %d\n\n",
-                                       xdlops_gemm.K0PerXdlops); // 2
+                                       xdlops_gemm.K0PerXdlops); // 4
 
                                 printf("sizeof(ComputeTypeA) = %lu\n\n",
-                                       sizeof(ComputeTypeA)); //
+                                       sizeof(ComputeTypeA)); // 12
                             }
                         }
                     }

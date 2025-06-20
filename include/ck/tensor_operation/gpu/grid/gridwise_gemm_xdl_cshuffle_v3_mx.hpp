@@ -1438,6 +1438,24 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
+        // Sequence<AK0Number, MPerBlock, AK1Number> = <16, 128, 1>
+
+        // ck::Sequence<1, 16, 1>
+        // CK_PRINT<ABlockTransferThreadClusterLengths_AK0_M_AK1>();
+
+        // ck::Sequence<1, 0, 2>
+        // CK_PRINT<ABlockTransferThreadClusterArrangeOrder>();
+
+        // CK_PRINT<decltype(a_grid_desc_ak0_m_ak1)>();
+        // CK_PRINT<decltype(a_block_desc_ak0_m_ak1)>();
+
+        // ck::Sequence<1, 0, 2>
+        // CK_PRINT<ABlockTransferSrcAccessOrder>();
+
+        // CK_PRINT<ABlockTransferSrcVectorDim>(); // 2
+
+        // CK_PRINT<ABlockTransferSrcScalarPerVector>(); // 1
+
         auto a_blockwise_copy =
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<AK0Number, MPerBlock, AK1Number>,
