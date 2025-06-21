@@ -110,7 +110,7 @@ template <ck::index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
           typename ELayout,
-          ConvolutionBackwardWeightSpecialization ConvSpec
+          ConvolutionBackwardWeightSpecialization ConvSpec,
           typename InWeiOutDataType>
 using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_16x16_instances = std::tuple<
     // clang-format off
