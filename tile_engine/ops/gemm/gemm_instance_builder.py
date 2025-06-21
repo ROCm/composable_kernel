@@ -421,7 +421,6 @@ struct GemmKernel {{
                 f"warp_tile=({warp_tile_m},{warp_tile_n},{warp_tile_k})"
             )
             return False
-        
         # Dimension alignment check
         alignment_issues = []
         if tile_m % (warp_m * warp_tile_m) != 0:

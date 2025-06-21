@@ -113,6 +113,7 @@
         },
         "epilogue": {
             "values": [
+                "default",
                 "cshuffle"
             ]
         },

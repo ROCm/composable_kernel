@@ -201,19 +201,22 @@ trait_unsupported_combinations = {
 }
 
 
+ELEMENT_SIZE_MAP = {
+    'fp16': 2,
+    'bf16': 2,
+    'int8': 1,
+    'fp8': 1,
+    'bf8': 1,
+    'int4': 0.5,
+    'int32': 4,
+}
+
 def element_size(data_type: str) -> float:
     """Calculate the size (in bytes) of a single element for given data type."""
     data_type = data_type.lower()
-    if data_type in {'fp16', 'bf16'}:
-        return 2
-    elif data_type in {'int8', 'fp8', 'bf8'}:
-        return 1
-    elif data_type == 'int4':
-        return 0.5
-    elif data_type == 'int32':
-        return 4
-    else:
+    if data_type not in ELEMENT_SIZE_MAP:
         raise ValueError(f"Unsupported data type: {data_type}")
+    return ELEMENT_SIZE_MAP[data_type]
 
 
 GPU_NAME_PATTERN = re.compile(r'Name:\s*(gfx\d+\w*)')
