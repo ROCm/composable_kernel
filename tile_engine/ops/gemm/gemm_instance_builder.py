@@ -516,20 +516,11 @@ struct GemmKernel {{
         
         for trait in self.valid_trait_names:
             
-            tile_valid_params = []
-            for tile in tile_params:
-                if self.is_tile_valid(tile, trait):
-                    tile_valid_params.append(tile)
-                else:
-                    pass
+            tile_valid_params = [tile for tile in tile_params if self.is_tile_valid(tile, trait)]
             
             if trait not in self.valid_trait_tile_combinations:
                 self.valid_trait_tile_combinations[trait] = []
             self.valid_trait_tile_combinations[trait].append(tile_valid_params)
-        
-        total_valid = sum(len(combinations[0]) if combinations else 0 
-                         for combinations in self.valid_trait_tile_combinations.values())
-
 
     def _generate_instantiation_source_files(self):
         """Generate kernel instance instantiation source files """
@@ -611,7 +602,8 @@ struct GemmDispatcher {
         return kernel_map;
     }
 
-    static void init([[maybe_unused]] bool structured_sparsity) {
+    static void init(bool structured_sparsity) {
+        auto ignore  = structured_sparsity;  // Suppress unused parameter warning
         auto& kernel_map = get_kernel_map();
         if(!kernel_map.empty()) return;
         \n"""
@@ -622,7 +614,6 @@ struct GemmDispatcher {
                 for j in range(len(tile)):
                     tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k = tile[
                         j]
-                    
                     content += f"""[=](ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream) {{ """
                     content += f""" 
                                     if(structured_sparsity){{  // SMFMA"""
