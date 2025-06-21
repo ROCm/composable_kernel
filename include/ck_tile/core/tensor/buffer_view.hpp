@@ -1009,7 +1009,7 @@ struct buffer_view<address_space_enum::lds,
                          std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
                         (std::is_same_v<remove_cvref_t<T>, int8x16_t> &&
                          std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
-                        // add for int8
+                        // int8 on thread buffer
                         (std::is_same_v<remove_cvref_t<T>, int8_t> &&
                          std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 8>>) ||
                         (std::is_same_v<remove_cvref_t<T>, int8_t> &&
