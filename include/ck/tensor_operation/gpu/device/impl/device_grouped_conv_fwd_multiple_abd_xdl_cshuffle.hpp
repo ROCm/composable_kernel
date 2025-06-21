@@ -345,11 +345,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         (ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter1x1Stride1Pad0) &&
         (ABlockTransferSrcVectorDim == 1) && (NumGroupsToMerge == 1) &&
         (is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>);
+         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>());
 
     static constexpr bool NeedTransposeKernel =
         (isATensorColMajor == false) && (is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-                                         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>);
+                                         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>());
 
     static constexpr bool CTranspose = (NeedTransposeKernel == false) && (isMultiAB == false) &&
                                        (is_same_v<ELayout, tensor_layout::convolution::NGKHW> ||
@@ -360,7 +360,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                                             true /*SplitN*/,
                                                             ADataType,
                                                             EDataType,
-                                                            NumGroupsToMerge>;
+                                                            NumGroupsToMerge,
+                                                            index_t,
+                                                            CTranspose>;
 
     static constexpr index_t ClusterLengthNPerBlock =
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(3);
@@ -428,7 +430,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                ELay>>;
 
         const auto out_gemmmraw_gemmnraw_desc =
-            conv_to_gemm_transformer.template MakeCDescriptor_M_N<Layout, CTranspose>();
+            conv_to_gemm_transformer.template MakeCDescriptor_M_N<Layout>();
         if constexpr(CTranspose)
         {
             constexpr auto matrix_padder_trans =
@@ -843,11 +845,24 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
             else
             {
-                if(GridwiseGemmCTranspose::CheckValidity(b_grid_desc_n_k_,
-                                                         a_grid_desc_m_k_,
-                                                         ds_grid_desc_m_n_,
-                                                         e_grid_desc_m_n_,
-                                                         block_2_etile_map_))
+                bool valid = false;
+                if constexpr(CTranspose)
+                {
+                    valid = GridwiseGemmCTranspose::CheckValidity(b_grid_desc_n_k_,
+                                                                  a_grid_desc_m_k_,
+                                                                  ds_grid_desc_m_n_,
+                                                                  e_grid_desc_m_n_,
+                                                                  block_2_etile_map_);
+                }
+                else
+                {
+                    valid = GridwiseGemmCTranspose::CheckValidity(a_grid_desc_m_k_,
+                                                                  b_grid_desc_n_k_,
+                                                                  ds_grid_desc_m_n_,
+                                                                  e_grid_desc_m_n_,
+                                                                  block_2_etile_map_);
+                }
+                if(valid)
                 {
                     e_grid_desc_mblock_mperblock_nblock_nperblock_ = GridwiseGemmCTranspose::
                         MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
