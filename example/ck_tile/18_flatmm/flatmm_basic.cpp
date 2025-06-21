@@ -49,24 +49,24 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
         constexpr auto memory_operation = memory_operation_.value;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                          ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                           BDataType,
-                                                           ck_tile::tuple<>,
-                                                           AccDataType,
-                                                           CDataType,
-                                                           ck_tile::tuple<>,
-                                                           CLayout,
-                                                           ck_tile::element_wise::PassThrough,
-                                                           CodegenPipelineProblem::kBlockSize,
-                                                           TilePartitioner::MPerBlock,
-                                                           TilePartitioner::NPerBlock,
-                                                           FlatmmConfig::M_Warp,
-                                                           FlatmmConfig::N_Warp,
-                                                           FlatmmConfig::M_Warp_Tile,
-                                                           FlatmmConfig::N_Warp_Tile,
-                                                           FlatmmConfig::K_Warp_Tile,
-                                                           CodegenPipelineProblem::TransposeC,
-                                                           memory_operation>>;
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             ck_tile::tuple<>,
+                                             AccDataType,
+                                             CDataType,
+                                             ck_tile::tuple<>,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             CodegenPipelineProblem::kBlockSize,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             FlatmmConfig::M_Warp,
+                                             FlatmmConfig::N_Warp,
+                                             FlatmmConfig::M_Warp_Tile,
+                                             FlatmmConfig::N_Warp_Tile,
+                                             FlatmmConfig::K_Warp_Tile,
+                                             CodegenPipelineProblem::TransposeC,
+                                             memory_operation>>;
 
         using CodegenFlatmmPolicy = ck_tile::UniversalFlatmmPipelineAgBgCrPolicy;
         using CodegenFlatmmPipeline =
@@ -211,11 +211,11 @@ int main(int argc, char* argv[])
         int warp_tile = arg_parser.get_int("warp_tile");
         if(warp_tile == 0)
         {
-            return !run_flatmm_example<FlatmmConfig32>(argc, argv);
+            return !run_flatmm_example<FlatmmConfig16>(argc, argv);
         }
         else
         {
-            return !run_flatmm_example<FlatmmConfig16>(argc, argv);
+            return !run_flatmm_example<FlatmmConfig32>(argc, argv);
         }
     }
     catch(const std::runtime_error& e)
