@@ -542,8 +542,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 max_seqlen_k = real_seqlen_k;
             }
 
-            flop += nhead * (static_cast<std::size_t>(2) * real_seqlen_q * real_seqlen_k * hdim_q +
-                             static_cast<std::size_t>(2) * real_seqlen_q * hdim_v * real_seqlen_k);
+            flop += nhead * (static_cast<std::size_t>(2) * mask.get_unmaskarea() * hdim_q +
+                             static_cast<std::size_t>(2) * mask.get_unmaskarea() * hdim_v);
 
             num_byte += nhead * (sizeof(QDataType) * real_seqlen_q * hdim_q +
                                  sizeof(KDataType) * real_seqlen_k * hdim_q +
