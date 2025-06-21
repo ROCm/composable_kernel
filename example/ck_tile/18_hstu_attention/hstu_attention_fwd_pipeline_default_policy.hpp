@@ -20,7 +20,7 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumKVLdsBuffers()
     {
-        return 3;
+        return 4;
     }
 
     template <typename Problem>
@@ -786,17 +786,6 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
 
         return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t IsFirstKLdsBufferOverlapLastVLdsBuffer()
-    {
-        using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
-
-        constexpr index_t k1_loops           = BlockFmhaShape::kN0 / BlockFmhaShape::kK1;
-        constexpr index_t num_kv_lds_buffers = GetNumKVLdsBuffers<Problem>();
-
-        return (k1_loops - 1 + 1) % num_kv_lds_buffers == 0;
-    };
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeQ()
