@@ -90,10 +90,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         constexpr index_t A_Buffer_Load_Inst_Num = kMPerBlock * kKPerBlock / BlockSize / KPerLoad;
         constexpr index_t A_LDS_Read_Inst_Num    = MIterPerWarp * KIterPerWarp;
         constexpr index_t B_Buffer_Load_Inst_Num = NIterPerWarp * KIterPerWarp;
-        
-        ignore = A_Buffer_Load_Inst_Num;
-        ignore = A_LDS_Read_Inst_Num;
-        ignore = B_Buffer_Load_Inst_Num;
 
         if constexpr(WG::kM == 16 && WG::kN == 16)
         {
