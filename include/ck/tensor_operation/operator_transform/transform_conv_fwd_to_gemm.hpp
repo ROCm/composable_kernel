@@ -1410,7 +1410,7 @@ struct TransformConvFwdToGemm
 
     template <
         typename CLayout,
-        index_t NDimSp  = NDimSpatial,
+        index_t NDimSp = NDimSpatial,
 
         typename ck::enable_if<NDimSp == 1 && (is_same_v<CLayout, tensor_layout::convolution::G_K>),
                                bool>::type = false>
@@ -1430,7 +1430,7 @@ struct TransformConvFwdToGemm
 
     template <
         typename CLayout,
-        index_t NDimSp  = NDimSpatial,
+        index_t NDimSp = NDimSpatial,
 
         typename ck::enable_if<NDimSp == 2 && (is_same_v<CLayout, tensor_layout::convolution::G_K>),
                                bool>::type = false>
@@ -1450,7 +1450,7 @@ struct TransformConvFwdToGemm
 
     template <
         typename CLayout,
-        index_t NDimSp  = NDimSpatial,
+        index_t NDimSp = NDimSpatial,
 
         typename ck::enable_if<NDimSp == 3 && (is_same_v<CLayout, tensor_layout::convolution::G_K>),
                                bool>::type = false>
@@ -1469,7 +1469,7 @@ struct TransformConvFwdToGemm
     }
 
     template <typename CLayout,
-              index_t NDimSp  = NDimSpatial,
+              index_t NDimSp = NDimSpatial,
 
               typename ck::enable_if<NDimSp == 1 &&
                                          (is_same_v<CLayout, tensor_layout::convolution::G_NW_K> ||
@@ -1524,7 +1524,7 @@ struct TransformConvFwdToGemm
     }
 
     template <typename CLayout,
-              index_t NDimSp  = NDimSpatial,
+              index_t NDimSp = NDimSpatial,
 
               typename ck::enable_if<NDimSp == 2 &&
                                          (is_same_v<CLayout, tensor_layout::convolution::G_NHW_K> ||
@@ -1583,7 +1583,7 @@ struct TransformConvFwdToGemm
     }
 
     template <typename CLayout,
-              index_t NDimSp  = NDimSpatial,
+              index_t NDimSp = NDimSpatial,
               typename ck::enable_if<
                   NDimSp == 3 && (is_same_v<CLayout, tensor_layout::convolution::G_NDHW_K> ||
                                   is_same_v<CLayout, tensor_layout::convolution::NDHWGK> ||
@@ -1642,7 +1642,7 @@ struct TransformConvFwdToGemm
     }
 
     template <typename CLayout,
-              index_t NDimSp  = NDimSpatial,
+              index_t NDimSp = NDimSpatial,
 
               typename ck::enable_if<NDimSp == 1 &&
                                          (is_same_v<CLayout, tensor_layout::convolution::GNKW> ||
@@ -1672,8 +1672,8 @@ struct TransformConvFwdToGemm
         }
     }
 
-    template <typename CLayout,    
-              index_t NDimSp  = NDimSpatial,
+    template <typename CLayout,
+              index_t NDimSp = NDimSpatial,
 
               typename ck::enable_if<NDimSp == 2 &&
                                          (is_same_v<CLayout, tensor_layout::convolution::GNKHW> ||
@@ -1705,7 +1705,7 @@ struct TransformConvFwdToGemm
     }
 
     template <typename CLayout,
-              index_t NDimSp  = NDimSpatial,
+              index_t NDimSp = NDimSpatial,
 
               typename ck::enable_if<NDimSp == 3 &&
                                          (is_same_v<CLayout, tensor_layout::convolution::GNKDHW> ||
