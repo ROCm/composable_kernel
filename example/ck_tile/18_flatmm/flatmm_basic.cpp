@@ -32,18 +32,20 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenFlatmmShape>;
 
-    using CodegenGemmTraits      = ck_tile::TileGemmTraits<FlatmmConfig::kPadM,
-                                                           FlatmmConfig::kPadN,
-                                                           FlatmmConfig::kPadK,
-                                                           ALayout,
-                                                           BLayout,
-                                                           CLayout>;
+    using CodegenGemmTraits = ck_tile::TileGemmTraits<FlatmmConfig::kPadM,
+                                                      FlatmmConfig::kPadN,
+                                                      FlatmmConfig::kPadK,
+                                                      ALayout,
+                                                      BLayout,
+                                                      CLayout>;
+
     using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
                                                                 BDataType,
                                                                 AccDataType,
                                                                 CodegenFlatmmShape,
                                                                 CodegenGemmTraits>;
-    const auto Run               = [&](const auto memory_operation_) {
+
+    const auto Run = [&](const auto memory_operation_) {
         constexpr auto memory_operation = memory_operation_.value;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
@@ -88,8 +90,9 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
         {
             std::cout << "Launching kernel with args:" << CodegenFlatmmShape::GetName()
                       << CodegenPipelineProblem::GetName() << " grid: {" << grids.x << ", "
-                      << grids.y << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", "
-                      << blocks.y << ", " << blocks.z << "}" << std::endl;
+                      << grids.y << ", " << grids.z << "}"
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << std::endl;
         }
 
         float ave_time{0};
