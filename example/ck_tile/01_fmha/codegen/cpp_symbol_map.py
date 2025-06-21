@@ -3,11 +3,11 @@
 # generate kernel instances to speed up compilation
 
 FWD_DTYPE_MAP = {
-    "fp16"   : "FmhaFwdFp16",
+    # "fp16"   : "FmhaFwdFp16",
     "bf16"   : "FmhaFwdBf16",
-    "fp8"    : "FmhaFwdFp8",
-    "fp8fp16": "FmhaFwdFp8Fp16",
-    "fp8bf16": "FmhaFwdFp8Bf16"
+    # "fp8"    : "FmhaFwdFp8",
+    # "fp8fp16": "FmhaFwdFp8Fp16",
+    # "fp8bf16": "FmhaFwdFp8Bf16"
 }
 
 BWD_DTYPE_MAP = {
@@ -112,16 +112,18 @@ LAYOUT_MAP = {
 }
 
 PIPELINE_MAP = {
-    "qr" : "ck_tile::BlockFmhaPipelineQRKSVS",
-    "qr_async" : "ck_tile::BlockFmhaPipelineQRKSVSAsync",
-    "qs" : "ck_tile::BlockFmhaPipelineQSKSVS",
+    # "qr" : "ck_tile::BlockFmhaPipelineQRKSVS",
+    # "qr_async" : "ck_tile::BlockFmhaPipelineQRKSVSAsync",
+    # "qs" : "ck_tile::BlockFmhaPipelineQSKSVS",
+    "decode_qr" : "ck_tile::BlockFmhaFwdDecodePipelineQRKSVS",
 }
 
 PIPELINE_ENUM_MAP = {
-    "qr" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
-    "qr_async" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
-    "qr_nwarp_sshuffle" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
-    "qs" : "ck_tile::BlockFmhaPipelineEnum::QSKSVS",
+    # "qr" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
+    # "qr_async" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
+    # "qr_nwarp_sshuffle" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
+    # "qs" : "ck_tile::BlockFmhaPipelineEnum::QSKSVS",
+    "decode_qr" : "ck_tile::BlockFmhaPipelineEnum::DECODE_QRKSVS",
 }
 
 BOOL_MAP = {

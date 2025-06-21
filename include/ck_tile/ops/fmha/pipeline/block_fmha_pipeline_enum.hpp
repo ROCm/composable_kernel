@@ -11,6 +11,7 @@ enum class BlockFmhaPipelineEnum
     QRKSVS = 0,
     QRKSVS_ASYNC,
     QSKSVS,
+    DECODE_QRKSVS,
 };
 
 template <BlockFmhaPipelineEnum>
@@ -30,6 +31,12 @@ template <>
 struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QSKSVS>
 {
     static constexpr const char* name = "qs";
+};
+
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::DECODE_QRKSVS>
+{
+    static constexpr const char* name = "decode_qr";
 };
 
 } // namespace ck_tile

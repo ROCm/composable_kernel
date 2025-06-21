@@ -435,12 +435,12 @@ class FmhaFwdKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            # '32'  : FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            '64'  : FmhaFwdTileSize(16, 64, 32, 64,  32,  64,   1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
         ### '96'  : FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '192' : FmhaFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            '128' : FmhaFwdTileSize(16, 64, 64, 128, 64,  128,  1, 4, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16,  -1),
+            # '192' : FmhaFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            # '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
@@ -473,6 +473,11 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
 
                     pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
                     pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
+                elif hdim == 64 or hdim == 128:
+                    pipelines.append(FmhaFwdPipeline('decode_qr', 'row', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
+                    pipelines.append(FmhaFwdPipeline('decode_qr', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
+                    pipelines.append(FmhaFwdPipeline('decode_qr', 'row', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
+                    pipelines.append(FmhaFwdPipeline('decode_qr', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
                 else:
                     if bias == "bias":
                         # TODO: rocm 6.2 compiler problem if using qr_async for bias case
