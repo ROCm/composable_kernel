@@ -10,7 +10,6 @@
 #include <ck_tile/host/kernel_launch.hpp>
 #include <ck_tile/host/stream_config.hpp>
 #include <ck_tile/ops/epilogue.hpp>
-#include <ck_tile/ops/fmha.hpp>
 
 #include "hstu_attention_bool_switch.hpp"
 #include "hstu_attention_fwd_type_config.hpp"
@@ -32,8 +31,8 @@ template <typename InOutDataType,
           ck_tile::index_t MaxK>
 struct batched_forward_causal_local_bias_dropout_dispatch
 {
-    using HstuAttentionShape = typename HstuAttentionFwdShape<MaxK>::Type;
-    using HstuMask           = typename ck_tile::HstuBlockMasking<kUseCausal, kUseLocal>::Type;
+    using HstuAttentionTileSetting = typename HstuAttentionFwdTileSetting<MaxK>::Type;
+    using HstuMask = typename ck_tile::HstuBlockMasking<kUseCausal, kUseLocal>::Type;
 
     template <typename HstuTraits>
     using HstuPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
@@ -45,16 +44,16 @@ struct batched_forward_causal_local_bias_dropout_dispatch
         kHasBias,
         kHasDropout,
         HstuMask,
-        HstuAttentionShape,
+        HstuAttentionTileSetting,
         HstuTraits>;
 
     static void Run(HstuAttentionFwdParams& param, hipStream_t stream)
     {
         constexpr ck_tile::index_t occupancy = -1;
 
-        const bool pad_seqlen_k   = !(param.seqlen % HstuAttentionShape::kN0 == 0);
-        const bool pad_headdim_qk = !(param.hdim_qk % HstuAttentionShape::kSubQKHeaddim == 0);
-        const bool pad_headdim_v  = !(param.hdim_v % HstuAttentionShape::kN1 == 0);
+        const bool pad_seqlen_k   = !(param.seqlen % HstuAttentionTileSetting::kN0 == 0);
+        const bool pad_headdim_qk = !(param.hdim_qk % HstuAttentionTileSetting::kSubQKHeaddim == 0);
+        const bool pad_headdim_v  = !(param.hdim_v % HstuAttentionTileSetting::kN1 == 0);
 
         // no need to check seqlen_q since it is not used as fastest dim,
         // buffer_load_dwordxx/buffer_store_dwordxx can handle oob access
