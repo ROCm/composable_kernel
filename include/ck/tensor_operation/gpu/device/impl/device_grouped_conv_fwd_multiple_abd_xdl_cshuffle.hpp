@@ -1629,11 +1629,22 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         }
         else
         {
-            return GridwiseGemmCTranspose::CheckValidity(arg.b_grid_desc_n_k_,
-                                                         arg.a_grid_desc_m_k_,
-                                                         arg.ds_grid_desc_m_n_,
-                                                         arg.e_grid_desc_m_n_,
-                                                         arg.block_2_etile_map_);
+            if constexpr(CTranspose)
+            {
+                return GridwiseGemmCTranspose::CheckValidity(arg.b_grid_desc_n_k_,
+                                                             arg.a_grid_desc_m_k_,
+                                                             arg.ds_grid_desc_m_n_,
+                                                             arg.e_grid_desc_m_n_,
+                                                             arg.block_2_etile_map_);
+            }
+            else
+            {
+                return GridwiseGemmCTranspose::CheckValidity(arg.a_grid_desc_m_k_,
+                                                             arg.b_grid_desc_n_k_,
+                                                             arg.ds_grid_desc_m_n_,
+                                                             arg.e_grid_desc_m_n_,
+                                                             arg.block_2_etile_map_);
+            }
         }
     }
 
