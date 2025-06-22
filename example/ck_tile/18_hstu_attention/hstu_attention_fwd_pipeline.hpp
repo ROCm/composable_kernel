@@ -23,20 +23,18 @@ struct HstuAttentionFwdPipelineQRKSVS
     using ODataType       = remove_cvref_t<typename Problem::InOutDataType>;
     using HstuMask        = remove_cvref_t<typename Problem::HstuMask>;
 
-    using HstuAttentionTileShape     = remove_cvref_t<typename Problem::HstuAttentionTileShape>;
-    using VLayout                    = remove_cvref_t<typename HstuAttentionTileShape::VLayout>;
-    static constexpr bool kQLoadOnce = true;
-    static_assert(kQLoadOnce == Policy::QLoadOnce);
+    using HstuAttentionTileSetting = remove_cvref_t<typename Problem::HstuAttentionTileSetting>;
+    using VLayout                  = remove_cvref_t<typename HstuAttentionTileSetting::VLayout>;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0           = HstuAttentionTileShape::kM0;
-    static constexpr index_t kN0           = HstuAttentionTileShape::kN0;
-    static constexpr index_t kK0           = HstuAttentionTileShape::kK0;
-    static constexpr index_t kN1           = HstuAttentionTileShape::kN1;
-    static constexpr index_t kK1           = HstuAttentionTileShape::kK1;
-    static constexpr index_t kQKHeaddim    = HstuAttentionTileShape::kQKHeaddim;
-    static constexpr index_t kSubQKHeaddim = HstuAttentionTileShape::kSubQKHeaddim;
+    static constexpr index_t kM0           = HstuAttentionTileSetting::kM0;
+    static constexpr index_t kN0           = HstuAttentionTileSetting::kN0;
+    static constexpr index_t kK0           = HstuAttentionTileSetting::kK0;
+    static constexpr index_t kN1           = HstuAttentionTileSetting::kN1;
+    static constexpr index_t kK1           = HstuAttentionTileSetting::kK1;
+    static constexpr index_t kQKHeaddim    = HstuAttentionTileSetting::kQKHeaddim;
+    static constexpr index_t kSubQKHeaddim = HstuAttentionTileSetting::kSubQKHeaddim;
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
@@ -283,7 +281,7 @@ struct HstuAttentionFwdPipelineQRKSVS
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(number<kM0>{}, number<kK1>{}),
                              {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
-                             Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
+                             Policy::template MakeBiasDramTileDistribution<Problem>());
 
         auto null_randval_window = [&]() {
             if constexpr(kHasDropout)
