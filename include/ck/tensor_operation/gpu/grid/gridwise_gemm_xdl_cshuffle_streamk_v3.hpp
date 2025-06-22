@@ -636,9 +636,13 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             launch_grid_dims_ = dims;
         }
 
-        dim3 GetLaunchGridDims() const
+        dim3 GetLaunchGridDims() const override
         {
             return launch_grid_dims_;
+        }
+        bool HasLaunchGridDims() const override
+        {
+            return launch_grid_dims_.x > 0;
         }
     };
 
