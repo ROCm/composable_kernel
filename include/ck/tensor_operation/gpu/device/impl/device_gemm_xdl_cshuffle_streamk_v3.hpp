@@ -169,13 +169,13 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                     hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
                     num_cu        = dev_prop.multiProcessorCount;
                     arg.Grid_size = num_cu * occupancy;
-                    grid_dim.x = num_cu * occupancy; // Set the x-dimension
-                    grid_dim.y = 1;
-                    grid_dim.z = 1;
+                    grid_dim.x    = num_cu * occupancy; // Set the x-dimension
+                    grid_dim.y    = 1;
+                    grid_dim.z    = 1;
                 }
                 else
                 {
-                 
+
                     grid_dim.x = arg.Grid_size;
                     grid_dim.y = 1;
                     grid_dim.z = 1;

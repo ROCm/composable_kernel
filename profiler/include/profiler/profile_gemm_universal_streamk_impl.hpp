@@ -250,7 +250,6 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
 
                     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-                 
                     // Get actual launch grid dims from argument
                     dim3 actual_launch_grid_dims = argument_ptr->GetLaunchGridDims();
 
