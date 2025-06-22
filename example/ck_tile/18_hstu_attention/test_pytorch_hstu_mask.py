@@ -73,9 +73,11 @@ def main():
     num_targets=torch.tensor((4,5,6), device=dev_type, dtype=torch.int32)
 
     valid_attn_mask=get_valid_attn_mask(dev_type,  causal, N, seq_lengths, num_targets, max_attn_len, contextual_seq_len, min_full_attn_seq_len)
-    ##torch.set_printoptions(profile="full", linewidth=1024)
-    ##print(valid_attn_mask)
-    torch.save(valid_attn_mask, "torch_hstu_mask.pt")
+    torch.save(valid_attn_mask, "torch_hstu_mask_0.pt")
+
+    min_full_attn_seq_len=6
+    valid_attn_mask=get_valid_attn_mask(dev_type,  causal, N, seq_lengths, num_targets, max_attn_len, contextual_seq_len, min_full_attn_seq_len)
+    torch.save(valid_attn_mask, "torch_hstu_mask_1.pt")
 
 if __name__ == "__main__":
     main()
