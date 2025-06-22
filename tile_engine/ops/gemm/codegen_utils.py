@@ -44,8 +44,8 @@ CSHUFFLE_EPILOGUE = """
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                             ck_tile::CShuffleEpilogueProblem<ADataType,
                                                              BDataType,
-                                                             AccDataType,
                                                              ck_tile::tuple<>,
+                                                             AccDataType,
                                                              CDataType,
                                                              ck_tile::tuple<>,
                                                              CLayout,
