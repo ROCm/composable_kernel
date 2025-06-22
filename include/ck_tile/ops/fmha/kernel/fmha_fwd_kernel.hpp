@@ -847,6 +847,7 @@ struct FmhaFwdKernel
             window_size_left,
             window_size_right,
             mask_type,
+            0, // min_seqlen_q
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
