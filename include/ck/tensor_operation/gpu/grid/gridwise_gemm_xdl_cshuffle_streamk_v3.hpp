@@ -631,19 +631,10 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
         mutable dim3 launch_grid_dims_;
 
-        void SetLaunchGridDims(dim3 dims) const
-        {
-            launch_grid_dims_ = dims;
-        }
+        void SetLaunchGridDims(dim3 dims) const { launch_grid_dims_ = dims; }
 
-        dim3 GetLaunchGridDims() const override
-        {
-            return launch_grid_dims_;
-        }
-        bool HasLaunchGridDims() const override
-        {
-            return launch_grid_dims_.x > 0;
-        }
+        dim3 GetLaunchGridDims() const override { return launch_grid_dims_; }
+        bool HasLaunchGridDims() const override { return launch_grid_dims_.x > 0; }
     };
 
     struct SplitKBatchOffset

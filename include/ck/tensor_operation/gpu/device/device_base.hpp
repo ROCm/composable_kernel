@@ -56,17 +56,10 @@ struct BaseArgument
     virtual ~BaseArgument() {}
 
     void* p_workspace_ = nullptr;
-  
-    virtual dim3 GetLaunchGridDims() const 
-    { 
-        return dim3{0, 0, 0}; 
-    }
-    
-    virtual bool HasLaunchGridDims() const 
-    { 
-        return false; 
-    }
 
+    virtual dim3 GetLaunchGridDims() const { return dim3{0, 0, 0}; }
+
+    virtual bool HasLaunchGridDims() const { return false; }
 };
 
 struct BaseInvoker

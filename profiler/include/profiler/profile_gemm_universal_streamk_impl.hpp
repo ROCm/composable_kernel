@@ -251,14 +251,16 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
                     float gb_per_sec = num_btype / 1.E6 / ave_time;
 
                     // // const auto actual_launch_grid_dims = argument_ptr->GetLaunchGridDims();
-                    // const auto* typed_argument_ptr = dynamic_cast<const GridwiseGemm_xdl_cshuffle_streamk_v3<...>::Argument*>(argument_ptr)
+                    // const auto* typed_argument_ptr = dynamic_cast<const
+                    // GridwiseGemm_xdl_cshuffle_streamk_v3<...>::Argument*>(argument_ptr)
 
                     // Get actual launch grid dims from argument
                     dim3 actual_launch_grid_dims = argument_ptr->GetLaunchGridDims();
 
                     std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                              << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", Grid_size ";
-                    
+                              << " TFlops, " << gb_per_sec << " GB/s, " << op_name
+                              << ", Grid_size ";
+
                     if(argument_ptr->HasLaunchGridDims() && actual_launch_grid_dims.x > 0)
                     {
                         std::cout << actual_launch_grid_dims.x;
@@ -267,30 +269,8 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
                     {
                         std::cout << grid_size_curr;
                     }
-                    
+
                     std::cout << ", streamk selection strategy " << streamk_sel_curr << std::endl;
-
-                    // if (typed_argument_ptr)
-                    // {
-                    //     const auto actual_launch_grid_dims = typed_argument_ptr->GetLaunchGridDims();
-                    //     std::cout << "Actual Grid Dimensions: " << actual_launch_grid_dims.x << "x"
-                    //             << actual_launch_grid_dims.y << "x" << actual_launch_grid_dims.z << std::endl;
-                    // }
-                    // else
-                    // {
-                    //     std::cerr << "Error: Failed to cast argument_ptr to the correct type." << std::endl;
-                    // }
-
-                    // std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                    //           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", Grid_size "
-                    //           << actual_launch_grid_dims.x // Use the x-dimension of the actual launch grid
-                    //           << ", streamk selection strategy "
-                    //           << streamk_sel_curr << std::endl;
-
-                    // std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                    //           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", Grid_size "
-                    //           << grid_size_curr << ", streamk selection strategy"
-                    //           << streamk_sel_curr << std::endl;
 
 #if defined CK_ENABLE_FP8
                     // set softer tolerances for fp8
@@ -313,11 +293,22 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
 
                     if(tflops > best_tflops)
                     {
-                        best_op_name     = op_name;
-                        best_tflops      = tflops;
-                        best_ave_time    = ave_time;
-                        best_gb_per_sec  = gb_per_sec;
-                        best_grid_size   = grid_size_curr;
+                        best_op_name    = op_name;
+                        best_tflops     = tflops;
+                        best_ave_time   = ave_time;
+                        best_gb_per_sec = gb_per_sec;
+
+                        best_grid_size = grid_size_curr;
+
+                        if(argument_ptr->HasLaunchGridDims() && actual_launch_grid_dims.x > 0)
+                        {
+                            best_grid_size = actual_launch_grid_dims.x;
+                        }
+                        else
+                        {
+                            best_grid_size = grid_size_curr;
+                        }
+
                         best_streamk_sel = streamk_sel_curr;
                     }
                 }
