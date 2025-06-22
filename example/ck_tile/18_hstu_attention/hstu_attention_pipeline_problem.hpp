@@ -21,7 +21,7 @@ template <typename InOutDataType_,
           bool kHasBias_,
           bool kHasDropout_,
           typename HstuMask_, // encoding Causal and Local, contextual masking
-          typename AttentionTileShape_,
+          typename AttentionTileSetting_,
           typename Traits_>
 struct HstuAttentionFwdPipelineProblem
 {
@@ -35,10 +35,6 @@ struct HstuAttentionFwdPipelineProblem
     using BiasDataType = remove_cvref_t<BiasDataType_>;
 
     // to be compatible with ck_tile existing policy codes
-    using QDataType    = QKVDataType;
-    using KDataType    = QKVDataType;
-    using VDataType    = QKVDataType;
-    using SaccDataType = GemmAccDataType;
     using OaccDataType = GemmAccDataType;
     using PDataType    = QKVDataType;
 
@@ -48,15 +44,13 @@ struct HstuAttentionFwdPipelineProblem
 
     using HstuMask = remove_cvref_t<HstuMask_>;
 
-    using HstuAttentionTileShape = remove_cvref_t<AttentionTileShape_>;
+    using HstuAttentionTileSetting = remove_cvref_t<AttentionTileSetting_>;
 
-    // Keep the name compatible with ck_tile existing policy codes, to be changed
-    using BlockFmhaShape = HstuAttentionTileShape;
-    using Traits         = remove_cvref_t<Traits_>;
+    using Traits = remove_cvref_t<Traits_>;
 
-    static constexpr index_t kNumGemm0Warps = AttentionTileShape_::NumGemm0Warps;
-    static constexpr index_t kNumGemm1Warps = AttentionTileShape_::NumGemm1Warps;
-    static constexpr index_t kBlockSize     = AttentionTileShape_::NumWarps * get_warp_size();
+    static constexpr index_t kNumGemm0Warps = AttentionTileSetting_::NumGemm0Warps;
+    static constexpr index_t kNumGemm1Warps = AttentionTileSetting_::NumGemm1Warps;
+    static constexpr index_t kBlockSize     = AttentionTileSetting_::NumWarps * get_warp_size();
 };
 
 } // namespace ck_tile

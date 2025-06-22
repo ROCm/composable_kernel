@@ -7,9 +7,9 @@
 #pragma once
 
 #include <ck_tile/core.hpp>
-#include <ck_tile/ops/fmha.hpp>
 
 #include "hstu_attention_fwd_type_config.hpp"
+#include "hstu_attention_tile_setting_define.hpp"
 
 template <ck_tile::index_t MaxK>
 struct HstuAttentionFwdBlockTile;
@@ -51,48 +51,52 @@ struct HstuAttentionFwdBlockTile<256>
 using HstuAttentionFwdWarpTile1 = ck_tile::sequence<16, 16, 16>;
 
 template <ck_tile::index_t MaxK>
-struct HstuAttentionFwdShape;
+struct HstuAttentionFwdTileSetting;
 
 template <>
-struct HstuAttentionFwdShape<32>
+struct HstuAttentionFwdTileSetting<32>
 {
-    using Type = ck_tile::TileFmhaShape<typename HstuAttentionFwdBlockTile<32>::type,
-                                        typename HstuAttentionFwdBlockTile<32>::gemm0_warps,
-                                        HstuAttentionFwdWarpTile1,
-                                        typename HstuAttentionFwdBlockTile<32>::gemm1_warps,
-                                        HstuAttentionFwdWarpTile1,
-                                        IsVLayoutRowMajor>;
+    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
+        typename HstuAttentionFwdBlockTile<32>::type,
+        typename HstuAttentionFwdBlockTile<32>::gemm0_warps,
+        HstuAttentionFwdWarpTile1,
+        typename HstuAttentionFwdBlockTile<32>::gemm1_warps,
+        HstuAttentionFwdWarpTile1,
+        IsVLayoutRowMajor>;
 };
 
 template <>
-struct HstuAttentionFwdShape<64>
+struct HstuAttentionFwdTileSetting<64>
 {
-    using Type = ck_tile::TileFmhaShape<typename HstuAttentionFwdBlockTile<64>::type,
-                                        typename HstuAttentionFwdBlockTile<64>::gemm0_warps,
-                                        HstuAttentionFwdWarpTile1,
-                                        typename HstuAttentionFwdBlockTile<64>::gemm1_warps,
-                                        HstuAttentionFwdWarpTile1,
-                                        IsVLayoutRowMajor>;
+    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
+        typename HstuAttentionFwdBlockTile<64>::type,
+        typename HstuAttentionFwdBlockTile<64>::gemm0_warps,
+        HstuAttentionFwdWarpTile1,
+        typename HstuAttentionFwdBlockTile<64>::gemm1_warps,
+        HstuAttentionFwdWarpTile1,
+        IsVLayoutRowMajor>;
 };
 
 template <>
-struct HstuAttentionFwdShape<128>
+struct HstuAttentionFwdTileSetting<128>
 {
-    using Type = ck_tile::TileFmhaShape<typename HstuAttentionFwdBlockTile<128>::type,
-                                        typename HstuAttentionFwdBlockTile<128>::gemm0_warps,
-                                        HstuAttentionFwdWarpTile1,
-                                        typename HstuAttentionFwdBlockTile<128>::gemm1_warps,
-                                        HstuAttentionFwdWarpTile1,
-                                        IsVLayoutRowMajor>;
+    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
+        typename HstuAttentionFwdBlockTile<128>::type,
+        typename HstuAttentionFwdBlockTile<128>::gemm0_warps,
+        HstuAttentionFwdWarpTile1,
+        typename HstuAttentionFwdBlockTile<128>::gemm1_warps,
+        HstuAttentionFwdWarpTile1,
+        IsVLayoutRowMajor>;
 };
 
 template <>
-struct HstuAttentionFwdShape<256>
+struct HstuAttentionFwdTileSetting<256>
 {
-    using Type = ck_tile::TileFmhaShape<typename HstuAttentionFwdBlockTile<256>::type,
-                                        typename HstuAttentionFwdBlockTile<256>::gemm0_warps,
-                                        HstuAttentionFwdWarpTile1,
-                                        typename HstuAttentionFwdBlockTile<256>::gemm1_warps,
-                                        HstuAttentionFwdWarpTile1,
-                                        IsVLayoutRowMajor>;
+    using Type = ck_tile::HstuAttentionFwdTileSettingClass<
+        typename HstuAttentionFwdBlockTile<256>::type,
+        typename HstuAttentionFwdBlockTile<256>::gemm0_warps,
+        HstuAttentionFwdWarpTile1,
+        typename HstuAttentionFwdBlockTile<256>::gemm1_warps,
+        HstuAttentionFwdWarpTile1,
+        IsVLayoutRowMajor>;
 };
