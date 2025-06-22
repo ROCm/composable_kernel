@@ -283,10 +283,14 @@ struct SimplifiedGenericAttentionMask
     }
     CK_TILE_HOST_DEVICE
     SimplifiedGenericAttentionMask(
-        index_t y_, index_t x_, index_t y_total_, index_t x_total_, index_t y_ratio_)
-        : y(y_), x(x_), y_total(y_total_), x_total(x_total_), y_ratio(y_ratio_)
+        index_t y_, index_t x_, index_t y_total_, index_t x_total_, mdiv y_ratio_mdiv_)
+        : y(y_),
+          x(x_),
+          y_total(y_total_),
+          x_total(x_total_),
+          y_ratio(static_cast<index_t>(y_ratio_mdiv_.get())),
+          y_ratio_mdiv(y_ratio_mdiv_)
     {
-        y_ratio_mdiv = mdiv{static_cast<uint32_t>(y_ratio_)};
     }
     template <typename MaskCoordinates>
     CK_TILE_HOST_DEVICE SimplifiedGenericAttentionMask(const MaskCoordinates& mask_coord)
