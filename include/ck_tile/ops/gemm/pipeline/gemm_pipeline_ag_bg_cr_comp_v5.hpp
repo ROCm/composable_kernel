@@ -349,39 +349,6 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             constexpr auto b_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
 
-            using acopy_dram_type =
-                remove_cvref_t<decltype(PipelineImplBase::GetAWindows(a_dram_block_window_tmp,
-                                                                      a_lds_block,
-                                                                      a_lds_load_tile_distr)
-                                            .at(I0))>;
-            using bcopy_dram_type =
-                remove_cvref_t<decltype(PipelineImplBase::GetBWindows(b_dram_block_window_tmp,
-                                                                      b_lds_block,
-                                                                      b_lds_load_tile_distr)
-                                            .at(I0))>;
-
-            using a_copy_lds_window_type =
-                remove_cvref_t<decltype(PipelineImplBase::GetAWindows(a_dram_block_window_tmp,
-                                                                      a_lds_block,
-                                                                      a_lds_load_tile_distr)
-                                            .at(I1))>;
-            using b_copy_lds_window_type =
-                remove_cvref_t<decltype(PipelineImplBase::GetBWindows(b_dram_block_window_tmp,
-                                                                      b_lds_block,
-                                                                      b_lds_load_tile_distr)
-                                            .at(I1))>;
-
-            using a_lds_load_tile_distr_type =
-                remove_cvref_t<decltype(PipelineImplBase::GetAWindows(a_dram_block_window_tmp,
-                                                                      a_lds_block,
-                                                                      a_lds_load_tile_distr)
-                                            .at(I2))>;
-            using b_lds_load_tile_distr_type =
-                remove_cvref_t<decltype(PipelineImplBase::GetBWindows(b_dram_block_window_tmp,
-                                                                      b_lds_block,
-                                                                      b_lds_load_tile_distr)
-                                            .at(I2))>;
-
             auto&& aWindows = PipelineImplBase::GetAWindows(
                 a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
             auto&& bWindows = PipelineImplBase::GetBWindows(
