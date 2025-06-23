@@ -337,16 +337,20 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 #if 1
         if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1))
         {
-            auto a_grid0   = a_grid_buf[0];
-            auto a_block0  = a_block_buf[0];
-            auto a_grid1   = a_grid_buf[1];
-            auto a_block1  = a_block_buf[1];
-            auto a_grid10  = a_grid_buf[10];
-            auto a_block10 = a_block_buf[10];
-            auto a_grid17  = a_grid_buf[17];
-            auto a_block17 = a_block_buf[17];
-            auto b_grid17  = b_grid_buf[17];
-            auto b_block17 = b_block_buf[17];
+            auto a_grid0      = a_grid_buf[0];
+            auto a_grid0_ptr  = &(a_grid_buf[0]);
+            auto a_block0     = a_block_buf[0];
+            auto a_block0_ptr = &(a_block_buf[0]);
+            auto a_grid1      = a_grid_buf[1];
+            auto a_grid1_ptr  = &(a_grid_buf[1]);
+            auto a_block1     = a_block_buf[1];
+            auto a_block1_ptr = &(a_block_buf[1]);
+            auto a_grid10     = a_grid_buf[10];
+            auto a_block10    = a_block_buf[10];
+            auto a_grid17     = a_grid_buf[17];
+            auto a_block17    = a_block_buf[17];
+            auto b_grid17     = b_grid_buf[17];
+            auto b_block17    = b_block_buf[17];
 
             // print ComputeTypeA
             auto print_cmp_t = [](const char* str, const ComputeTypeA& v) {
@@ -369,8 +373,16 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
             {
                 print_cmp_t("thread 0; a_grid0", a_grid0);
                 print_cmp_t("thread 0; a_block0", a_block0);
+
                 print_cmp_t("thread 0; a_grid1", a_grid1);
                 print_cmp_t("thread 0; a_block1", a_block1);
+
+                printf("thread 0; a_grid0_ptr = %p\n", static_cast<const void*>(a_grid0_ptr));
+                printf("thread 0; a_grid1_ptr = %p\n", static_cast<const void*>(a_grid1_ptr));
+
+                printf("thread 0; a_block0_ptr = %p\n", static_cast<const void*>(a_block0_ptr));
+                printf("thread 0; a_block1_ptr = %p\n", static_cast<const void*>(a_block1_ptr));
+
                 print_cmp_t("thread 0; a_grid10", a_grid10);
                 print_cmp_t("thread 0; a_block10", a_block10);
             }
