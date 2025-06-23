@@ -23,7 +23,8 @@ template <typename ADataType_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
           bool isCTransposed_,
-          memory_operation_enum MemoryOperation_>
+          memory_operation_enum MemoryOperation_,
+          bool Zeroing_ = false>
 struct CShuffleEpilogueProblem
 {
     using ADataType                                        = remove_cvref_t<ADataType_>;
@@ -41,6 +42,7 @@ struct CShuffleEpilogueProblem
     static constexpr index_t kKPerXdl                      = kKPerXdl_;
     static constexpr index_t isCTransposed                 = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
+    static constexpr bool EnableZeroing = Zeroing_;
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -137,8 +139,13 @@ struct CShuffleEpilogue
     }
 
     template <typename ODramWindow, typename OAccTile>
-    CK_TILE_DEVICE auto
-    operator()(ODramWindow& out_dram_window, const OAccTile& o_acc_tile, void* p_smem)
+    CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window, 
+                                const OAccTile& o_acc_tile, 
+                                void* p_smem,
+                                uint32_t* p_barrier = nullptr,     // barrier array
+                                index_t k_batch_id = 0,            // current k-batch
+                                uint32_t k_batch_total = 1,         // total k-batches
+                                index_t tile_id = 0)               // tile ID)
     {
 
         const index_t iMWarp = get_warp_id() / kNWave;
@@ -173,6 +180,29 @@ struct CShuffleEpilogue
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
+        // STEP 1: Handle Zeroing synchronization
+        if constexpr(Problem::EnableZeroing)
+        {
+            if(k_batch_id == 0)
+            {
+                // First k-batch: Reset barrier
+                if(threadIdx.x == 0 && p_barrier != nullptr)
+                {
+                    p_barrier[tile_id] = 0;  // Clear barrier
+                }
+                __syncthreads();
+            }
+            else
+            {
+                // Subsequent k-batches: Wait until tile is cleared
+                if(threadIdx.x == 0 && p_barrier != nullptr)
+                {
+                    while(__atomic_load_n(&p_barrier[tile_id], __ATOMIC_RELAXED) == 0) {}
+                }
+                __syncthreads();
+            }
+        } 
+
         CWarpTensor c_warp_in_tensor;
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             constexpr auto idx_y_start = SFC::get_index(iAccess);
@@ -192,21 +222,52 @@ struct CShuffleEpilogue
 
             const auto c_out_tensor =
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
-
-            if constexpr(MemoryOperation == memory_operation_enum::set)
+            
+            // STEP 2: Write with correct operation for Zeroing
+            if constexpr(Problem::EnableZeroing)
             {
-                store_tile(out_dram_window, c_out_tensor);
+                if(k_batch_id == 0)
+                {
+                    store_tile(out_dram_window, c_out_tensor);  // SET for first k-batch
+                }
+                else
+                {
+                    update_tile(out_dram_window, c_out_tensor); // ATOMIC_ADD for others
+                }
             }
             else
             {
-                update_tile(out_dram_window, c_out_tensor);
+                if constexpr(MemoryOperation == memory_operation_enum::set)
+                {
+                    store_tile(out_dram_window, c_out_tensor);
+                }
+                else
+                {
+                    update_tile(out_dram_window, c_out_tensor);
+                }
             }
+
             if constexpr(iAccess != num_access - 1)
             {
                 constexpr auto step = SFC::get_forward_step(iAccess);
                 move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
             }
         });
+
+        // STEP 3: Signal completion for Zeroing
+        if constexpr(Problem::EnableZeroing)
+        {
+            if(threadIdx.x == 0 && p_barrier != nullptr)
+            {
+                uint32_t completed = atomicInc(&p_barrier[tile_id], k_batch_total);
+                
+                // Clear barrier when last k-batch completes
+                if(completed == k_batch_total - 1)
+                {
+                    p_barrier[tile_id] = 0;  // Reset for next iteration
+                }
+            }
+        }
     }
 };
 } // namespace ck_tile

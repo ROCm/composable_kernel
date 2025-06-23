@@ -16,7 +16,7 @@
 namespace ck_tile {
 
 // ADD: Global barrier for Split-K synchronization
-static __device__ volatile uint32_t g_splitk_barrier = 0;
+// static __device__ volatile uint32_t g_splitk_barrier = 0;
 
 /// @brief The GEMM problem definition.
 ///
@@ -98,6 +98,7 @@ struct GemmKernelArgs
     ///        (in memory) of C tensor.
     index_t stride_C;
     index_t k_batch;
+    uint32_t* per_tile_barriers; //Per tile barrier array
 };
 
 /// @brief The GEMM kernel template.
@@ -211,9 +212,49 @@ struct GemmKernel
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
+    CK_TILE_HOST static uint32_t* AllocateBarriers(const GemmHostArgs& hostArgs)
+    {
+        // Calculate number of tiles based on template parameters
+        const auto M_blocks = (hostArgs.M + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock;
+        const auto N_blocks = (hostArgs.N + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock;
+        const auto total_tiles = M_blocks * N_blocks;
+        
+        // Allocate and initialize barrier array
+        const size_t barrier_size = total_tiles * sizeof(uint32_t);
+        uint32_t* per_tile_barriers;
+        
+        hipError_t hip_err = hipMalloc(&per_tile_barriers, barrier_size);
+        if(hip_err != hipSuccess) {
+            throw std::runtime_error("Failed to allocate per-tile barriers: " + 
+                                   std::string(hipGetErrorString(hip_err)));
+        }
+        
+        hip_err = hipMemset(per_tile_barriers, 0, barrier_size);
+        if(hip_err != hipSuccess) {
+            hipError_t free_err = hipFree(per_tile_barriers);
+            (void)free_err; 
+            throw std::runtime_error("Failed to initialize per-tile barriers: " + 
+                                std::string(hipGetErrorString(hip_err)));
+        }
+  
+        return per_tile_barriers;
+    }
+
+    CK_TILE_HOST static void CleanupBarriers(GemmKernelArgs& kargs)
+    {
+        if(kargs.per_tile_barriers) {
+            hipError_t hip_err = hipFree(kargs.per_tile_barriers);
+            if(hip_err != hipSuccess) {
+                std::cerr << "Warning: Failed to free per-tile barriers: " 
+                         << hipGetErrorString(hip_err) << std::endl;
+            }
+            kargs.per_tile_barriers = nullptr;
+        }
+    }
+    
     CK_TILE_HOST static constexpr GemmKernelArgs MakeKernelArgs(const GemmHostArgs& hostArgs)
     {
-        return GemmKernelArgs{hostArgs.a_ptr,
+        GemmKernelArgs kargs{hostArgs.a_ptr,
                               hostArgs.b_ptr,
                               hostArgs.c_ptr,
                               hostArgs.M,
@@ -222,7 +263,16 @@ struct GemmKernel
                               hostArgs.stride_A,
                               hostArgs.stride_B,
                               hostArgs.stride_C,
-                              hostArgs.k_batch};
+                              hostArgs.k_batch,
+                              nullptr};
+        
+        // Allocate barriers automatically when zeroing is enabled and Split-K is used
+        if constexpr(Zeroing) {
+            if(hostArgs.k_batch > 1) {
+                kargs.per_tile_barriers = AllocateBarriers(hostArgs);
+            }
+        }
+        return kargs;
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -649,7 +699,9 @@ struct GemmKernel
                                                     void* smem_ptr_0,
                                                     const SplitKBatchOffset& splitk_batch_offset,
                                                     const index_t block_idx_m,
-                                                    const index_t block_idx_n)
+                                                    const index_t block_idx_n,
+                                                    const GemmKernelArgs& kargs,
+                                                    const index_t k_batch_id = 0)
     {
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
@@ -667,8 +719,27 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, smem_ptr_0);
+        const auto N_blocks = (kargs.N + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock;
+        const auto tile_m = block_idx_m / TilePartitioner::MPerBlock;  // Convert offset to tile index
+        const auto tile_n = block_idx_n / TilePartitioner::NPerBlock;  // Convert offset to tile index
+        const auto tile_id = tile_m * N_blocks + tile_n;              
+        
+        
+        if constexpr(Zeroing) {
+            EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, 
+                c_block_tile, 
+                smem_ptr_0, 
+                kargs.per_tile_barriers,  // Per-tile barriers
+                k_batch_id,               // Current k-batch
+                kargs.k_batch,           // Total k-batches
+                tile_id);
+        } else {
+            EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, 
+                c_block_tile, 
+                smem_ptr_0);
+        }
     }
 
    
@@ -698,19 +769,10 @@ struct GemmKernel
     {
         if constexpr(Zeroing)
         {
-            // Calculate total number of M,N blocks for barrier synchronization
-            const auto M_blocks = static_cast<uint32_t>((kargs.M + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock);
-            const auto N_blocks = static_cast<uint32_t>((kargs.N + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock);
-            const auto total_blocks = M_blocks * N_blocks;
-
+            
             if(k_batch_id == 0)
             {
                 
-                // STEP 1: Reset barrier (only once per kernel launch)
-                if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0)
-                {
-                    g_splitk_barrier = 0;
-                }
               
                 // ADD: MASSIVE delay for k_batch=0 to guarantee other k_batches start first
                 // if(threadIdx.x == 0)
@@ -723,38 +785,20 @@ struct GemmKernel
                 //     }
                 // }
 
-                // STEP 2: First k-batch: Use SET operation (zero + write first result)
-                // First k-batch: Use SET operation
                 const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<memory_operation_enum::set>(
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
                 
                 // Continue with GEMM execution
-                RunGemmWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, splitk_batch_offset, block_idx_m, block_idx_n);
-
-                // STEP 3: Signal completion (each k_batch_id=0 block increments)
-                if(threadIdx.x == 0)
-                {
-                    atomicAdd(const_cast<uint32_t*>(&g_splitk_barrier), 1);
-                }
-
+                RunGemmWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, splitk_batch_offset, block_idx_m, block_idx_n, kargs, k_batch_id);
             }
             else
             {
-                // STEP 4: Wait for ALL k_batch_id=0 blocks to complete
-                if(threadIdx.x == 0)
-                {
-                    while(__atomic_load_n(&g_splitk_barrier, __ATOMIC_RELAXED) < total_blocks) {}
-                }
                 
-                // STEP 5: CRITICAL - All threads wait for thread 0 to complete barrier check
-                __syncthreads();
-
-                // STEP 6: Subsequent k-batches: Use ATOMIC_ADD operation
                 const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<memory_operation_enum::atomic_add>(
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
                 
                 // Continue with GEMM execution
-                RunGemmWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, splitk_batch_offset, block_idx_m, block_idx_n);
+                RunGemmWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, splitk_batch_offset, block_idx_m, block_idx_n, kargs, k_batch_id);
             }
         }
         else
@@ -764,7 +808,7 @@ struct GemmKernel
                 a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
             
             // Continue with GEMM execution
-            RunGemmWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, splitk_batch_offset, block_idx_m, block_idx_n);
+            RunGemmWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, splitk_batch_offset, block_idx_m, block_idx_n, kargs, 0);
         }
     }
 
@@ -774,7 +818,9 @@ struct GemmKernel
                                                         void* __restrict__ smem_ptr_1,
                                                         const SplitKBatchOffset& splitk_batch_offset,
                                                         const index_t block_idx_m,
-                                                        const index_t block_idx_n)
+                                                        const index_t block_idx_n,
+                                                        const GemmKernelArgs& kargs,
+                                                        const index_t k_batch_id = 0)
     {
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
@@ -792,8 +838,27 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, smem_ptr_0);
+        const auto N_blocks = (kargs.N + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock;
+        const auto tile_m = block_idx_m / TilePartitioner::MPerBlock;  // Convert offset to tile index
+        const auto tile_n = block_idx_n / TilePartitioner::NPerBlock;  // Convert offset to tile index
+        const auto tile_id = tile_m * N_blocks + tile_n;             
+    
+        
+        if constexpr(Zeroing) {
+            EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, 
+                c_block_tile, 
+                smem_ptr_0, 
+                kargs.per_tile_barriers,  // Per-tile barriers
+                k_batch_id,               // Current k-batch
+                kargs.k_batch,           // Total k-batches
+                tile_id);
+        } else {
+            EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, 
+                c_block_tile, 
+                smem_ptr_0);
+        }
     }
     
     /**
@@ -833,7 +898,9 @@ struct GemmKernel
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
                 
                 // Continue with GEMM execution
-                RunGemm2LDSWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, smem_ptr_1, splitk_batch_offset, block_idx_m, block_idx_n);
+                RunGemm2LDSWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, smem_ptr_1, 
+                    splitk_batch_offset, block_idx_m, block_idx_n, 
+                    kargs, k_batch_id);
             }
             else
             {
@@ -842,7 +909,9 @@ struct GemmKernel
                     a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
                 
                 // Continue with GEMM execution
-                RunGemm2LDSWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, smem_ptr_1, splitk_batch_offset, block_idx_m, block_idx_n);
+                RunGemm2LDSWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, smem_ptr_1, 
+                    splitk_batch_offset, block_idx_m, block_idx_n, 
+                    kargs, k_batch_id);
             }
         }
         else
@@ -852,7 +921,9 @@ struct GemmKernel
                 a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
             
             // Continue with GEMM execution
-            RunGemm2LDSWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, smem_ptr_1, splitk_batch_offset, block_idx_m, block_idx_n);
+            RunGemm2LDSWithTensorViews(gemm_tensor_views_tuple, smem_ptr_0, smem_ptr_1, 
+                splitk_batch_offset, block_idx_m, block_idx_n, 
+                kargs, 0);
         }
     }
 
