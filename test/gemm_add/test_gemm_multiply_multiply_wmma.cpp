@@ -49,7 +49,7 @@ public:
     void Run()
     {
         std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {2048, 4096, 8192}, {2048, 4096, 128}};
+            {16, 32, 64}, {512, 2048, 4096}, {2048, 1024, 16}};
 
         bool all_success = true;
 
@@ -66,18 +66,20 @@ public:
 
             all_success =
                 all_success &
-                ProfileGemmMultiplyMultiplyImpl(1, 1, false, false, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE, 1, 1, 1, 0);
+                ProfileGemmMultiplyMultiplyImpl(1, 1, false, true, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE, 1, 1, 1, 0);
         }
 
         EXPECT_TRUE(all_success);
     }
 };
 
-using KernelTypes =
-    ::testing::Types<std::tuple<I8, I8, I32, F16, F16, F16, Row, Col, Row, Col, Row>,
-                     std::tuple<I8, I8, I32, F32, F32, BF16, Row, Col, Row, Col, Row>,
-                     std::tuple<F8, F8, F32, F32, F32, F16, Row, Col, Row, Col, Row>,
-                     std::tuple<F8, F8, F32, F32, F32, BF16, Row, Col, Row, Col, Row>>;
+using KernelTypes = ::testing::Types<
+#ifdef CK_USE_WMMA_FP8
+    std::tuple<F8, F8, F32, F32, F32, F16, Row, Col, Row, Col, Row>,
+    std::tuple<F8, F8, F32, F32, F32, BF16, Row, Col, Row, Col, Row>,
+#endif
+    std::tuple<I8, I8, I32, F16, F16, F16, Row, Col, Row, Col, Row>,
+    std::tuple<I8, I8, I32, F32, F32, BF16, Row, Col, Row, Col, Row>>;
 
 TYPED_TEST_SUITE(TestGemmMultiplyMultiply, KernelTypes);
-TYPED_TEST(TestGemmMultiplyMultiply, Test_BF16FP16) { this->Run(); }
+TYPED_TEST(TestGemmMultiplyMultiply, Test) { this->Run(); }
