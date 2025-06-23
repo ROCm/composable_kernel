@@ -150,8 +150,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         StrideC,
         a_element_op,
         b_element_op,
-        c_element_op
-        /**problem_size.NumSKBlocks**/); // TODO: add NumSKBlocks arg into Problem?
+        c_element_op problem_size.NumSKBlocks); // TODO: add NumSKBlocks arg into Problem?
 
     if(!gemm.IsSupportedArgument(argument))
     {

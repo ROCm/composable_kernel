@@ -57,6 +57,7 @@ struct ProblemSizeStreamK_universal final
     ck::index_t StrideB = -1;
     ck::index_t StrideC = -1;
 
+    ck::index_t NumSKBlocks = -1; // number of stream-k blocks
     ck::index_t Grid_size   = -1; // defaults to max occupancy
     ck::index_t Streamk_sel = 1;  // defaults to 1-tile SK
 };
