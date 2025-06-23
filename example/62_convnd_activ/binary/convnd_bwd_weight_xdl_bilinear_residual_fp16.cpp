@@ -170,6 +170,9 @@ bool run_grouped_conv(bool do_verification,
     // Use weight as D
     const std::array<const void*, NumDs> ds = {wei_device_buf.GetDeviceBuffer()};
 
+    ck::tensor_operation::device::ParamsSplitK split_k_params;
+    split_k_params.split_k_value_ = split_k;
+
     auto conv     = DeviceConvNDFwdInstance{};
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(
@@ -192,7 +195,7 @@ bool run_grouped_conv(bool do_verification,
         in_element_op,
         wei_element_op,
         out_element_op,
-        split_k);
+        split_k_params);
 
     DeviceMem workspace_buf(argument.GetWorkspaceSizeBytes());
     conv.SetWorkSpacePointer(&argument, workspace_buf.GetDeviceBuffer());

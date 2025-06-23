@@ -25,6 +25,7 @@
 
 #include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
+#include "ck/tensor_operation/gpu/device/split_k_params.hpp"
 
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -452,7 +453,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op,
-                 ck::index_t split_k)
+                 const ParamsSplitK split_k_parameters)
             : p_a_grid_{p_out_grid},
               p_b_grid_{p_in_grid},
               p_c_grid_{p_wei_grid},
@@ -495,7 +496,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
 
-            if (split_k < 1)
+            if (split_k_parameters.split_k_mode_== SplitKMode::BestOccupancyWithOversubscription)
             {
                 constexpr int k_batch_initial = 1;
 
@@ -526,29 +527,36 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 // Hence, the grid is just size of the tile map.
                 const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(GemmM, GemmN);
                 k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
-                const bool enable_oversubscription = k_dim_size_ > 1 << 13;
-                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size, BlockSize, enable_oversubscription);
-
-                // Cap the k_batch_ value such that it doesn't violate the limit for the number of prefetch stages for the pipeline.
-                if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+                k_batch_ = split_k_parameters.oversubscription_ * get_k_batch_value(max_occupancy.value_, grid_size);
+                
+                // For small GemmK size, cap the max value of the k_batch.
+                const auto k_batch_max = static_cast<index_t>((k_dim_size_ - 1) / K0PerBlock);
+                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    const auto k_batch_max = static_cast<index_t>(std::floor(
-                        (k_dim_size_ - 1.0) / ((GridwiseGemm::BlockwiseGemmPipe::PrefetchStages-1.0) * K0PerBlock)));
-                    if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                        std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " 
-                                  << k_batch_max << std::endl;
-                        std::cout << "[SPLIT-K AUTODEDUCE] Optimal k_batch value: " 
-                                  << k_batch_ << std::endl;
-                        k_batch_ = std::min(k_batch_, k_batch_max);
-                        std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
-                                  << k_batch_ << std::endl; 
-                    }
+                    std::cout << "[SPLIT-K AUTODEDUCE] k_dim_size: " 
+                                << k_dim_size_ << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] K0PerBlock: " << K0PerBlock << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " 
+                                << k_batch_max << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] Oversubscription factor: " 
+                                << split_k_parameters.oversubscription_ << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] Optimal k_batch value: " 
+                                << k_batch_ << std::endl;
+                }
+                k_batch_ = std::min(k_batch_, k_batch_max);
+                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
+                                << k_batch_ << std::endl; 
                 }
             }
-            else 
+            else if (split_k_parameters.split_k_mode_ == SplitKMode::FixedSplitK)
             {
-                k_batch_ = split_k;
+                k_batch_ = split_k_parameters.split_k_value_;
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported split_k_mode.");
             }
 
             const auto descs =
@@ -1385,7 +1393,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op,
-                 const ck::index_t split_k)
+                 const ParamsSplitK split_k_parameters)
     {
         return Argument{p_in_grid,
                         p_wei_grid,
@@ -1405,7 +1413,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                         in_element_op,
                         wei_element_op,
                         out_element_op,
-                        split_k};
+                        split_k_parameters};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -1427,7 +1435,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op,
-                        const ck::index_t split_k) override
+                        const ParamsSplitK split_k_parameters) override
     {
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
                                           static_cast<WeiDataType*>(p_wei_grid),
@@ -1447,7 +1455,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                                           in_element_op,
                                           wei_element_op,
                                           out_element_op,
-                                          split_k);
+                                          split_k_parameters);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

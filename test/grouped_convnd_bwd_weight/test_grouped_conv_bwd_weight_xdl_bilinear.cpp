@@ -167,6 +167,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         for(std::size_t i = 0; i < op_ptrs.size(); ++i)
         {
             auto& op_ptr      = op_ptrs[i];
+            ck::tensor_operation::device::ParamsSplitK params_split_k;
+            params_split_k.split_k_value_ = split_k;
             auto argument_ptr = op_ptr->MakeArgumentPointer(
                 static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                 static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
@@ -187,7 +189,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 InElementOp{},
                 WeiElementOp{alpha, beta},
                 OutElementOp{},
-                split_k);
+                params_split_k);
 
             DeviceMem workspace_buf(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
             op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_buf.GetDeviceBuffer());

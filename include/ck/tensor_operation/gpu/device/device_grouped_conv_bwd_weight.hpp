@@ -6,6 +6,7 @@
 #include <array>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/split_k_params.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -42,7 +43,7 @@ struct DeviceGroupedConvBwdWeight : public BaseOperator
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op,
-                        ck::index_t split_k) = 0;
+                        const ParamsSplitK split_k_params) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

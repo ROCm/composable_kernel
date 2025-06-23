@@ -23,6 +23,7 @@
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/split_k_params.hpp"
 
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -524,7 +525,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op,
-                 ck::index_t split_k)
+                 const ParamsSplitK split_k_parameters)
             : p_a_grid_{p_out_grid},
               p_b_grid_{p_in_grid},
               p_e_grid_{p_wei_grid},
@@ -548,7 +549,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads},
-              k_batch_{split_k}
+              k_batch_{split_k_parameters.split_k_value_}
         {
             c_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
@@ -1748,7 +1749,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op,
-                 const ck::index_t split_k)
+                 const ParamsSplitK split_k_parameters)
     {
         return Argument{p_in_grid,
                         p_wei_grid,
@@ -1768,7 +1769,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         in_element_op,
                         wei_element_op,
                         out_element_op,
-                        split_k};
+                        split_k_parameters};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -1790,7 +1791,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op,
-                        const ck::index_t split_k) override
+                        const ParamsSplitK split_k_parameters) override
     {
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
                                           static_cast<WeiDataType*>(p_wei_grid),
@@ -1810,7 +1811,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                           in_element_op,
                                           wei_element_op,
                                           out_element_op,
-                                          split_k);
+                                          split_k_parameters);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

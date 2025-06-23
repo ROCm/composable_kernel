@@ -32,27 +32,21 @@ struct DeviceProperties
   int wavefront_size_;
 };
 
-inline ck::index_t get_k_batch_value(int max_occupancy, ck::index_t grid_size, ck::index_t blockSize, bool enable_oversubscription = true)
+inline ck::index_t get_k_batch_value(int max_occupancy, ck::index_t grid_size)
 {
     static DeviceProperties device_properties;
     const int num_cu = device_properties.num_cu_;
-    auto k_batch = 1;
-
-    const ck::index_t oversubscription = enable_oversubscription
-      ? static_cast<ck::index_t>(std::round((1.0 *device_properties.max_num_active_wavefronts_per_cu_ * device_properties.wavefront_size_) / blockSize))
-      : 1;
+    ck::index_t k_batch = 1;
 
     const auto optimal_split = static_cast<ck::index_t>(std::floor((1.0 *max_occupancy * num_cu) / (grid_size)));
     if (optimal_split > 1)
     {
-      k_batch = oversubscription * optimal_split;
+      k_batch = optimal_split;
     }
     
     if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
     {
       std::cout << "[SPLIT-K AUTODEDUCE] Max active thread blocks per CU for GEMM kernel:  " << max_occupancy << std::endl;
-      std::cout << "[SPLIT-K AUTODEDUCE] Block size:  " << blockSize << std::endl;
-      std::cout << "[SPLIT-K AUTODEDUCE] Oversubscription factor:  " << oversubscription << " (oversubscription enabled = " << std::to_string(enable_oversubscription) << ")"<< std::endl;
       std::cout << "[SPLIT-K AUTODEDUCE] Output grid size:  " << grid_size << std::endl;
       std::cout << "[SPLIT-K AUTODEDUCE] Optimal split value:  " << optimal_split << std::endl;
       std::cout << "[SPLIT-K AUTODEDUCE] Optimal split-k value " << k_batch << " for K-batch."<< std::endl;

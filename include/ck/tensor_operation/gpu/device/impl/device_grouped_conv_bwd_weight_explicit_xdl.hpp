@@ -13,6 +13,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
+#include "ck/tensor_operation/gpu/device/split_k_params.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -113,7 +114,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op,
-                 ck::index_t split_k)
+                 const ParamsSplitK split_k_parameters)
             : filter_spatial_lengths_{},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
@@ -142,6 +143,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                       end(e_g_k_c_xs_lengths),
                       begin(filter_spatial_lengths_));
 
+            const auto split_k = split_k_parameters.split_k_value_;
             if constexpr(IsTwoStageNeeded)
             {
                 const index_t merged_filter_dims = std::accumulate(begin(e_g_k_c_xs_lengths),
@@ -375,7 +377,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                  InElementwiseOperation in_element_op,
                  WeiElementwiseOperation wei_element_op,
                  OutElementwiseOperation out_element_op,
-                 const ck::index_t split_k)
+                 const ParamsSplitK split_k_parameters)
     {
         return Argument{p_in_grid,
                         p_wei_grid,
@@ -393,7 +395,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                         in_element_op,
                         wei_element_op,
                         out_element_op,
-                        split_k};
+                        split_k_parameters};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -415,7 +417,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op,
-                        const ck::index_t split_k) override
+                        const ParamsSplitK split_k_parameters) override
     {
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
                                           static_cast<WeiDataType*>(p_wei_grid),
@@ -433,7 +435,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                                           in_element_op,
                                           wei_element_op,
                                           out_element_op,
-                                          split_k);
+                                          split_k_parameters);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
