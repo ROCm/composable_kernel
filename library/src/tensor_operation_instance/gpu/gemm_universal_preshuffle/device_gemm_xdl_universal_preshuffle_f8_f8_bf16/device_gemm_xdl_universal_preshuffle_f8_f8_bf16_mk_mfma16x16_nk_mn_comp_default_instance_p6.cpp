@@ -22,7 +22,7 @@ void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma16x16_nk_mn_comp
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_universal_preshuffle_xdl_f8_f8_bf16_mk_mfma16x16_mn_compute_instances_p6<
+        device_gemm_xdl_universal_preshuffle_xdl_f8_f8_bf16_mk_mfma16x16_mn_compute_instances_part6<
             GemmDefault>{});
 }
 

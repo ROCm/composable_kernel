@@ -97,21 +97,23 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-// #ifdef CK_ENABLE_FP16
-//         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-//                      is_same_v<CDataType, half_t>)
-//         {
-
-//             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-//                          is_same_v<CLayout, Row>)
-//             {
-//                 add_device_gemm_xdl_universal_preshuffle_f16_f16_f16_mk_nk_mn_comp_default_instances(
-//                     op_ptrs);
-//                 add_device_gemm_xdl_universal_preshuffle_f16_f16_f16_mk_nk_mn_comp_kpadding_instances(
-//                     op_ptrs);
-//             }
-//         }
-// #endif
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
+        if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<CDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                         is_same_v<CLayout, Row>)
+            {
+                printf("add_device_gemm_xdl_universal_preshuffle_f8_f16_f16_mk_nk_mn_comp_default_instances\n");
+                add_device_gemm_xdl_universal_preshuffle_f8_f16_f16_mk_nk_mn_comp_default_instances(op_ptrs);
+                //add_device_gemm_xdl_universal_preshuffle_f8_f16_f16_mk_nk_mn_comp_kpadding_instances(op_ptrs);
+                //add_device_gemm_xdl_universal_preshuffle_f8_f16_f16_mk_nk_mn_mem_v1_default_instances(op_ptrs);
+                //add_device_gemm_xdl_universal_preshuffle_f8_f16_f16_mk_nk_mn_mem_v1_kpadding_instances(op_ptrs);
+                //add_device_gemm_xdl_universal_preshuffle_f8_f16_f16_mk_nk_mn_mem_v2_default_instances(op_ptrs);
+                //add_device_gemm_xdl_universal_preshuffle_f8_f16_f16_mk_nk_mn_mem_v2_kpadding_instances(op_ptrs);
+            }
+        }
+#endif
 #endif // CK_USE_XDL
 
         return op_ptrs;
