@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -787,12 +787,29 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t N0 = kNPerBlock / N1; // P
 
             constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-            static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-            constexpr index_t K3     = total_pixels / N1;
-            constexpr index_t kKPack = GetSmemKPackV<Problem>();
-            static_assert(kKPack % K3 == 0);
+            constexpr index_t kKPack       = GetSmemKPackV<Problem>();
+            constexpr index_t K3           = total_pixels / N1;
             constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
-            if constexpr(get_warp_size() % (K2 * N0) == 0)
+            if constexpr(total_pixels % N1 != 0 || kKPack % K3 != 0) // if K2 or K3 is not divisible
+            {
+                constexpr index_t kNPack = 32;
+                static_assert(kNPerBlock % kNPack == 0);
+                constexpr index_t K0   = kBlockSize / get_warp_size();
+                constexpr index_t N2   = 2;
+                constexpr index_t N1_m = kNPack / N2;
+                constexpr index_t N0_m = kNPerBlock / kNPack;
+                constexpr index_t K1   = get_warp_size() / N1_m;
+                constexpr index_t K2_m = kKPerBlock / K1;
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<
+                        sequence<1>,
+                        tuple<sequence<N0_m, N1_m, N2>, sequence<K0, K1, K2_m>>,
+                        tuple<sequence<2>, sequence<2, 1>>, // K0, K1 N0
+                        tuple<sequence<0>, sequence<1, 1>>,
+                        sequence<1, 2, 1>, // N0 K2 N2
+                        sequence<0, 2, 2>>{});
+            }
+            else if constexpr(get_warp_size() % (kKPack / K3 * N0) == 0)
             {
                 constexpr index_t K1 = get_warp_size() / (K2 * N0);
                 constexpr index_t K0 = kBlockSize / get_warp_size();
@@ -860,12 +877,28 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t N1           = GetAlignmentV<Problem>();
         constexpr index_t N0           = kNPerBlock / N1;
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-        static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-        constexpr index_t K3     = total_pixels / N1;
-        constexpr index_t kKPack = GetSmemKPackV<Problem>();
-        static_assert(kKPack % K3 == 0);
+        constexpr index_t K3           = total_pixels / N1;
+        constexpr index_t kKPack       = GetSmemKPackV<Problem>();
         constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
-        if constexpr(get_warp_size() % (K2 * N0) == 0)
+        if constexpr(total_pixels % N1 != 0 || kKPack % K3 != 0) // if K2 or K3 is not divisible
+        {
+            constexpr index_t kNPack = 32;
+            static_assert(kNPerBlock % kNPack == 0);
+            constexpr index_t K0   = kBlockSize / get_warp_size();
+            constexpr index_t N2   = 2;
+            constexpr index_t N1_m = kNPack / N2;
+            constexpr index_t N0_m = kNPerBlock / kNPack;
+            constexpr index_t K1   = get_warp_size() / N1_m;
+            constexpr index_t K2_m = kKPerBlock / K1;
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0_m, N1_m, N2>, sequence<K0, K1, K2_m>>,
+                                           tuple<sequence<2>, sequence<2, 1>>, // K0, K1 N0
+                                           tuple<sequence<0>, sequence<1, 1>>,
+                                           sequence<1, 1, 2>, // N0 K2 <-> N2
+                                           sequence<0, 2, 2>>{});
+        }
+        else if constexpr(get_warp_size() % (kKPack / K3 * N0) == 0)
         {
             constexpr index_t K1 = get_warp_size() / (K2 * N0);
             constexpr index_t K0 = kBlockSize / get_warp_size();
