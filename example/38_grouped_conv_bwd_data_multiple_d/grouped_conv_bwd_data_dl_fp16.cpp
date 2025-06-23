@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #define DISABLE_INPUT_LDS 1
-// #define __DEBUG__ 1
+//#define __DEBUG__ 1
 
 #include "device_grouped_conv_bwd_data_dl_v4.hpp"
 #include "common.hpp"
@@ -72,8 +72,8 @@ using DeviceConvBwdFactory = std::tuple<
     , ck::tensor_operation::device::DeviceGroupedConvBwdDlV4<2, 64,      InType, WeiType, AccType, OutType,  S<56, 56>,   3,           ck::Tuple<S<1,1>, S<1,1>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp,  8,       7, 8,       8, 8,                     false>
     , ck::tensor_operation::device::DeviceGroupedConvBwdDlV4<2, 64,      InType, WeiType, AccType, OutType,  S<112, 112>, 3,           ck::Tuple<S<1,1>, S<1,1>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp,  2,       14, 16,     8, 8,                     false>
 
-  //  , ck::tensor_operation::device::DeviceGroupedConvBwdDlV4<2, 64,      InType, WeiType, AccType, OutType,  S<28, 28>,   3,           ck::Tuple<S<1,1>, S<2,2>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp,  32,      4, 4,       4, 2,                     false>
-    //, ck::tensor_operation::device::DeviceGroupedConvBwdDlV4<2, 64,      InType, WeiType, AccType, OutType,  S<112, 112>, 3,           ck::Tuple<S<1,1>, S<2,2>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp,  8,       7, 8,       8, 8,                     false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdDlV4<2, 64,      InType, WeiType, AccType, OutType,  S<28, 28>,   3,           ck::Tuple<S<1,1>, S<2,2>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp,  32,      4, 4,       4, 2,                     false>
+    , ck::tensor_operation::device::DeviceGroupedConvBwdDlV4<2, 64,      InType, WeiType, AccType, OutType,  S<112, 112>, 3,           ck::Tuple<S<1,1>, S<2,2>, S<1,1>>, InElementOp, WeiElementOp, OutElementOp,  8,       16, 16,       8, 8,                     false>
 >;
 #include "run_grouped_conv_bwd_data_example.inc"
 
