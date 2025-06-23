@@ -21,8 +21,8 @@ enum class mask_enum
 struct mask_info
 {
     mask_enum type;
-    ck_tile::index_t seqlen_q; // query sequence length
-    ck_tile::index_t seqlen_k; // key sequence length
+    ck_tile::index_t seqlen_q;
+    ck_tile::index_t seqlen_k;
     ck_tile::index_t y, x;
     ck_tile::index_t left, right; // FA style SWA left/right
 
