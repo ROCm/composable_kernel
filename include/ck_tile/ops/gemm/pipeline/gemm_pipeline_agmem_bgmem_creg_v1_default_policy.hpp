@@ -121,7 +121,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
-            constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType);
+            constexpr index_t M1           = Problem::VectorSizeA;
             constexpr index_t M0           = MPerBlock / M1;
             constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
             static_assert(total_pixels % M1 == 0);
@@ -211,7 +211,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t N1           = Problem::VectorLoadSize / sizeof(BDataType);
+            constexpr index_t N1           = Problem::VectorSizeB;
             constexpr index_t N0           = NPerBlock / N1;
             constexpr index_t total_pixels = NPerBlock * KPerBlock / BlockSize;
             static_assert(total_pixels % N1 == 0);
