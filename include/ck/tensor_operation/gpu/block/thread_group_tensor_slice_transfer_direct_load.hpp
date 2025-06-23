@@ -284,7 +284,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         // ck::TensorCoordinateStep<9, 3, ck::Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>>>
         // CK_PRINT<decltype(src_forward_steps)>();
 
-#if 1
+#if 0
         if(blockIdx.x == 0 && threadIdx.x < 64)
         {
             printf("DirectCopyToLds -- threadId: %d, src_offset: %ld, dst_offset: %ld\n",
