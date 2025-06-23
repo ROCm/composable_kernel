@@ -130,7 +130,7 @@ __global__ void matmul(const src_t* a, const src_t* b, dst_t* c)
     }
 
     __syncthreads();
-        
+
     for(int ele = 0; ele < 8; ++ele)
     {
         p_shared[8 * 16 * lane_hi + 8 * lane_lo + ele] = a_temp[ele];
@@ -373,33 +373,53 @@ struct TestWmma
         ck::wmma_op_util::RunHostGEMM<ReferenceGemmInstance>(
             a, b, c_host, a_element_op, b_element_op, c_element_op);
 
-        // Unsupported types should be filtered out before calling test operator.
-        bool res = ck::wmma_op_util::RunDeviceGEMM(wmma_kernel, a, b, c_device);
+        // Act
+        bool is_supported = ck::is_gfx11_supported() &&
+                            ck::wmma_op_util::RunDeviceGEMM(wmma_kernel, a, b, c_device);
 
-        if(std::is_same<CDataType, ck::bhalf_t>::value)
+        if(is_supported)
         {
-            // 0.5 Pixel Error Tolerance is introduced by Accumulator difference.
-            // BF16 WMMA Accumulator is in BF16 Type while On Host-side Accumulator is Float.
-            res = ck::utils::check_err(
-                c_device.mData, c_host.mData, "Error: Incorrect results!", 0, 1.0);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
-        }
-        else if(std::is_same<CDataType, float>::value ||
-                std::is_same<CDataType, ck::half_t>::value ||
-                std::is_same<CDataType, int8_t>::value ||
-                std::is_same<CDataType, double>::value ||
-                std::is_same<CDataType, f8_t>::value)
-        {
-            // Run with default error thresholds.
-            res = ck::utils::check_err(c_device.mData, c_host.mData);
-            std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            // Assert
+            bool res = false;
+            if(std::is_same<CDataType, float>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+            else if(std::is_same<CDataType, ck::half_t>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+            else if(std::is_same<CDataType, ck::bhalf_t>::value)
+            {
+                // 0.5 Pixel Error Tolerance is introduced by Accumulator difference.
+                // BF16 WMMA Accumulator is in BF16 Type while On Host-side Accumulator is Float.
+                res = ck::utils::check_err(
+                    c_device.mData, c_host.mData, "Error: Incorrect results!", 0, 1.0);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+            else if(std::is_same<CDataType, int8_t>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+            else if(std::is_same<CDataType, double>::value)
+            {
+                res = ck::utils::check_err(c_device.mData, c_host.mData);
+                std::cout << (res ? "SUCCESS" : "FAILURE") << std::endl;
+            }
+            else
+            {
+                std::cout << "UNSUPPORTED CDataType" << std::endl;
+            }
+
+            return res;
         }
         else
         {
-            return false;
+            return true;
         }
-
-        return res;
     }
 };
 

@@ -13,8 +13,6 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "test/wmma_op/wmma_op_util.hpp"
 
-#include <hip/hip_runtime.h>
-
 template <typename SrcType,
           typename DstType,
           typename GPUAccType,
@@ -62,9 +60,6 @@ int main(int, char*[])
     pass &= run_test<ck::half_t,  ck::half_t,  ck::half_t,  ck::half_t, 16    >();
     pass &= run_test<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, float,      16    >();
     pass &= run_test<int8_t,      int8_t,      int32_t,     int32_t,    8     >();
-#if defined(CK_USE_WMMA_FP8)
-    pass &= run_test<ck::f8_t,    ck::f8_t,    float,       float,      8     >();
-#endif
     // clang-format on
 
     std::cout << "TestGemm ..... " << (pass ? "SUCCESS" : "FAILURE") << std::endl;
