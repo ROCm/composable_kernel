@@ -29,8 +29,11 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
         ck_tile::sequence<FlatmmConfig::M_Warp_Tile,
                           FlatmmConfig::N_Warp_Tile,
                           FlatmmConfig::K_Warp_Tile>>;
-
-    using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenFlatmmShape>;
+    //TODO: orignally its 1dpartitioner but works with GemmSpatiallyLocalTilePartitioner as well.
+    //using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenFlatmmShape>;
+    using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<CodegenFlatmmShape, 
+                                                                       FlatmmConfig::TileParitionerGroupNum, 
+                                                                       FlatmmConfig::TileParitionerM01>;
 
     using CodegenGemmTraits      = ck_tile::TileGemmTraits<FlatmmConfig::kPadM,
                                                       FlatmmConfig::kPadN,

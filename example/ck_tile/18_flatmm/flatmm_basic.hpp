@@ -126,6 +126,8 @@ struct FlatmmConfig
     static constexpr bool kPadK = false;
 
     static constexpr int kBlockPerCu = 2;
+    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    static constexpr ck_tile::index_t TileParitionerM01      = 4;
 };
 
 auto create_args(int argc, char* argv[])
