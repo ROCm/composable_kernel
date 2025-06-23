@@ -75,22 +75,22 @@ struct layernorm2d_fwd_traits_
     using SmoothScaleDataType = ck_tile::remove_cvref_t<SmoothScaleDataType_>;
     using YScaleDataType = ck_tile::remove_cvref_t<YScaleDataType_>;
 
-    static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= WarpSize;
-    static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % WarpSize == 0);
+    static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= ck_tile::get_warp_size();
+    static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % ck_tile::get_warp_size() == 0);
     static constexpr ck_tile::index_t total_warps =
-        (ThreadPerBlock_M_ * ThreadPerBlock_N_) / WarpSize;
+        (ThreadPerBlock_M_ * ThreadPerBlock_N_) / ck_tile::get_warp_size();
 
     // num of warps along m
     static constexpr ck_tile::index_t BlockWarps_M = []() {
         if constexpr(is_warp_per_row)
         {
-            static_assert(WarpSize % ThreadPerBlock_N_ == 0);
-            return total_warps * (WarpSize / ThreadPerBlock_N_);
+            static_assert(ck_tile::get_warp_size() % ThreadPerBlock_N_ == 0);
+            return total_warps * (ck_tile::get_warp_size() / ThreadPerBlock_N_);
         }
         else
         {
-            // static_assert(WarpSize % ThreadPerBlock_M_ == 0);
-            return total_warps / (ThreadPerBlock_N_ / WarpSize);
+            // static_assert(ck_tile::get_warp_size() % ThreadPerBlock_M_ == 0);
+            return total_warps / (ThreadPerBlock_N_ / ck_tile::get_warp_size());
         }
     }();
 
@@ -98,13 +98,13 @@ struct layernorm2d_fwd_traits_
     static constexpr ck_tile::index_t BlockWarps_N = []() {
         if constexpr(is_warp_per_row)
         {
-            static_assert(WarpSize % ThreadPerBlock_N_ == 0);
+            static_assert(ck_tile::get_warp_size() % ThreadPerBlock_N_ == 0);
             return 1;
         }
         else
         {
-            static_assert(ThreadPerBlock_N_ % WarpSize == 0);
-            return ThreadPerBlock_N_ / WarpSize;
+            static_assert(ThreadPerBlock_N_ % ck_tile::get_warp_size() == 0);
+            return ThreadPerBlock_N_ / ck_tile::get_warp_size();
         }
     }();
 

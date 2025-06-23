@@ -314,8 +314,7 @@ struct tile_window_linear
 
         constexpr auto tile_dstr = typename Base::TileDstr{};
 
-        auto dst_tensor =
-            make_static_distributed_tensor<typename Base::DataTypeDataType>(tile_dstr);
+        auto dst_tensor = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
 
         auto issue = [&](auto i_access_) {
             constexpr auto IAccess = number<i_access_>{};
@@ -348,8 +347,9 @@ struct tile_window_linear
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                                       Base::Traits::PackedSize;
 
-                dst_tensor.get_thread_buffer().template at<d>() = vec_value.template get_as<
-                    typename Base::DataTypeDataType>()[j / Base::Traits::PackedSize];
+                dst_tensor.get_thread_buffer().template at<d>() =
+                    vec_value
+                        .template get_as<typename Base::DataType>()[j / Base::Traits::PackedSize];
             });
         };
 
@@ -400,8 +400,9 @@ struct tile_window_linear
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                                       Base::Traits::PackedSize;
 
-                dst_tensor.get_thread_buffer().template at<d>() = vec_value.template get_as<
-                    typename Base::DataTypeDataType>()[j / Base::Traits::PackedSize];
+                dst_tensor.get_thread_buffer().template at<d>() =
+                    vec_value
+                        .template get_as<typename Base::DataType>()[j / Base::Traits::PackedSize];
             });
         };
 
@@ -804,8 +805,7 @@ struct tile_window_linear
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                                       Base::Traits::PackedSize;
 
-                vec_value.template get_as<typename Base::DataTypeDataType>()(
-                    j / Base::Traits::PackedSize) =
+                vec_value.template get_as<typename Base::DataType>()(j / Base::Traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
@@ -860,8 +860,7 @@ struct tile_window_linear
                 constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                                       Base::Traits::PackedSize;
 
-                vec_value.template get_as<typename Base::DataTypeDataType>()(
-                    j / Base::Traits::PackedSize) =
+                vec_value.template get_as<typename Base::DataType>()(j / Base::Traits::PackedSize) =
                     dstr_tensor.get_thread_buffer().template at<d>();
             });
 
