@@ -186,13 +186,13 @@ template <typename ALayout,
           ck::index_t NumPrefetch,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
-          ck::index_t LPerBlock,
-          ck::index_t KPerBlock,
+          ck::index_t LPerBlock,     // Gemm0NPerBlock
+          ck::index_t KPerBlock,     // Gemm0KPerBlock
+          ck::index_t NPerBlock,     // Gemm1NPerBlock
+          ck::index_t LTilePerBlock, // Gemm1KPerBlock
           ck::index_t AK1,
           ck::index_t BK1,
-          ck::index_t NPerBlock,
-          ck::index_t LTilePerBlock,
-          ck::index_t L1,
+          ck::index_t L1, // B1K1
           ck::index_t MPerWmma,
           ck::index_t LPerWmma,
           ck::index_t NPerWmma,

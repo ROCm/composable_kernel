@@ -71,9 +71,9 @@ using DeviceMHAFactory =
             GemmSpec, 1,
             32,
             //      Gemm 0
-            16, 128, 64, 8,  8,
+            16, 128, 64, 64, 64, 8,  8,
             //      Gemm 1
-                64, 64, 8,  
+                8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
@@ -92,9 +92,9 @@ using DeviceMHAFactory =
             GemmSpec, 1,
             32,
             //      Gemm 0
-            16, 64, 64, 8,  8,
+            16, 64, 64, 64, 64, 8,  8,
             //      Gemm 1
-                64, 64, 8,  
+                8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 4, 4,
@@ -115,9 +115,9 @@ using DeviceMHAFactory =
             GemmSpec, 1,
             64,
             //      Gemm 0
-            32, 128, 64, 8, 8,
+            32, 128, 64, 64, 64, 8, 8,
             //      Gemm 1
-                 64, 64, 8,  
+                 8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
@@ -136,9 +136,9 @@ using DeviceMHAFactory =
             GemmSpec, 1,
             64,
             //      Gemm 0
-            32, 64, 64, 8, 8,
+            32, 64, 64, 64, 64, 8, 8,
             //      Gemm 1
-                64, 64, 8,  
+                8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 4, 4,
@@ -159,9 +159,9 @@ using DeviceMHAFactory =
             GemmSpec, 1,
             128,
             //      Gemm 0
-            64, 128, 64, 8, 8,
+            64, 128, 64, 64, 64, 8, 8,
             //      Gemm 1
-                64, 64, 8,  
+                8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
@@ -180,9 +180,9 @@ using DeviceMHAFactory =
             GemmSpec, 1,
             128,
             //      Gemm 0
-            64, 64, 64, 8, 8,
+            64, 64, 64, 64, 64, 8, 8,
             //      Gemm 1
-                64, 64, 8,  
+                8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 4, 4,
@@ -203,9 +203,9 @@ using DeviceMHAFactory =
             GemmSpec, 1,
             256,
             //      Gemm 0
-            128, 128, 64, 8, 8,   
+            128, 128, 64, 64, 64, 8, 8,   
             //      Gemm 1
-                  64, 64, 8,  
+                  8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
@@ -224,9 +224,9 @@ using DeviceMHAFactory =
             GemmSpec, 1,
             256,
             //      Gemm 0
-            128, 128, 64, 8, 8,   
+            128, 128, 64, 64, 64, 8, 8,   
             //      Gemm 1
-                  64, 64, 8,  
+                  8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
