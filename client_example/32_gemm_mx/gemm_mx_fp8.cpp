@@ -28,8 +28,8 @@ using ADataType = ck::f8_t;
 using BDataType = ck::f8_t;
 using CDataType = ck::half_t;
 
-using XDataType       = ck::tensor_operation::device::instance::E8M0;
-using XPackedDataType = ck::tensor_operation::device::instance::E8M0PK;
+using XDataType       = ck::e8m0_bexp_t;
+using XPackedDataType = int32_t;
 template <typename X, typename Y>
 inline constexpr bool is_same_v = ck::is_same<X, Y>::value;
 
