@@ -191,13 +191,12 @@ template <typename ALayout,
           ck::index_t LTilePerBlock, // Gemm1KPerBlock
           ck::index_t AK1,
           ck::index_t BK1,
-          ck::index_t L1, // B1K1
-          ck::index_t MPerWmma,
-          ck::index_t LPerWmma,
-          ck::index_t NPerWmma,
-          ck::index_t MRepeat,
-          ck::index_t LRepeat,
-          ck::index_t NRepeat,
+          ck::index_t L1,       // B1K1
+          ck::index_t MPerWmma, // Gemm0/1 MPerWmma
+          ck::index_t LPerWmma, // Gemm0/1 NPerWmma
+          ck::index_t MRepeat,  // Gemm0/1 MWmmaPerWave or Mrepeat
+          ck::index_t LRepeat,  // Gemm0 NWmmaPerWave or Nrepeat
+          ck::index_t NRepeat,  // Gemm1 NWmmaPerWave or Nrepeat
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -250,6 +249,10 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
     static constexpr auto I6 = Number<6>{};
 
     static constexpr auto WmmaK = 16;
+
+    // To match XDL implementatrion NPerWmma (A.k.a Gemm1 NPerWmma ak.a. Gemm1 NRepeat) is set equal
+    // to LPerWmma (A.k.a Gemm0 NPerWmma ak.a. Gemm0 NRepeat).
+    static constexpr index_t NPerWmma = LPerWmma;
 
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);

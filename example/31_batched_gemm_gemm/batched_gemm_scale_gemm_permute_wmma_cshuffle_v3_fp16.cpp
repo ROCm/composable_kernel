@@ -73,7 +73,7 @@ using DeviceMHAFactory =
             16, 128, 64, 64, 64, 8,  8,
             //      Gemm 1
                 8,  
-            16, 16, 16, 
+            16, 16,
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
             // ABlockTransfer MK -> K0 M K1
@@ -94,7 +94,7 @@ using DeviceMHAFactory =
             16, 64, 64, 64, 64, 8,  8,
             //      Gemm 1
                 8,  
-            16, 16, 16, 
+            16, 16,
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 4, 4,
             // ABlockTransfer MK -> K0 M K1
@@ -117,7 +117,7 @@ using DeviceMHAFactory =
             32, 128, 64, 64, 64, 8, 8,
             //      Gemm 1
                  8,  
-            16, 16, 16, 
+            16, 16,
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
             // ABlockTransfer MK -> K0 M K1
@@ -138,7 +138,7 @@ using DeviceMHAFactory =
             32, 64, 64, 64, 64, 8, 8,
             //      Gemm 1
                 8,  
-            16, 16, 16, 
+            16, 16,
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 4, 4,
             // ABlockTransfer MK -> K0 M K1
@@ -161,7 +161,7 @@ using DeviceMHAFactory =
             64, 128, 64, 64, 64, 8, 8,
             //      Gemm 1
                 8,  
-            16, 16, 16, 
+            16, 16,
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
             // ABlockTransfer MK -> K0 M K1
@@ -182,7 +182,7 @@ using DeviceMHAFactory =
             64, 64, 64, 64, 64, 8, 8,
             //      Gemm 1
                 8,  
-            16, 16, 16, 
+            16, 16,
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 4, 4,
             // ABlockTransfer MK -> K0 M K1
@@ -205,7 +205,7 @@ using DeviceMHAFactory =
             128, 128, 64, 64, 64, 8, 8,   
             //      Gemm 1
                   8,  
-            16, 16, 16, 
+            16, 16,
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
             // ABlockTransfer MK -> K0 M K1
@@ -226,7 +226,7 @@ using DeviceMHAFactory =
             128, 128, 64, 64, 64, 8, 8,   
             //      Gemm 1
                   8,  
-            16, 16, 16, 
+            16, 16,
             // Per repeat = wave_m = wave_num, wave_n = 1
             1, 8, 4,
             // ABlockTransfer MK -> K0 M K1
