@@ -71,13 +71,10 @@ struct Default2DEpilogue
 
     // TODO: this function assume store out vector size is the same as OAccTile last dimension size
     //       how do we fix this ?
-    template <typename ODramWindowTmp, typename OAccTile, typename DsDramWindows>
-    CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
-                                   const OAccTile& o_acc_tile,
-                                   const DsDramWindows& /* unused */,
-                                   void* = nullptr)
+    template <typename ODramWindowTmp, typename OAccTile>
+    CK_TILE_DEVICE auto
+    operator()(ODramWindowTmp& o_dram_window_tmp, const OAccTile& o_acc_tile, void* = nullptr)
     {
-
         // TODO: this is ugly
         if constexpr(UseRawStore && (kPadM || kPadN))
         {
@@ -102,6 +99,15 @@ struct Default2DEpilogue
                 update_tile(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
             }
         }
+    }
+
+    template <typename ODramWindowTmp, typename OAccTile, typename DsDramWindows>
+    CK_TILE_DEVICE auto operator()(ODramWindowTmp& o_dram_window_tmp,
+                                   const OAccTile& o_acc_tile,
+                                   const DsDramWindows& /* unused */,
+                                   void* = nullptr)
+    {
+        return operator()<ODramWindowTmp, OAccTile>(o_dram_window_tmp, o_acc_tile);
     }
 };
 

@@ -80,6 +80,7 @@ struct add_rmsnorm2d_rdquant_fwd_traits_
     using InputDataType     = ck_tile::remove_cvref_t<InputDataType_>;
     using QuantizedDataType = ck_tile::remove_cvref_t<QuantizedDataType_>;
 
+    static constexpr auto WarpSize        = ck_tile::get_warp_size();
     static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= WarpSize;
     static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % WarpSize == 0);
     static constexpr ck_tile::index_t total_warps =
