@@ -92,7 +92,6 @@ __global__ void
 #endif // end of if (defined(__gfx9__))
 }
 
-Devi
 struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 {
     static constexpr auto I0 = Number<0>{};
