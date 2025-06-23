@@ -8,8 +8,6 @@
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/ck.hpp"
 
-CK_DECLARE_ENV_VAR_UINT64(CK_SPLIT_K_BATCH_SIZE)
-
 namespace ck {
 namespace tensor_operation {
 namespace device {

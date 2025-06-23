@@ -127,15 +127,15 @@ struct PerfResults
     }
 
     // Fixed split-K results
-    std::string fixed_split_k_op_name_;
-    float fixed_split_k_avg_time_      = 0;
-    ck::index_t fixed_split_k_value_ = 1;
+    std::string fixed_split_k_op_name_{""};
+    float fixed_split_k_avg_time_{std::numeric_limits<float>::max()};
+    ck::index_t fixed_split_k_value_{0};
 
     // Best occupancy split-K results
-    std::string best_occupancy_split_k_op_name_;
-    float best_occupancy_split_k_avg_time_      = 0;
-    ck::index_t best_occupancy_split_k_value_ = 1;
-    ck::index_t best_occupancy_split_k_oversubscription_ = 1;
+    std::string best_occupancy_split_k_op_name_{""};
+    float best_occupancy_split_k_avg_time_{std::numeric_limits<float>::max()};
+    ck::index_t best_occupancy_split_k_value_{0};
+    ck::index_t best_occupancy_split_k_oversubscription_{0};
 
     // K-dim size
     ck::index_t k_dim_size_ = -1;
@@ -376,7 +376,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     range_copy(conv_param.input_right_pads_, begin(input_right_pads));
 
     std::vector<ck::index_t> fixed_split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
-    std::vector<ck::index_t> subs_factor_list = {1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<ck::index_t> subs_factor_list = {0, 1, 2, 3, 4, 8, 16, 32, 64};
     bool profile_all = true;
     if(split_k != "all")
     {
@@ -489,7 +489,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", SplitK "
                           << PerfResults::split_k_str(split_k_list[split_k_id], split_k_arg_value) << std::endl;
                 
-                if (supports_split_k_optimization)
+                if (split_k_list[split_k_id].split_k_mode_ ==
+                    ck::tensor_operation::device::SplitKMode::BestOccupancyWithOversubscription)
                 {
                     const auto oversubscription = split_k_list[split_k_id].oversubscription_;
                     
@@ -505,14 +506,16 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                             split_k_arg_value,
                             oversubscription);   
                 }
-
-                perf_results_global.update_fixed_split_k(op_name,
+                else 
+                {
+                    perf_results_global.update_fixed_split_k(op_name,
                                                             avg_time,                                                                
                                                             split_k_arg_value);
 
-                perf_results_local.update_fixed_split_k(op_name,
-                                                            avg_time,                                                               
-                                                            split_k_arg_value);
+                    perf_results_local.update_fixed_split_k(op_name,
+                                                                avg_time,                                                               
+                                                                split_k_arg_value);
+                }
                 
 
                 if(do_verification)
@@ -591,13 +594,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
     if (perf_results_list.size() > 0)
     {
-        std::cerr << "Best configuration parameters:"
-              << perf_results_global.print_fixed_split_k() << std::endl;
+        std::cerr << perf_results_global.print_fixed_split_k() << std::endl;
 
         if (profile_all)
         {
-            std::cerr << "Best occupancy split-K results:"
-                    << perf_results_global.print_best_occupancy_split_k() << std::endl;
+            std::cerr << perf_results_global.print_best_occupancy_split_k() << std::endl;
             write_perf_results_to_file(perf_results_global, perf_results_list);
         }
     }

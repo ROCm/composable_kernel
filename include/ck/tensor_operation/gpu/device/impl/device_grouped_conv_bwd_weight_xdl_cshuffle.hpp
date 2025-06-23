@@ -530,39 +530,44 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             if (split_k_parameters.split_k_mode_== SplitKMode::BestOccupancyWithOversubscription) 
             {
                 constexpr int k_batch_initial = 1;
-                const auto descs_initial =
-                conv_to_gemm_transformer
-                    .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
-                        Conv_N_,
-                        Conv_K_,
-                        Conv_C_,
-                        input_spatial_lengths_,
-                        filter_spatial_lengths_,
-                        output_spatial_lengths_,
-                        b_g_n_c_wis_strides_transposed,
-                        e_g_k_c_xs_strides_transposed,
-                        a_g_n_k_wos_strides_transposed,
-                        conv_filter_strides,
-                        conv_filter_dilations,
-                        input_left_pads,
-                        input_right_pads,
-                        k_batch_initial);
+                k_batch_ = 1;
 
-                const auto& c_grid_desc_m_n   = descs_initial[I2];
-                const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
-
-                // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
-                // Hence, the grid is just size of the tile map.
-                const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
-                k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
-                k_batch_ = split_k_parameters.oversubscription_ * get_k_batch_value(max_occupancy.value_, grid_size);
-                
-                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if (split_k_parameters.oversubscription_ > 0)
                 {
-                    std::cout << "[SPLIT-K AUTODEDUCE] Oversubscription factor: " 
-                                << split_k_parameters.oversubscription_ << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
-                                << k_batch_ << std::endl; 
+                    const auto descs_initial =
+                        conv_to_gemm_transformer
+                            .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                                Conv_N_,
+                                Conv_K_,
+                                Conv_C_,
+                                input_spatial_lengths_,
+                                filter_spatial_lengths_,
+                                output_spatial_lengths_,
+                                b_g_n_c_wis_strides_transposed,
+                                e_g_k_c_xs_strides_transposed,
+                                a_g_n_k_wos_strides_transposed,
+                                conv_filter_strides,
+                                conv_filter_dilations,
+                                input_left_pads,
+                                input_right_pads,
+                                k_batch_initial);
+
+                    const auto& c_grid_desc_m_n   = descs_initial[I2];
+                    const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
+
+                    // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
+                    // Hence, the grid is just size of the tile map.
+                    const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
+                    k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
+                    k_batch_ = split_k_parameters.oversubscription_ * get_k_batch_value(max_occupancy.value_, grid_size);
+                    
+                    if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "[SPLIT-K AUTODEDUCE] Oversubscription factor: " 
+                                    << split_k_parameters.oversubscription_ << std::endl;
+                        std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
+                                    << k_batch_ << std::endl; 
+                    }
                 }
             }
             else if (split_k_parameters.split_k_mode_ == SplitKMode::FixedSplitK)

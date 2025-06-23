@@ -499,8 +499,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             if (split_k_parameters.split_k_mode_== SplitKMode::BestOccupancyWithOversubscription)
             {
                 constexpr int k_batch_initial = 1;
+                k_batch_ = 1;
 
-                const auto descs_initial =
+                if (split_k_parameters.oversubscription_ > 0)
+                {
+                    const auto descs_initial =
                     conv_to_gemm_transformer
                         .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
                             Conv_N_,
@@ -518,36 +521,37 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                             input_right_pads,
                             k_batch_initial);
 
-                const auto& a_grid_desc_kbatch_k0_m_k1 = descs_initial[I0];
-                const auto& b_grid_desc_kbatch_k0_n_k1 = descs_initial[I1];
-                const index_t GemmM = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
-                const index_t GemmN = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
+                    const auto& a_grid_desc_kbatch_k0_m_k1 = descs_initial[I0];
+                    const auto& b_grid_desc_kbatch_k0_n_k1 = descs_initial[I1];
+                    const index_t GemmM = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
+                    const index_t GemmN = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
 
-                // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
-                // Hence, the grid is just size of the tile map.
-                const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(GemmM, GemmN);
-                k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
-                k_batch_ = split_k_parameters.oversubscription_ * get_k_batch_value(max_occupancy.value_, grid_size);
-                
-                // For small GemmK size, cap the max value of the k_batch.
-                const auto k_batch_max = static_cast<index_t>((k_dim_size_ - 1) / K0PerBlock);
-                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "[SPLIT-K AUTODEDUCE] k_dim_size: " 
-                                << k_dim_size_ << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] K0PerBlock: " << K0PerBlock << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " 
-                                << k_batch_max << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] Oversubscription factor: " 
-                                << split_k_parameters.oversubscription_ << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] Optimal k_batch value: " 
-                                << k_batch_ << std::endl;
-                }
-                k_batch_ = std::min(k_batch_, k_batch_max);
-                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
-                                << k_batch_ << std::endl; 
+                    // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
+                    // Hence, the grid is just size of the tile map.
+                    const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(GemmM, GemmN);
+                    k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
+                    k_batch_ = split_k_parameters.oversubscription_ * get_k_batch_value(max_occupancy.value_, grid_size);
+                    
+                    // For small GemmK size, cap the max value of the k_batch.
+                    const auto k_batch_max = static_cast<index_t>((k_dim_size_ - 1) / K0PerBlock);
+                    if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "[SPLIT-K AUTODEDUCE] k_dim_size: " 
+                                    << k_dim_size_ << std::endl;
+                        std::cout << "[SPLIT-K AUTODEDUCE] K0PerBlock: " << K0PerBlock << std::endl;
+                        std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " 
+                                    << k_batch_max << std::endl;
+                        std::cout << "[SPLIT-K AUTODEDUCE] Oversubscription factor: " 
+                                    << split_k_parameters.oversubscription_ << std::endl;
+                        std::cout << "[SPLIT-K AUTODEDUCE] Optimal k_batch value: " 
+                                    << k_batch_ << std::endl;
+                    }
+                    k_batch_ = std::min(k_batch_, k_batch_max);
+                    if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
+                                    << k_batch_ << std::endl; 
+                    }
                 }
             }
             else if (split_k_parameters.split_k_mode_ == SplitKMode::FixedSplitK)
