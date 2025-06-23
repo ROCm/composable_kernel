@@ -589,7 +589,7 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
         // create group mode kernel arguments
         if constexpr(FmhaKernel::kIsGroupMode)
         {
-            return FmhaKernel::MakeKargsImpl(args.q_ptr,
+            return FmhaKernel::MakeKargs(args.q_ptr,
                                              args.k_ptr,
                                              args.v_ptr,
                                              args.bias_ptr,
@@ -630,7 +630,7 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
         }
         else
         { // create batch mode kernel arguments
-            return FmhaKernel::MakeKargsImpl(args.q_ptr,
+            return FmhaKernel::MakeKargs(args.q_ptr,
                                              args.k_ptr,
                                              args.v_ptr,
                                              args.bias_ptr,
@@ -672,6 +672,8 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
                                              args.mask_type);
         }
     }();
+
+    FmhaKernel::PrintParameter(kargs, args.batch);
 
     if constexpr(FmhaKernel::kIsGroupMode)
     {

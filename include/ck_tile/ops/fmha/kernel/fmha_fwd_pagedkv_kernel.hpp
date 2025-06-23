@@ -651,7 +651,8 @@ struct FmhaFwdPagedKVKernel
               ck_tile::index_t batch_stride_v, // only used for paged-kvcache
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type)
+              ck_tile::index_t mask_type,
+              ck_tile::index_t min_seqlen_q)
     {
         return MakeKargsImpl(q_ptr,
                              k_ptr,
@@ -689,9 +690,69 @@ struct FmhaFwdPagedKVKernel
                              batch_stride_v,
                              window_size_left,
                              window_size_right,
-                             mask_type);
+                             mask_type,
+                             min_seqlen_q);
     }
 
+    CK_TILE_HOST static void PrintParameter(Kargs& kargs, int num_batches)
+    {
+        static bool dummy = [&]() {
+            std::cout << std::endl;
+            if constexpr(kHasMask)
+            {
+                std::cout << " window_size_left: " << kargs.window_size_left
+                          << " window_size_right:" << kargs.window_size_right
+                          << " mask_type: " << static_cast<int>(kargs.mask_type);
+            }
+
+            if constexpr(kIsPagedKV)
+            {
+                std::cout << " block_table_ptr: " << kargs.block_table_ptr
+                          << " batch_stride_block_table:" << kargs.batch_stride_block_table
+                          << " page_block_size: " << kargs.page_block_size;
+
+                std::cout << "table value: [";
+                for(int b = 0; b < num_batches; b++)
+                {
+                    std::cout << "[ ";
+                    for(int i = 0; i < kargs.batch_stride_block_table; i++)
+                    {
+                        std::cout << kargs.block_table_ptr[b * kargs.batch_stride_block_table + i]
+                                  << ",";
+                    }
+                    std::cout << " ]";
+                }
+                std::cout << " ]";
+            }
+
+            if constexpr(kIsGroupMode)
+            {
+                if constexpr(kSkipMinSeqlenQ)
+                {
+                    std::cout << " min_seqlen_q: " << kargs.min_seqlen_q;
+                }
+                std::cout << " q_ptr: " << kargs.q_ptr << " k_ptr:" << kargs.k_ptr
+                          << " v_ptr: " << kargs.v_ptr << " o_ptr:" << kargs.o_ptr
+                          << " hdim_q: " << kargs.hdim_q << " hdim_v: " << kargs.hdim_v
+                          << " num_head_q:" << kargs.num_head_q
+                          << " nhead_ratio_qk: " << kargs.nhead_ratio_qk
+                          << " scale_s:" << kargs.scale_s << " stride_q:" << kargs.stride_q
+                          << " stride_k:" << kargs.stride_k << " stride_v:" << kargs.stride_v
+                          << " stride_o:" << kargs.stride_o
+                          << " nhead_stride_q: " << kargs.nhead_stride_q
+                          << " nhead_stride_k: " << kargs.nhead_stride_k
+                          << " nhead_stride_v:" << kargs.nhead_stride_v
+                          << " nhead_stride_o: " << kargs.nhead_stride_o
+                          << " seqstart_q_ptr:" << kargs.seqstart_q_ptr
+                          << " seqstart_k_ptr: " << kargs.seqstart_k_ptr
+                          << " seqlen_k_ptr:" << kargs.seqlen_k_ptr
+                          << " batch_stride_k:" << kargs.batch_stride_k
+                          << " batch_stride_v:" << kargs.batch_stride_v << std::endl;
+            }
+            return true;
+        }();
+        (void)dummy;
+    }
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
