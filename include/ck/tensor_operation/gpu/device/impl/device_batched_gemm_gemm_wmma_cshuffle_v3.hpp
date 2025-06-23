@@ -166,7 +166,11 @@ __global__ void
 //         MN = MK * KL * LN
 //              ^^^^^^ (Acc0)
 //              ^^^^^^^^^^^ (Acc1)
-template <typename ADataType,
+template <typename ALayout,
+          typename BLayout, // B0Layout
+          typename B1Layout,
+          typename CLayout,
+          typename ADataType,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
@@ -222,21 +226,19 @@ template <typename ADataType,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
-struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
-    : public DeviceBatchedGemmGemm<tensor_layout::gemm::RowMajor,    // ALayout,
-                                   tensor_layout::gemm::ColumnMajor, // B0Layout,
-                                   tensor_layout::gemm::RowMajor,    // B1Layout,
-                                   tensor_layout::gemm::RowMajor,    // CLayout, // TODO: properly
-                                                                     // handle layouts
-                                   ADataType,
-                                   B0DataType,
-                                   B1DataType,
-                                   CDataType,
-                                   AElementwiseOperation,
-                                   B0ElementwiseOperation,
-                                   AccElementwiseOperation,
-                                   B1ElementwiseOperation,
-                                   CElementwiseOperation>
+struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALayout,
+                                                                            BLayout, // B0Layout
+                                                                            B1Layout,
+                                                                            CLayout,
+                                                                            ADataType,
+                                                                            B0DataType,
+                                                                            B1DataType,
+                                                                            CDataType,
+                                                                            AElementwiseOperation,
+                                                                            B0ElementwiseOperation,
+                                                                            AccElementwiseOperation,
+                                                                            B1ElementwiseOperation,
+                                                                            CElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmGemm_Wmma_CShuffleV3;
 
@@ -536,6 +538,31 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3
             if constexpr(!(is_same_v<Acc1DataType, float> || is_same_v<Acc1DataType, int32_t>))
             {
                 printf("DeviceOp: Acc1 Type err");
+                return false;
+            }
+
+            // TODO: Handle other layouts.
+            if constexpr(!(is_same_v<ALayout, tensor_layout::gemm::RowMajor>))
+            {
+                printf("DeviceOp: A layout must be Row");
+                return false;
+            }
+
+            if constexpr(!(is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>))
+            {
+                printf("DeviceOp: B layout must be Column");
+                return false;
+            }
+
+            if constexpr(!(is_same_v<B1Layout, tensor_layout::gemm::RowMajor>))
+            {
+                printf("DeviceOp: B1 layout must be Row");
+                return false;
+            }
+
+            if constexpr(!(is_same_v<CLayout, tensor_layout::gemm::RowMajor>))
+            {
+                printf("DeviceOp: C layout must be Row");
                 return false;
             }
         }
