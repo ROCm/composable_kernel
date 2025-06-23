@@ -174,8 +174,7 @@ template <typename ALayout,
           typename B0DataType,
           typename B1DataType,
           typename CDataType,
-          typename Acc0DataType,
-          typename Acc1DataType,
+          typename AccDataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
           typename B0ElementwiseOperation,
@@ -407,9 +406,9 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         // DataType Family
         ADataType,
         B0DataType,
-        Acc0DataType,
+        AccDataType, // Acc0DataType
         B1DataType,
-        Acc1DataType,
+        AccDataType, // Acc1DataType
         CShuffleDataType,
         CDataType,
         // ElementwiseOp Family
@@ -529,15 +528,9 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
     {
         if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
-            if constexpr(!(is_same_v<Acc0DataType, float> || is_same_v<Acc0DataType, int32_t>))
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
                 printf("DeviceOp: Acc0 Type err");
-                return false;
-            }
-
-            if constexpr(!(is_same_v<Acc1DataType, float> || is_same_v<Acc1DataType, int32_t>))
-            {
-                printf("DeviceOp: Acc1 Type err");
                 return false;
             }
 

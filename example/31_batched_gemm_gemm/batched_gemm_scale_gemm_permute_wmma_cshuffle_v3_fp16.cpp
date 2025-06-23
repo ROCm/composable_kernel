@@ -42,8 +42,7 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using ADataType        = F16;
 using B0DataType       = F16;
 using B1DataType       = F16;
-using Acc0DataType     = F32;
-using Acc1DataType     = F32;
+using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = F16;
 
@@ -66,7 +65,7 @@ using DeviceMHAFactory =
         // 1 wave, mrepeat = 1, nrepeat = 2, k/o repeat = 1~5
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
-            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, 1,
             32,
@@ -87,7 +86,7 @@ using DeviceMHAFactory =
             1, 1, S<1, 16, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
-            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, 1,
             32,
@@ -110,7 +109,7 @@ using DeviceMHAFactory =
 #ifdef CK_MHA_USE_WAVE_2
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
-            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, 1,
             64,
@@ -131,7 +130,7 @@ using DeviceMHAFactory =
             1, 1, S<1, 32, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
-            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, 1,
             64,
@@ -154,7 +153,7 @@ using DeviceMHAFactory =
 #ifdef CK_MHA_USE_WAVE_4
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
-            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, 1,
             128,
@@ -175,7 +174,7 @@ using DeviceMHAFactory =
             1, 1, S<1, 64, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
-            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, 1,
             128,
@@ -198,7 +197,7 @@ using DeviceMHAFactory =
 #ifdef CK_MHA_USE_WAVE_8
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
-            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, 1,
             256,
@@ -219,7 +218,7 @@ using DeviceMHAFactory =
             1, 1, S<1, 128, 1, 2>, 8>,
         ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
             Row, Col, Row, Row, 
-            ADataType, B0DataType, B1DataType, CDataType, Acc0DataType, Acc1DataType, CShuffleDataType,
+            ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
             AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
             GemmSpec, 1,
             256,
@@ -244,21 +243,21 @@ using DeviceMHAFactory =
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B0DataType,
-                                                                                Acc0DataType,
-                                                                                Acc1DataType,
+                                                                                AccDataType,
+                                                                                AccDataType,
                                                                                 AElementOp,
                                                                                 B0ElementOp,
                                                                                 Acc0ElementOp>;
 
 // Ref Softmax: fp32 in, fp16 out
 using ReferenceSoftmaxInstance =
-    ck::tensor_operation::host::ReferenceSoftmax<Acc0DataType, ADataType, Acc0DataType>;
+    ck::tensor_operation::host::ReferenceSoftmax<AccDataType, ADataType, AccDataType>;
 
 // Ref Gemm1: fp16 in, fp16 out
 using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
                                                                                 B1DataType,
                                                                                 CDataType,
-                                                                                Acc1DataType,
+                                                                                AccDataType,
                                                                                 AElementOp,
                                                                                 B1ElementOp,
                                                                                 CElementOp>;

@@ -246,8 +246,8 @@ int run(int argc, char* argv[])
             Tensor<ADataType> a_g_m_k({BatchCount, M, K});
             Tensor<B0DataType> b0_g_k_n({BatchCount, K, N});
             Tensor<B1DataType> b1_g_n_o({BatchCount, N, O});
-            Tensor<Acc0DataType> acc0_g_m_n({BatchCount, M, N}); // scratch object after gemm0
-            Tensor<ADataType> a1_g_m_n({BatchCount, M, N});      // scratch object after conversion
+            Tensor<AccDataType> acc0_g_m_n({BatchCount, M, N}); // scratch object after gemm0
+            Tensor<ADataType> a1_g_m_n({BatchCount, M, N});     // scratch object after conversion
             Tensor<CDataType> c_g_m_o_host_result({BatchCount, M, O}); // scratch object after gemm1
 
             // permute
