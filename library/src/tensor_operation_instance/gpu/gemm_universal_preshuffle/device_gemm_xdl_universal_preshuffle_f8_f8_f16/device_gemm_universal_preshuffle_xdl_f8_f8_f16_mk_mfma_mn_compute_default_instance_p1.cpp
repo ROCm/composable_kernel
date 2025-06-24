@@ -19,7 +19,8 @@ void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_defau
                                                         PassThrough,
                                                         PassThrough>>>& instances)
 {
-    printf("add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_default_instances_p1\n");
+    printf("add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_default_"
+           "instances_p1\n");
     add_device_operation_instances(
         instances,
         device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_instances_p1<

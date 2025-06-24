@@ -6,7 +6,6 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_b_preshuffle.hpp"
 
-
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 namespace ck {
@@ -38,10 +37,10 @@ static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
 static constexpr auto v1 = BlockGemmPipelineVersion::v1;
 static constexpr auto v2 = BlockGemmPipelineVersion::v2;
 
+// All commented out instances are invalid because MRepeat < 4.
 template <BlockGemmPipelineVersion BlkGemmPipeVer, GemmSpecialization GemmSpec>
-using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma32x32_mn_instances =
-    std::tuple<
-        // clang-format off
+using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma32x32_mn_instances = std::tuple<
+    // clang-format off
     // None of these will work because MRepeat < 4
     //##########################################| ALayout| BLayout|         DsLayout| ELayout|AData| BData|          DsData| EData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
     //##########################################|        |        |                 |        | Type|  Type|            Type|  Type|    Type|     Type| Elementwise| Elementwise|    Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|                _MBlock_MPerBlock| ScalarPerVector|                               Pipeline|                     Pipeline|
@@ -73,13 +72,12 @@ using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma32x32_mn_instances =
     //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,    32,    512,   256,  16,  16,  32,   32,    1,    4,     S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           1,                   S<1, 32, 1, 8>,     8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>,
     //// p4
     //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,    64,    64,    512,  16,  16,  32,   32,    1,    1,     S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           1,                   S<1, 32, 1, 8>,     8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 template <GemmSpecialization GemmSpec>
-using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma32x32_mn_compute_instances =
-    std::tuple<
-        // clang-format off
+using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma32x32_mn_compute_instances = std::tuple<
+    // clang-format off
     //##########################################| ALayout| BLayout|         DsLayout| ELayout|AData| BData|          DsData| EData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
     //##########################################|        |        |                 |        | Type|  Type|            Type|  Type|    Type|     Type| Elementwise| Elementwise|    Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|                _MBlock_MPerBlock| ScalarPerVector|                               Pipeline|                     Pipeline|
     //##########################################|        |        |                 |        |     |      |                |      |        |         |   Operation|   Operation|      Operation|              |      |      |      |      |    |    |    |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                _NBlock_NPerBlock|   _NWaveNPerXdl|                              Scheduler|                     Verision|
@@ -116,13 +114,12 @@ using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_instances =
         //// N 512
         DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,    64,    512,   128,  16,  16,  16,   16,    4,    8,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          2,           1,                   S<1, 32, 1, 8>,     8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>
         //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,    32,    512,   128,  16,  16,  16,   16,    2,    8,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          2,           1,                   S<1, 32, 1, 8>,     8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 template <BlockGemmPipelineVersion BlkGemmPipeVer, GemmSpecialization GemmSpec>
-using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_instances =
-    std::tuple<
-        // clang-format off
+using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_instances = std::tuple<
+    // clang-format off
         //##########################################| ALayout| BLayout|         DsLayout| ELayout|AData| BData|          DsData| EData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
         //##########################################|        |        |                 |        | Type|  Type|            Type|  Type|    Type|     Type| Elementwise| Elementwise|    Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|                _MBlock_MPerBlock| ScalarPerVector|                               Pipeline|                     Pipeline|
         //##########################################|        |        |                 |        |     |      |                |      |        |         |   Operation|   Operation|      Operation|              |      |      |      |      |    |    |    |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                _NBlock_NPerBlock|   _NWaveNPerXdl|                              Scheduler|                     Verision|
@@ -132,13 +129,12 @@ using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_instances =
         //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,    32,    128,   256,  16,  16,  16,   16,    1,    4,     S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           2,                   S<1, 32, 1, 8>,     8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>,
         DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,    64,    128,   512,  16,  16,  16,   16,    4,    2,     S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          2,           1,                   S<1, 32, 1, 8>,     8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>
         //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,    32,    128,   512,  16,  16,  16,   16,    2,    2,     S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          2,           1,                   S<1, 32, 1, 8>,     8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 template <BlockGemmPipelineVersion BlkGemmPipeVer, GemmSpecialization GemmSpec>
-using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_instances =
-    std::tuple<
-        // clang-format off
+using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_instances = std::tuple<
+    // clang-format off
         //##########################################| ALayout| BLayout|         DsLayout| ELayout|AData| BData|          DsData| EData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
         //##########################################|        |        |                 |        | Type|  Type|            Type|  Type|    Type|     Type| Elementwise| Elementwise|    Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|                _MBlock_MPerBlock| ScalarPerVector|                               Pipeline|                     Pipeline|
         //##########################################|        |        |                 |        |     |      |                |      |        |         |   Operation|   Operation|      Operation|              |      |      |      |      |    |    |    |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                _NBlock_NPerBlock|   _NWaveNPerXdl|                              Scheduler|                     Verision|
@@ -151,14 +147,13 @@ using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_instances =
         //// N 512
         DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,    64,    512,   256,  16,  16,  16,   16,    4,    8,     S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          2,           1,                   S<1, 32, 1, 8>,     8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>
         //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,    32,    512,   256,  16,  16,  16,   16,    2,    8,     S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          2,           1,                   S<1, 32, 1, 8>,     8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 template <BlockGemmPipelineVersion BlkGemmPipeVer, GemmSpecialization GemmSpec>
-using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p4_instances =
-    std::tuple<
-        // None of these will work because MRepeat < 4
-        // clang-format off
+using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p4_instances = std::tuple<
+    // None of these will work because MRepeat < 4
+    // clang-format off
         //##########################################| ALayout| BLayout|         DsLayout| ELayout|AData| BData|          DsData| EData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
         //##########################################|        |        |                 |        | Type|  Type|            Type|  Type|    Type|     Type| Elementwise| Elementwise|    Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|                _MBlock_MPerBlock| ScalarPerVector|                               Pipeline|                     Pipeline|
         //##########################################|        |        |                 |        |     |      |                |      |        |         |   Operation|   Operation|      Operation|              |      |      |      |      |    |    |    |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                _NBlock_NPerBlock|   _NWaveNPerXdl|                              Scheduler|                     Verision|
@@ -176,14 +171,13 @@ using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p4_instances =
         //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     64,    16,   512,  16,  16,  16,   16,    1,    1,     S<32, 8, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           1,                   S<1, 64, 1, 4>,     4,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>,
         //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     64,    16,   512,  16,  16,  16,   16,    1,    1,     S<32, 8, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<32, 8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           1,                   S<1, 64, 1, 4>,     4,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>
 
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 template <BlockGemmPipelineVersion BlkGemmPipeVer, GemmSpecialization GemmSpec>
-using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p5_instances =
-    std::tuple<
-        // None of these will work because MRepeat < 4 
-        // clang-format off
+using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p5_instances = std::tuple<
+    // None of these will work because MRepeat < 4
+    // clang-format off
         //##########################################| ALayout| BLayout|         DsLayout| ELayout|AData| BData|          DsData| EData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
         //##########################################|        |        |                 |        | Type|  Type|            Type|  Type|    Type|     Type| Elementwise| Elementwise|    Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|                _MBlock_MPerBlock| ScalarPerVector|                               Pipeline|                     Pipeline|
         //##########################################|        |        |                 |        |     |      |                |      |        |         |   Operation|   Operation|      Operation|              |      |      |      |      |    |    |    |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                _NBlock_NPerBlock|   _NWaveNPerXdl|                              Scheduler|                     Verision|
@@ -192,13 +186,12 @@ using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p5_instances =
         //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     16,   128,   256,  16,  16,  16,   16,    1,    2,     S<16, 16, 1>,   S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           2,                   S<1, 16, 1, 16>,    8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>,
         //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     16,   256,   256,  16,  16,  16,   16,    1,    4,     S<16, 16, 1>,   S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           2,                   S<1, 16, 1, 16>,    8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>,
         //DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     16,   512,   256,  16,  16,  16,   16,    1,    8,     S<16, 16, 1>,   S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<16, 16, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           2,                   S<1, 16, 1, 16>,    8,  BlockGemmPipelineScheduler::Intrawave, BlkGemmPipeVer, F8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 template <GemmSpecialization GemmSpec>
-using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_instances_p1 =
-    std::tuple<
-        // clang-format off
+using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_instances_p1 = std::tuple<
+    // clang-format off
         //##########################################| ALayout| BLayout|         DsLayout| ELayout|AData| BData|          DsData| EData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
         //##########################################|        |        |                 |        | Type|  Type|            Type|  Type|    Type|     Type| Elementwise| Elementwise|    Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|                _MBlock_MPerBlock| ScalarPerVector|                               Pipeline|                     Pipeline|
         //##########################################|        |        |                 |        |     |      |                |      |        |         |   Operation|   Operation|      Operation|              |      |      |      |      |    |    |    |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                _NBlock_NPerBlock|   _NWaveNPerXdl|                              Scheduler|                     Verision|
@@ -208,13 +201,12 @@ using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_instance
         DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     192,    256,   128,  16,  16,  16,   16,    6,    8,     S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           2,                   S<1, 32, 1, 8>,    8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3, F8>,
         DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     160,    256,   128,  16,  16,  16,   16,    5,    8,     S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           2,                   S<1, 32, 1, 8>,    8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3, F8>,
         DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     128,    256,   128,  16,  16,  16,   16,    4,    8,     S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           2,                   S<1, 32, 1, 8>,    8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3, F8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 template <GemmSpecialization GemmSpec>
-using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_instances_p2 =
-    std::tuple<
-        // clang-format off
+using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_instances_p2 = std::tuple<
+    // clang-format off
         //##########################################| ALayout| BLayout|         DsLayout| ELayout|AData| BData|          DsData| EData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
         //##########################################|        |        |                 |        | Type|  Type|            Type|  Type|    Type|     Type| Elementwise| Elementwise|    Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|                _MBlock_MPerBlock| ScalarPerVector|                               Pipeline|                     Pipeline|
         //##########################################|        |        |                 |        |     |      |                |      |        |         |   Operation|   Operation|      Operation|              |      |      |      |      |    |    |    |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|                _NBlock_NPerBlock|   _NWaveNPerXdl|                              Scheduler|                     Verision|
@@ -225,8 +217,8 @@ using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_instance
         DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     160,    128,   128,  16,  16,  16,   16,    5,    4,     S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           2,                   S<1, 32, 1, 8>,    8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3, F8>,
         DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     160,    128,   128,  16,  16,  16,   16,    10,   2,     S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          2,           1,                   S<1, 32, 1, 8>,    8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3, F8>,
         DeviceGemm_Xdl_CShuffleV3_BPreshuffle<  Row,     Col,       Row,    F8,    F8,    F16,  F32,     F16,     PassThrough, PassThrough, PassThrough,    GemmSpec,   256,     128,    128,   128,  16,  16,  16,   16,    4,    4,     S<8, 32, 1>,    S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,          1,           2,                   S<1, 32, 1, 8>,    8,  BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v3, F8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 template <GemmSpecialization GemmSpec>
 using device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_instances_p1 =

@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
-#ifdef CK_USE_XDL   
+#ifdef CK_USE_XDL
 #include "gemm_universal_preshuffle.inc"
 #endif
 
@@ -96,28 +96,46 @@ struct DeviceOperationInstanceFactory<
 #if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, half_t>)
-        {   
+        {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<CLayout, Row>)
             {
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_default_instances_p1(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_default_instances_p2(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p4_default_instances(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p5_default_instances(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances_v2(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances_v2(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances_v2(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p4_default_instances_v2(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p5_default_instances_v2(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p1(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p2(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p3(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p4(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p5(op_ptrs);
-                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p6(op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_default_instances_p1(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_default_instances_p2(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p4_default_instances(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p5_default_instances(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances_v2(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances_v2(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances_v2(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p4_default_instances_v2(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p5_default_instances_v2(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p1(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p2(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p3(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p4(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p5(
+                    op_ptrs);
+                add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p6(
+                    op_ptrs);
             }
         }
 #endif

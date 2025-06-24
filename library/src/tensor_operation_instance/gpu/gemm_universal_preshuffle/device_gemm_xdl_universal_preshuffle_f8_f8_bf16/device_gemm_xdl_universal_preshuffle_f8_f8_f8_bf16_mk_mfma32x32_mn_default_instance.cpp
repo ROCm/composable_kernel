@@ -9,7 +9,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-
 void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma32x32_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
                                                         Col,
@@ -23,8 +22,7 @@ void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma32x32_mn_instanc
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma32x32_mn_instances<
-            GemmDefault>{});
+        device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma32x32_mn_instances<GemmDefault>{});
 }
 
 } // namespace instance
