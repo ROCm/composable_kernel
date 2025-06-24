@@ -673,7 +673,7 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
         }
     }();
 
-    FmhaKernel::PrintParameter(kargs, args.batch);
+    // FmhaKernel::PrintParameter(kargs, args.batch);
 
     if constexpr(FmhaKernel::kIsGroupMode)
     {

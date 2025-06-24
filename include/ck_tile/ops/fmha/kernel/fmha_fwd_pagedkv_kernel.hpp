@@ -698,6 +698,43 @@ struct FmhaFwdPagedKVKernel
     {
         static bool dummy = [&]() {
             std::cout << std::endl;
+
+            std::cout << " q_ptr: " << kargs.q_ptr << " k_ptr:" << kargs.k_ptr
+                      << " v_ptr: " << kargs.v_ptr << " o_ptr:" << kargs.o_ptr
+                      << " hdim_q: " << kargs.hdim_q << " hdim_v: " << kargs.hdim_v
+                      << " num_head_q:" << kargs.num_head_q
+                      << " nhead_ratio_qk: " << kargs.nhead_ratio_qk << " scale_s:" << kargs.scale_s
+                      << " stride_q:" << kargs.stride_q << " stride_k:" << kargs.stride_k
+                      << " stride_v:" << kargs.stride_v << " stride_o:" << kargs.stride_o
+                      << " nhead_stride_q: " << kargs.nhead_stride_q
+                      << " nhead_stride_k: " << kargs.nhead_stride_k
+                      << " nhead_stride_v:" << kargs.nhead_stride_v
+                      << " nhead_stride_o: " << kargs.nhead_stride_o;
+            if constexpr(!kIsGroupMode)
+            {
+                std::cout << " batch_stride_q:" << kargs.batch_stride_q;
+            }
+            std::cout << " batch_stride_k:" << kargs.batch_stride_k
+                      << " batch_stride_v:" << kargs.batch_stride_v;
+
+            if constexpr(kIsGroupMode)
+            {
+                if constexpr(kSkipMinSeqlenQ)
+                {
+                    std::cout << " min_seqlen_q: " << kargs.min_seqlen_q;
+                }
+
+                std::cout << " seqstart_q_ptr:" << kargs.seqstart_q_ptr
+                          << " seqstart_k_ptr: " << kargs.seqstart_k_ptr
+                          << " seqlen_k_ptr:" << kargs.seqlen_k_ptr;
+                if(kargs.seqlen_k_ptr != nullptr)
+                {
+                    std::cout << "{";
+                    for(int i_batch = 0; i_batch < num_batches; i_batch++)
+                        std::cout << kargs.seqlen_k_ptr[i_batch] << ",";
+                    std::cout << "}";
+                }
+            }
             if constexpr(kHasMask)
             {
                 std::cout << " window_size_left: " << kargs.window_size_left
@@ -724,31 +761,7 @@ struct FmhaFwdPagedKVKernel
                 }
                 std::cout << " ]";
             }
-
-            if constexpr(kIsGroupMode)
-            {
-                if constexpr(kSkipMinSeqlenQ)
-                {
-                    std::cout << " min_seqlen_q: " << kargs.min_seqlen_q;
-                }
-                std::cout << " q_ptr: " << kargs.q_ptr << " k_ptr:" << kargs.k_ptr
-                          << " v_ptr: " << kargs.v_ptr << " o_ptr:" << kargs.o_ptr
-                          << " hdim_q: " << kargs.hdim_q << " hdim_v: " << kargs.hdim_v
-                          << " num_head_q:" << kargs.num_head_q
-                          << " nhead_ratio_qk: " << kargs.nhead_ratio_qk
-                          << " scale_s:" << kargs.scale_s << " stride_q:" << kargs.stride_q
-                          << " stride_k:" << kargs.stride_k << " stride_v:" << kargs.stride_v
-                          << " stride_o:" << kargs.stride_o
-                          << " nhead_stride_q: " << kargs.nhead_stride_q
-                          << " nhead_stride_k: " << kargs.nhead_stride_k
-                          << " nhead_stride_v:" << kargs.nhead_stride_v
-                          << " nhead_stride_o: " << kargs.nhead_stride_o
-                          << " seqstart_q_ptr:" << kargs.seqstart_q_ptr
-                          << " seqstart_k_ptr: " << kargs.seqstart_k_ptr
-                          << " seqlen_k_ptr:" << kargs.seqlen_k_ptr
-                          << " batch_stride_k:" << kargs.batch_stride_k
-                          << " batch_stride_v:" << kargs.batch_stride_v << std::endl;
-            }
+            std::cout << std::endl;
             return true;
         }();
         (void)dummy;
