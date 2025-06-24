@@ -108,15 +108,15 @@ struct BlockTranspose
 
     template <typename InputTileWindow, typename OutputTileWindow>
     CK_TILE_DEVICE void operator()(const InputTileWindow& input_window,
-                                   OutputTileWindow& output_window,
-                                   void* __restrict__ p_smem)
+                                   OutputTileWindow& output_window)
     {
+        __shared__ char smem[GetSmemSize()];
         auto input_tile_window =
             make_tile_window(input_window, Policy::template MakeInputDistribution<Problem>());
         auto output_tile_window =
             make_tile_window(output_window, Policy::template MakeOutputDistribution<Problem>());
 
-        DataType* p_lds_ptr              = static_cast<DataType*>(p_smem);
+        DataType* p_lds_ptr              = reinterpret_cast<DataType*>(smem);
         constexpr auto in_lds_block_desc = Policy::template MakeLdsStoreBlockDescriptor<Problem>();
         auto input_lds_block =
             make_tensor_view<address_space_enum::lds>(p_lds_ptr, in_lds_block_desc);

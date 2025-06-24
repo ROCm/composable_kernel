@@ -70,7 +70,6 @@ struct BatchedTransposeKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        __shared__ char smem[Pipeline::GetSmemSize()];
         static constexpr ck_tile::index_t kMPerBlock = Problem::kSecondSizePerBlock;
         static constexpr ck_tile::index_t kNPerBlock = Problem::kLeadSizePerBlock;
 
@@ -114,7 +113,7 @@ struct BatchedTransposeKernel
             make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
             {static_cast<ck_tile::index_t>(iN), static_cast<ck_tile::index_t>(iM)});
 
-        Pipeline{}(x_block_window, y_block_window, smem);
+        Pipeline{}(x_block_window, y_block_window);
     }
 };
 } // namespace ck_tile
