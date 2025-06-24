@@ -17,12 +17,12 @@
     },
     "datatype_a": {
       "values": [
-        "fp8"
+        "fp16"
       ]
     },
     "datatype_b": {
       "values": [
-        "fp8"
+        "fp16"
       ]
     },
     "datatype_c": {
@@ -34,28 +34,32 @@
   "tile_config": {
     "tile_m": {
       "values": [
+        128,
         256
       ]
     },
     "tile_n": {
       "values": [
-        128,
-        256
+        128
       ]
     },
     "tile_k": {
       "values": [
-        32
+        64
       ]
     },
     "warp_m": {
       "values": [
-        2
+        1,
+        2,
+        4
       ]
     },
     "warp_n": {
       "values": [
-        2
+        1,
+        2,
+        4
       ]
     },
     "warp_k": {
@@ -65,24 +69,36 @@
     },
     "warp_tile_m": {
       "values": [
-        16, 64
+        4,
+        16, 
+        32,
+        64
       ]
     },
     "warp_tile_n": {
       "values": [
-        4, 16
+        4,
+        16,
+        32,
+        64
       ]
     },
     "warp_tile_k": {
       "values": [
-        16, 32
+        8,
+        16,
+        32,
+        64,
+        128
       ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
-        "compv3"
+        "compv3",
+        "compv4",
+        "mem"
       ]
     },
     "scheduler": {
