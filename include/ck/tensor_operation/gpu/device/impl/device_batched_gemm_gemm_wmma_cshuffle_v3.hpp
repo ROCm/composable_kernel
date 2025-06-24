@@ -27,6 +27,7 @@ namespace device {
 
 template <typename DeviceOp,
           typename GridwiseOp,
+          typename B1Layout,
           typename ADataType,
           typename B0DataType,
           typename B1DataType,
@@ -75,9 +76,9 @@ __global__ void
 
     std::array<ck::index_t, array_size> b1_gs_os_ns_lengths{G0, G1, O, N};
     std::array<ck::index_t, array_size> b1_gs_os_ns_strides =
-        input_permute
-            ? std::array<ck::index_t, array_size>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
-            : std::array<ck::index_t, array_size>{G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
+        is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
+            ? std::array<ck::index_t, array_size>{G1 * N * O, N * O, 1, O}  // B1 layout [G0, G1, N, O]
+            : std::array<ck::index_t, array_size>{G1 * N * O, N * O, N, 1}; // B1 layout [G0, G1, O, N]
 
     std::array<ck::index_t, array_size> c_gs_ms_os_lengths{G0, G1, M, O};
     std::array<ck::index_t, array_size> c_gs_ms_os_strides =
@@ -529,42 +530,41 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
 
     static bool IsSupportedArgument(const RawArg& arg)
     {
-        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
-        {
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
-            {
-                printf("DeviceOp: Acc0 Type err");
-                return false;
-            }
-
-            // TODO: Handle other layouts.
-            if constexpr(!(is_same_v<ALayout, tensor_layout::gemm::RowMajor>))
-            {
-                printf("DeviceOp: A layout must be Row");
-                return false;
-            }
-
-            if constexpr(!(is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>))
-            {
-                printf("DeviceOp: B layout must be Column");
-                return false;
-            }
-
-            if constexpr(!(is_same_v<B1Layout, tensor_layout::gemm::RowMajor>))
-            {
-                printf("DeviceOp: B1 layout must be Row");
-                return false;
-            }
-
-            if constexpr(!(is_same_v<CLayout, tensor_layout::gemm::RowMajor>))
-            {
-                printf("DeviceOp: C layout must be Row");
-                return false;
-            }
-        }
-        else
+        if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
         {
             printf("DeviceOp: Arch err");
+            return false;
+        }
+
+        if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
+        {
+            printf("DeviceOp: Acc0 Type err");
+            return false;
+        }
+
+        // TODO: Handle other layouts.
+        if constexpr(!(is_same_v<ALayout, tensor_layout::gemm::RowMajor>))
+        {
+            printf("DeviceOp: A layout must be Row");
+            return false;
+        }
+
+        if constexpr(!(is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>))
+        {
+            printf("DeviceOp: B layout must be Column");
+            return false;
+        }
+
+        if constexpr(!(is_same_v<B1Layout, tensor_layout::gemm::RowMajor> ||
+                       is_same_v<B1Layout, tensor_layout::gemm::ColumnMajor>))
+        {
+            printf("DeviceOp: B1 layout must be Column or Row");
+            return false;
+        }
+
+        if constexpr(!(is_same_v<CLayout, tensor_layout::gemm::RowMajor>))
+        {
+            printf("DeviceOp: C layout must be Row");
             return false;
         }
 
@@ -705,6 +705,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
                 const auto kernel =
                     kernel_batched_gemm_gemm_wmma_cshuffle_v3<DeviceOp,
                                                               GridwiseOp,
+                                                              B1Layout,
                                                               ADataType,
                                                               B0DataType,
                                                               B1DataType,

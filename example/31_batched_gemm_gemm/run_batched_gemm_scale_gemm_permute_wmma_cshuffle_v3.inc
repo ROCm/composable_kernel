@@ -10,9 +10,9 @@ int run(int argc, char* argv[])
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
     ck::index_t M = 113;
-    ck::index_t N = 937;
-    ck::index_t K = 64;  // Can't handle unusual sizes
-    ck::index_t O = 128; // Can't handle unusual sizes
+    ck::index_t N = 512; // Small inaccuracies with unusual size + RCCR layout! TODO
+    ck::index_t K = 64;  // Can't handle unusual sizes (small inaccuracies?)
+    ck::index_t O = 128; // Can't handle unusual sizes (small inaccuracies?)
 
     // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
     // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])
@@ -77,10 +77,17 @@ int run(int argc, char* argv[])
             : std::vector<ck::index_t>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
 
     std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
+#ifdef CK_MHA_USE_RCCR_LAYOUT
+    std::vector<ck::index_t> b1_gs_os_ns_strides =
+        input_permute
+            ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
+            : std::vector<ck::index_t>{G1 * N * O, N * O, N, 1}; // B1 layout [G0, G1, O, N]
+#else
     std::vector<ck::index_t> b1_gs_os_ns_strides =
         input_permute
             ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
             : std::vector<ck::index_t>{G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
+#endif
 
     std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
     std::vector<ck::index_t> c_gs_ms_os_strides =

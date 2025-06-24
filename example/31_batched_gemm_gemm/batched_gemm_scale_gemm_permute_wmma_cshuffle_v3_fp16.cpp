@@ -55,10 +55,38 @@ using CElementOp    = PassThrough;
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
 
 // clang-format off
-#define CK_MHA_USE_WAVE_1
+#define CK_MHA_USE_RCCR_LAYOUT
+// #define CK_MHA_USE_WAVE_1
 // #define CK_MHA_USE_WAVE_2
 // #define CK_MHA_USE_WAVE_4
 // #define CK_MHA_USE_WAVE_8
+
+#ifdef CK_MHA_USE_RCCR_LAYOUT
+using DeviceMHAFactory = 
+    std::tuple<
+        ck::tensor_operation::device::DeviceBatchedGemmGemm_Wmma_CShuffleV3<
+            Row, Col, Col, Row, 
+            ADataType, B0DataType, B1DataType, CDataType, AccDataType, CShuffleDataType,
+            AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
+            GemmSpec, 1,
+            32,
+            //      Gemm 0
+            16, 64, 64, 64, 64, 8,  8,
+            //      Gemm 1
+                8,  
+            16, 16,
+            // Per repeat = wave_m = wave_num, wave_n = 1
+            1, 4, 4,
+            // ABlockTransfer MK -> K0 M K1
+            S<2, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, false,
+            // B0BlockTransfer LK -> K0 L K1
+            S<2, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, false,
+            // B1BlockTransfer NL -> L0 N L1
+            S<2, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            // CShuffleBlockTransfer MN
+            1, 1, S<1, 16, 1, 2>, 8>
+    >;
+#else
 using DeviceMHAFactory = 
     std::tuple<
 #ifdef CK_MHA_USE_WAVE_1
@@ -239,6 +267,8 @@ using DeviceMHAFactory =
             1, 1, S<1, 128, 1, 2>, 8>
 #endif
     >;
+#endif
+
 // clang-format on
 // Ref Gemm0: fp16 in, fp32 out
 using ReferenceGemm0Instance = ck::tensor_operation::host::ReferenceBatchedGemm<ADataType,
