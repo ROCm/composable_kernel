@@ -7,11 +7,11 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-#include "profiler/profile_grouped_conv_fwd_bias_clamp_impl.hpp"
+#include "profiler/profile_grouped_conv_fwd_impl.hpp"
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-using AddClamp = ck::tensor_operation::element_wise::AddClamp;
+using Clamp = ck::tensor_operation::element_wise::Clamp;
 
 template <typename Tuple>
 class TestGroupedConvndFwd : public ::testing::Test
@@ -30,23 +30,26 @@ class TestGroupedConvndFwd : public ::testing::Test
     {
         EXPECT_FALSE(conv_params.empty());
         bool pass = true;
+        Clamp out_element_op{0.f, 256.f};
         for(auto& param : conv_params)
         {
-            pass = pass && ck::profiler::profile_grouped_conv_fwd_bias_clamp_impl<NDimSpatial,
-                                                                                  InLayout,
-                                                                                  WeiLayout,
-                                                                                  OutLayout,
-                                                                                  DataType,
-                                                                                  DataType,
-                                                                                  DataType,
-                                                                                  DataType,
-                                                                                  DataType,
-                                                                                  IndexType>(
+            pass = pass && ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
+                                                                       InLayout,
+                                                                       WeiLayout,
+                                                                       OutLayout,
+                                                                       DataType,
+                                                                       DataType,
+                                                                       DataType,
+                                                                       DataType,
+                                                                       DataType,
+                                                                       IndexType,
+                                                                       Clamp>(
                                true,  // do_verification
                                1,     // init_method: integer value
                                false, // do_log
                                false, // time_kernel
-                               param);
+                               param,
+                               out_element_op);
         }
         EXPECT_TRUE(pass);
     }
@@ -54,9 +57,13 @@ class TestGroupedConvndFwd : public ::testing::Test
 
 using namespace ck::tensor_layout::convolution;
 
-using KernelTypes2d = ::testing::Types<std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK>>;
+using KernelTypes2d = ::testing::Types<std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK>,
+                                       std::tuple<float, NHWGC, GKYXC, NHWGK>,
+                                       std::tuple<ck::half_t, NHWGC, GKYXC, NHWGK>>;
 
-using KernelTypes3d = ::testing::Types<std::tuple<ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK>>;
+using KernelTypes3d = ::testing::Types<std::tuple<ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK>,
+                                       std::tuple<float, NDHWGC, GKZYXC, NDHWGK>,
+                                       std::tuple<ck::half_t, NDHWGC, GKZYXC, NDHWGK>>;
 
 template <typename Tuple>
 class TestGroupedConvndFwd2d : public TestGroupedConvndFwd<Tuple>
