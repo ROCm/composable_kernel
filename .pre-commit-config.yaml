@@ -23,10 +23,12 @@ repos:
         entry: ruff check --fix
         language: python
         types: [python]
+        verbose: false
         additional_dependencies: [ruff]
     -   id: ruff-format
         name: Ruff Formatter
         entry: ruff format
         language: python
         types: [python]
+        verbose: false
         additional_dependencies: [ruff]
