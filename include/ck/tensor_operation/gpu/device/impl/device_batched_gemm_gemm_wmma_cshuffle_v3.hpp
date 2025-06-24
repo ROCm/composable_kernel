@@ -51,30 +51,19 @@ __global__ void
                                                   index_t K,
                                                   index_t O,
                                                   index_t G0,
-                                                  index_t G1,
-                                                  float alpha,
-                                                  bool input_permute,
-                                                  bool output_permute)
+                                                  index_t G1)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
-
-    (void)alpha; // TODO: Pass elementwise operations properly.
 
     // clang-format off
 // ***************************************************
 // Make Tensor Descriptors
     constexpr index_t array_size = 4;
     std::array<ck::index_t, array_size> a_gs_ms_ks_lengths{G0, G1, M, K};
-    std::array<ck::index_t, array_size> a_gs_ms_ks_strides =
-        input_permute
-            ? std::array<ck::index_t, array_size>{M * G1 * K, K, G1 * K, 1} // A layout [G0, M, G1, K]
-            : std::array<ck::index_t, array_size>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
+    std::array<ck::index_t, array_size> a_gs_ms_ks_strides = std::array<ck::index_t, array_size>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
 
     std::array<ck::index_t, array_size> b0_gs_ns_ks_lengths{G0, G1, N, K};
-    std::array<ck::index_t, array_size> b0_gs_ns_ks_strides =
-        input_permute
-            ? std::array<ck::index_t, array_size>{N * G1 * K, K, G1 * K, 1} // B0 layout [G0, N, G1, K]
-            : std::array<ck::index_t, array_size>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
+    std::array<ck::index_t, array_size> b0_gs_ns_ks_strides = std::array<ck::index_t, array_size>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
 
     std::array<ck::index_t, array_size> b1_gs_os_ns_lengths{G0, G1, O, N};
     std::array<ck::index_t, array_size> b1_gs_os_ns_strides =
@@ -83,10 +72,7 @@ __global__ void
             : std::array<ck::index_t, array_size>{G1 * N * O, N * O, N, 1}; // B1 layout [G0, G1, O, N]
 
     std::array<ck::index_t, array_size> c_gs_ms_os_lengths{G0, G1, M, O};
-    std::array<ck::index_t, array_size> c_gs_ms_os_strides =
-        output_permute
-            ? std::array<ck::index_t, array_size>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
-            : std::array<ck::index_t, array_size>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+    std::array<ck::index_t, array_size> c_gs_ms_os_strides = std::array<ck::index_t, array_size>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
 
     const auto a_element_op    = AElementwiseOperation{};
     const auto b0_element_op   = B0ElementwiseOperation{};
@@ -159,9 +145,6 @@ __global__ void
     ignore = O;
     ignore = G0;
     ignore = G1;
-    ignore = alpha;
-    ignore = input_permute;
-    ignore = output_permute;
 #endif // end of if (defined(__gfx11__))
 }
 
@@ -493,10 +476,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
                index_t K,
                index_t O,
                index_t G0,
-               index_t G1,
-               float alpha,
-               bool input_permute,
-               bool output_permute)
+               index_t G1)
             : p_a_grid_{p_a_grid},
               p_b0_grid_{p_b0_grid},
               p_b1_grid_{p_b1_grid},
@@ -506,10 +486,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
               K_{K},
               O_{O},
               G0_{G0},
-              G1_{G1},
-              alpha_{alpha},
-              input_permute_{input_permute},
-              output_permute_{output_permute}
+              G1_{G1}
         {
         }
         // Pointers
@@ -525,11 +502,9 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         index_t O_;
         index_t G0_;
         index_t G1_;
-        float alpha_;
-        bool input_permute_;
-        bool output_permute_;
     };
 
+    // TODO: Check how padding modes are checked against problem dimensions for different layouts.
     static bool IsSupportedArgument(const RawArg& arg)
     {
         if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
@@ -577,36 +552,27 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         ck::index_t N                = arg.N_;
         ck::index_t K                = arg.K_;
         ck::index_t O                = arg.O_;
-        bool input_permute           = arg.input_permute_;
-        bool output_permute          = arg.output_permute_;
 
         std::array<ck::index_t, array_size> a_gs_ms_ks_lengths{G0, G1, M, K};
         std::array<ck::index_t, array_size> a_gs_ms_ks_strides =
-            input_permute ? std::array<ck::index_t, array_size>{M * G1 * K, K, G1 * K, 1}
-                          // A layout [G0, M, G1, K]
-                          : std::array<ck::index_t, array_size>{
-                                G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
+            std::array<ck::index_t, array_size>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
 
         std::array<ck::index_t, array_size> b0_gs_ns_ks_lengths{G0, G1, N, K};
         std::array<ck::index_t, array_size> b0_gs_ns_ks_strides =
-            input_permute ? std::array<ck::index_t, array_size>{N * G1 * K, K, G1 * K, 1}
-                          // B0 layout [G0, N, G1, K]
-                          : std::array<ck::index_t, array_size>{
-                                G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
+            std::array<ck::index_t, array_size>{
+                G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
 
         std::array<ck::index_t, array_size> b1_gs_os_ns_lengths{G0, G1, O, N};
         std::array<ck::index_t, array_size> b1_gs_os_ns_strides =
-            input_permute ? std::array<ck::index_t, array_size>{N * G1 * O, O, 1, G1 * O}
-                          // B1 layout [G0, N, G1, O]
-                          : std::array<ck::index_t, array_size>{
-                                G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
+            is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
+                ? std::array<ck::index_t, array_size>{G1 * N * O, N * O, 1, O}
+                // B1 layout [G0, G1, N, O]
+                : std::array<ck::index_t, array_size>{
+                      G1 * N * O, N * O, N, 1}; // B1 layout [G0, G1, O, N]
 
         std::array<ck::index_t, array_size> c_gs_ms_os_lengths{G0, G1, M, O};
         std::array<ck::index_t, array_size> c_gs_ms_os_strides =
-            output_permute ? std::array<ck::index_t, array_size>{M * G1 * O, O, G1 * O, 1}
-                           // C layout [G0, M, G1, O]
-                           : std::array<ck::index_t, array_size>{
-                                 G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+            std::array<ck::index_t, array_size>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
 
         const auto a_grid_desc =
             DeviceOp::MakeAGridDescriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
@@ -733,10 +699,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
                                               arg.K_,
                                               arg.O_,
                                               arg.G0_,
-                                              arg.G1_,
-                                              arg.alpha_,
-                                              arg.input_permute_,
-                                              arg.output_permute_);
+                                              arg.G1_);
             };
 
             if(GridwiseOp::CalculateHasMainKBlockLoop(K))
@@ -808,12 +771,9 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
                                         N,
                                         K,
                                         O,
-                                        1,     // G0
-                                        Batch, // G1 TODO: Maybe this makes more sense as G0,
-                                               // depends on if we want permute functionality.
-                                        1.0, // Alpha TODO: This should just be an acc0 element op?
-                                        false, // input_permute
-                                        false  // output_permute
+                                        1,    // G0
+                                        Batch // G1 TODO: Maybe this makes more sense as G0,
+                                              // depends on if we want permute functionality.
         );
     }
 
