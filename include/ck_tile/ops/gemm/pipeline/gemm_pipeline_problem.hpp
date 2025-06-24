@@ -60,7 +60,7 @@ struct GemmPipelineProblemBase
                       Scheduler);
         // clang-format on
     }
-
+    //This seems to be of no use
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
         constexpr index_t PackedSize =
