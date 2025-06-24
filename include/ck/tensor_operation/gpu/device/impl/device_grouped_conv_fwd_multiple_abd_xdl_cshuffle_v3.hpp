@@ -279,6 +279,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     static constexpr bool isMultiD   = DsDataType::Size() > 0;
     static constexpr bool isMultiABD = isMultiA || isMultiB || isMultiD;
 
+    static constexpr bool DoElementwiseBeforeCShuffle =
+        !isMultiABD && is_same_v<EDataType, bhalf_t> &&
+        !is_same_v<CDEElementwiseOperation, tensor_operation::element_wise::PassThrough>;
+
     static constexpr index_t NumATensor = GetNumABTensors<isMultiA, ADataType>();
     static constexpr index_t NumBTensor = GetNumABTensors<isMultiB, BDataType>();
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -412,7 +416,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         BBlockLdsExtraN, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,         \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                      \
         CDEBlockTransferScalarPerVector_NPerBlock, BlkGemmPipeSched, BlkGemmPipelineVer,       \
-        AComputeDataType, BComputeDataType
+        AComputeDataType, BComputeDataType, false, false, DoElementwiseBeforeCShuffle
 
     // Use appropriate gridwise gemm
     using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<GridwiseGemmV3TemplateParams>;
@@ -780,8 +784,20 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                         sizeof(EDataType);
             }
 
-            typename GridwiseGemm::Argument gemm_arg{
-                p_a_grid, p_b_grid, p_e_grid, GemmM, GemmN, GemmK, I0, I0, I0, I1};
+            typename GridwiseGemm::Argument gemm_arg{p_a_grid,
+                                                     p_b_grid,
+                                                     p_e_grid,
+                                                     GemmM,
+                                                     GemmN,
+                                                     GemmK,
+                                                     I0,
+                                                     I0,
+                                                     I0,
+                                                     I1,
+                                                     false,
+                                                     arg.a_element_op_,
+                                                     arg.b_element_op_,
+                                                     arg.cde_element_op_};
 
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)

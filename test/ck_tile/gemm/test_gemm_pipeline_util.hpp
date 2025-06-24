@@ -63,19 +63,6 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
     using pipeline      = ck_tile::GemmPipelineAgBgCrCompV4<Problem>;
 };
 
-template <typename Pipeline, ck_tile::TailNumber TN>
-void try_run(ck_tile::TailNumber tn)
-{
-    if constexpr(Pipeline::PrefetchStages > static_cast<int>(TN))
-    {
-        if(tn == TN)
-        {
-            RunSplitk(ck_tile::bool_constant<true>{},
-                      ck_tile::integral_constant<ck_tile::TailNumber, TN>{});
-        }
-    }
-}
-
 template <typename Tuple>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
@@ -89,10 +76,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using CDataType                    = std::tuple_element_t<6, Tuple>;
     static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
     static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
+
+    using DsLayout   = ck_tile::tuple<>;
+    using DsDataType = ck_tile::tuple<>;
+
+    static constexpr bool Persistent =
+        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
     // TODO: expose tile size through test t-param ?
 
     template <bool PadM, bool PadN, bool PadK>
-    void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+    void invoke_gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
+                     const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
         constexpr ck_tile::index_t M_Tile = 256;
@@ -130,14 +124,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
+        static constexpr bool StructuredSparsity = false;
+        using GemmUniversalTraits                = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
                                                                      ALayout,
                                                                      BLayout,
                                                                      CLayout,
-                                                                     TransposeC>;
+                                                                     TransposeC,
+                                                                     StructuredSparsity,
+                                                                     Persistent>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -173,9 +170,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
+                                                 DsDataType,
                                                  AccDataType,
                                                  CDataType,
+                                                 DsLayout,
                                                  CLayout,
+                                                 ck_tile::element_wise::PassThrough,
                                                  GemmPipeline::BlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
@@ -190,7 +190,15 @@ class TestCkTileGemmPipeline : public ::testing::Test
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
+            dim3 grids;
+            if constexpr(Persistent)
+            {
+                grids = Kernel::MaxOccupancyGridSize(s);
+            }
+            else
+            {
+                grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+            }
             constexpr dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
@@ -227,90 +235,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
             }
         };
 
-        if(has_hot_loop)
-        {
-            if constexpr(PipelineType == GemmPipelineType::CompV3)
-            {
-                if(tail_num == ck_tile::TailNumber::Full)
-                {
-                    RunSplitk(ck_tile::bool_constant<true>{},
-                              ck_tile::integral_constant<ck_tile::TailNumber,
-                                                         ck_tile::TailNumber::Full>{});
-                }
-                else
-                {
-                    std::ostringstream err;
-                    err << "For compute pipeline tail number should always be Full, but have \""
-                        << tail_num << "\" which is not supported! PrefetchStages: "
-                        << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__ << ":"
-                        << __LINE__ << ", in function: " << __func__;
-                    throw std::runtime_error(err.str());
-                }
-            }
-
-            if constexpr(PipelineType == GemmPipelineType::Mem)
-            {
-                // Tail pipeline One to Seven
-                if(tail_num == ck_tile::TailNumber::One)
-                {
-                    RunSplitk(ck_tile::bool_constant<true>{},
-                              ck_tile::integral_constant<ck_tile::TailNumber,
-                                                         ck_tile::TailNumber::One>{});
-                }
-                else if(tail_num == ck_tile::TailNumber::Full)
-                {
-                    RunSplitk(ck_tile::bool_constant<true>{},
-                              ck_tile::integral_constant<ck_tile::TailNumber,
-                                                         ck_tile::TailNumber::Full>{});
-                }
-
-                auto check_tail = [&](auto... TNs) {
-                    (try_run<BaseGemmPipeline, decltype(TNs)::value>(tail_num), ...);
-                };
-
-                check_tail(
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{});
-            }
-
-            if constexpr(PipelineType == GemmPipelineType::CompV4)
-            {
-                if(tail_num == ck_tile::TailNumber::Three)
-                {
-                    RunSplitk(ck_tile::bool_constant<true>{},
-                              ck_tile::integral_constant<ck_tile::TailNumber,
-                                                         ck_tile::TailNumber::Three>{});
-                }
-                else
-                {
-                    RunSplitk(ck_tile::bool_constant<true>{},
-                              ck_tile::integral_constant<ck_tile::TailNumber,
-                                                         ck_tile::TailNumber::Two>{});
-                }
-            }
-        }
-        else
-        {
-            // Tail number always Full - #PrefetchStages
-            if(tail_num == ck_tile::TailNumber::Full)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else
-            {
-                std::ostringstream err;
-                err << "When there's no hot loop, this tail number \"" << tail_num
-                    << "\" is not supported! " << __FILE__ << ":" << __LINE__
-                    << ", in function: " << __func__;
-                throw std::runtime_error(err.str());
-            }
-        }
+        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 
     public:
@@ -409,17 +334,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs args;
+        ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
         args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
         args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-        args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
+        args.e_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
         args.k_batch  = kbatch;
         args.M        = M;
         args.N        = N;
         args.K        = K;
         args.stride_A = stride_A;
         args.stride_B = stride_B;
-        args.stride_C = stride_C;
+        args.stride_E = stride_C;
 
         invoke_gemm<PadM, PadN, PadK>(args, ck_tile::stream_config{nullptr, false});
 
@@ -442,9 +367,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                   "Error: Incorrect results!",
                                   rtol_atol.at(ck_tile::number<0>{}),
                                   rtol_atol.at(ck_tile::number<1>{}));
-        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                  << std::endl;
         EXPECT_TRUE(pass);
     }
 };

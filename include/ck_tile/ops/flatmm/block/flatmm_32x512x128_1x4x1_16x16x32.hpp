@@ -95,7 +95,7 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_Base // for f16/bf16
         // constexpr index_t Block_M = Problem::BlockShape::Block_M0;
         // constexpr index_t Block_K = Problem::BlockShape::Block_K0;
         // constexpr index_t BlockSize = Problem::BlockShape::BlockSize;
-        constexpr index_t warpSize = ck_tile::get_warp_size();
+        constexpr index_t WarpSize = ck_tile::get_warp_size();
         // constexpr index_t NumWarps = Problem::BlockShape::NumWarps;
 
         constexpr index_t KPack_  = 8;      // GetSmemKPack_A<Problem>(); // LDS
@@ -104,11 +104,11 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_Base // for f16/bf16
 
         static_assert(Block_K % KVector == 0);
         constexpr index_t LanesPerK = Block_K / KVector; // how many thread loading K
-        if constexpr(LanesPerK >= warpSize)
+        if constexpr(LanesPerK >= WarpSize)
         {
             // need multiple waves to load K
-            static_assert(LanesPerK % warpSize == 0);
-            constexpr index_t wavesPerK = LanesPerK / warpSize;
+            static_assert(LanesPerK % WarpSize == 0);
+            constexpr index_t wavesPerK = LanesPerK / WarpSize;
             if constexpr(wavesPerK > NumWarps)
             {
                 // TODO: need multiple issues along K to load all data
@@ -121,11 +121,11 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_Base // for f16/bf16
                     make_tuple(number<NumIssues>{},                             // m0
                                number<wavesPerM>{},                             // m1
                                number<wavesPerK>{},                             // k0
-                               number<warpSize>{},                              // k1
+                               number<WarpSize>{},                              // k1
                                number<KVector>{}),                              // k2
-                    make_tuple(number<NumWarps*(warpSize * KVector + KPad)>{},  // m0
-                               number<wavesPerK*(warpSize * KVector + KPad)>{}, // m1
-                               number<warpSize * KVector + KPad>{},             // k0
+                    make_tuple(number<NumWarps*(WarpSize * KVector + KPad)>{},  // m0
+                               number<wavesPerK*(WarpSize * KVector + KPad)>{}, // m1
+                               number<WarpSize * KVector + KPad>{},             // k0
                                number<KVector>{},                               // k1
                                number<1>{}),                                    // k2
                     number<KVector>{}, // lds store vector(actually no explicit store)
@@ -136,7 +136,7 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_Base // for f16/bf16
                     make_tuple(
                         make_pass_through_transform(number<NumIssues>{}),
                         make_merge_transform(make_tuple(number<wavesPerM>{}, number<wavesPerK>{})),
-                        make_merge_transform(make_tuple(number<warpSize>{}, number<KVector>{}))),
+                        make_merge_transform(make_tuple(number<WarpSize>{}, number<KVector>{}))),
                     make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
 
@@ -146,8 +146,8 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_Base // for f16/bf16
         else
         {
             // lanes within a wave load different M but same K
-            static_assert(warpSize % LanesPerK == 0);
-            constexpr index_t LaneGroups = warpSize / LanesPerK; // along m
+            static_assert(WarpSize % LanesPerK == 0);
+            constexpr index_t LaneGroups = WarpSize / LanesPerK; // along m
             constexpr index_t NumIssues  = Block_M / (LaneGroups * NumWarps);
 
             constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
@@ -156,9 +156,9 @@ struct Flatmm_32x512x128_1x4x1_16x16x32_Base // for f16/bf16
                            number<NumWarps>{},                             // m2
                            number<LanesPerK>{},                            // k0
                            number<KVector>{}),                             // k1
-                make_tuple(number<NumWarps*(warpSize * KVector + KPad)>{}, // m0
+                make_tuple(number<NumWarps*(WarpSize * KVector + KPad)>{}, // m0
                            number<Block_K>{},                              // m1
-                           number<warpSize * KVector + KPad>{},            // m2
+                           number<WarpSize * KVector + KPad>{},            // m2
                            number<KVector>{},                              // k0
                            number<1>{}),                                   // k1
                 number<KVector>{}, // lds store vector(actually no explicit store)

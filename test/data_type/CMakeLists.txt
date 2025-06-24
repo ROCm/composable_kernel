@@ -16,15 +16,15 @@ if (CK_USE_OCP_FP8)
   add_gtest_executable(test_fp8_ocp test_fp8_ocp.cpp)
   if(result EQUAL 0)
     target_link_libraries(test_fp8_ocp PRIVATE utility)
+    add_dependencies(test_fp8 test_fp8_ocp)
   endif()
 
   add_gtest_executable(test_bf8_ocp test_bf8_ocp.cpp)
   if(result EQUAL 0)
     target_link_libraries(test_bf8_ocp PRIVATE utility)
+    add_dependencies(test_fp8 test_bf8_ocp)
   endif()
 
-  add_dependencies(test_fp8 test_fp8_ocp)
-  add_dependencies(test_fp8 test_bf8_ocp)
 endif()
 
 if (CK_USE_FNUZ_FP8)

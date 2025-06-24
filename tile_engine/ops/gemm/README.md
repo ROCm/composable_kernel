@@ -6,7 +6,7 @@ CK Tile Engine GEMM is used to generate and run GEMM kernels with different comb
 
 User can provide kernel configuration such as tile size, warp size, padding, pipeline, scheduler and epilogue in the config file with limited values. For reference please see `./configs/user_provided_config.json`. 
 
-The Tile engine also has a default kernel configuration for providing range of configuration parameter values, which helps users who lack kernel development experience to benchmark  For reference please see in `./configs/default_config.json`
+The Tile engine also has a default kernel configuration for providing range of configuration parameter values, which helps users who lack kernel development experience to benchmark. For reference please see in `./configs/default_config.json`
 
 If user does not provide kernel configuration, the tile engine uses default kernel configuration to generate kernel instances and benchmark. 
 
@@ -15,16 +15,16 @@ If user does not provide kernel configuration, the tile engine uses default kern
 # in the root of composable kernel create build directory
 mkdir build && cd build
 # build composable kernel
-sh ../script/cmake-ck-dev.sh  ../ <arch> -G Ninja # replace <arch> with the appropriate architecture (example gfx942) or leave blank
+sh ../script/cmake-ck-dev.sh  ../ <arch> # replace <arch> with the appropriate architecture (example gfx942) or leave blank
 # generate the executable
-ninja benchmark_gemm
+make benchmark_gemm -j
 ```
 `benchmark_gemm` will be located in the `./bin/` directory.
 
 `benchmark_gemm` must be rebuilt everytime if configuration file is modified.
 
 ``` bash
-rm -rf tile_engine/ && ninja benchmark_gemm  # rebuild
+rm -rf tile_engine/ && make benchmark_gemm -j  # rebuild
 ```
 
 ## benchmark_gemm inputs

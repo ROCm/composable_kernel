@@ -12,10 +12,10 @@
 
 namespace ck_tile {
 
-#define CU_FOR_MI308 80
-#define CU_FOR_MI300X 228
-#define OPTIMAL_LATENCY_MI308 0.005
-#define OPTIMAL_LATENCY_MI300X 0.0015
+#define LOW_CU_PROCESSORS 80
+#define HIGH_CU_PROCESSORS 228
+#define OPTIMAL_LATENCY_LOW_CU_PROCESSORS 0.005
+#define OPTIMAL_LATENCY_HIGH_CU_PROCESSORS 0.0015
 #define OPTIMAL_LATENCY_SAFE_MARGIN 0.01
 
 template <int MaxThreadPerBlock, int MinBlockPerCu, typename Kernel, typename... Args>
@@ -155,10 +155,11 @@ CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
         hipDeviceProp_t deviceProps;
         HIP_CHECK_ERROR(hipGetDeviceProperties(&deviceProps, 0));
 
-        float preprocess_offset =
-            (deviceProps.multiProcessorCount >= CU_FOR_MI300X)  ? OPTIMAL_LATENCY_MI300X
-            : (deviceProps.multiProcessorCount == CU_FOR_MI308) ? OPTIMAL_LATENCY_MI308
-                                                                : OPTIMAL_LATENCY_SAFE_MARGIN;
+        float preprocess_offset = (deviceProps.multiProcessorCount >= HIGH_CU_PROCESSORS)
+                                      ? OPTIMAL_LATENCY_HIGH_CU_PROCESSORS
+                                  : (deviceProps.multiProcessorCount == LOW_CU_PROCESSORS)
+                                      ? OPTIMAL_LATENCY_LOW_CU_PROCESSORS
+                                      : OPTIMAL_LATENCY_SAFE_MARGIN;
         return (timer.duration() - preprocess_offset * s.nrepeat_) / s.nrepeat_;
     };
 
