@@ -12,9 +12,9 @@
 enum struct GemmMatrixLayout
 {
     // MK_KN_MN, // 0
-    MK_NK_MN, // 1
-              // KM_KN_MN, // 2
-              // KM_NK_MN, // 3
+    MK_NK_MN = 1, // 1
+                  // KM_KN_MN, // 2
+                  // KM_NK_MN, // 3
 };
 
 enum struct GemmDataType
@@ -107,9 +107,6 @@ int profile_gemm_universal_preshuffle(int argc, char* argv[])
 #if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94) || defined(CK_USE_WMMA_FP8)
     using F8 = ck::f8_t;
 #endif
-#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)
-    using I4 = ck::pk_i4_t;
-#endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -166,7 +163,7 @@ int profile_gemm_universal_preshuffle(int argc, char* argv[])
     // {
     //     return profile(F16{}, F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
     // }
-    else if(data_type == GemmDataType::F8_F8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
+    if(data_type == GemmDataType::F8_F8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(F8{}, F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }

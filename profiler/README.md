@@ -216,3 +216,24 @@ python3 ../script/convert_miopen_driver_to_profiler.py
 ```
 
 Only convolution driver is supported.
+
+## Profiler GEMM UNIVERSAL Preshuffle
+```bash
+# arg1: tensor operation (gemm_universal: Universal GEMM)
+# arg2: data type (0: f8->bf16, 1: f8->f16)
+# arg3: matrix layout (1: A[m, k] * B[n, k] = C[m, n])
+# arg4: verification (0: no; 1: yes)
+# arg5: initialization (0: no init; 1: integer value; 2: decimal value)
+# arg6: print tensor value (0: no; 1: yes)
+# arg7: time kernel (0=no, 1=yes)
+# arg8 to 13: M, N, K, StrideA, StrideB, StrideC
+# arg14: split k into  mulitiple batch
+# optional:
+# arg15: number of warm-up cycles (default 1)
+# arg16: number of iterations (default 10)
+# arg17: memory for rotating buffer (default 0, size in MB)
+
+
+################        op  datatype  layout  verify  init  print  time  M N K  StrideA StrideB StrideC  SplitK  WarmupCycles  Iterations  MemoryBuffer
+./bin/ckProfiler gemm_universal_preshuffle  0 1 1 1 0 1 1024 1024 1024 -1 -1 -1 1
+```
