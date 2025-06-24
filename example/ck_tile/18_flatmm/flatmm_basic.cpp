@@ -213,9 +213,17 @@ int main(int argc, char* argv[])
         {
             return !run_flatmm_example<FlatmmConfig16>(argc, argv);
         }
-        else
+        else if(warp_tile == 1)
         {
             return !run_flatmm_example<FlatmmConfig32>(argc, argv);
+        }
+        else if(warp_tile == 2)
+        {
+            return !run_flatmm_example<FlatmmConfig16_950>(argc, argv);
+        }
+        else
+        {
+            return !run_flatmm_example<FlatmmConfig32_950>(argc, argv);
         }
     }
     catch(const std::runtime_error& e)
