@@ -29,7 +29,7 @@ from codegen_utils import (
     warp_tile_supported_combinations,
     trait_unsupported_combinations,
     element_size,
-    get_gpu_name_by_id
+    get_gpu_name_by_id,
 )
 import logging
 import time
@@ -40,16 +40,18 @@ logging.basicConfig(level=logging.INFO)
 class GemmCodeGenerator:
     """GEMM (General Matrix Multiplication) code generator."""
 
-    def __init__(self, output_dir: str,
-                 user_provided_config: Optional[GemmConfig] = None):
+    def __init__(
+        self, output_dir: str, user_provided_config: Optional[GemmConfig] = None
+    ):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         if user_provided_config is not None:
             self.config = user_provided_config
         else:
-            config_path = Path(__file__).resolve().parent / \
-                "configs" / "default_config.json"
+            config_path = (
+                Path(__file__).resolve().parent / "configs" / "default_config.json"
+            )
             self.config = GemmConfig.from_json(config_path)
 
         self.valid_trait_names: List[str] = []
@@ -58,13 +60,13 @@ class GemmCodeGenerator:
     def list_all_trait_names(self):
         """List all possible kernel trait names into file."""
         w_p = Path(self.output_dir)
-        file_path = w_p / 'gemm_instance_blobs.txt'
+        file_path = w_p / "gemm_instance_blobs.txt"
         self._generate_all_traits()
         self._get_valid_trait_tile_combinations()
         file_range_map = {}
         # Write all file paths to the header file
         start = 3
-        with file_path.open('w') as f:
+        with file_path.open("w") as f:
             f.write(str(w_p / "gemm_common.hpp") + "\n")
             f.write(str(w_p / "gemm_instances.hpp") + "\n")
             f.write(str(w_p / "gemm_dispatcher.hpp") + "\n")
@@ -72,39 +74,42 @@ class GemmCodeGenerator:
                 f.write(str(w_p / f"gemm_{trait}.hpp") + "\n")
                 start = start + 1
             file_name = set()
-            
+
             for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
                 last = start
                 for tile in tile_valid_params:
                     for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, _, _, _ in tile:
                         name = f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp"
                         if name not in file_name:
-                            file_name.add(f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp")
-                            f.write(str(w_p / f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp") + "\n")
+                            file_name.add(
+                                f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp"
+                            )
+                            f.write(
+                                str(
+                                    w_p
+                                    / f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp"
+                                )
+                                + "\n"
+                            )
                             last = last + 1
                 file_range_map[trait] = (start, last)
                 start = last
-        file_path = w_p / 'gemm_instance_blobs_range.txt'
-        with  file_path.open('w') as f:
+        file_path = w_p / "gemm_instance_blobs_range.txt"
+        with file_path.open("w") as f:
             for name, ranges in file_range_map.items():
                 s, l = ranges
-                f.write(name + " " + f"{s}" + " " + f"{l}"+ "\n")   
+                f.write(name + " " + f"{s}" + " " + f"{l}" + "\n")
 
     def _generate_all_traits(self):
         """Generate all possible kernel traits names."""
-        params = [
-            "pipeline",
-            "epilogue",
-            "scheduler",
-            "pad_m",
-            "pad_n",
-            "pad_k"]
+        params = ["pipeline", "epilogue", "scheduler", "pad_m", "pad_n", "pad_k"]
 
         # Generate all unique_combinations
-        _unique = set(itertools.product(*[
-            getattr(self.config.trait_config, param).values
-            for param in params
-        ]))
+        _unique = set(
+            itertools.product(
+                *[getattr(self.config.trait_config, param).values for param in params]
+            )
+        )
 
         for combo in _unique:
             pipeline, epilogue, scheduler, pad_m, pad_n, pad_k = combo
@@ -117,9 +122,7 @@ class GemmCodeGenerator:
                 )
                 self.valid_trait_names.append(trait_name)
             else:
-                logging.debug(
-                    f"Invalid combination: {pipeline}-{epilogue}-{scheduler}"
-                )
+                logging.debug(f"Invalid combination: {pipeline}-{epilogue}-{scheduler}")
 
     def generate_all_instance_files(self):
         """Generate all kernel instances files."""
@@ -129,7 +132,7 @@ class GemmCodeGenerator:
 
     def _generate_common_header_file(self):
         """Generate common header file with datatypes and layout."""
-        
+
         content = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -139,15 +142,15 @@ class GemmCodeGenerator:
 #include "ck_tile/ops/common.hpp"
 
 // Data types
-using ADataType = {DATA_TYPE_MAP[self.config.problem.datatype_map['matrix_a']]};
-using BDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map['matrix_b']]};
+using ADataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_a"]]};
+using BDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_b"]]};
 using AccDataType = float;
-using CDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map['matrix_c']]};
+using CDataType = {DATA_TYPE_MAP[self.config.problem.datatype_map["matrix_c"]]};
 
 // Layout configurations
-using ALayout = {LAYOUT_MAP[self.config.problem.layout_map['matrix_a']]};
-using BLayout = {LAYOUT_MAP[self.config.problem.layout_map['matrix_b']]};
-using CLayout = {LAYOUT_MAP[self.config.problem.layout_map['matrix_c']]};
+using ALayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_a"]]};
+using BLayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_b"]]};
+using CLayout = {LAYOUT_MAP[self.config.problem.layout_map["matrix_c"]]};
 """
 
         (self.output_dir / "gemm_common.hpp").write_text(content)
@@ -181,13 +184,21 @@ namespace {trait} {{
 """
         # Add template struct with configuration
         content += self._generate_kernel_struct(
-            pipeline, epilogue, scheduler, pad_m, pad_n, pad_k)
+            pipeline, epilogue, scheduler, pad_m, pad_n, pad_k
+        )
 
         content += f"\n}} // namespace {trait}\n"
         (self.output_dir / filename).write_text(content)
 
-    def _generate_kernel_struct(self, pipeline: str, epilogue: str, scheduler: str,
-                                pad_m: str, pad_n: str, pad_k: str) -> str:
+    def _generate_kernel_struct(
+        self,
+        pipeline: str,
+        epilogue: str,
+        scheduler: str,
+        pad_m: str,
+        pad_n: str,
+        pad_k: str,
+    ) -> str:
         """Generate the code block of kernel struct"""
         return f"""
 
@@ -374,28 +385,36 @@ struct GemmKernel {{
 #pragma once
 """
         for trait in self.valid_trait_names:
-            content += f"#include \"gemm_{trait}.hpp\"\n"
+            content += f'#include "gemm_{trait}.hpp"\n'
         (self.output_dir / "gemm_instances.hpp").write_text(content)
 
     def is_tile_valid(self, tile: tuple, trait: str) -> bool:
         """Check if the tile configuration is valid for the given trait."""
-        tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k = tile
+        (
+            tile_m,
+            tile_n,
+            tile_k,
+            warp_m,
+            warp_n,
+            warp_k,
+            warp_tile_m,
+            warp_tile_n,
+            warp_tile_k,
+        ) = tile
         pipeline, *_ = trait.split("_")
 
         # Parameter validity check
         invalid_params = []
         if (warp_m, warp_n, warp_k) not in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]:
             invalid_params.append(
-                f"warp_m({warp_m}) * warp_n({warp_n}) * warp_k({warp_k})")
+                f"warp_m({warp_m}) * warp_n({warp_n}) * warp_k({warp_k})"
+            )
         if (warp_m * warp_tile_m) == 0:
-            invalid_params.append(
-                f"warp_m({warp_m}) * warp_tile_m({warp_tile_m})")
+            invalid_params.append(f"warp_m({warp_m}) * warp_tile_m({warp_tile_m})")
         if (warp_n * warp_tile_n) == 0:
-            invalid_params.append(
-                f"warp_n({warp_n}) * warp_tile_n({warp_tile_n})")
+            invalid_params.append(f"warp_n({warp_n}) * warp_tile_n({warp_tile_n})")
         if (warp_k * warp_tile_k) == 0:
-            invalid_params.append(
-                f"warp_k({warp_k}) * warp_tile_k({warp_tile_k})")
+            invalid_params.append(f"warp_k({warp_k}) * warp_tile_k({warp_tile_k})")
 
         if invalid_params:
             logging.debug(
@@ -409,13 +428,16 @@ struct GemmKernel {{
         alignment_issues = []
         if tile_m % (warp_m * warp_tile_m) != 0:
             alignment_issues.append(
-                f"tile_m({tile_m}) % [{warp_m}x{warp_tile_m}] = {tile_m % (warp_m * warp_tile_m)}")
+                f"tile_m({tile_m}) % [{warp_m}x{warp_tile_m}] = {tile_m % (warp_m * warp_tile_m)}"
+            )
         if tile_n % (warp_n * warp_tile_n) != 0:
             alignment_issues.append(
-                f"tile_n({tile_n}) % [{warp_n}x{warp_tile_n}] = {tile_n % (warp_n * warp_tile_n)}")
+                f"tile_n({tile_n}) % [{warp_n}x{warp_tile_n}] = {tile_n % (warp_n * warp_tile_n)}"
+            )
         if tile_k % (warp_k * warp_tile_k) != 0:
             alignment_issues.append(
-                f"tile_k({tile_k}) % [{warp_k}x{warp_tile_k}] = {tile_k % (warp_k * warp_tile_k)}")
+                f"tile_k({tile_k}) % [{warp_k}x{warp_tile_k}] = {tile_k % (warp_k * warp_tile_k)}"
+            )
 
         if alignment_issues:
             logging.debug(
@@ -426,17 +448,19 @@ struct GemmKernel {{
             return False
 
         # LDS capacity verification
-        matrix_a_size = (tile_m * tile_k) * \
-            element_size(self.config.problem.datatype_map['matrix_a'])
-        matrix_b_size = (tile_n * tile_k) * \
-            element_size(self.config.problem.datatype_map['matrix_b'])
+        matrix_a_size = (tile_m * tile_k) * element_size(
+            self.config.problem.datatype_map["matrix_a"]
+        )
+        matrix_b_size = (tile_n * tile_k) * element_size(
+            self.config.problem.datatype_map["matrix_b"]
+        )
         total_tile_in_lds = matrix_a_size + matrix_b_size
 
         max_tile_size = 2**15 if pipeline == "compv4" else 2**16
         if total_tile_in_lds > max_tile_size:
             logging.debug(
-                f"LDS capacity exceeded [{trait}]: Total required {total_tile_in_lds:,}B ({total_tile_in_lds/1024:.1f}KB) > "
-                f"maximum allowed {max_tile_size:,}B ({max_tile_size/1024}KB). Breakdown:\n"
+                f"LDS capacity exceeded [{trait}]: Total required {total_tile_in_lds:,}B ({total_tile_in_lds / 1024:.1f}KB) > "
+                f"maximum allowed {max_tile_size:,}B ({max_tile_size / 1024}KB). Breakdown:\n"
                 f"- Matrix A ({self.config.problem.datatype_map['matrix_a']}): {tile_m}x{tile_k} = {matrix_a_size:,}B\n"
                 f"- Matrix B ({self.config.problem.datatype_map['matrix_b']}): {tile_n}x{tile_k} = {matrix_b_size:,}B"
             )
@@ -450,13 +474,15 @@ struct GemmKernel {{
         gpu_warp_tile_key = warp_tile_supported_combinations.get(gpu_name, {})
         if not gpu_warp_tile_key:
             logging.debug(
-                f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
+                f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check."
+            )
             return False
 
         allowed_combinations = gpu_warp_tile_key.get(warp_tile_key, [])
         if not allowed_combinations:
             logging.debug(
-                f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check.")
+                f"Trait: [{trait}], No valid warp tile combinations found for {gpu_name}/{warp_tile_key}, skip this check."
+            )
             return False
 
         if current_combination not in allowed_combinations:
@@ -469,37 +495,45 @@ struct GemmKernel {{
         return True
 
     def _get_valid_trait_tile_combinations(self):
-        def get_tile_value(tile_param): return tile_param.generate_candidates(
-        ) if isinstance(tile_param, RangeConfigParam) else tile_param.values
+        def get_tile_value(tile_param):
+            return (
+                tile_param.generate_candidates()
+                if isinstance(tile_param, RangeConfigParam)
+                else tile_param.values
+            )
 
-        tile_group = list(itertools.product(
-            get_tile_value(self.config.tile_config.tile_m),
-            get_tile_value(self.config.tile_config.tile_n),
-            get_tile_value(self.config.tile_config.tile_k)
-        ))
+        tile_group = list(
+            itertools.product(
+                get_tile_value(self.config.tile_config.tile_m),
+                get_tile_value(self.config.tile_config.tile_n),
+                get_tile_value(self.config.tile_config.tile_k),
+            )
+        )
 
-        warp_group = list(itertools.product(
-            get_tile_value(self.config.tile_config.warp_m),
-            get_tile_value(self.config.tile_config.warp_n),
-            get_tile_value(self.config.tile_config.warp_k)
-        ))
+        warp_group = list(
+            itertools.product(
+                get_tile_value(self.config.tile_config.warp_m),
+                get_tile_value(self.config.tile_config.warp_n),
+                get_tile_value(self.config.tile_config.warp_k),
+            )
+        )
 
-        warp_tile_group = list(itertools.product(
-            get_tile_value(self.config.tile_config.warp_tile_m),
-            get_tile_value(self.config.tile_config.warp_tile_n),
-            get_tile_value(self.config.tile_config.warp_tile_k)
-        ))
+        warp_tile_group = list(
+            itertools.product(
+                get_tile_value(self.config.tile_config.warp_tile_m),
+                get_tile_value(self.config.tile_config.warp_tile_n),
+                get_tile_value(self.config.tile_config.warp_tile_k),
+            )
+        )
 
         tile_params = {
-            t + w + wt
-            for t in tile_group
-            for w in warp_group
-            for wt in warp_tile_group
+            t + w + wt for t in tile_group for w in warp_group for wt in warp_tile_group
         }
 
         for trait in self.valid_trait_names:
             tile_valid_params = list(
-                filter(lambda t: self.is_tile_valid(t, trait), tile_params))
+                filter(lambda t: self.is_tile_valid(t, trait), tile_params)
+            )
 
             # if len(tile_valid_params) == 0:
             #     raise RuntimeError(f"No valid kernel instance selected for trait: {trait}")
@@ -508,21 +542,33 @@ struct GemmKernel {{
             self.valid_trait_tile_combinations[trait].append(tile_valid_params)
 
     def _generate_instantiation_source_files(self):
-        """Generate kernel instance instantiation source files """
+        """Generate kernel instance instantiation source files"""
         tile_map = {}
         for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
             for tile in tile_valid_params:
-                for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
-                    key = f'{tile_m}x{tile_n}x{tile_k}x{warp_m}x{warp_n}x{warp_k}'
-                    value = f'{warp_tile_m}x{warp_tile_n}x{warp_tile_k}'
+                for (
+                    tile_m,
+                    tile_n,
+                    tile_k,
+                    warp_m,
+                    warp_n,
+                    warp_k,
+                    warp_tile_m,
+                    warp_tile_n,
+                    warp_tile_k,
+                ) in tile:
+                    key = f"{tile_m}x{tile_n}x{tile_k}x{warp_m}x{warp_n}x{warp_k}"
+                    value = f"{warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
                     if key not in tile_map:
                         tile_map[key] = set()
                     tile_map[key].add(value)
-       
+
         count = 0
         for trait, _ in self.valid_trait_tile_combinations.items():
             for block_tile, warp_tiles in tile_map.items():
-                tile_m, tile_n, tile_k, warp_m, warp_n, warp_k = map(int, block_tile.split('x'))
+                tile_m, tile_n, tile_k, warp_m, warp_n, warp_k = map(
+                    int, block_tile.split("x")
+                )
                 content = f"""
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
@@ -532,24 +578,46 @@ struct GemmKernel {{
 
 """
                 for warp_tile in warp_tiles:
-                    warp_tile_m, warp_tile_n, warp_tile_k = map(int, warp_tile.split('x'))
-                    
-                    sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
-                            self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
-                            self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
-                            ((warp_tile_m == 32 and warp_tile_n == 32 and warp_tile_k == 16) or
-                                (warp_tile_m == 16 and warp_tile_n == 16 and warp_tile_k == 32))
+                    warp_tile_m, warp_tile_n, warp_tile_k = map(
+                        int, warp_tile.split("x")
+                    )
+
+                    sparse = (
+                        self.config.problem.datatype_map["matrix_a"] == "fp16"
+                        and self.config.problem.datatype_map["matrix_b"] == "fp16"
+                        and self.config.problem.datatype_map["matrix_c"] == "fp16"
+                        and (
+                            (
+                                warp_tile_m == 32
+                                and warp_tile_n == 32
+                                and warp_tile_k == 16
+                            )
+                            or (
+                                warp_tile_m == 16
+                                and warp_tile_n == 16
+                                and warp_tile_k == 32
+                            )
+                        )
+                    )
                     if sparse:
                         count = count + 1
-                        content = content + f"""
+                        content = (
+                            content
+                            + f"""
 template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, true>;"""
+                        )
                     count = count + 1
-                    content = content + f"""
+                    content = (
+                        content
+                        + f"""
 template struct {trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, false>;"""
+                    )
                 content += f"""
 """
-                (self.output_dir /
-                    f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp").write_text(content)
+                (
+                    self.output_dir
+                    / f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp"
+                ).write_text(content)
         print(f"Generated {count} kernel instances in total.")
 
     def _generate_dispatcher_file(self):
@@ -604,16 +672,37 @@ struct GemmDispatcher {
             content += f"""         kernel_map["{trait}"] = {{"""
             for _, tile in enumerate(tile_valid_params):
                 for j in range(len(tile)):
-                    tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k = tile[
-                        j]
+                    (
+                        tile_m,
+                        tile_n,
+                        tile_k,
+                        warp_m,
+                        warp_n,
+                        warp_k,
+                        warp_tile_m,
+                        warp_tile_n,
+                        warp_tile_k,
+                    ) = tile[j]
                     content += f"""[=](ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream) {{ """
                     content += f""" 
                                     if(structured_sparsity){{  // SMFMA"""
-                    sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
-                        self.config.problem.datatype_map['matrix_b'] == 'fp16' and \
-                        self.config.problem.datatype_map['matrix_c'] == 'fp16' and \
-                        ((warp_tile_m == 32 and warp_tile_n == 32 and warp_tile_k == 16) or
-                            (warp_tile_m == 16 and warp_tile_n == 16 and warp_tile_k == 32))
+                    sparse = (
+                        self.config.problem.datatype_map["matrix_a"] == "fp16"
+                        and self.config.problem.datatype_map["matrix_b"] == "fp16"
+                        and self.config.problem.datatype_map["matrix_c"] == "fp16"
+                        and (
+                            (
+                                warp_tile_m == 32
+                                and warp_tile_n == 32
+                                and warp_tile_k == 16
+                            )
+                            or (
+                                warp_tile_m == 16
+                                and warp_tile_n == 16
+                                and warp_tile_k == 32
+                            )
+                        )
+                    )
                     content += f"""
                                         return run_kernel<{trait}::GemmKernel<{tile_m}, {tile_n}, {tile_k}, {warp_m}, {warp_n}, {warp_k}, {warp_tile_m}, {warp_tile_n}, {warp_tile_k}, {BOOL_MAP(sparse)}>>(args, stream);"""
                     content += f"""
@@ -623,7 +712,7 @@ struct GemmDispatcher {
                     content += f"""
                                     }} """
 
-                    if j == len(tile)-1:
+                    if j == len(tile) - 1:
                         content += f"""
                                 }} """
                     else:
@@ -670,22 +759,26 @@ private:
         (self.output_dir / "gemm_dispatcher.hpp").write_text(content)
 
 
-def do_list_blobs(args: argparse.Namespace,
-                  user_provide_config: Optional[GemmConfig] = None):
+def do_list_blobs(
+    args: argparse.Namespace, user_provide_config: Optional[GemmConfig] = None
+):
     generator = GemmCodeGenerator(args.working_path, user_provide_config)
     generator.list_all_trait_names()
 
 
-def do_gen_blobs(args: argparse.Namespace,
-                 user_provide_config: Optional[GemmConfig] = None):
+def do_gen_blobs(
+    args: argparse.Namespace, user_provide_config: Optional[GemmConfig] = None
+):
     generator = GemmCodeGenerator(args.working_path, user_provide_config)
     generator.generate_all_instance_files()
 
 
 def main(args):
-
-    gemm_config = GemmConfig.from_json(
-        args.config_json, args.datatype) if args.config_json is not None else args.config_json
+    gemm_config = (
+        GemmConfig.from_json(args.config_json, args.datatype)
+        if args.config_json is not None
+        else args.config_json
+    )
 
     if args.list_blobs:
         do_list_blobs(args, gemm_config)
@@ -693,7 +786,8 @@ def main(args):
         do_gen_blobs(args, gemm_config)
     else:
         logging.warning(
-            "No mode specified (use --list_blobs or --gen_blobs). Generating by default...")
+            "No mode specified (use --list_blobs or --gen_blobs). Generating by default..."
+        )
         do_gen_blobs(args, gemm_config)
 
 
@@ -703,19 +797,35 @@ if __name__ == "__main__":
         description="gen API for CK gemm kernel",
     )
     parser.add_argument(
-        "-w", "--working_path", default="./", required=False, help="The path where all the blobs are going to be generated"
+        "-w",
+        "--working_path",
+        default="./",
+        required=False,
+        help="The path where all the blobs are going to be generated",
     )
     parser.add_argument(
-        "-j", "--config_json", required=False, help="Path to the json which contains the configurations that user provide"
+        "-j",
+        "--config_json",
+        required=False,
+        help="Path to the json which contains the configurations that user provide",
     )
     parser.add_argument(
-        "-d", "--datatype", required=True, help="Specify what datatype to use for the kernel generation, e.g. fp16, bf16, int8, fp8, bf8"
+        "-d",
+        "--datatype",
+        required=True,
+        help="Specify what datatype to use for the kernel generation, e.g. fp16, bf16, int8, fp8, bf8",
     )
     parser.add_argument(
-        "-l", "--list_blobs", action='store_true', help="List all kernel instances to file"
+        "-l",
+        "--list_blobs",
+        action="store_true",
+        help="List all kernel instances to file",
     )
     parser.add_argument(
-        "-g", "--gen_blobs", action='store_true', help="Generate all kernel instances into different files"
+        "-g",
+        "--gen_blobs",
+        action="store_true",
+        help="Generate all kernel instances into different files",
     )
 
     args = parser.parse_args()
