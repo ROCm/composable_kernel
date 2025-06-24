@@ -143,7 +143,7 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                     }
                     CDataType v_c{0};
                     D0DataType v_d0 = arg.d0_(m, topk_id, n); // a
-                    D0DataType v_d1 = arg.d1_(e, n); // b
+                    D0DataType v_d1 = arg.d1_(e, n);          // b
                     if constexpr(MulRoutedWeight)
                     {
                         arg.c_element_op_(v_c, v_acc, v_d0, v_d1, v_topk_w);
