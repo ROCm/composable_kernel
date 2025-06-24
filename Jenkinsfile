@@ -1196,9 +1196,12 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx90a" \
+                                            -D GEMM_DATATYPE="fp8;fp16" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j64 benchmark_gemm && \
-                                           ./bin/benchmark_gemm """
+                                           ninja -j64 benchmark_gemm_fp8 && \
+                                           ./bin/benchmark_gemm_fp8 && \
+                                           ninja -j64 benchmark_gemm_fp16 && \
+                                           ./bin/benchmark_gemm_fp16 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1218,9 +1221,12 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
+                                            -D GEMM_DATATYPE="fp8;fp16" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j128 benchmark_gemm && \
-                                           ./bin/benchmark_gemm """
+                                           ninja -j128 benchmark_gemm_fp8 && \
+                                           ./bin/benchmark_gemm_fp8 && \
+                                           ninja -j128 benchmark_gemm_fp16 && \
+                                           ./bin/benchmark_gemm_fp16 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
