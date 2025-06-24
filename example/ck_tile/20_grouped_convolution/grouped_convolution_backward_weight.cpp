@@ -126,8 +126,16 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
         return ave_time;
     };
 
-    return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                          ck_tile::memory_operation_enum::set>{});
+    if(args.k_batch == 1)
+    {
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::set>{});
+    }
+    else
+    {
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::atomic_add>{});
+    }
 }
 
 #include "run_grouped_convolution_bwd_weight_example.inc"
