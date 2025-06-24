@@ -1,5 +1,4 @@
 #!/bin/bash
-
 run_and_check() {
     "$@"
     status=$?
