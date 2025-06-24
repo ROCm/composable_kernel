@@ -194,9 +194,9 @@ if((SUPPORTED_GPU_TARGETS MATCHES "gfx9" AND (DTYPES MATCHES "fp16" OR NOT DEFIN
    (SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]" AND (DTYPES MATCHES "int8" OR NOT DEFINED DTYPES)))
   list(APPEND DEVICE_INSTANCES device_gemm_bilinear_instance)
 endif()
-#if((SUPPORTED_GPU_TARGETS MATCHES "gfx9[45]") OR (SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]"))
-list(APPEND DEVICE_INSTANCES device_gemm_multiply_multiply_instance)
-#endif()
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx(9[45]|1[12])")
+  list(APPEND DEVICE_INSTANCES device_gemm_multiply_multiply_instance)
+endif()
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
   list(APPEND DEVICE_INSTANCES device_gemm_universal_instance)
