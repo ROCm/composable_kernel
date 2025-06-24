@@ -16,7 +16,7 @@ If user does not provide kernel configuration, the tile engine uses default kern
 mkdir build && cd build
 # build composable kernel
 # replace <arch> with the appropriate architecture (example gfx942) or leave blank and 
-# pass datatype in comma separated string (example "fp8;bf8;int8;fp16;bf16")
+# pass datatype in comma separated string (possible datatypes are "fp8;bf8;int8;fp16;bf16")
 sh ../script/cmake-ck-dev.sh  ../ <arch> -DGEMM_DATATYPE="fp16" 
 # generate the executable for the passed datatype; if you have passed multiple datatype then use make command for each datatypes
 make benchmark_gemm_<datatype> -j

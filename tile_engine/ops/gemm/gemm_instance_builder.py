@@ -44,7 +44,7 @@ class GemmCodeGenerator:
                  user_provided_config: Optional[GemmConfig] = None):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         if user_provided_config is not None:
             self.config = user_provided_config
         else:
@@ -76,7 +76,6 @@ class GemmCodeGenerator:
             for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
                 last = start
                 for tile in tile_valid_params:
-                    #for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
                     for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, _, _, _ in tile:
                         name = f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp"
                         if name not in file_name:
@@ -90,9 +89,6 @@ class GemmCodeGenerator:
             for name, ranges in file_range_map.items():
                 s, l = ranges
                 f.write(name + " " + f"{s}" + " " + f"{l}"+ "\n")   
-            # for name in file_name:
-            #     f.write(str(
-            #         w_p / name) + "\n")
 
     def _generate_all_traits(self):
         """Generate all possible kernel traits names."""
@@ -522,8 +518,7 @@ struct GemmKernel {{
                     if key not in tile_map:
                         tile_map[key] = set()
                     tile_map[key].add(value)
-        #print(f"Generating {len(tile_map)} tiles and warps...")
-        #print(f"Valid traits: {tile_map}")
+       
         count = 0
         for trait, _ in self.valid_trait_tile_combinations.items():
             for block_tile, warp_tiles in tile_map.items():
@@ -531,7 +526,6 @@ struct GemmKernel {{
                 content = f"""
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
 
 
 #include "gemm_{trait}.hpp" 
