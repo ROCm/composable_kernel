@@ -60,6 +60,83 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_comp_instances_
                                                             ConvFwd1x1S1P0>,
             Shards,
             ShardIndex>{});
+
+    if(ck::get_device_name() != "gfx950")
+    {
+    add_device_operation_instances(
+        instances,
+        util::filter_tuple_by_modulo_t<
+            device_grouped_conv_fwd_xdl_bf16_comp_instances_part2<3,
+                                                            NDHWGC,
+                                                            GKZYXC,
+                                                            Empty_Tuple,
+                                                            NDHWGK,
+                                                            ConvFwdDefault>,
+            Shards,
+            ShardIndex>{});
+
+    add_device_operation_instances(
+        instances,
+        util::filter_tuple_by_modulo_t<
+            device_grouped_conv_fwd_xdl_bf16_comp_instances_part2<3,
+                                                            NDHWGC,
+                                                            GKZYXC,
+                                                            Empty_Tuple,
+                                                            NDHWGK,
+                                                            ConvFwd1x1P0>,
+            Shards,
+            ShardIndex>{});
+
+    add_device_operation_instances(
+        instances,
+        util::filter_tuple_by_modulo_t<
+            device_grouped_conv_fwd_xdl_bf16_comp_instances_part2<3,
+                                                            NDHWGC,
+                                                            GKZYXC,
+                                                            Empty_Tuple,
+                                                            NDHWGK,
+                                                            ConvFwd1x1S1P0>,
+            Shards,
+            ShardIndex>{});
+    }
+
+    if(ck::get_device_name() == "gfx950")
+    {
+    add_device_operation_instances(
+        instances,
+        util::filter_tuple_by_modulo_t<
+            device_grouped_conv_fwd_xdl_bf16_comp_instances_2x<3,
+                                                            NDHWGC,
+                                                            GKZYXC,
+                                                            Empty_Tuple,
+                                                            NDHWGK,
+                                                            ConvFwdDefault>,
+            Shards,
+            ShardIndex>{});
+
+    add_device_operation_instances(
+        instances,
+        util::filter_tuple_by_modulo_t<
+            device_grouped_conv_fwd_xdl_bf16_comp_instances_2x<3,
+                                                            NDHWGC,
+                                                            GKZYXC,
+                                                            Empty_Tuple,
+                                                            NDHWGK,
+                                                            ConvFwd1x1P0>,
+            Shards,
+            ShardIndex>{});
+
+    add_device_operation_instances(
+        instances,
+        util::filter_tuple_by_modulo_t<
+            device_grouped_conv_fwd_xdl_bf16_comp_instances_2x<3,
+                                                            NDHWGC,
+                                                            GKZYXC,
+                                                            Empty_Tuple,
+                                                            NDHWGK,
+                                                            ConvFwd1x1S1P0>,
+            Shards,
+            ShardIndex>{});    }
 }
 
 } // namespace ck::tensor_operation::device::instance

@@ -37,6 +37,8 @@ struct GemmPipelineProblemBase
 
     static constexpr bool TransposeC = Traits::TransposeC;
 
+    static constexpr index_t NumWaveGroups = Traits::NumWaveGroups;
+
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
@@ -45,8 +47,7 @@ struct GemmPipelineProblemBase
     static constexpr bool kPadN = Traits::kPadN;
     static constexpr bool kPadK = Traits::kPadK;
 
-    static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
-
+    static constexpr bool DoubleSmemBuffer  = Traits::DoubleSmemBuffer;
     static constexpr auto Scheduler         = GemmPipelineScheduler::Default;
     static constexpr index_t VectorLoadSize = Traits::_VectorSize;
 
@@ -203,8 +204,8 @@ struct UniversalGemmPipelineProblem
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     static constexpr bool FixedVectorSize = FixedVectorSize_;
-    static constexpr bool VectorSizeA     = VectorSizeA_;
-    static constexpr bool VectorSizeB     = VectorSizeB_;
+    static constexpr index_t VectorSizeA  = VectorSizeA_;
+    static constexpr index_t VectorSizeB  = VectorSizeB_;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 

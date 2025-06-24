@@ -283,8 +283,12 @@ def main():
 
     profiler_bin = path.join(args["build_dir"], "bin", "ckProfiler")
 
-    total = len(shapes)
-    for idx, s in enumerate(shapes, 1): 
+    try:
+        from tqdm import tqdm as iterate
+    except ImportError:
+        iterate = lambda x: x
+
+    for s in iterate(shapes):
         run_shape_stdout_lines = run_shape(
             s, profiler_bin, args["op_name"], args["dtype"], args["layout"]
         )

@@ -40,7 +40,7 @@ struct GroupedConvHostArgs : public conv::ConvParam
     index_t k_batch;
 };
 
-using GroupedConvFwdHostArgs = GroupedConvHostArgs<const void*, const void*, void*>;
+using GroupedConvFwdHostArgs       = GroupedConvHostArgs<const void*, const void*, void*>;
 using GroupedConvBwdWeightHostArgs = GroupedConvHostArgs<const void*, void*, const void*>;
 
 template <index_t NDimSpatial_,

@@ -105,5 +105,4 @@ auto create_args(int argc, char* argv[])
 }
 
 // host API
-using GroupedConvHostArgs = ck_tile::GroupedConvHostArgs<const void*, const void*, void*>;
-float grouped_conv_fwd(const GroupedConvHostArgs& args, const ck_tile::stream_config& s);
+float grouped_conv_fwd(const GroupedConvFwdHostArgs& args, const ck_tile::stream_config& s);
