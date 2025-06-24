@@ -225,6 +225,10 @@ def cmake_build(Map conf=[:]){
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
     def prefixpath = conf.get("prefixpath","/opt/rocm")
     def setup_args = conf.get("setup_args","")
+    // make sure all unit tests always run on develop branch
+    if(env.BRANCH_NAME == "develop"){
+        params.RUN_ALL_UNIT_TESTS = true
+    }
 
     if (prefixpath != "/usr/local"){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
@@ -936,10 +940,6 @@ pipeline {
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
             description: "Run all unit tests (default: OFF)")
-    }
-    // make sure all unit tests always run on develop branch
-    if(BRANCH_NAME == "develop"){
-        params.RUN_ALL_UNIT_TESTS = true
     }
     environment{
         dbuser = "${dbuser}"
