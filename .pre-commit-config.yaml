@@ -30,3 +30,9 @@ repos:
         language: python
         types: [python]
         additional_dependencies: [ruff]
+    -   id: run-remod-if-ck-tile-changed
+        name: Run remod.py if ck_tile files changed
+        entry: script/remod_for_ck_tile.sh
+        language: script
+        always_run: true
+        pass_filenames: false
