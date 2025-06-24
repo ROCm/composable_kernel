@@ -1122,7 +1122,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 #endif
 #if CK_TILE_FMHA_FWD_PAGEDKV_API
-        // if(use_kvcache)
+        if(use_kvcache)
         {
             fmha_fwd_pagedkv_traits fmha_pagedkv_traits;
             init_traits(fmha_pagedkv_traits);
@@ -1132,9 +1132,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             return fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
         }
-        // else
-        //     return 0.0f;
-#else
+#endif
         fmha_fwd_traits fmha_traits;
         init_traits(fmha_traits);
 
@@ -1142,7 +1140,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         init_args(fmha_args);
 
         return fmha_fwd(fmha_traits, fmha_args, stream_config);
-#endif
+
     }();
 
     if(appendkv_ave_time < 0.0f || fwd_ave_time < 0.0f)
