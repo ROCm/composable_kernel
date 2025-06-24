@@ -3,6 +3,7 @@
 
 #include "gtest/gtest.h"
 #include "ck/ck.hpp"
+#include "ck/utility/amd_ck_fp8.hpp"
 #include "profiler/profile_gemm_add_impl.hpp"
 
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -12,6 +13,7 @@ using I8   = int8_t;
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
+using F8   = ck::f8_t;
 
 template <typename Tuple>
 class TestGemmD0Common : public ::testing::Test
@@ -42,7 +44,7 @@ class TestGemmD0Common : public ::testing::Test
     void Run()
     {
         std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {2048, 4096, 8192}, {2048, 1024, 16}};
+            {16, 32, 64}, {512, 2048, 4096}, {2048, 1024, 16}};
 
         bool all_success = true;
 
@@ -58,7 +60,7 @@ class TestGemmD0Common : public ::testing::Test
 
             all_success =
                 all_success &
-                GetImpl()(true, 1, false, false, M, N, K, StrideA, StrideB, StrideD0, StrideE);
+                GetImpl()(true, 1, false, true, M, N, K, StrideA, StrideB, StrideD0, StrideE);
         }
 
         EXPECT_TRUE(all_success);
@@ -88,7 +90,7 @@ class TestGemmD0D1Common : public ::testing::Test
     void Run()
     {
         std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {2048, 4096, 2048}, {2048, 1024, 16}};
+            {16, 32, 64}, {512, 2048, 4096}, {2048, 1024, 16}};
 
         bool all_success = true;
 
@@ -105,7 +107,7 @@ class TestGemmD0D1Common : public ::testing::Test
 
             all_success =
                 all_success &
-                GetImpl()(1, 1, false, false, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE);
+                GetImpl()(1, 1, false, true, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE);
         }
 
         EXPECT_TRUE(all_success);

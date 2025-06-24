@@ -2,7 +2,6 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
-#include "ck/ck.hpp"
 #include "test_gemm_common.hpp"
 #include "profiler/profile_gemm_multiply_add_impl.hpp"
 
@@ -28,9 +27,13 @@ class TestGemmMultiplyAdd : public TestGemmD0D1Common<Tuple>
     }
 };
 
-using KernelTypes =
-    ::testing::Types<std::tuple<F16, F16, F32, F16, F16, F16, Row, Col, Row, Row, Row>,
-                     std::tuple<F16, F16, F32, F16, F16, F16, Row, Row, Row, Row, Row>>;
+using KernelTypes = ::testing::Types<
+#ifdef CK_USE_WMMA_FP8
+    std::tuple<F16, F8, F32, F32, F32, F16, Row, Col, Row, Row, Row>,
+    std::tuple<F16, F8, F32, F32, F32, F16, Row, Row, Row, Row, Row>,
+#endif
+    std::tuple<F16, F16, F32, F16, F16, F16, Row, Col, Row, Row, Row>,
+    std::tuple<F16, F16, F32, F16, F16, F16, Row, Row, Row, Row, Row>>;
 
 TYPED_TEST_SUITE(TestGemmMultiplyAdd, KernelTypes);
-TYPED_TEST(TestGemmMultiplyAdd, Test_BF16FP16) { this->Run(); }
+TYPED_TEST(TestGemmMultiplyAdd, Test) { this->Run(); }
