@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn.hpp"
+#include "device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn.hpp"
 
 namespace ck {
 namespace tensor_operation {

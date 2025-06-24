@@ -701,6 +701,177 @@ void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_defau
                                                         PassThrough,
                                                         PassThrough,
                                                         PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_default_instances_p2(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p4_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p5_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances_v2(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances_v2(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances_v2(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p4_default_instances_v2(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p5_default_instances_v2(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p1(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p2(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p3(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p4(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p5(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
+void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma16x16_mn_compute_default_instances_p6(
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,    
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>& instances);
 #endif
 } // namespace instance
 } // namespace device

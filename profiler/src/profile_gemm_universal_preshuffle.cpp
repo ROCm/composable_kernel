@@ -168,7 +168,6 @@ int profile_gemm_universal_preshuffle(int argc, char* argv[])
     }
     else if(data_type == GemmDataType::F8_F8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        printf("F8_F8_F16\n");
         return profile(F8{}, F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
