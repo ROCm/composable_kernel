@@ -1438,14 +1438,16 @@ struct non_native_vector_base<
 
 // implementation for f6x16 and f6x32
 template <typename T, index_t N>
-struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 24>>
+struct non_native_vector_base<
+    T,
+    N,
+    ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 16 || sizeof(T) == 24 || sizeof(T) == 32>>
 {
     using data_t =
         typename nnvb_data_t_selector<T>::type; // select data_t based on declared base type
     using element_t = typename T::element_type; // select element_t based on declared element type
     static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
-    static constexpr size_t size_factor =
-        sizeof(data_t) / sizeof(element_t); // f6x16: 12/4 = 3, f6x32: 24/4 = 6
+    static constexpr size_t size_factor = __builtin_vectorelements(data_t);
     using data_v = element_t __attribute__((ext_vector_type(N * size_factor)));
     using type   = non_native_vector_base<T, N>;
 
@@ -1458,8 +1460,11 @@ struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T)
     } data_;
 
     // Broadcast single value to vector
+    template <index_t N2 = 2, typename = enable_if_t<N >= N2>>
     __host__ __device__ constexpr non_native_vector_base(data_t a) : data_{}
     {
+        // TODO: consider removing initialization similar to vector_type<T, 256>
+
         ck::static_for<0, N, 1>{}([&](auto i) {
             data_.dxN(i) = a; // broadcast value to all elements
         });
@@ -1470,20 +1475,21 @@ struct non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T)
     {
     }
     __host__ __device__ constexpr non_native_vector_base() : non_native_vector_base(T{}){};
+
     __host__ __device__ constexpr non_native_vector_base(data_v v) : data_{v} {}
 
     __host__ __device__ constexpr operator data_v() const { return data_.dN; }
-    __host__ __device__ constexpr operator data_t() const
-    {
-        if constexpr(N == 1)
-        {
-            return data_.dxN[Number<0>{}];
-        }
-        else
-        {
-            return data_.dxN; // XXX this should cause an error
-        }
-    }
+    // __host__ __device__ constexpr operator data_t() const
+    // {
+    //     if constexpr(N == 1)
+    //     {
+    //         return data_.dxN[Number<0>{}];
+    //     }
+    //     else
+    //     {
+    //         return data_.dxN; // XXX this should cause an error
+    //     }
+    // }
     __host__ __device__ constexpr operator T() const
     {
         if constexpr(N == 1)
@@ -1508,8 +1514,10 @@ struct scalar_type<non_native_vector_base<
 };
 
 template <typename T, index_t N>
-struct scalar_type<
-    non_native_vector_base<T, N, ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 24>>>
+struct scalar_type<non_native_vector_base<
+    T,
+    N,
+    ck::enable_if_t<sizeof(T) == 12 || sizeof(T) == 16 || sizeof(T) == 24 || sizeof(T) == 32>>>
 {
     using type                           = typename non_native_vector_base<T, N>::element_t;
     static constexpr index_t vector_size = N * non_native_vector_base<T, N>::size_factor;

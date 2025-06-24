@@ -228,8 +228,8 @@ TEST(FP6, ScaledConvertFP32Stochastic)
 TEST(FP6, TestSize)
 {
     ASSERT_EQ(1, sizeof(f6_t));
-    ASSERT_EQ(12, sizeof(f6x16_pk_t));
-    ASSERT_EQ(24, sizeof(f6x32_pk_t));
+    ASSERT_EQ(16, sizeof(f6x16_pk_t));
+    ASSERT_EQ(32, sizeof(f6x32_pk_t));
     ASSERT_EQ(16, sizeof(vector_type<f6x16_pk_t, 1>));
     ASSERT_EQ(32, sizeof(vector_type<f6x16_pk_t, 2>));
     ASSERT_EQ(32, sizeof(vector_type<f6x32_pk_t, 1>));
@@ -238,8 +238,8 @@ TEST(FP6, TestSize)
 TEST(FP6, TestAlignment)
 {
     ASSERT_EQ(1, alignof(f6_t));
-    ASSERT_EQ(4, alignof(f6x16_pk_t));
-    ASSERT_EQ(4, alignof(f6x32_pk_t));
+    ASSERT_EQ(16, alignof(f6x16_pk_t));
+    ASSERT_EQ(32, alignof(f6x32_pk_t));
     ASSERT_EQ(16, alignof(vector_type<f6x16_pk_t, 1>));
     ASSERT_EQ(32, alignof(vector_type<f6x16_pk_t, 2>));
     ASSERT_EQ(32, alignof(vector_type<f6x32_pk_t, 1>));
@@ -358,14 +358,14 @@ TEST(MXFP6, DeviceF6ConvertRNE)
     printf("f6x32_vec_tc = 0x");
     for(int ii = 0; ii < 6; ++ii)
     {
-        printf("%08x ", f6x32_vec_tc.data.data_[ii]);
+        printf("%08x ", f6x32_vec_tc.data_[ii]);
     }
     printf("\n");
 
     printf("f6x32_vec_cnstr = 0x");
     for(int ii = 0; ii < 6; ++ii)
     {
-        printf("%08x ", f6x32_vec_cnstr.data.data_[ii]);
+        printf("%08x ", f6x32_vec_cnstr.data_[ii]);
     }
     printf("\n");
 #endif
