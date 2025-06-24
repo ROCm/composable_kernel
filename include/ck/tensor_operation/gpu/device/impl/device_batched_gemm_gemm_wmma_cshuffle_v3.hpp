@@ -58,6 +58,8 @@ __global__ void
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 
+    (void)alpha; // TODO: Pass elementwise operations properly.
+
     // clang-format off
 // ***************************************************
 // Make Tensor Descriptors
@@ -88,7 +90,7 @@ __global__ void
 
     const auto a_element_op    = AElementwiseOperation{};
     const auto b0_element_op   = B0ElementwiseOperation{};
-    const auto acc0_element_op = AccElementwiseOperation{alpha};
+    const auto acc0_element_op = AccElementwiseOperation{};
     const auto b1_element_op   = B1ElementwiseOperation{};
     const auto c_element_op    = CElementwiseOperation{};
     // fail to reuse DeviceOp::MakeArgument() because of the __device__ function required.
