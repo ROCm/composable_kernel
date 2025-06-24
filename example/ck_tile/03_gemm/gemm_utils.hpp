@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -16,6 +15,16 @@
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 #define CK_TILE_PIPELINE_COMPUTE_V5 4
 
+// temporary workaround to get k_warp_tile based on PrecType and gfx950 or not
+template <typename PrecType>
+constexpr ck_tile::index_t get_k_warp_tile()
+{
+#if defined(__gfx950__)
+    return std::is_same_v<PrecType, ck_tile::fp8_t> ? 64 : 16;
+#else
+    return 16;
+#endif
+}
 struct GemmConfigBase
 {
     static constexpr bool kPadM = false;
@@ -90,8 +99,7 @@ struct GemmConfigComputeV3 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile =
-        sizeof(PrecType) == 2 || sizeof(PrecType) == 1 ? 16 : 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType>();
 
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
@@ -389,3 +397,6 @@ template <typename ADataType,
           bool Persistent = false,
           typename CDEElementWise>
 float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s);
+
+
+
