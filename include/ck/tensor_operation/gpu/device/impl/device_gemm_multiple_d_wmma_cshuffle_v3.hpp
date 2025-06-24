@@ -362,12 +362,9 @@ struct DeviceGemmMultipleD_Wmma_CShuffleV3
                 }
             }();
 
-            static constexpr auto I0 = Number<0>{};
-            constexpr bool FallbackToAtomics =
-                (CDEShuffleBlockTransferScalarPerVectors{}[I0] % 2 == 1);
-            constexpr bool ValidImplementationWithAtomics =
+            constexpr bool AtomicsImplementationExists =
                 !(std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t>) ||
-                !FallbackToAtomics;
+                (CDEShuffleBlockTransferScalarPerVectors{}[0] % 2 == 0);
 
             if(has_main_k_block_loop)
             {
@@ -378,7 +375,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffleV3
                     if(arg.KBatch > 1)
                     {
 
-                        if constexpr(ValidImplementationWithAtomics)
+                        if constexpr(AtomicsImplementationExists)
                         {
                             const auto kernel =
                                 kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
@@ -410,7 +407,7 @@ struct DeviceGemmMultipleD_Wmma_CShuffleV3
                 {
                     if(arg.KBatch > 1)
                     {
-                        if constexpr(ValidImplementationWithAtomics)
+                        if constexpr(AtomicsImplementationExists)
                         {
                             const auto kernel =
                                 kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
