@@ -897,9 +897,25 @@ pipeline {
             defaultValue: false,
             description: "Build CK and run tests on gfx908 (default: OFF)")
         booleanParam(
+            name: "BUILD_GFX90A",
+            defaultValue: true,
+            description: "Build CK and run tests on gfx90a (default: ON)")
+        booleanParam(
+            name: "BUILD_GFX942",
+            defaultValue: false,
+            description: "Build CK and run tests on gfx942 (default: OFF)")
+        booleanParam(
             name: "BUILD_GFX950",
             defaultValue: false,
             description: "Build CK and run tests on gfx950 (default: OFF)")
+        booleanParam(
+            name: "BUILD_GFX10",
+            defaultValue: true,
+            description: "Build CK and run tests on gfx10 (default: ON)")
+        booleanParam(
+            name: "BUILD_GFX11",
+            defaultValue: true,
+            description: "Build CK and run tests on gfx11 (default: ON)")
         booleanParam(
             name: "BUILD_GFX12",
             defaultValue: true,
@@ -920,6 +936,10 @@ pipeline {
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
             description: "Run all unit tests (default: OFF)")
+    }
+    // make sure all unit tests always run on develop branch
+    if(BRANCH_NAME == "develop"){
+        params.RUN_ALL_UNIT_TESTS = true
     }
     environment{
         dbuser = "${dbuser}"
@@ -1276,7 +1296,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { (params.BUILD_GFX942.toBoolean() || params.RUN_FULL_QA.toBoolean()) && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
                     environment{
@@ -1314,7 +1334,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "rocm/composable_kernel-private:ck_ub22.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub22.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1343,7 +1363,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX90A.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
@@ -1382,7 +1402,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX10.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1030") }
                     environment{
@@ -1403,7 +1423,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX11.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1101") }
                     environment{
