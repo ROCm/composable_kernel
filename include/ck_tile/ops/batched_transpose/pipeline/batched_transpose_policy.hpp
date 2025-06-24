@@ -4,8 +4,6 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/softmax.hpp"
-#include "ck_tile/ops/topk.hpp"
 
 namespace ck_tile {
 
