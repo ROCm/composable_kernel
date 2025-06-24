@@ -201,18 +201,20 @@ struct GridwiseGroupedConv2DBwdDataDlV4
                 const index_t offset            = get_offset(y, x, n);
                 p_scratch[n * AlignedPackH + i] = p_base[offset];
             });
+        });
 
-            if constexpr(AlignedPackH != PackH)
+        if constexpr(AlignedPackH != PackH)
+        {
+            if(y_offset < (TileH - NumGroup * PackH))
             {
-                if(y_offset < (TileH - NumGroup * PackH))
-                {
+                static_for<0, TilePerWave, 1>{}([&](auto n) {
                     constexpr auto i                = PackH;
                     const index_t y                 = y_offset + i * NumGroup;
                     const index_t offset            = get_offset(y, x, n);
                     p_scratch[n * AlignedPackH + i] = p_base[offset];
-                }
+                });
             }
-        });
+        }
     }
 
     template <index_t TileH,
@@ -463,45 +465,40 @@ struct GridwiseGroupedConv2DBwdDataDlV4
                             }
                             else
                             {
-                                //Filter_X == 3
-                                OutDataType* cur_out = reinterpret_cast<OutDataType*>(tmp_out[(hi/2+ y + 0) % filter_y]) + wi/4 * 2;
-                                const OutData2* p_out = reinterpret_cast<OutData2*>(cur_out);
-                                index_t wei_idx = (hi % 2 * 2 + wi % 2) * wei_stride;
-                    
-                                inner_product(*p_out, p_wei_even[wei_idx + y * Filter_X_Pack + x_pack], tmp_in[wi]);
-                                 p_out = reinterpret_cast<OutData2*>(cur_out + 1);
-                                inner_product(*p_out, p_wei_even[wei_idx + y * Filter_X_Pack + x_pack], tmp_in[wi+2]);
-                                
-                                wei_idx = (hi % 2 * 2 + (wi + 1) % 2) * wei_stride;
-                                p_out = reinterpret_cast<OutData2*>(cur_out + 1);
-                                inner_product(*p_out,
-                                            p_wei_even[wei_idx + y * Filter_X_Pack + x_pack],
-                                            tmp_in[wi + 1]);
-                                p_out = reinterpret_cast<OutData2*>(cur_out + 2);
-                                inner_product(*p_out,
-                                            p_wei_even[wei_idx + y * Filter_X_Pack + x_pack],
-                                            tmp_in[wi + 3]);
+                                 //Filter_X == 3
+                                if (y == 1)
                                 {
-                                cur_out = reinterpret_cast<OutDataType*>(tmp_out[(hi/2+ y + 1) % filter_y]) + wi/4 * 2;
-                                p_out = reinterpret_cast<OutData2*>(cur_out);
-                                wei_idx = ((hi+1) % 2 * 2 + wi % 2) * wei_stride;
-                    
-                                inner_product(*p_out, p_wei_even[wei_idx + y * Filter_X_Pack + x_pack], tmp_in[SubTileH+wi]);
-                                p_out = reinterpret_cast<OutData2*>(cur_out + 1);
-                                inner_product(*p_out, p_wei_even[wei_idx + y * Filter_X_Pack + x_pack], tmp_in[SubTileH+wi+2]);
+                                    OutDataType* cur_out = reinterpret_cast<OutDataType*>(tmp_out[(hi/2+ y + 0) % filter_y]) + wi/4 * 2;
+                                    const OutData2* p_out = reinterpret_cast<OutData2*>(cur_out);
+
+                                    inner_product(*p_out, p_wei_even[y * Filter_X_Pack + x_pack], tmp_in[wi]); 
+                                    inner_product(*p_out, p_wei_odd[wei_stride + y * Filter_X_Pack + x_pack], tmp_in[wi + 1]);
+
+                                    p_out = reinterpret_cast<OutData2*>(cur_out + 2);
+                                    inner_product(*p_out,
+                                            p_wei_odd[wei_stride + y * Filter_X_Pack + x_pack + 2],
+                                            tmp_in[wi + 1]);
+                                    inner_product(*p_out, p_wei_odd[y * Filter_X_Pack + x_pack+2], tmp_in[wi+2]);                                
+                                    inner_product(*p_out, p_wei_even[wei_stride + y * Filter_X_Pack + x_pack], tmp_in[wi + 3]);
+                                }
                                 
-                                wei_idx = ((hi+1) % 2 * 2 + (wi + 1) % 2) * wei_stride;
-                                p_out = reinterpret_cast<OutData2*>(cur_out + 1);
-                                inner_product(*p_out,
-                                            p_wei_even[wei_idx + y * Filter_X_Pack + x_pack],
-                                            tmp_in[SubTileH+wi + 1]);
+                                // 2, 3
+                                OutDataType* cur_out = reinterpret_cast<OutDataType*>(tmp_out[(hi/2+ y + 1) % filter_y]) + wi/4 * 2;
+                                const OutData2* p_out = reinterpret_cast<OutData2*>(cur_out);
+                                inner_product(*p_out, p_wei_even[2 * wei_stride + y * Filter_X_Pack + x_pack], tmp_in[SubTileH+wi]);
+                               
+                                inner_product(*p_out, p_wei_odd[3*wei_stride + y * Filter_X_Pack + x_pack], tmp_in[SubTileH+wi+1]);
+                                
+                              
                                 p_out = reinterpret_cast<OutData2*>(cur_out + 2);
                                 inner_product(*p_out,
-                                            p_wei_even[wei_idx + y * Filter_X_Pack + x_pack],
+                                            p_wei_odd[3 * wei_stride + y * Filter_X_Pack + x_pack + 2],
+                                            tmp_in[SubTileH+wi + 1]);
+                                inner_product(*p_out, p_wei_odd[2*wei_stride + y * Filter_X_Pack + x_pack + 2], tmp_in[SubTileH+wi+2]);
+                                inner_product(*p_out,
+                                            p_wei_even[3 * wei_stride + y * Filter_X_Pack + x_pack],
                                             tmp_in[SubTileH+wi + 3]);
-                                }
                             }
-                            
                 #if !defined(__DEBUG__)
                         });
                     });
@@ -563,7 +560,15 @@ struct GridwiseGroupedConv2DBwdDataDlV4
                        
                         constexpr auto wei_idx = ((ho+Filter_Y/2) % 2 * 2 + (wo+Filter_X/2) % 2) * VectorCount;
                         weight[wei_idx + hi * stride + wi / WeiScalarPerVector][wi % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
-                        weight_odd[wei_idx+ hi * stride + (wi+1) / WeiScalarPerVector][(wi+1) % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
+                        if constexpr (Filter_Y == 5)
+                        {
+                            weight_odd[wei_idx+ hi * stride + (wi+1) / WeiScalarPerVector][(wi+1) % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
+                        }
+                        else
+                        {
+                            static_assert(Filter_Y == 3);
+                            weight_odd[wei_idx+ (hi + wi %2) * stride  + (wi+1) / WeiScalarPerVector][(wi+1) % WeiScalarPerVector]  = p_wei[y * Y_Stride + x];
+                        }
                     }
                 });
             });
@@ -802,7 +807,7 @@ struct GridwiseGroupedConv2DBwdDataDlV4
         ignore = in_y_offset;
 #endif
         // load weight data
-        constexpr auto WeiVectorCount = Stride_H == 2 && Filter_Y == 3? 2 :
+        constexpr auto WeiVectorCount = Stride_H == 2 && Filter_Y == 3? 4 :
                                         math::integer_divide_ceil(Filter_Y, Stride_H) *
                                         math::integer_divide_ceil(math::integer_divide_ceil(Filter_Y, Stride_H), WeiScalarPerVector);
         constexpr auto weiCnt = Stride_H == 1 ? WeiVectorCount : 4 * WeiVectorCount;
@@ -867,7 +872,7 @@ struct GridwiseGroupedConv2DBwdDataDlV4
                                   OutScalarPerVector>(out_x, out_y_offset, tmp_out_2, share_out);
                 p_out += out_n_stride * TilePerWave;
             }
-            __builtin_amdgcn_s_waitcnt(0xc07f);
+           // __builtin_amdgcn_s_waitcnt(0xc07f);
 #if 0
             if(y < HRepeate && tile_idx * in_n_stride + y * SubTileH * hi_stride + x * SubTileW * wi_stride == 0)
 #else
