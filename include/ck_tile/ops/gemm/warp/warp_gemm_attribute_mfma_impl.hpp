@@ -1766,9 +1766,9 @@ struct WarpGemmAttributeMfmaImpl_i32_32x32x32_i8
         DISPATCH_MFMA_CTRL_("v_mfma_i32_32x32x32_i8", Ctrl)
         else
         {
-#if defined(__gfx94__) or defined(__gfx95__)
-            c_vec = __builtin_amdgcn_mfma_i32_32x32x32_i8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
+#if defined(__gfx95__)
+            c_vec =
+                __builtin_amdgcn_mfma_i32_32x32x32_i8(a_vec, bit_cast<long>(b_vec), c_vec, 0, 0, 0);
 #else
             ck_tile::ignore = c_vec;
             ck_tile::ignore = a_vec;
