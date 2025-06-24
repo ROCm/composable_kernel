@@ -61,22 +61,38 @@ class GemmCodeGenerator:
         file_path = w_p / 'gemm_instance_blobs.txt'
         self._generate_all_traits()
         self._get_valid_trait_tile_combinations()
-
+        file_range_map = {}
         # Write all file paths to the header file
+        start = 3
         with file_path.open('w') as f:
             f.write(str(w_p / "gemm_common.hpp") + "\n")
             f.write(str(w_p / "gemm_instances.hpp") + "\n")
             f.write(str(w_p / "gemm_dispatcher.hpp") + "\n")
             for trait in self.valid_trait_names:
                 f.write(str(w_p / f"gemm_{trait}.hpp") + "\n")
+                start = start + 1
             file_name = set()
+            
             for trait, tile_valid_params in self.valid_trait_tile_combinations.items():
+                last = start
                 for tile in tile_valid_params:
-                    for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
-                        file_name.add(f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp")
-            for name in file_name:
-                f.write(str(
-                    w_p / name) + "\n")
+                    #for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k in tile:
+                    for tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, _, _, _ in tile:
+                        name = f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp"
+                        if name not in file_name:
+                            file_name.add(f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp")
+                            f.write(str(w_p / f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp") + "\n")
+                            last = last + 1
+                file_range_map[trait] = (start, last)
+                start = last
+        file_path = w_p / 'gemm_instance_blobs_range.txt'
+        with  file_path.open('w') as f:
+            for name, ranges in file_range_map.items():
+                s, l = ranges
+                f.write(name + " " + f"{s}" + " " + f"{l}"+ "\n")   
+            # for name in file_name:
+            #     f.write(str(
+            #         w_p / name) + "\n")
 
     def _generate_all_traits(self):
         """Generate all possible kernel traits names."""
