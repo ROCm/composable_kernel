@@ -44,7 +44,7 @@ class GemmCodeGenerator:
                  user_provided_config: Optional[GemmConfig] = None):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
+        
         if user_provided_config is not None:
             self.config = user_provided_config
         else:
@@ -133,7 +133,7 @@ class GemmCodeGenerator:
 
     def _generate_common_header_file(self):
         """Generate common header file with datatypes and layout."""
-
+        
         content = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -691,7 +691,7 @@ def do_gen_blobs(args: argparse.Namespace,
 def main(args):
 
     gemm_config = GemmConfig.from_json(
-        args.config_json) if args.config_json is not None else args.config_json
+        args.config_json, args.datatype) if args.config_json is not None else args.config_json
 
     if args.list_blobs:
         do_list_blobs(args, gemm_config)
@@ -713,6 +713,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-j", "--config_json", required=False, help="Path to the json which contains the configurations that user provide"
+    )
+    parser.add_argument(
+        "-d", "--datatype", required=True, help="Specify what datatype to use for the kernel generation, e.g. fp16, bf16, int8, fp8, bf8"
     )
     parser.add_argument(
         "-l", "--list_blobs", action='store_true', help="List all kernel instances to file"

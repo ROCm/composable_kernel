@@ -1,13 +1,16 @@
 
-set(GEMM_DATATYPE fp8 fp16)
+#set(GEMM_DATATYPE fp8 fp16)
+set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
 
 function(build_gemm_for_datatype datatype)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/")
-    set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config_${datatype}.json")
+    #set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config_${datatype}.json")
+    set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/user_provided_config.json")
     # Generate kernel list
     execute_process(
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
                 --working_path ${working_path}
+                --datatype ${datatype}
                 --config_json ${json_blob}
                 --list_blobs
         RESULT_VARIABLE ret
@@ -24,6 +27,7 @@ function(build_gemm_for_datatype datatype)
         OUTPUT ${blob_list}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
                 --working_path "${working_path}"
+                --datatype ${datatype}
                 --config_json "${json_blob}"
                 --gen_blobs
     )
