@@ -18,13 +18,13 @@ function(build_gemm_for_datatype datatype)
     if(NOT ret EQUAL 0)
         message(FATAL_ERROR "Failed to list kernels for ${datatype}: ${ret}")
     endif()
+
     file(STRINGS "${working_path}/gemm_instance_blobs.txt" codegen_blobs)
-    set(blob_list ${codegen_blobs})
     file(STRINGS "${working_path}/gemm_instance_blobs_range.txt" codegen_blobs_range)
-    set(blob_range ${codegen_blobs_range})
+    
     # Generate the blobs
     add_custom_command(
-        OUTPUT ${blob_list}
+        OUTPUT ${codegen_blobs}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/gemm_instance_builder.py
                 --working_path "${working_path}"
                 --datatype ${datatype}
@@ -32,15 +32,13 @@ function(build_gemm_for_datatype datatype)
                 --gen_blobs
     )
 
-    set(cpp_files "")
-    set(hpp_files "")
-    set(intermediate_libs "")
+    set(intermediate_libs)
     list(LENGTH codegen_blobs codegen_blobs_len)
 
-    foreach(blob IN LISTS blob_range)
+    foreach(blob IN LISTS codegen_blobs_range)
         string(STRIP "${blob}" stripped_blob)
         separate_arguments(spilit_blob UNIX_COMMAND "${stripped_blob}")
-        # read range file as: "name first last"    
+        # Each line is: <trait_name> <first_index_inclusive> <last_index_exclusive>   
         list(GET spilit_blob 0 name)
         list(GET spilit_blob 1 first)
         list(GET spilit_blob 2 last)
@@ -51,30 +49,41 @@ function(build_gemm_for_datatype datatype)
         
         math(EXPR num_chunks "( ${total_files} + ${chunk_size} - 1 ) / ${chunk_size}")
         math(EXPR num_chunks_minus_1 "${num_chunks} - 1")
+        
         foreach(i RANGE 0 ${num_chunks_minus_1})
             math(EXPR start "${i} * ${chunk_size} + ${first}")
             math(EXPR end "${start} + ${chunk_size} - 1")
-            set(chunk_files "")
+
+            set(chunk_files)
             foreach(j RANGE ${start} ${end})
                 if(j LESS ${last} AND j LESS ${codegen_blobs_len})
                     list(GET codegen_blobs ${j} f)
                     list(APPEND chunk_files "${f}")
                 endif()
             endforeach()
+
             if(chunk_files)
                 set(sub_intermediate_lib_name "gemm_objlib_${name}_${i}_${datatype}")
                 add_library(${sub_intermediate_lib_name} OBJECT ${chunk_files})
-                list(APPEND sub_intermediate_libs $<TARGET_OBJECTS:${sub_intermediate_lib_name}>)
+                list(APPEND sub_intermediate_libs ${sub_intermediate_lib_name})
             endif()
         endforeach()
-
-        # Static library for each trait
-        set(intermediate_lib_name "gemm_staticlib_${name}_${datatype}")
-        add_library(${intermediate_lib_name} STATIC ${sub_intermediate_libs})
-        #foreach(objlib IN LISTS sub_intermediate_libs)
-        #    target_sources(${intermediate_lib_name} PRIVATE $<TARGET_OBJECTS:${objlib}>)
-        #endforeach()
-        list(APPEND intermediate_libs ${intermediate_lib_name})
+        # ------------------ Bundle the object libs into one static lib ---------
+        if(sub_intermediate_libs) 
+            set(intermediate_lib_name "gemm_staticlib_${name}_${datatype}")
+            
+            # Collect the $<TARGET_OBJECTS:...> expressions
+            set(obj_exprs)
+            foreach(objlib IN LISTS sub_intermediate_libs)
+                list(APPEND obj_exprs $<TARGET_OBJECTS:${objlib}>)
+            endforeach()
+            
+            add_library(${intermediate_lib_name} STATIC ${obj_exprs})
+            #foreach(objlib IN LISTS sub_intermediate_libs)
+            #    target_sources(${intermediate_lib_name} PRIVATE $<TARGET_OBJECTS:${objlib}>)
+            #endforeach()
+            list(APPEND intermediate_libs ${intermediate_lib_name})
+        endif()
     endforeach()
 
     # Interface library for instances
