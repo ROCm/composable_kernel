@@ -23,7 +23,6 @@ class GemmProfiler
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs<>&, const ck_tile::stream_config&)>>& callables)
-                       ck_tile::GemmHostArgs<>&, const ck_tile::stream_config&)>>& callables)
     {
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
