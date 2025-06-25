@@ -172,7 +172,7 @@ using WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution =
 #if defined(__gfx950__)
 using WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution =
     WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution<
-        WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16<WGAttrCtlEnum::Default_>>>;
+        WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K32<WGAttrCtlEnum::Default_>>>;
 #else
 using WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution =
     WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
