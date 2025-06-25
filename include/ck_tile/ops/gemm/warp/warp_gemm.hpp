@@ -282,4 +282,19 @@ using WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution =
         2,
         swizzle_factor>>;
 
+// int8
+using WarpGemmMfma_i32_32x32x16_i8_i8 = WarpGemmImpl<
+    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_i32_32x32x16_i8<WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmMfma_i32_32x32x16_i8_i8_CTransposed =
+    WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution<
+        WarpGemmAttributeMfmaImpl_i32_32x32x16_i8<WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmMfma_i32_16x16x32_i8_i8 = WarpGemmImpl<
+    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_i32_16x16x32_i8<WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmMfma_i32_16x16x32_i8_i8_CTransposed =
+    WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution<
+        WarpGemmAttributeMfmaImpl_i32_16x16x32_i8<WGAttrCtlEnum::Default_>>>;
+
 } // namespace ck_tile
