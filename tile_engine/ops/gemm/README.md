@@ -42,6 +42,8 @@ rm -rf tile_engine/ && make benchmark_gemm -j  # rebuild
                  -repeat    The number of iterations to benchmark the kernel. Default is 100.
                   -timer    Whether if the timer is gpu timer or not. Possible values are true or false. Default is true.  
                    -init    The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 for constant(1). Default is 0, random.
+            -flush_cache    To flush cache in between different runs.Possible values are true or false. Default is false.
+         -rotating_count    count to flush cache. Default is 5.     
                  -metric    Metric with which to measure kernel performance. Set to 0 for latency, 1 for tflops, or 2 for bandwidth. Default is 0, latency.
            -csv_filename    The filename of benchmark result. Default is gemm_kernel.
     -structured_sparsity    whether use sparsity kernel or not. Possible values are true or false. Default is false.

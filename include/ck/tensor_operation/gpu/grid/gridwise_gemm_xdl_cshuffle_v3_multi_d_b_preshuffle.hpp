@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -168,20 +168,28 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     static constexpr bool is_single_rate_mfma =
         (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
           lcm_AK1_BK1 <= 4) ||
-         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
-         ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
-          lcm_AK1_BK1 < 32))
+         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8))
             ? true
             : false;
-    static constexpr auto is_scale_mfma    = false;
-    static constexpr auto mfma             = MfmaSelector<ComputeTypeA,
+    static constexpr auto is_scale_mfma = false;
+    static constexpr auto mfma          = MfmaSelector<ComputeTypeA,
                                               MPerXdl,
                                               NPerXdl,
                                               ComputeTypeA,
                                               is_single_rate_mfma,
                                               is_scale_mfma>{};
-    static constexpr index_t KPack         = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
-    static constexpr index_t KGroup        = mfma.selected_mfma.k_per_blk == 32 ? 2 : 1;
+    static constexpr index_t KPack      = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
+    static constexpr index_t KGroup     = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, f8_t>)
+            // On gfx950, we have a mfma that required 32 f8 elements as input,
+            // splited into 2 groups of 16 f8 elements.
+            // the 2 groups is not contiguous in the B preshuffed layout.
+            // and we do not want it to be contiguous in the B preshuffled layout
+            // because a memory instruction can only read 16 f8 elements at a time.
+            return mfma.selected_mfma.k_per_blk == 32 ? 2 : 1;
+        else
+            return 1;
+    }();
     static constexpr index_t KLane         = mfma.GetKPerXdlops() / mfma.GetK1PerXdlops();
     static constexpr index_t KPackPerGroup = KPack / KGroup;
     static constexpr index_t KRepeat       = KPerBlock / KLane / KPackPerGroup;
@@ -366,7 +374,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
 
     __host__ __device__ static auto MakeBGridDescriptor_Preshuffled(index_t N0, index_t K0)
     {
-        constexpr index_t NkSwizzleNumber = Number<warpSize * KPackPerGroup>{};
+        constexpr index_t NkSwizzleNumber = Number<WarpSize * KPackPerGroup>{};
         return make_naive_tensor_descriptor(
             make_tuple(N0 / NWave, NWave, K0, NkSwizzleNumber),
             make_tuple(NWave * K0 * NkSwizzleNumber, K0 * NkSwizzleNumber, NkSwizzleNumber, I1));
@@ -1182,7 +1190,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
-        // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
 
@@ -1190,7 +1197,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
         // B matrix in LDS memory, dst of blockwise copy
-        // dummy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // A matrix blockwise copy
@@ -1243,7 +1249,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPackPerGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPackPerGroup * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
@@ -1619,7 +1625,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
-        // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
 
@@ -1627,7 +1632,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
 
         // B matrix in LDS memory, dst of blockwise copy
-        // dummy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // A matrix blockwise copy
@@ -1683,7 +1687,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                   make_multi_index(n_block_data_idx_on_grid,
                                    get_warp_local_1d_id() % NWave,
                                    0,
-                                   KPackPerGroup * (get_thread_local_1d_id() % warpSize)));
+                                   KPackPerGroup * (get_thread_local_1d_id() % WarpSize)));
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds

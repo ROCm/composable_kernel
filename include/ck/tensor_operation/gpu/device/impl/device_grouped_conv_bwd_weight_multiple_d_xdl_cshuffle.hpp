@@ -595,6 +595,11 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
               input_right_pads_{input_right_pads},
               k_batch_{split_k}
         {
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(AccDataType);
+
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
@@ -709,6 +714,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         const index_t k_batch_;
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -757,7 +763,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
 
                 auto preprocess = [&]() {
                     hip_check_error(hipMemsetAsync(
-                        p_c_grid, 0, arg.GetWorkspaceSizeBytes(), stream_config.stream_id_));
+                        p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
                 };
 
                 const auto kernel = kernel_batched_gemm_xdlops_bwd_weight<

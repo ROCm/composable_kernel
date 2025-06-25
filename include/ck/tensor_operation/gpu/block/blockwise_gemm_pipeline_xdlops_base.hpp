@@ -40,7 +40,7 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    // Hardcode to 64, as HIP-provided "warpSize" would return 32 on RDNA GPUs.
+    // Hardcode to 64, as HIP-provided "WarpSize" would return 32 on RDNA GPUs.
     static constexpr index_t WaveSize = 64;
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
@@ -58,11 +58,21 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
     static constexpr index_t KPerInnerLoop = KPack;
-    static constexpr index_t KGroup =
-        ((MPerXDL == 16 && MPerXDL == 16 && xdlops_gemm.KPerXdlops == 128) ||
-         (MPerXDL == 32 && MPerXDL == 32 && xdlops_gemm.KPerXdlops == 64))
-            ? 2
-            : 1;
+
+    static constexpr index_t KGroup = []() {
+        if constexpr(is_same_v<remove_cvref_t<ComputeDataType>, f8_t>)
+            // On gfx950, we have mfma that required 32 f8 elements as input,
+            // splited into 2 groups of 16 f8 elements.
+            // the 2 groups is not contiguous in the B preshuffed layout.
+            // and we do not want it to be contiguous in the B preshuffled layout
+            // because a memory instruction can only read 16 f8 elements at a time.
+            return ((MPerXDL == 16 && MPerXDL == 16 && xdlops_gemm.KPerXdlops == 128) ||
+                    (MPerXDL == 32 && MPerXDL == 32 && xdlops_gemm.KPerXdlops == 64))
+                       ? 2
+                       : 1;
+        else
+            return 1;
+    }();
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);

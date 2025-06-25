@@ -22,7 +22,7 @@ class GemmProfiler
 
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
-                       ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
+                       ck_tile::GemmHostArgs<>&, const ck_tile::stream_config&)>>& callables)
     {
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
@@ -89,7 +89,7 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs gemm_args;
+        ck_tile::GemmHostArgs<> gemm_args;
         gemm_args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
         gemm_args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
         gemm_args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
@@ -128,7 +128,9 @@ class GemmProfiler
                                                                      setting_.log_,
                                                                      setting_.n_warmup_,
                                                                      setting_.n_repeat_,
-                                                                     setting_.is_gpu_timer_});
+                                                                     setting_.is_gpu_timer_,
+                                                                     setting_.flush_cache_,
+                                                                     setting_.rotating_count_});
             process_result(gemm_problem,
                            c_m_n_dev_buf,
                            c_m_n_host_result,

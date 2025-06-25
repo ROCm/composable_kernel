@@ -156,9 +156,14 @@ struct ReferenceMoeGemm2 : public device::BaseOperator
                 }
             };
 
-            const ck::index_t max_token_id = arg.max_token_id_(0);
-            make_ParallelTensorFunctor(f_mk_kn_mn, max_token_id, arg.c_t_n_.mDesc.GetLengths()[1])(
-                std::thread::hardware_concurrency());
+            const std::size_t max_token_id = arg.max_token_id_(0);
+            // avoid parallelizing over the m dim to prevent data race
+            make_ParallelTensorFunctor(
+                [&](auto n) {
+                    for(std::size_t m = 0; m < max_token_id; ++m)
+                        f_mk_kn_mn(m, n);
+                },
+                arg.c_t_n_.mDesc.GetLengths()[1])(std::thread::hardware_concurrency());
 
             return 0;
         }
