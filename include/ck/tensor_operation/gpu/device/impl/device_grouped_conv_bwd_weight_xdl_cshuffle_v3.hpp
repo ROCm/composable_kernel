@@ -427,6 +427,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
               input_right_pads_{input_right_pads},
               k_batch_{split_k}
         {
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(WeiDataType);
+
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
@@ -509,6 +514,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         const index_t k_batch_;
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -559,6 +565,14 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             const auto num_k_per_block =
                 arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(Number<0>{}) / gemm_arg.KBatch;
 
+            const auto clear_workspace = [&]() {
+                if(arg.k_batch_ > 1)
+                {
+                    hip_check_error(hipMemsetAsync(
+                        gemm_arg.p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
+                }
+            };
+
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
@@ -575,6 +589,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                         ck::utility::flush_icache();
                         // rotating mem
                         rotating_mem.Next();
+                        clear_workspace();
                     };
                     ave_time += ck::utility::launch_and_time_kernel_with_preprocess<false>(
                         stream_config,
@@ -592,18 +607,19 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 }
                 else
                 {
-                    ave_time +=
-                        launch_and_time_kernel(stream_config,
-                                               kernel,
-                                               dim3(gdx, gdy, gdz),
-                                               dim3(BlockSize),
-                                               0,
-                                               gemm_arg,
-                                               arg.a_grid_desc_kbatch_k0_m_k1_,
-                                               arg.b_grid_desc_kbatch_k0_n_k1_,
-                                               arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
-                                               arg.compute_ptr_offset_of_batch_,
-                                               num_k_per_block);
+                    ave_time += launch_and_time_kernel_with_preprocess(
+                        stream_config,
+                        clear_workspace,
+                        kernel,
+                        dim3(gdx, gdy, gdz),
+                        dim3(BlockSize),
+                        0,
+                        gemm_arg,
+                        arg.a_grid_desc_kbatch_k0_m_k1_,
+                        arg.b_grid_desc_kbatch_k0_n_k1_,
+                        arg.c_grid_desc_mblock_mperblock_nblock_nperblock_,
+                        arg.compute_ptr_offset_of_batch_,
+                        num_k_per_block);
                 }
             };
 

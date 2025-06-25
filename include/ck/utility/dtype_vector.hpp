@@ -1036,11 +1036,11 @@ struct vector_type<T, 128, typename ck::enable_if_t<is_native_type<T>()>>
         StaticallyIndexedArray<d32_t, 4> d32x4_;
         StaticallyIndexedArray<d64_t, 2> d64x2_;
         StaticallyIndexedArray<d128_t, 1> d128x1_;
-    } data_;
+    } data_ = {d128_t{0}};
 
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+    __attribute__((host)) __attribute__((device)) constexpr vector_type() {}
 
-    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+    __attribute__((host)) __attribute__((device)) constexpr vector_type(type v) { (void)v; }
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -1164,11 +1164,11 @@ struct vector_type<T, 256, typename ck::enable_if_t<is_native_type<T>()>>
         StaticallyIndexedArray<d64_t, 4> d64x4_;
         StaticallyIndexedArray<d128_t, 2> d128x2_;
         StaticallyIndexedArray<d256_t, 1> d256x1_;
-    } data_;
+    } data_ = {d256_t{0}};
 
-    __host__ __device__ constexpr vector_type() : data_{type{0}} {}
+    __attribute__((host)) __attribute__((device)) constexpr vector_type() {}
 
-    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
+    __attribute__((host)) __attribute__((device)) constexpr vector_type(type v) { (void)v; }
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -2228,7 +2228,9 @@ using f6x32_t = typename vector_type<f6x32_pk_t, 1>::type;
 using bf6x16_t = typename vector_type<bf6x16_pk_t, 1>::type;
 using bf6x32_t = typename vector_type<bf6x32_pk_t, 1>::type;
 
+// e8m0
 using e8m0x4_bexp_t = typename vector_type<e8m0_bexp_t, 4>::type;
+
 // pack int4
 using pk_i4x2_t = typename vector_type<pk_i4_t, 2>::type;
 using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;

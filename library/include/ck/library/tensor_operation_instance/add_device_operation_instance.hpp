@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,11 +22,16 @@ void add_device_operation_instances(std::vector<std::unique_ptr<BaseOp>>& op_ins
         const auto new_op_instance = std::get<i>(new_op_instances);
 
         using NewOpInstance = remove_cvref_t<decltype(new_op_instance)>;
-
-        static_assert(std::is_base_of_v<BaseOp, NewOpInstance>,
-                      "wrong! NewOpInstance should be derived from BaseOp");
-
-        op_instances.push_back(std::make_unique<NewOpInstance>(new_op_instance));
+        if constexpr(std::is_same_v<NewOpInstance, std::nullptr_t>)
+        {
+            return; // We can use nullptr_t to enable trailing comma
+        }
+        else
+        {
+            static_assert(std::is_base_of_v<BaseOp, NewOpInstance>,
+                          "wrong! NewOpInstance should be derived from BaseOp");
+            op_instances.push_back(std::make_unique<NewOpInstance>(new_op_instance));
+        }
     });
 }
 

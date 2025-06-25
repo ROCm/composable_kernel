@@ -6,6 +6,7 @@
 #include "ck/utility/functional.hpp"
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/tuple.hpp"
+#include "ck/utility/type.hpp"
 
 namespace ck {
 
@@ -107,7 +108,7 @@ struct identity
     template <typename T>
     __host__ __device__ constexpr T&& operator()(T&& arg) const noexcept
     {
-        return forward<T>(arg);
+        return ck::forward<T>(arg);
     }
 };
 

@@ -1225,18 +1225,18 @@ struct TestMXMFMA
         {
         case 0:
             a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{0.5f}});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{0.5f});
             // NOTE: not all numbers are representable in FP8, BF8, etc.
             // 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 16 18 20 20 20 22 24 24 24 26 28 28 28 30 32
             b_n_k.GenerateTensorValue(GeneratorTensor_Sequential<PackedBType, 1>{});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f}});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{1.0f});
             break;
         case 1:
             // results in C = {K}
             a_m_k.GenerateTensorValue(GeneratorTensor_1<PackedAType>{1.0f});
-            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{512.0f}});
+            a_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{512.0f});
             b_n_k.GenerateTensorValue(GeneratorTensor_1<PackedBType>{1.0f});
-            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{ScaleType{1.0f / 512}});
+            b_scales.GenerateTensorValue(GeneratorTensor_1<ScaleType>{1.0f / 512});
             break;
         case 2:
             // expect small round off errors

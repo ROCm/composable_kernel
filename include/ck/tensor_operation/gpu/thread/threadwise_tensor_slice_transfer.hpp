@@ -580,11 +580,6 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
             });
         });
 
-        // printf("blockIdx.y: %d, tid: %d, dst_buf<%f>\n",
-        //        blockIdx.y,
-        //        threadIdx.x,
-        //        dst_buf(Number<0>{}));
-
         // move src coordinate back to slice origin (or not)
         if constexpr(SrcResetCoordinateAfterRun)
         {

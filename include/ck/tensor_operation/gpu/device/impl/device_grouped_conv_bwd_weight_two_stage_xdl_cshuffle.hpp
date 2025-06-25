@@ -550,6 +550,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
               input_right_pads_{input_right_pads},
               k_batch_{split_k}
         {
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
+                sizeof(AccDataType);
+
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
@@ -747,6 +752,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         const index_t k_batch_;
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -810,10 +816,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 arg.a_grid_desc_k0_m_k1_.GetLength(Number<0>{}) / gemm_arg.KBatch;
 
             const auto clear_workspace = [&]() {
-                hip_check_error(hipMemsetAsync(gemm_arg.p_c_grid,
-                                               0,
-                                               arg.GetWorkspaceETensorSizeBytes(),
-                                               stream_config.stream_id_));
+                if(arg.k_batch_ > 1)
+                {
+                    hip_check_error(hipMemsetAsync(
+                        gemm_arg.p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
+                }
             };
 
             const auto Run = [&](const auto& kernel) {
