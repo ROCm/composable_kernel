@@ -536,7 +536,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
-        for (hdim, tiles), mode in itertools.product(d.keys(), MODE_MAP.keys()):
+        for (hdim, tiles), mode in itertools.product(d.items(), MODE_MAP.keys()):
             for tile, pipeline in itertools.product(tiles, CustomFactory.get_pipelines(dtype, hdim, receipt, mask_impl)):
                 if mode == "group":
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
