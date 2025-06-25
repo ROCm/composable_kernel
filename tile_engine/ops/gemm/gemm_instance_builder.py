@@ -246,7 +246,7 @@ struct GemmKernel {{
     static constexpr bool kPadN = {pad_n};
     static constexpr bool kPadK = {pad_k};
 
-    static float launch(ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream) {{
+    static float launch(ck_tile::GemmHostArgs<><>& args, const ck_tile::stream_config& stream) {{
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;
         static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
@@ -359,6 +359,7 @@ struct GemmKernel {{
                     // clear c mem
                     if(args.k_batch > 1)
                         hipGetErrorString(hipMemsetAsync(
+                            args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
                             args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
                 }};
                 ave_time = ck_tile::launch_kernel_preprocess(
@@ -702,7 +703,7 @@ struct GemmDispatcher {
                         warp_tile_n,
                         warp_tile_k,
                     ) = tile[j]
-                    content += f"""[=](ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream) {{ """
+                    content += f"""[=](ck_tile::GemmHostArgs<><>& args, const ck_tile::stream_config& stream) {{ """
                     content += f""" 
                                     if(structured_sparsity){{  // SMFMA"""
                     sparse = (
