@@ -17,7 +17,7 @@ mkdir build && cd build
 # build composable kernel
 # replace [ARCH] with the appropriate architecture (example gfx942) or leave blank and 
 # pass datatype in comma separated string (possible datatypes are "fp8;bf8;int8;fp16;bf16")
-sh ../script/cmake-ck-dev.sh  ../ <arch> -DGEMM_DATATYPE="fp16" 
+sh ../script/cmake-ck-dev.sh  ../ [ARCH] -DGEMM_DATATYPE="fp16" 
 # generate the executable for the passed datatype; if you have passed multiple datatype then use make command for each datatypes
 make benchmark_gemm_<datatype> -j
 ```
