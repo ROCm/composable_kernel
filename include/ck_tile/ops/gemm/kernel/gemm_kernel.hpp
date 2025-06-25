@@ -379,53 +379,56 @@ struct GemmKernel
         }
 
         bool DTesnorIsValid = {true};
-        static_for<0, NumDTensor, 1>{}([&](auto index) {
-            using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
-            if(std::is_same_v<DiLayout, ELayout> == false)
-            {
-                DTesnorIsValid = false;
-            }
-            if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
-            {
-                if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
+        if constexpr(NumDTensor > 0)
+        {
+            static_for<0, NumDTensor, 1>{}([&](auto index) {
+                using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
+                if(std::is_same_v<DiLayout, ELayout> == false)
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                    {
-                        CK_TILE_ERROR("Can't support N for tensor D that is not a multiple of "
-                                      "NPerBlock without padding!");
-                    }
                     DTesnorIsValid = false;
                 }
-                if(kargs.N % EpiloguePipeline::GetVectorSizeD(index) != 0)
+                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
                     {
-                        CK_TILE_ERROR("N is not a multiple of vector load size for D tensor!");
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR("Can't support N for tensor D that is not a multiple of "
+                                          "NPerBlock without padding!");
+                        }
+                        DTesnorIsValid = false;
                     }
-                    DTesnorIsValid = false;
+                    if(kargs.N % EpiloguePipeline::GetVectorSizeD(index) != 0)
+                    {
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR("N is not a multiple of vector load size for D tensor!");
+                        }
+                        DTesnorIsValid = false;
+                    }
                 }
-            }
-            else
-            {
-                if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
+                else
                 {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
                     {
-                        CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
-                                      "MPerBlock without padding!");
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
+                                          "MPerBlock without padding!");
+                        }
+                        DTesnorIsValid = false;
                     }
-                    DTesnorIsValid = false;
-                }
-                if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
-                {
-                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
                     {
-                        CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
+                        }
+                        DTesnorIsValid = false;
                     }
-                    DTesnorIsValid = false;
                 }
-            }
-        });
+            });
+        }
 
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
@@ -564,30 +567,40 @@ struct GemmKernel
             }
         }();
 
-        const auto& ds_tensor_view = generate_tuple(
-            [&](auto i) {
-                using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
-                using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
-                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
-                {
-                    return make_naive_tensor_view<address_space_enum::global>(
-                        static_cast<const DDataType_*>(ds_ptr[i]),
-                        make_tuple(kargs.M, kargs.N),
-                        make_tuple(kargs.stride_Ds[i], 1),
-                        number<EpiloguePipeline::GetVectorSizeD(i)>{},
-                        number<1>{});
-                }
-                else
-                {
-                    return make_naive_tensor_view<address_space_enum::global>(
-                        static_cast<const DDataType_*>(ds_ptr[i]),
-                        make_tuple(kargs.N, kargs.M),
-                        make_tuple(kargs.stride_Ds[i], 1),
-                        number<EpiloguePipeline::GetVectorSizeD(i)>{},
-                        number<1>{});
-                }
-            },
-            number<NumDTensor>{});
+        const auto& ds_tensor_view = [&]() {
+            if constexpr(NumDTensor > 0)
+            {
+                return generate_tuple(
+                    [&](auto i) {
+                        using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                        using DDataType_ =
+                            remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
+                        if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+                        {
+                            return make_naive_tensor_view<address_space_enum::global>(
+                                static_cast<const DDataType_*>(ds_ptr[i]),
+                                make_tuple(kargs.M, kargs.N),
+                                make_tuple(kargs.stride_Ds[i], 1),
+                                number<EpiloguePipeline::GetVectorSizeD(i)>{},
+                                number<1>{});
+                        }
+                        else
+                        {
+                            return make_naive_tensor_view<address_space_enum::global>(
+                                static_cast<const DDataType_*>(ds_ptr[i]),
+                                make_tuple(kargs.N, kargs.M),
+                                make_tuple(kargs.stride_Ds[i], 1),
+                                number<EpiloguePipeline::GetVectorSizeD(i)>{},
+                                number<1>{});
+                        }
+                    },
+                    number<NumDTensor>{});
+            }
+            else
+            {
+                return ck_tile::tuple<>();
+            }
+        }();
 
         // TODO: enable vector write for C in ColMajor
         const auto& e_tensor_view = [&]() {
@@ -606,7 +619,7 @@ struct GemmKernel
                     e_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(1, kargs.stride_E),
-                    number<1>{},
+                    number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
             }
         }();
@@ -687,9 +700,9 @@ struct GemmKernel
             else
             {
                 return pad_tensor_view(e_tensor_view,
-                                       make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                  number<TilePartitioner::NPerBlock>{}),
-                                       sequence<GemmPipeline::kPadM, false>{});
+                                       make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                  number<TilePartitioner::MPerBlock>{}),
+                                       sequence<false, GemmPipeline::kPadM>{});
             }
         }();
 

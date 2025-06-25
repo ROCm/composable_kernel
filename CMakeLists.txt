@@ -319,6 +319,7 @@ endif()
 if(USE_OPT_GFX11)
     add_compile_options(-mcumode)
     add_compile_options(-mno-wavefrontsize64)
+    add_compile_definitions(CK_WAVE32_ENABLED)
     message(STATUS "CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
 endif()
 
@@ -326,6 +327,12 @@ if(ENABLE_ASM_DUMP)
     add_compile_options(--save-temps) 
     add_compile_options(-Wno-gnu-line-marker)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
+endif()
+
+if(USE_OPT_GFX12 AND (SUPPORTED_GPU_TARGETS MATCHES "gfx12"))
+    add_compile_options(-mno-wavefrontsize64)
+    add_compile_definitions(CK_WAVE32_ENABLED)
+    message(STATUS "CK compiled with USE_OPT_GFX12 set to ${USE_OPT_GFX12}")
 endif()
 
 ## Threads

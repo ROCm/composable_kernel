@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -921,14 +921,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             }
             else
             {
-                return WarpGemmMfmaDispatcher<
-                    typename Problem::PDataType,
-                    typename Problem::VDataType,
-                    typename Problem::OaccDataType,
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                    true>{};
+                return WarpGemmDispatcher<typename Problem::PDataType,
+                                          typename Problem::VDataType,
+                                          typename Problem::OaccDataType,
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                                          true>{};
             }
         }();
 

@@ -62,12 +62,20 @@ struct Default2DEpilogue
     using Problem                     = remove_cvref_t<Problem_>;
     using AccDataType                 = remove_cvref_t<typename Problem::AccDataType>;
     using ODataType                   = remove_cvref_t<typename Problem::ODataType>;
+    using DsDataType                  = ck_tile::tuple<>;
+    using DsLayout                    = ck_tile::tuple<>;
     static constexpr bool kPadM       = Problem::kPadM;
     static constexpr bool kPadN       = Problem::kPadN;
     static constexpr bool UseRawStore = Problem::UseRawStore;
     static constexpr memory_operation_enum MemoryOperation = Problem::MemoryOperation;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 0; }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
+    {
+        constexpr index_t MaxVectorStoreSize = 32;
+        return MaxVectorStoreSize / sizeof(ODataType);
+    } // TODO: need to fix
 
     // TODO: this function assume store out vector size is the same as OAccTile last dimension size
     //       how do we fix this ?
@@ -130,13 +138,13 @@ struct DefaultGemm2DEpilogue : public Default2DEpilogue<Problem_, Policy_>
     static constexpr index_t kKPerXdl      = Problem::kKPerXdl;
     static constexpr index_t isCTransposed = Problem::isCTransposed;
 
-    using WG = WarpGemmMfmaDispatcher<ADataType,
-                                      BTypeToUse,
-                                      AccDataType,
-                                      kMPerXdl,
-                                      kNPerXdl,
-                                      kKPerXdl,
-                                      isCTransposed>;
+    using WG = WarpGemmDispatcher<ADataType,
+                                  BTypeToUse,
+                                  AccDataType,
+                                  kMPerXdl,
+                                  kNPerXdl,
+                                  kKPerXdl,
+                                  isCTransposed>;
 
     using CWarpDstr = typename WG::CWarpDstr;
 

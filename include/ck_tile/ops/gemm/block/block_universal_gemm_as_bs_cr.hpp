@@ -126,6 +126,10 @@ struct BlockUniversalGemmAsBsCr
     static constexpr index_t BPackedSize =
         ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
+    using CLayout = remove_cvref_t<typename Problem_::CLayout>;
+    static constexpr bool is_c_column_major =
+        std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>;
+
     using I0 = number<0>;
     using I1 = number<1>;
 
@@ -215,7 +219,7 @@ struct BlockUniversalGemmAsBsCr
         using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
 
         ALdsTile a_warp_tile_;
-        ALdsTile b_warp_tile_;
+        BLdsTile b_warp_tile_;
 
         // C += A * B
         template <typename CBlockTensor, typename ASmemBlockWindow, typename BSmemBlockWindow>
@@ -268,8 +272,12 @@ struct BlockUniversalGemmAsBsCr
                         // read C warp tensor from C block tensor-
                         CWarpTensor c_warp_tensor;
 
+                        const auto c_warp_seq = std::conditional_t<is_c_column_major,
+                                                                   sequence<nIter, mIter>,
+                                                                   sequence<mIter, nIter>>{};
+
                         c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                            merge_sequences(c_warp_seq, c_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                         // warp GEMM
@@ -277,7 +285,7 @@ struct BlockUniversalGemmAsBsCr
 
                         // write C warp tensor into C block tensor
                         c_block_tensor.set_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                            merge_sequences(c_warp_seq, c_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                             c_warp_tensor.get_thread_buffer());
                     });
@@ -529,10 +537,12 @@ struct BlockUniversalGemmAsBsCr
     {
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
+            std::conditional_t<is_c_column_major,
+                               tuple<sequence<NIterPerWarp, NWarp>, sequence<MIterPerWarp, MWarp>>,
+                               tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>>,
+            std::conditional_t<is_c_column_major, tuple<sequence<2, 1>>, tuple<sequence<1, 2>>>,
             tuple<sequence<1, 1>>,
-            sequence<1, 2>,
+            std::conditional_t<is_c_column_major, sequence<1, 2>, sequence<1, 2>>,
             sequence<0, 0>>{};
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(

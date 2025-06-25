@@ -304,6 +304,55 @@ CK_TILE_DEVICE void atomic_add<bf8x8_t>(bf8x8_t* p_dst, bf8x8_t const& x)
     } while(cur_v.u64 != old_v);
 }
 
+//
+// Atomic add for fp16x2_t
+//
+template <>
+CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, fp16x2_t const& x)
+{
+#if defined(__gfx12__)
+    // currently builtin function is not supported by compiler
+    // __builtin_amdgcn_global_atomic_fadd_v2f16(c_style_pointer_cast<fp16x2_t*>(p_dst),
+    //                                           x.template get_as<fp16x2_t>()[I0]);
+    fp16x2_t tmp;
+    asm volatile("global_atomic_pk_add_f16  %0, %1, %2, off th:TH_ATOMIC_NT_RETURN "
+                 : "=v"(tmp)
+                 : "v"(c_style_pointer_cast<fp16x2_t*>(p_dst)), "v"(x)
+                 : "memory");
+#else // TODO: other generations is not support now
+    ignore = p_dst;
+    ignore = x;
+#endif
+}
+
+//
+// Atomic add for fp16x4_t
+//
+template <>
+CK_TILE_DEVICE void atomic_add<fp16x4_t>(fp16x4_t* p_dst, fp16x4_t const& x)
+{
+#if defined(__gfx12__)
+    // currently builtin function is not supported by compiler
+    // __builtin_amdgcn_global_atomic_fadd_v2f16(c_style_pointer_cast<fp16x2_t*>(p_dst),
+    //                                           x.template get_as<fp16x2_t>()[I0]);
+    fp16x2_t tmp;
+    asm volatile("global_atomic_pk_add_f16  %0, %1, %2, off th:TH_ATOMIC_NT_RETURN "
+                 : "=v"(tmp)
+                 : "v"(c_style_pointer_cast<fp16x2_t*>(p_dst)),
+                   "v"(__builtin_shufflevector(x, x, 0, 1))
+                 : "memory");
+
+    asm volatile("global_atomic_pk_add_f16  %0, %1, %2, off th:TH_ATOMIC_NT_RETURN "
+                 : "=v"(tmp)
+                 : "v"(c_style_pointer_cast<fp16x2_t*>(p_dst) + 1),
+                   "v"(__builtin_shufflevector(x, x, 2, 3))
+                 : "memory");
+#else // TODO: other generations is not support now
+    ignore = p_dst;
+    ignore = x;
+#endif
+}
+
 template <typename T, index_t N>
 CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
 {
@@ -311,6 +360,7 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
                       (std::is_same<T, uint32_t>::value && (N == 1)) ||
                       (std::is_same<T, float>::value && (N == 1 || N == 2)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
+                      (std::is_same<T, fp16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, bf16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, fp8_t>::value && (N == 4 || N == 8 || N == 16)) ||
                       (std::is_same<T, bf8_t>::value && (N == 4 || N == 8 || N == 16)),
@@ -404,6 +454,27 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
         {
             atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst), x.template get_as<bf8x8_t>()[I0]);
             atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst) + 1, x.template get_as<bf8x8_t>()[I1]);
+        }
+    }
+    else if constexpr(std::is_same<T, fp16_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            // atomic_add(c_style_pointer_cast<fp16_t*>(p_dst), x.template get_as<fp16_t>()[I0]);
+        }
+        else if constexpr(N == 2)
+        {
+            atomic_add(c_style_pointer_cast<fp16x2_t*>(p_dst), x.template get_as<fp16x2_t>()[I0]);
+        }
+        else if constexpr(N == 4)
+        {
+            atomic_add(c_style_pointer_cast<fp16x4_t*>(p_dst), x.template get_as<fp16x4_t>()[I0]);
+        }
+        else if constexpr(N == 8)
+        {
+            atomic_add(c_style_pointer_cast<fp16x4_t*>(p_dst), x.template get_as<fp16x4_t>()[I0]);
+            atomic_add(c_style_pointer_cast<fp16x4_t*>(p_dst) + 1,
+                       x.template get_as<fp16x4_t>()[I1]);
         }
     }
 }

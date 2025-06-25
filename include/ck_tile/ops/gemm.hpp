@@ -39,6 +39,8 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v2.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v2_default_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_wmma.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_wmma_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_problem.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
