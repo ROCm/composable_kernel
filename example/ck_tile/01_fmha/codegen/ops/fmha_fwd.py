@@ -474,10 +474,10 @@ class KernelComponentFactory:
         else:
             return None
 
-def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
-    def get_pipelines(dtype, hdim, hdim_v) -> List[FmhaFwdPipeline]:
+    @staticmethod
+    def get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl) -> List[FmhaFwdPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
@@ -522,6 +522,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
             assert False
         return pipelines
 
+def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
@@ -531,7 +532,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for ((hdim, hdim_v), tile), mode in itertools.product(d.items(), MODE_MAP.keys()):
-            for pipeline in get_pipelines(dtype, hdim, hdim_v):
+            for pipeline in KernelComponentFactory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl):
                 if mode == "group":
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
