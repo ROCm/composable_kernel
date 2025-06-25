@@ -18,7 +18,12 @@ using KernelTypes = ::testing::Types<
 
 TYPED_TEST_SUITE(TestBatchedGemmGemmFP16, KernelTypes);
 
-TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16) { this->Run(); }
+TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16)
+{
+    this->bench_  = true;
+    this->verify_ = true;
+    this->Run();
+}
 
 TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_PadM)
 {
@@ -71,37 +76,37 @@ TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddM)
     this->Run();
 }
 
-// TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddN)
-// {
-//     this->lengths_ = std::vector<std::vector<int>>{
-//         {128, 129, 32, 128, 1},
-//     };
-//     this->bench_  = true;
-//     this->verify_ = true;
-//     this->Run();
-// }
+TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddN)
+{
+    this->lengths_ = std::vector<std::vector<int>>{
+        {128, 129, 32, 128, 1},
+    };
+    this->bench_  = true;
+    this->verify_ = true;
+    this->Run();
+}
 
-// TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddK)
-// {
-//     this->lengths_ = std::vector<std::vector<int>>{
-//         {128, 128, 33, 128, 1},
-//         {128, 128, 129, 128, 1},
-//     };
-//     this->bench_  = true;
-//     this->verify_ = true;
-//     this->Run();
-// }
+TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddK)
+{
+    this->lengths_ = std::vector<std::vector<int>>{
+        {128, 128, 33, 128, 1},
+        {128, 128, 129, 128, 1},
+    };
+    this->bench_  = true;
+    this->verify_ = true;
+    this->Run();
+}
 
-// // If kernel B1Layout is RowMajor, expect not to support odd O size
-// TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddO)
-// {
-//     this->lengths_ = std::vector<std::vector<int>>{
-//         {128, 128, 32, 129, 1},
-//     };
-//     this->bench_  = true;
-//     this->verify_ = true;
-//     this->Run();
-// }
+// If kernel B1Layout is RowMajor, expect not to support odd O size
+TYPED_TEST(TestBatchedGemmGemmFP16, Test_FP16_OddO)
+{
+    this->lengths_ = std::vector<std::vector<int>>{
+        {128, 128, 32, 129, 1},
+    };
+    this->bench_  = true;
+    this->verify_ = true;
+    this->Run();
+}
 
 TYPED_TEST(TestBatchedGemmGemmFP16, DISABLED_Bench_FP16)
 {

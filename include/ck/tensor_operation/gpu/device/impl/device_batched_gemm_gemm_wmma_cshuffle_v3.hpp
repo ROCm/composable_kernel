@@ -50,29 +50,30 @@ __global__ void
                                                   index_t N,
                                                   index_t K,
                                                   index_t O,
-                                                  index_t G0,
-                                                  index_t G1)
+                                                  index_t batch_count)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 
-    // clang-format off
-// ***************************************************
-// Make Tensor Descriptors
-    constexpr index_t array_size = 4;
-    std::array<ck::index_t, array_size> a_gs_ms_ks_lengths{G0, G1, M, K};
-    std::array<ck::index_t, array_size> a_gs_ms_ks_strides = std::array<ck::index_t, array_size>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
+    // ***************************************************
+    // Make Tensor Descriptors
+    constexpr index_t array_size = 3;
+    std::array<ck::index_t, array_size> a_gs_ms_ks_lengths{batch_count, M, K};
+    std::array<ck::index_t, array_size> a_gs_ms_ks_strides =
+        std::array<ck::index_t, array_size>{M * K, K, 1}; // A layout [batch_count, M, K]
 
-    std::array<ck::index_t, array_size> b0_gs_ns_ks_lengths{G0, G1, N, K};
-    std::array<ck::index_t, array_size> b0_gs_ns_ks_strides = std::array<ck::index_t, array_size>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
+    std::array<ck::index_t, array_size> b0_gs_ns_ks_lengths{batch_count, N, K};
+    std::array<ck::index_t, array_size> b0_gs_ns_ks_strides =
+        std::array<ck::index_t, array_size>{N * K, K, 1}; // B0 layout [batch_count, N, K]
 
-    std::array<ck::index_t, array_size> b1_gs_os_ns_lengths{G0, G1, O, N};
+    std::array<ck::index_t, array_size> b1_gs_os_ns_lengths{batch_count, O, N};
     std::array<ck::index_t, array_size> b1_gs_os_ns_strides =
         is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
-            ? std::array<ck::index_t, array_size>{G1 * N * O, N * O, 1, O}  // B1 layout [G0, G1, N, O]
-            : std::array<ck::index_t, array_size>{G1 * N * O, N * O, N, 1}; // B1 layout [G0, G1, O, N]
+            ? std::array<ck::index_t, array_size>{N * O, 1, O}  // B1 layout [batch_count, N, O]
+            : std::array<ck::index_t, array_size>{N * O, N, 1}; // B1 layout [batch_count, O, N]
 
-    std::array<ck::index_t, array_size> c_gs_ms_os_lengths{G0, G1, M, O};
-    std::array<ck::index_t, array_size> c_gs_ms_os_strides = std::array<ck::index_t, array_size>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+    std::array<ck::index_t, array_size> c_gs_ms_os_lengths{batch_count, M, O};
+    std::array<ck::index_t, array_size> c_gs_ms_os_strides =
+        std::array<ck::index_t, array_size>{M * O, O, 1}; // C layout [batch_count, M, O]
 
     const auto a_element_op    = AElementwiseOperation{};
     const auto b0_element_op   = B0ElementwiseOperation{};
@@ -87,24 +88,22 @@ __global__ void
     const auto b1_grid_desc =
         DeviceOp::MakeB1GridDescriptor(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
     const auto c_grid_desc_m_n =
-                  DeviceOp::Transform::MakeCGridDescriptor_M_N(c_gs_ms_os_lengths, c_gs_ms_os_strides);
-    const auto c_grid_desc_mblock_mperblock_nblock_nperblock = 
-                  GridwiseOp::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
+        DeviceOp::Transform::MakeCGridDescriptor_M_N(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+    const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+        GridwiseOp::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
     const auto block_2_ctile_map = GridwiseOp::MakeDefaultBlock2CTileMap(c_grid_desc_m_n, 1, 1);
 
     const auto a_grid_desc_g_m_k =
-                  DeviceOp::Transform::MakeAGridDescriptor_G_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
-    const auto b0_grid_desc_g_l_k = 
-                  DeviceOp::Transform::MakeB0GridDescriptor_G_N_K(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
-    const auto b1_grid_desc_g_n_l = 
-                  DeviceOp::Transform::MakeB1GridDescriptor_G_N_K(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
+        DeviceOp::Transform::MakeAGridDescriptor_G_M_K(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
+    const auto b0_grid_desc_g_l_k =
+        DeviceOp::Transform::MakeB0GridDescriptor_G_N_K(b0_gs_ns_ks_lengths, b0_gs_ns_ks_strides);
+    const auto b1_grid_desc_g_n_l =
+        DeviceOp::Transform::MakeB1GridDescriptor_G_N_K(b1_gs_os_ns_lengths, b1_gs_os_ns_strides);
     const auto c_grid_desc_g_m_n =
-                  DeviceOp::Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_os_lengths, c_gs_ms_os_strides);
-    const auto compute_base_ptr_of_batch = 
-                  typename DeviceOp::ComputeBasePtrOfStridedBatch{a_grid_desc_g_m_k, b0_grid_desc_g_l_k, b1_grid_desc_g_n_l, c_grid_desc_g_m_n};
-    index_t batch_count = c_grid_desc_g_m_n.GetLength(Number<0>{});
+        DeviceOp::Transform::MakeCGridDescriptor_G_M_N(c_gs_ms_os_lengths, c_gs_ms_os_strides);
+    const auto compute_base_ptr_of_batch = typename DeviceOp::ComputeBasePtrOfStridedBatch{
+        a_grid_desc_g_m_k, b0_grid_desc_g_l_k, b1_grid_desc_g_n_l, c_grid_desc_g_m_n};
 
-    // clang-format on
     __shared__ char p_shared[GridwiseOp::GetSharedMemoryNumberOfByte()];
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -143,8 +142,7 @@ __global__ void
     ignore = N;
     ignore = K;
     ignore = O;
-    ignore = G0;
-    ignore = G1;
+    ignore = batch_count;
 #endif // end of if (defined(__gfx11__))
 }
 
@@ -259,7 +257,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
     // TODO: Now that we are no longer using NumDim or TensorSpec, we can probably use a simpler
     // Transform operator or just not use one at all.
     using Transform = TransformBatchedContractionContractionToBatchedGemmGemm_Wmma<
-        Sequence<2, 1, 1, 1, 1>,
+        Sequence<1, 1, 1, 1, 1>,
         Sequence<MPerBlock, LPerBlock, KPerBlock, NPerBlock>,
         GemmSpec,
         TensorSpecialization::Default,  // ASpec
@@ -268,8 +266,8 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         TensorSpecialization::Default>; // CSpec
 
     __host__ __device__ static auto
-    MakeAGridDescriptor(const std::array<index_t, 4>& a_gs_ms_ks_lengths_vec,
-                        const std::array<index_t, 4>& a_gs_ms_ks_strides_vec)
+    MakeAGridDescriptor(const std::array<index_t, 3>& a_gs_ms_ks_lengths_vec,
+                        const std::array<index_t, 3>& a_gs_ms_ks_strides_vec)
     {
         if constexpr(AEnableLds)
         {
@@ -292,8 +290,8 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
     }
 
     __host__ __device__ static auto
-    MakeB0GridDescriptor(const std::array<index_t, 4>& b0_gs_ls_ks_lengths_vec,
-                         const std::array<index_t, 4>& b0_gs_ls_ks_strides_vec)
+    MakeB0GridDescriptor(const std::array<index_t, 3>& b0_gs_ls_ks_lengths_vec,
+                         const std::array<index_t, 3>& b0_gs_ls_ks_strides_vec)
     {
         if constexpr(B0EnableLds)
         {
@@ -317,8 +315,8 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
     }
 
     __host__ __device__ static auto
-    MakeB1GridDescriptor(const std::array<index_t, 4>& b1_gs_ns_ls_lengths_vec,
-                         const std::array<index_t, 4>& b1_gs_ns_ls_strides_vec)
+    MakeB1GridDescriptor(const std::array<index_t, 3>& b1_gs_ns_ls_lengths_vec,
+                         const std::array<index_t, 3>& b1_gs_ns_ls_strides_vec)
     {
         if constexpr(B1EnableLds)
         {
@@ -475,8 +473,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
                index_t N,
                index_t K,
                index_t O,
-               index_t G0,
-               index_t G1)
+               index_t Batch)
             : p_a_grid_{p_a_grid},
               p_b0_grid_{p_b0_grid},
               p_b1_grid_{p_b1_grid},
@@ -485,8 +482,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
               N_{N},
               K_{K},
               O_{O},
-              G0_{G0},
-              G1_{G1}
+              batch_count_{Batch}
         {
         }
         // Pointers
@@ -500,8 +496,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         index_t N_;
         index_t K_;
         index_t O_;
-        index_t G0_;
-        index_t G1_;
+        index_t batch_count_;
     };
 
     // TODO: Check how padding modes are checked against problem dimensions for different layouts.
@@ -545,34 +540,30 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             return false;
         }
 
-        constexpr index_t array_size = 4;
-        ck::index_t G0               = arg.G0_;
-        ck::index_t G1               = arg.G1_;
+        constexpr index_t array_size = 3;
+        ck::index_t G                = arg.batch_count_;
         ck::index_t M                = arg.M_;
         ck::index_t N                = arg.N_;
         ck::index_t K                = arg.K_;
         ck::index_t O                = arg.O_;
 
-        std::array<ck::index_t, array_size> a_gs_ms_ks_lengths{G0, G1, M, K};
+        std::array<ck::index_t, array_size> a_gs_ms_ks_lengths{G, M, K};
         std::array<ck::index_t, array_size> a_gs_ms_ks_strides =
-            std::array<ck::index_t, array_size>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
+            std::array<ck::index_t, array_size>{M * K, K, 1}; // A layout [G, M, K]
 
-        std::array<ck::index_t, array_size> b0_gs_ns_ks_lengths{G0, G1, N, K};
+        std::array<ck::index_t, array_size> b0_gs_ns_ks_lengths{G, N, K};
         std::array<ck::index_t, array_size> b0_gs_ns_ks_strides =
-            std::array<ck::index_t, array_size>{
-                G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
+            std::array<ck::index_t, array_size>{N * K, K, 1}; // B0 layout [G, N, K]
 
-        std::array<ck::index_t, array_size> b1_gs_os_ns_lengths{G0, G1, O, N};
+        std::array<ck::index_t, array_size> b1_gs_os_ns_lengths{G, O, N};
         std::array<ck::index_t, array_size> b1_gs_os_ns_strides =
             is_same_v<B1Layout, tensor_layout::gemm::RowMajor>
-                ? std::array<ck::index_t, array_size>{G1 * N * O, N * O, 1, O}
-                // B1 layout [G0, G1, N, O]
-                : std::array<ck::index_t, array_size>{
-                      G1 * N * O, N * O, N, 1}; // B1 layout [G0, G1, O, N]
+                ? std::array<ck::index_t, array_size>{N * O, 1, O}  // B1 layout [G, N, O]
+                : std::array<ck::index_t, array_size>{N * O, N, 1}; // B1 layout [G, O, N]
 
-        std::array<ck::index_t, array_size> c_gs_ms_os_lengths{G0, G1, M, O};
+        std::array<ck::index_t, array_size> c_gs_ms_os_lengths{G, M, O};
         std::array<ck::index_t, array_size> c_gs_ms_os_strides =
-            std::array<ck::index_t, array_size>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+            std::array<ck::index_t, array_size>{M * O, O, 1}; // C layout [G, M, O]
 
         const auto a_grid_desc =
             DeviceOp::MakeAGridDescriptor(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
@@ -627,19 +618,14 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             return false;
         }
 
-        std::array<index_t, 4> a_mz_kz_strides_{a_gs_ms_ks_strides[2], a_gs_ms_ks_strides[3]};
-        std::array<index_t, 4> b0_lz_kz_strides_{b0_gs_ns_ks_strides[2], b0_gs_ns_ks_strides[3]};
-        std::array<index_t, 4> b1_nz_lz_strides_{b1_gs_os_ns_strides[2], b1_gs_os_ns_strides[3]};
-        std::array<index_t, 4> c_mz_nz_strides_{c_gs_ms_os_strides[2], c_gs_ms_os_strides[3]};
-
         // Check vector load/store requirement
         const auto a_stride_lowest =
-            ABlockTransferSrcVectorDim == 2 ? a_mz_kz_strides_[1] : a_mz_kz_strides_[0];
+            ABlockTransferSrcVectorDim == 2 ? a_gs_ms_ks_strides[2] : a_gs_ms_ks_strides[1];
         const auto b0_stride_lowest =
-            B0BlockTransferSrcVectorDim == 2 ? b0_lz_kz_strides_[1] : b0_lz_kz_strides_[0];
+            B0BlockTransferSrcVectorDim == 2 ? b0_gs_ns_ks_strides[2] : b0_gs_ns_ks_strides[1];
         const auto b1_stride_lowest =
-            B1BlockTransferSrcVectorDim == 2 ? b1_nz_lz_strides_[1] : b1_nz_lz_strides_[0];
-        const auto c_stride_lowest = c_mz_nz_strides_[1];
+            B1BlockTransferSrcVectorDim == 2 ? b1_gs_os_ns_strides[2] : b1_gs_os_ns_strides[1];
+        const auto c_stride_lowest = c_gs_ms_os_strides[2];
 
         if(!(a_stride_lowest == 1 || b0_stride_lowest == 1 || b1_stride_lowest == 1 ||
              c_stride_lowest == 1))
@@ -666,7 +652,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             const auto M0 = math::integer_divide_ceil(arg.M_, MPerBlock);
             const auto N0 = math::integer_divide_ceil(arg.O_, NPerBlock);
 
-            const index_t grid_size = arg.G0_ * arg.G1_ * M0 * N0;
+            const index_t grid_size = arg.batch_count_ * M0 * N0;
             const auto K            = arg.K_;
             // printf("HasKBlockLoop: %d\n", GridwiseOp::CalculateHasMainKBlockLoop(K));
             auto launch_kernel = [&](auto has_main_k_block_loop) {
@@ -698,8 +684,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
                                               arg.N_,
                                               arg.K_,
                                               arg.O_,
-                                              arg.G0_,
-                                              arg.G1_);
+                                              arg.batch_count_);
             };
 
             if(GridwiseOp::CalculateHasMainKBlockLoop(K))
@@ -771,10 +756,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
                                         N,
                                         K,
                                         O,
-                                        1,    // G0
-                                        Batch // G1 TODO: Maybe this makes more sense as G0,
-                                              // depends on if we want permute functionality.
-        );
+                                        Batch);
     }
 
     static auto MakeInvoker() { return Invoker{}; }

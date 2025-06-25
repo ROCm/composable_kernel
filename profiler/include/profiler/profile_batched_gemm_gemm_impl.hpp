@@ -311,7 +311,7 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
         }
     }
 
-    std::cout << "found " << op_ptrs.size() << " supported instances" << std::endl;
+    std::cout << "found " << num_supported_instances << " supported instances" << std::endl;
 
     // Fail when no supported instances are found
     if(num_supported_instances == 0)
