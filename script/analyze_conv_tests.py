@@ -17,6 +17,7 @@ def parse_cli_args():
     parser.add_argument("--csv-file", type=str, dest="csv_file", required=True, help="Path to the CSV file containing test cases.")
     parser.add_argument("--output-dir", type=str, dest="output_dir", required=True, help="Directory to save output plots.")
     parser.add_argument("--label", type=str, dest="label", default="", help="Label for the figure names.")
+    parser.add_argument("--old-format", action="store_true", dest="old_format", default=False, help="Old format of the CSV files")
     
     args, unknown_args = parser.parse_known_args()
     
@@ -239,52 +240,45 @@ def plot_best_split_k_values(standard_counts, optimized_count,
                     color='black'
                 )
 
-    # Highlight the optimized category with a different color
     base_bars[-1].set_color('green')
     base_bars[-1].set_label('Optimized Split-K')
 
-    # Set x-tick positions and labels
     plt.xticks(
-        range(len(categories)),  # Positions
-        categories,              # Labels
-        rotation=45 if len(categories) > 8 else 0,  # Rotate if many categories
+        range(len(categories)),  
+        categories,              
+        rotation=45 if len(categories) > 8 else 0,  
         fontsize=11,
-        ha='right' if len(categories) > 8 else 'center'  # Align rotated labels
+        ha='right' if len(categories) > 8 else 'center'  
     )
 
-    # Add labels, title, and legend
     plt.title('Best Split-K Values', fontsize=16, fontweight='bold')
     plt.xlabel('Split-K Value', fontsize=14)
     plt.ylabel('Count', fontsize=14)
-    plt.grid(True, linestyle='--', alpha=0.7, axis='y')  # Grid lines only on y-axis
+    plt.grid(True, linestyle='--', alpha=0.7, axis='y')  
     plt.legend(fontsize=12)
 
-    # Add explanation text for the orange portion
     explanation = "Orange sections represent cases where optimized\nsplit-K equals to one of the fixed split-K values"
     plt.text(
-        0.02, 0.95,                     # Position in axes coordinates (top-left)
+        0.02, 0.95,                     
         explanation,
-        transform=plt.gca().transAxes,  # Use axes coordinates
+        transform=plt.gca().transAxes,  
         fontsize=11,
         verticalalignment='top',
         bbox=dict(boxstyle='round', facecolor='white', alpha=0.7)
     )
 
-    # Adjust layout to prevent label cutoff
     plt.tight_layout()
 
-    # Save the figure
     split_k_distribution_path = os.path.join(args.output_dir, f'best_split_k_values{suffix}.png')
     plt.savefig(split_k_distribution_path)
     print(f"Saved best split-K values chart to: {split_k_distribution_path}")
     
     plt.close()
 
-def plot_perf(perf_difference, output_dir, suffix=""):
+def plot_perf(perf_difference, output_dir, suffix="", op_name=""):
     """Plot the performance differences as a histogram with statistics."""
     import numpy as np
     
-    # Calculate statistics
     mean_val = np.mean(perf_difference)
     median_val = np.median(perf_difference)
     std_val = np.std(perf_difference)
@@ -294,19 +288,15 @@ def plot_perf(perf_difference, output_dir, suffix=""):
     p75 = np.percentile(perf_difference, 75)
     count = len(perf_difference)
     
-    # Determine bin edges at 5% intervals
     min_edge = np.floor(min_val / 5) * 5
     max_edge = np.ceil(max_val / 5) * 5
     bin_edges = np.arange(min_edge, max_edge + 5, 5)
     
-    # Create figure
     plt.figure(figsize=(12, 6))
     
-    # Split data into below and above 100%
     below_100 = [x for x in perf_difference if x < 100]
     above_100 = [x for x in perf_difference if x >= 100]
     
-    # Get counts for each group with the same bins
     if below_100:
         counts_below, _ = np.histogram(below_100, bins=bin_edges)
     else:
@@ -317,37 +307,30 @@ def plot_perf(perf_difference, output_dir, suffix=""):
     else:
         counts_above = np.zeros(len(bin_edges) - 1)
     
-    # Plot histogram for values below 100% (red)
     if below_100:
         plt.hist(below_100, bins=bin_edges, color='red', 
                 alpha=0.7, edgecolor='black', label='Below 100%')
     
-    # Plot histogram for values above or equal to 100% (green)
     if above_100:
         plt.hist(above_100, bins=bin_edges, color='green', 
                 alpha=0.7, edgecolor='black', label='Above 100%')
     
-    # Calculate total counts for each bin to place labels
     total_counts = counts_below + counts_above
     
-    # Add labels on top of the bars
     for i in range(len(bin_edges) - 1):
-        if total_counts[i] > 0:  # Only add labels for non-empty bins
-            # Calculate the center of the bin
+        if total_counts[i] > 0:
             bin_center = (bin_edges[i] + bin_edges[i + 1]) / 2
             
-            # Add label showing the count
             plt.text(
-                bin_center,                 # x position (center of bar)
-                total_counts[i] + 0.5,      # y position (just above the bar)
-                f'{int(total_counts[i])}',  # Text label (count)
-                ha='center',                # Horizontal alignment
-                va='bottom',                # Vertical alignment
-                fontweight='bold',          # Make it bold
-                fontsize=9                  # Font size
+                bin_center,                 
+                total_counts[i] + 0.5,     
+                f'{int(total_counts[i])}',  
+                ha='center',                
+                va='bottom',                
+                fontweight='bold',          
+                fontsize=9                 
             )
     
-    # Create statistics text
     stats_text = (f"Statistics:\n"
                   f"Count: {count}\n"
                   f"Mean: {mean_val:.2f}%\n"
@@ -358,26 +341,19 @@ def plot_perf(perf_difference, output_dir, suffix=""):
                   f"25th Percentile: {p25:.2f}%\n"
                   f"75th Percentile: {p75:.2f}%")
     
-    plt.title('Performance of Optimized Split-K value vs Best Standard Split-K value', 
-              fontsize=14, fontweight='bold')
+    title = op_name if op_name else "Performance of autodeducted Split-K vs best standard Split-K"
+    size = 12 if op_name else 14
+    plt.title(title, 
+              fontsize=size, fontweight='bold')
     plt.xlabel('Performance (%)', fontsize=12)
     plt.ylabel('Count', fontsize=12)
-    
-    # Add gridlines aligned with bin edges
     plt.grid(True, linestyle='--', alpha=0.7)
-    
-    # Ensure x-axis ticks align with bin edges
     plt.xticks(bin_edges)
-    
-    # Add statistics text box
     plt.text(0.02, 0.97, stats_text, transform=plt.gca().transAxes, fontsize=10,
              verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-    
-    # Add a vertical line at x=100 to highlight the threshold
     plt.axvline(x=100, color='black', linestyle='--', alpha=0.9, linewidth=2, 
                 label='100% Threshold')
     
-    # Add count annotations for below/above 100% in the legend
     below_count = len(below_100)
     above_count = len(above_100)
     below_percent = (below_count / count) * 100 if count > 0 else 0
@@ -399,25 +375,20 @@ def plot_perf(perf_difference, output_dir, suffix=""):
     plt.close()
 
 def plot_split_k_distribution(non_standard_counts, optimized_count, args, suffix):
-    # Sort the values numerically
     sorted_items = sorted(non_standard_counts.items(), key=lambda x: int(x[0]))
     opt_values = [x[0] for x in sorted_items]
     opt_counts = [x[1] for x in sorted_items]
     
-    # Create figure for optimized values
-    plt.figure(figsize=(10, max(6, len(opt_values) * 0.4)))  # Adjust height based on number of items
-    
-    # Create horizontal bar chart
+    plt.figure(figsize=(10, max(6, len(opt_values) * 0.4)))  
     bars = plt.barh(
-        range(len(opt_values)),  # Y positions
-        opt_counts,              # Widths (counts)
+        range(len(opt_values)),  
+        opt_counts,             
         color='green',
         edgecolor='black',
         alpha=0.8,
         height=0.6
     )
     
-    # Add value labels
     for bar in bars:
         width = bar.get_width()
         plt.text(
@@ -428,20 +399,17 @@ def plot_split_k_distribution(non_standard_counts, optimized_count, args, suffix
             fontweight='bold'
         )
     
-    # Set y-tick positions and labels
     plt.yticks(
-        range(len(opt_values)),  # Positions
-        opt_values,              # Labels
+        range(len(opt_values)),  
+        opt_values,             
         fontsize=10
     )
     
-    # Add labels and title
     plt.title('Distribution of Optimized Split-K Values', fontsize=14, fontweight='bold')
     plt.xlabel('Frequency (Count)', fontsize=12)
     plt.ylabel('Split-K Value', fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.7, axis='x')  # Grid lines only on x-axis
+    plt.grid(True, linestyle='--', alpha=0.7, axis='x')
     
-    # Add summary statistics as a text box
     stats_text = (f"Total Optimized Values: {optimized_count}\n"
                   f"Unique Values: {len(opt_values)}\n"
                   f"Min: {min(map(int, opt_values))}\n"
@@ -452,122 +420,263 @@ def plot_split_k_distribution(non_standard_counts, optimized_count, args, suffix
              verticalalignment='top',
              bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
-    # Adjust layout
     plt.tight_layout()
-    
-    # Save the plot
     opt_plot_path = os.path.join(args.output_dir, f'optimized_split_k_distribution{suffix}.png')
     plt.savefig(opt_plot_path)
     print(f"Saved optimized split-K distribution chart to: {opt_plot_path}")
 
-def main():
-  args = parse_cli_args()
-
-  csv.register_dialect('PipeDialect', delimiter=';')
-  with open(args.csv_file) as csvfile:
-    data = [row for row in csv.reader(csvfile, 'PipeDialect')]
-
-  df = pd.DataFrame(data = data)
-
-  print(f"Loaded {len(df)} rows.")
-  print(df.head())
-
-  non_opt_split_k_ops = df[0]
-  non_opt_split_k_times = df[1]
-  non_opt_split_k_value = df[2]
-  opt_split_k_ops = df[3]
-  opt_split_k_times = df[4]
-  opt_split_k_values = df[5]
-
-  suffix = f"_{args.label}" if args.label else ""
-  
-  # Find indices where split-k is not in the standard set
-  standard_split_k = ['1', '2', '4', '8', '16', '32', '64', '128']
-  non_standard_indices = [i for i in range(len(opt_split_k_values)) 
-                          if opt_split_k_values.iloc[i] not in standard_split_k]
-  
-  print(f"Found {len(non_standard_indices)} cases with non-standard split-k values")
-  
-  if non_standard_indices:
-    non_standard_split_k_values = []
+def plot_subscription_factor(gemm_k_values, subs_factor_values, output_dir, suffix="", key=""):
+    """Plot the subscription factor distribution in relation to gemm_k."""
+    import numpy as np
+    from scipy import stats
     
+    suffix = f"{suffix}-{key}"
+
+    plt.figure(figsize=(10, 6))
+    plt.scatter(gemm_k_values, subs_factor_values, 
+                alpha=0.7, color='blue', edgecolor='black')
+    
+    size = 10 if key else 14
+    title = key if key else "Subscription factor vs GEMM K Dimension for best instance"
+    plt.title(title, fontsize=size, fontweight='bold')
+    plt.xlabel('GEMM K Dimension', fontsize=12)
+    plt.ylabel('Subscription Factor', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    mode_result = stats.mode(subs_factor_values)
+    mode_value = mode_result.mode
+    if mode_value > 1:
+        print(f"NOTE: Operator {key} has a mode subscription factor of {mode_value}, which is greater than 1.")
+    mode_count = np.sum(np.array(subs_factor_values) == mode_value) 
+    stats_text = (f"Statistics for Subscription Factor:\n"
+                  f"Count: {len(subs_factor_values)}\n"
+                  f"Mean: {np.mean(subs_factor_values):.2f}\n"
+                  f"Median: {np.median(subs_factor_values):.2f}\n"
+                  f"Min: {np.min(subs_factor_values):.2f}\n"
+                  f"Max: {np.max(subs_factor_values):.2f}\n"
+                  f"Most Common: {mode_value} (occurs {mode_count} times)")
+    
+    plt.text(0.6, 0.95, stats_text,
+             transform=plt.gca().transAxes,
+             verticalalignment='top',
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+    
+    plt.tight_layout()
+    file_name = os.path.join(output_dir, f'subscription_factor{suffix}.png')
+    plt.savefig(file_name)
+    
+    plt.close()
+
+def plot_subscription_factor_per_instance(kgemm_to_subscription_per_instance, output_dir, suffix):
+    """Plot the subscription factor distribution for all instances in the same figure with different colors."""
+    plt.figure(figsize=(12, 8))
+    
+    colors = plt.cm.tab10.colors
+    color_index = 0
+    legend_handles = []
+
+    for op, data_points in kgemm_to_subscription_per_instance.items():
+        if not data_points:
+            continue
+            
+        # Skip if the op name doesn't start with "Device"
+        if not op.startswith("Device"):
+            continue
+
+        kgemm_values = []
+        subs_values = []
+        for p in data_points:
+            if p[0] == "N/A" or pd.isna(p[0]) or p[1] == "N/A" or pd.isna(p[1]):
+                continue
+
+            kgemm_values.append(int(p[0]))
+            subs_values.append(int(p[1]))
+        
+        current_color = colors[color_index % len(colors)]
+        color_index += 1
+        
+        scatter = plt.scatter(kgemm_values, subs_values, 
+                             alpha=0.7, 
+                             color=current_color, 
+                             edgecolor='black',
+                             label=op)
+        
+        legend_handles.append(scatter)
+    
+    plt.title('Subscription Factor vs GEMM K for All Instances', fontsize=14)
+    plt.xlabel('GEMM K Dimension', fontsize=12)
+    plt.ylabel('Subscription Factor', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    plt.legend(handles=legend_handles, 
+           loc='upper center',
+           bbox_to_anchor=(0.5, -0.1),  
+           fontsize=9,
+           title='Operation Names') 
+    
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
+    file_name = os.path.join(output_dir, f'subscription_factor_all_instances{suffix}.png')
+    plt.savefig(file_name, dpi=150)
+    plt.close()
+
+def main():
+    args = parse_cli_args()
+
+    csv.register_dialect('PipeDialect', delimiter=';')
+    with open(args.csv_file) as csvfile:
+        data = [row for row in csv.reader(csvfile, 'PipeDialect')]
+
+    df = pd.DataFrame(data = data)
+
+    print(f"Loaded {len(df)} rows.")
+    print(df.head())
+
+    if args.old_format:
+        fixed_split_k_ops = df[0]
+        fixed_split_k_times = df[1]
+        fixed_split_k_values = df[2]
+        best_occupancy_split_k_ops = df[3]
+        best_occupancy_split_k_times = df[4]
+        best_occupancy_split_k_values = df[5]
+    else:
+        fixed_split_k_ops = df[0]
+        fixed_split_k_times = df[1]
+        fixed_split_k_values = df[2]
+        best_occupancy_split_k_ops = df[4]
+        best_occupancy_split_k_times = df[5]
+        best_occupancy_split_k_values = df[6]
+        best_occupancy_subs_factor = df[7]
+        gemm_k = df[9]
+
+    df_offset = 11
+    step = 10
+    max_df_columns = len(df.columns)
+    kgemm_to_subscription_per_instance = {}
+    try:
+        for i in range(df_offset, max_df_columns, step):
+            columns_of_interest = [i, i+6, i+8]  # op, subs_factor, k_gemm columns
+            subset_df = df[columns_of_interest].copy()
+            subset_df.columns = ['op', 'subs_factor', 'k_gemm'] 
+            subset_df = subset_df.dropna()  
+
+            # Clean data
+            op = subset_df['op']
+            subs_factor = subset_df['subs_factor']
+            k_gemm = subset_df['k_gemm']
+
+            assert len(op) == len(subs_factor) == len(k_gemm), \
+                f"Length mismatch in columns {i} ({len(op)}), {i + 6} ({len(subs_factor)}), {i + 8} ({len(k_gemm)})"
+
+            for j in range(len(op)):
+                if op.iloc[j] not in kgemm_to_subscription_per_instance:
+                    kgemm_to_subscription_per_instance[op.iloc[j]] = []
+                kgemm_value = k_gemm.iloc[j]
+                subs_factor_value = subs_factor.iloc[j]
+                kgemm_to_subscription_per_instance[op.iloc[j]].append((kgemm_value, subs_factor_value))
+    except:
+        print("Cannot parse subscription factor data, skipping this part.")
+
+
+    suffix = f"_{args.label}" if args.label else ""
+
+    # Find indices where split-k is not in the standard set
+    standard_split_k = ['1', '2', '4', '8', '16', '32', '64', '128']
+    non_standard_indices = [i for i in range(len(best_occupancy_split_k_values)) 
+                            if best_occupancy_split_k_values.iloc[i] not in standard_split_k]
+
+    non_standard_split_k_values = []
+
     for i in non_standard_indices:
         try:
-            non_standard_split_k_values.append(opt_split_k_values.iloc[i])
+            non_standard_split_k_values.append(best_occupancy_split_k_values.iloc[i])
         except (ValueError, TypeError) as e:
             print(f"Warning: Could not process non-standard row {i}: {e}")
 
-    standard_counts = defaultdict(int)
-    optimized_count = 0
-    standard_equal_optimized_counts = defaultdict(int)
+    fixed_split_k_counts = defaultdict(int)
+    best_occupancy_split_k_count = 0
+    fixed_equal_best_occupancy_counts = defaultdict(int)
     perf_change = []
 
     # Initialize counts for standard split-k values
     for sk in standard_split_k:
-        standard_counts[sk] = 0
-        standard_equal_optimized_counts[sk] = 0
+        fixed_split_k_counts[sk] = 0
+        fixed_equal_best_occupancy_counts[sk] = 0
 
-    assert len(non_opt_split_k_value) == len(opt_split_k_values), \
-        "Length of non-opt split-k values and optimized split-k values must match."
+    assert len(fixed_split_k_values) == len(best_occupancy_split_k_values), \
+        "Length of fixed split-k values and best occupancy split-k values must match."
 
-    for i in range(len(non_opt_split_k_value)):
-        non_opt_time = float(non_opt_split_k_times.iloc[i])
-        opt_time = float(opt_split_k_times.iloc[i])
-        non_opt_value = non_opt_split_k_value.iloc[i]
-        opt_value = opt_split_k_values.iloc[i]
-        non_opt_op = non_opt_split_k_ops.iloc[i]
-        opt_op = opt_split_k_ops.iloc[i]
+    for i in range(len(fixed_split_k_values)):
+        fixed_split_k_time = float(fixed_split_k_times.iloc[i])
+        best_occ_split_k_time = float(best_occupancy_split_k_times.iloc[i])
+        fixed_split_k_value = fixed_split_k_values.iloc[i]
+        best_occ_split_k_value = best_occupancy_split_k_values.iloc[i]
+        fixed_split_k_op = fixed_split_k_ops.iloc[i]
+        best_occ_split_k_op = best_occupancy_split_k_ops.iloc[i]
 
-        if opt_op:
+        if best_occ_split_k_op:
             tol = 1e-7  # Tolerance for floating point comparison
-            perf = 100.0 * (non_opt_time / opt_time) if opt_time > tol else 0.0
+            perf = 100.0 * (fixed_split_k_time / best_occ_split_k_time) if best_occ_split_k_time > tol else 0.0
 
-            if opt_value == non_opt_value and opt_op == non_opt_op:
-                standard_equal_optimized_counts[non_opt_value] += 1
-    
-            elif opt_time < non_opt_time and opt_time > tol:
-                optimized_count += 1
+            if best_occ_split_k_value == fixed_split_k_value and best_occ_split_k_op == fixed_split_k_op:
+                fixed_equal_best_occupancy_counts[fixed_split_k_value] += 1
+
+            elif best_occ_split_k_time < fixed_split_k_time and best_occ_split_k_time > tol:
+                best_occupancy_split_k_count += 1
                 perf_change.append(perf)
-            elif opt_time > non_opt_time and non_opt_time > tol:
-                standard_counts[non_opt_value] += 1
+            elif best_occ_split_k_time > fixed_split_k_time and fixed_split_k_time > tol:
+                fixed_split_k_counts[fixed_split_k_value] += 1
                 perf_change.append(perf)
 
-            if opt_time < tol and non_opt_time > tol:
-                print(f"WARNING: Optimized time is very small for row {i}. Split-K (opt): {opt_value}, Split-K (standard): {non_opt_value}")
-            elif opt_time > tol and non_opt_time < tol:
-                print(f"WARNING: Non-optimized time is very small for row {i}. Split-K (opt): {opt_value}, Split-K (stardard): {non_opt_value}")
-            elif opt_time < tol and non_opt_time < tol:
-                print(f"WARNING: Both optimized and non-optimized times are too small for row {i}, skipping this. Split-K (opt): {opt_value}, Split-K (stardard): {non_opt_value}")
+            if best_occ_split_k_time < tol and fixed_split_k_time > tol:
+                print(f"WARNING: Optimized time is very small for row {i}. Split-K (opt): {best_occ_split_k_value}, Split-K (standard): {fixed_split_k_value}")
+            elif best_occ_split_k_time > tol and fixed_split_k_time < tol:
+                print(f"WARNING: Non-optimized time is very small for row {i}. Split-K (opt): {best_occ_split_k_value}, Split-K (stardard): {fixed_split_k_value}")
+            elif best_occ_split_k_time < tol and fixed_split_k_time < tol:
+                print(f"WARNING: Both optimized and non-optimized times are too small for row {i}, skipping this. Split-K (opt): {best_occ_split_k_value}, Split-K (stardard): {fixed_split_k_value}")
 
-    plot_perf(perf_change, args.output_dir, suffix)
+    op_name = fixed_split_k_ops.iloc[0].split("<")[0]
+    plot_perf(perf_change, args.output_dir, suffix, op_name)
 
     plot_best_split_k_values(
-        standard_counts, optimized_count, 
-        standard_equal_optimized_counts, suffix, args)
-
-    # Display the detailed breakdown
-    print("\nFrequency of standard Split-K values:")
-    for k, count in standard_counts.items():
-        print(f"  Split-K = {k}: {count} instances")
-
-    print("\nFrequency of standard = optimized Split-K values:")
-    for k, count in standard_equal_optimized_counts.items():
-        print(f"  Split-K = {k}: {count} instances")
-
-    print(f"\nOptimized Split-K: {optimized_count} instances")
+        fixed_split_k_counts, best_occupancy_split_k_count, 
+        fixed_equal_best_occupancy_counts, suffix, args)
 
     # If optimized count is non-zero, show the distribution of optimized values
-    if optimized_count > 0:
-        non_standard_values = [opt_split_k_values.iloc[i] for i in non_standard_indices]
+    if best_occupancy_split_k_count > 0:
+        non_standard_values = [best_occupancy_split_k_values.iloc[i] for i in non_standard_indices]
         non_standard_counts = {}
         for val in non_standard_values:
             non_standard_counts[val] = non_standard_counts.get(val, 0) + 1
         
-        print("\nBreakdown of optimized Split-K values:")
-        for k, count in sorted(non_standard_counts.items(), key=lambda x: int(x[0])):
-            print(f"  Split-K = {k}: {count} instances")
-
-        plot_split_k_distribution(non_standard_counts, optimized_count, args, suffix)
+        plot_split_k_distribution(non_standard_counts, best_occupancy_split_k_count, args, suffix)
     
+    try:
+        valid_gemm_k_mask = (gemm_k != "N/A") & (~pd.isna(gemm_k))
+        gemm_k_values = gemm_k[valid_gemm_k_mask].astype(int)
+        subs_factor_values = best_occupancy_subs_factor[valid_gemm_k_mask].astype(int)
+        plot_subscription_factor(
+            gemm_k_values, subs_factor_values, args.output_dir, suffix)
+
+        plot_subscription_factor_per_instance(
+            kgemm_to_subscription_per_instance, args.output_dir, suffix)
+
+        for key in kgemm_to_subscription_per_instance:
+            if key.startswith("Device"):
+                gemm_k_values = []
+                subs_factor_values = []
+                for kgemm, subs_factor in kgemm_to_subscription_per_instance[key]:
+                    if kgemm != "N/A" and not pd.isna(kgemm):
+                        gemm_k_values.append(int(kgemm))
+                        subs_factor_values.append(int(subs_factor))
+                plot_subscription_factor(
+                    gemm_k_values, subs_factor_values, args.output_dir, suffix, key)
+
+        # Print the names of the different instances
+        print("Instances with subscription factor data:")
+        for instance in kgemm_to_subscription_per_instance.keys():
+            print(f" - {instance}: {len(kgemm_to_subscription_per_instance[instance])} data points")
+    except:
+        print("Cannot plot subscription factor data, skipping this part.")
+
 if __name__ == "__main__":
     main()
