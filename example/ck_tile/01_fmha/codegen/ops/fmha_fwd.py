@@ -6,6 +6,7 @@ import copy
 from dataclasses import dataclass, field
 import fnmatch
 import itertools
+import os
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -147,14 +148,14 @@ unsigned get_num_thread_blocks(unsigned batch, unsigned nheads, unsigned max_seq
 float fmha_fwd(fmha_fwd_traits t, fmha_fwd_args a, const ck_tile::stream_config& s){{
     float r = -1;
 
-    const float min_cu_util_rate = 0.8; // minimum CU utilization rate
+    [[maybe_unused]] const float min_cu_util_rate = 0.8; // minimum CU utilization rate
 
     unsigned num_cus;
     if (!get_num_cus(num_cus)) {{
         return r;
     }}
 
-    auto get_num_blocks = [&](unsigned kM0) {{
+    [[maybe_unused]] auto get_num_blocks = [&](unsigned kM0) {{
         return get_num_thread_blocks(a.batch, a.nhead_q, a.max_seqlen_q, kM0);
     }};
 
@@ -578,7 +579,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
-    factory = CustomFactory
+    factory = CustomFactory if os.environ.get('CK_TILE_FMHA_FWD_CUSTOM_FACTORY', 0) else KernelComponentFactory
 
     for dtype in FWD_DTYPE_MAP.keys():
         d = factory.get_hdim_tile_size_dict(dtype)
