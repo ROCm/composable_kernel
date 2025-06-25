@@ -230,7 +230,7 @@ struct HostTensorDescriptor
      * @param iss Vector containing the multi-dimensional indices
      * @return The calculated linear offset as a size_t
      */
-    std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
+    std::size_t GetOffsetFromMultiIndex(const std::vector<std::size_t>& iss) const
     {
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
@@ -540,9 +540,12 @@ struct HostTensor
         return mData[GetOffsetFromMultiIndex(is...)];
     }
 
-    T& operator()(std::vector<std::size_t> idx) { return mData[GetOffsetFromMultiIndex(idx)]; }
+    T& operator()(const std::vector<std::size_t>& idx)
+    {
+        return mData[GetOffsetFromMultiIndex(idx)];
+    }
 
-    const T& operator()(std::vector<std::size_t> idx) const
+    const T& operator()(const std::vector<std::size_t>& idx) const
     {
         return mData[GetOffsetFromMultiIndex(idx)];
     }
@@ -719,6 +722,8 @@ struct HostTensor
                     file << type_convert<float>(itm) << std::endl;
                 else if(dtype == "int")
                     file << type_convert<int>(itm) << std::endl;
+                else if(dtype == "int8_t")
+                    file << static_cast<int>(type_convert<ck_tile::int8_t>(itm)) << std::endl;
                 else
                     // TODO: we didn't implement operator<< for all custom
                     // data types, here fall back to float in case compile error

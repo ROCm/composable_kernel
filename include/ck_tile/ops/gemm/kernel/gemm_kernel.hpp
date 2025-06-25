@@ -59,14 +59,23 @@ struct GemmHostArgs
     const void* a_ptr;
     const void* b_ptr;
     const std::array<const void*, NumDTensor> ds_ptr;
-    void* e_ptr;
+    union
+    {
+        void* e_ptr;
+        void* c_ptr;
+    };
     index_t M;
     index_t N;
     index_t K;
     index_t stride_A;
     index_t stride_B;
     const std::array<index_t, NumDTensor> stride_Ds;
-    index_t stride_E;
+    union
+    {
+        index_t stride_E;
+        index_t stride_C;
+    };
+
     index_t k_batch;
 };
 
