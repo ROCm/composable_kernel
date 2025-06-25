@@ -67,14 +67,6 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Wmma_
 
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                        BDataType,
-                                                                        CShuffleDataType,
-                                                                        AccDataType,
-                                                                        AElementOp,
-                                                                        BElementOp,
-                                                                        PassThrough>;
-
 #include "run_gem_add_example.inc"
 
-int main(int argc, char* argv[]) { return !run_gem_add_example(argc, argv); }
+int main(int argc, char* argv[]) { return !run_gemm_add_example(argc, argv); }

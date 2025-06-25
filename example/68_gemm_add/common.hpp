@@ -12,7 +12,19 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+
+#ifndef CK_USE_XDL
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp"
+#endif
+
+#ifndef CK_USE_MULTIPLE_D_WMMA
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle.hpp"
+#endif
+
+#ifndef CK_USE_WMMA_V3
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle_v3.hpp"
+#endif
+
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/data_type.hpp"
 
@@ -46,60 +58,59 @@ struct ProblemSize final
     ck::index_t StrideB = 4096;
     ck::index_t StrideD = 4096;
     ck::index_t StrideE = 4096;
+};
+struct ExecutionConfig final
+{
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = false;
+};
 
-    struct ExecutionConfig final
+inline bool
+parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
+{
+    if(argc == 1)
     {
-        bool do_verification = true;
-        int init_method      = 1;
-        bool time_kernel     = false;
-    };
-
-    inline bool
-    parse_cmd_args(int argc, char* argv[], ProblemSize& problem_size, ExecutionConfig& config)
-    {
-        if(argc == 1)
-        {
-            // use default case
-        }
-        else if(argc == 4)
-        {
-            do_verification = std::stoi(argv[1]);
-            init_method     = std::stoi(argv[2]);
-            time_kernel     = std::stoi(argv[3]);
-        }
-        else if(argc == 6)
-        {
-            do_verification = std::stoi(argv[1]);
-            init_method     = std::stoi(argv[2]);
-            time_kernel     = std::stoi(argv[3]);
-        }
-        else if(argc == 13)
-        {
-            do_verification = std::stoi(argv[1]);
-            init_method     = std::stoi(argv[2]);
-            time_kernel     = std::stoi(argv[3]);
-
-            M = std::stoi(argv[4]);
-            N = std::stoi(argv[5]);
-            K = std::stoi(argv[6]);
-
-            StrideA = std::stoi(argv[7]);
-            StrideB = std::stoi(argv[8]);
-            StrideD = std::stoi(argv[9]);
-            StrideE = std::stoi(argv[10]);
-        }
-        else
-        {
-            std::cerr
-                << "arg1: verification (0=no, 1=yes)" << std::endl
-                << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)" << std::endl
-                << "arg3: time kernel (0=no, 1=yes)" << std::endl
-                << "arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD0, StrideD1, "
-                   "StrideE"
-                << std::endl;
-            return false;
-        }
-
-        return true;
+        // use default case
     }
+    else if(argc == 4)
+    {
+        config.do_verification = std::stoi(argv[1]);
+        config.init_method     = std::stoi(argv[2]);
+        config.time_kernel     = std::stoi(argv[3]);
+    }
+    else if(argc == 6)
+    {
+        config.do_verification = std::stoi(argv[1]);
+        config.init_method     = std::stoi(argv[2]);
+        config.time_kernel     = std::stoi(argv[3]);
+    }
+    else if(argc == 13)
+    {
+        config.do_verification = std::stoi(argv[1]);
+        config.init_method     = std::stoi(argv[2]);
+        config.time_kernel     = std::stoi(argv[3]);
+
+        problem_size.M = std::stoi(argv[4]);
+        problem_size.N = std::stoi(argv[5]);
+        problem_size.K = std::stoi(argv[6]);
+
+        problem_size.StrideA = std::stoi(argv[7]);
+        problem_size.StrideB = std::stoi(argv[8]);
+        problem_size.StrideD = std::stoi(argv[9]);
+        problem_size.StrideE = std::stoi(argv[10]);
+    }
+    else
+    {
+        std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
+                  << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
+                  << std::endl
+                  << "arg3: time kernel (0=no, 1=yes)" << std::endl
+                  << "arg4 to 10: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD,"
+                     "StrideE"
+                  << std::endl;
+        return false;
+    }
+
+    return true;
 }

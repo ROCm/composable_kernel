@@ -83,4 +83,9 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Wmma_
     S<8, 8, 8>,
     ck::BlockGemmPipelineScheduler::Intrawave,
     ck::BlockGemmPipelineVersion::v1>;
-}
+
+// clang-format on
+
+#include "run_gemm_add_example_v3.inc"
+
+int main(int argc, char* argv[]) { return !run_gemm_add_example(argc, argv); }

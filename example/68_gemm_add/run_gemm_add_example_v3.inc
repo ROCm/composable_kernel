@@ -73,6 +73,7 @@ bool run_gemm_add(const ProblemSize& problem_size, const ExecutionConfig& config
                                StrideB,
                                std::array<ck::index_t, 1>{StrideD},
                                StrideE,
+                               1,
                                a_element_op,
                                b_element_op,
                                cde_element_op);
