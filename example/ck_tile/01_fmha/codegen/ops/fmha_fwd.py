@@ -114,8 +114,50 @@ float fmha_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 
 FMHA_FWD_API_FILENAME="fmha_fwd_api.cpp"
 FMHA_FWD_API="""
+#include <cstdio>
+
+namespace {{
+bool get_num_cus(unsigned& num_cu) {{
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess) {{
+        fprintf(stderr, "failed to get device");
+        return false;
+    }}
+
+    hipDeviceProp_t props{{}};
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess) {{
+        fprintf(stderr, "failed to get device properties");
+        return false;
+    }}
+
+    num_cu = props.multiProcessorCount;
+    return true;
+}}
+
+unsigned get_num_thread_blocks(unsigned batch, unsigned nheads, unsigned max_seqlen_q, unsigned kM0) {{
+    const unsigned num_m_blocks = (max_seqlen_q + kM0 - 1) / kM0;
+    const unsigned num_n_blocks = 1; // we assume that num_n_blocks is always 1
+
+    return batch * nheads * num_m_blocks * num_n_blocks;
+}}
+}} // namespace
+
 float fmha_fwd(fmha_fwd_traits t, fmha_fwd_args a, const ck_tile::stream_config& s){{
     float r = -1;
+
+    const float min_cu_util_rate = 0.8; // minimum CU utilization rate
+
+    unsigned num_cus;
+    if (!get_num_cus(num_cus)) {{
+        return r;
+    }}
+
+    auto get_num_blocks = [&](unsigned kM0) {{
+        return get_num_thread_blocks(a.batch, a.nhead_q, a.max_seqlen_q, kM0);
+    }};
+
 {F_dispatch}
     return r;
 }}
@@ -523,17 +565,28 @@ class KernelComponentFactory:
             assert False
         return pipelines
 
+class CustomFactory(KernelComponentFactory):
+    @staticmethod
+    def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
+        result = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
+        if dtype == 'fp16' or dtype == 'bf16':
+            if (128, 128) in result.keys():
+                result[(128, 128)].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')))
+        return result
+
 def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
+    factory = CustomFactory
+
     for dtype in FWD_DTYPE_MAP.keys():
-        d = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
+        d = factory.get_hdim_tile_size_dict(dtype)
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for ((hdim, hdim_v), tiles), mode in itertools.product(d.items(), MODE_MAP.keys()):
-            for tile, pipeline in itertools.product(tiles, KernelComponentFactory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)):
+            for tile, pipeline in itertools.product(tiles, factory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)):
                 if mode == "group":
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
