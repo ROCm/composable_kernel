@@ -395,13 +395,11 @@ struct DeviceGemm_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmV2BPreshuffle<AL
     {
         if(!ck::is_xdl_supported())
         {
-            printf("*******************ck::is_xdl_supported()************************\n");
             return false;
         }
 
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> && arg.KBatch > 1)
         {
-            printf("*******************!is_bf16_atomic_supported()************************\n");
             return false;
         }
 
@@ -412,10 +410,8 @@ struct DeviceGemm_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmV2BPreshuffle<AL
                  GemmSpec == GemmSpecialization::MNKPadding ||
                  GemmSpec == GemmSpecialization::KPadding))
             {
-                printf("K dimension  not aligned with blocks (AK1=, BK1=) and no padding enabled");
                 return false;
             }
-            printf("*******************arg.K AK1 != 0 || arg.K BK1 != 0************************\n");
             return false;
         }
 
