@@ -871,6 +871,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         const CDEElementwiseOperation& cde_element_op,
         const ck::index_t split_k) override
     {
+        (void)split_k;
+
         return std::make_unique<Argument>(p_a,
                                           p_b,
                                           p_ds,
@@ -918,6 +920,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                         const CDEElementwiseOperation& cde_element_op,
                         const ck::index_t split_k) override
     {
+        (void)split_k;
+
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
         std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
