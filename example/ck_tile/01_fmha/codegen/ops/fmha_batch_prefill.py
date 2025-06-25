@@ -490,7 +490,7 @@ class KernelComponentFactory:
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                '128' : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }
         else:
             return None
@@ -518,8 +518,8 @@ class CustomFactory(KernelComponentFactory):
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                '128' : [FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')),
-                         FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),]
+                128 : [FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')),
+                       FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),]
             }
         else:
             return None
@@ -536,9 +536,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
-        for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
-            tiles = d[hdim_str]
-            hdim = int(hdim_str)
+        for (hdim, tiles), mode in itertools.product(d.keys(), MODE_MAP.keys()):
             for tile, pipeline in itertools.product(tiles, CustomFactory.get_pipelines(dtype, hdim, receipt, mask_impl)):
                 if mode == "group":
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
