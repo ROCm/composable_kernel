@@ -33,19 +33,19 @@
     },
     "tile_config": {
         "tile_m": {
-            "max": 512,
+            "max": 256,
             "min": 64,
             "step": 64,
             "exclude": []
         },
         "tile_n": {
-            "max": 512,
+            "max": 256,
             "min": 64,
             "step": 32,
             "exclude": []
         },
         "tile_k": {
-            "max": 512,
+            "max": 256,
             "min": 64,
             "step": 64,
             "exclude": [192]
