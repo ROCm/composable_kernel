@@ -150,14 +150,14 @@ unsigned get_num_thread_blocks(unsigned batch, unsigned nheads, unsigned max_seq
 float fmha_batch_prefill(fmha_batch_prefill_traits t, fmha_batch_prefill_args a, const ck_tile::stream_config& s) {{
     float r = -1;
 
-    const float min_cu_util_rate = 0.8; // minimum CU utilization rate
+    [[maybe_unused]] const float min_cu_util_rate = 0.8; // minimum CU utilization rate
 
     unsigned num_cus;
     if (!get_num_cus(num_cus)) {{
         return r;
     }}
 
-    auto get_num_blocks = [&](unsigned kM0) {{
+    [[maybe_unused]] auto get_num_blocks = [&](unsigned kM0) {{
         return get_num_thread_blocks(a.batch, a.nhead_q, a.max_seqlen_q, kM0);
     }};
 
