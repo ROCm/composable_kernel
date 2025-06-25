@@ -299,6 +299,13 @@ int run_gemm_example(int argc, char* argv[])
                                           ck_tile::bf8_t,
                                           ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
+    else if(data_type == "int8")
+    {
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::int8_t>,
+                                          ck_tile::int8_t,
+                                          ck_tile::int8_t,
+                                          ck_tile::int32_t>(a_layout, b_layout, argc, argv);
+    }
     else if(data_type == "pk_int4_t")
     {
         // TODO: Add support for bhalf_t ADataType
