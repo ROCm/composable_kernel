@@ -193,7 +193,7 @@ struct GemmKernel {{
     static constexpr bool kPadN = {pad_n};
     static constexpr bool kPadK = {pad_k};
 
-    static float launch(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
+    static float launch(ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream) {{
         static constexpr bool permuteA = false;
         static constexpr bool permuteB = false;
         static constexpr bool DoubleSmemBuffer ={"true" if pipeline == "compv4" else "false"};
@@ -306,7 +306,7 @@ struct GemmKernel {{
                     // clear c mem
                     if(args.k_batch > 1)
                         hipGetErrorString(hipMemsetAsync(
-                            args.c_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
+                            args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
                 }};
                 ave_time = ck_tile::launch_kernel_preprocess(
                     stream,
@@ -570,12 +570,13 @@ struct GemmDispatcher {
         // Use a static local variable
         static std::unordered_map<
             std::string,
-            std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>>
+            std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs<>&, const ck_tile::stream_config&)>>>
             kernel_map;
         return kernel_map;
     }
 
     static void init(bool structured_sparsity) {
+        ck_tile::ignore = structured_sparsity;
         auto& kernel_map = get_kernel_map();
         if(!kernel_map.empty()) return;
         \n"""
@@ -586,7 +587,7 @@ struct GemmDispatcher {
                 for j in range(len(tile)):
                     tile_m, tile_n, tile_k, warp_m, warp_n, warp_k, warp_tile_m, warp_tile_n, warp_tile_k = tile[
                         j]
-                    content += f"""[=](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{ """
+                    content += f"""[=](ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream) {{ """
                     content += f""" 
                                     if(structured_sparsity){{  // SMFMA"""
                     sparse = self.config.problem.datatype_map['matrix_a'] == 'fp16' and \
@@ -615,7 +616,7 @@ struct GemmDispatcher {
         content += """    }
 
     template <typename Kernel>
-    static std::tuple<std::string, float> run_kernel(ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream)
+    static std::tuple<std::string, float> run_kernel(ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& stream)
     {
         std::string name = Kernel::get_name();
         float avg_time = Kernel::launch(args, stream);
