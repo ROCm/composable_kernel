@@ -1140,7 +1140,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         init_args(fmha_args);
 
         return fmha_fwd(fmha_traits, fmha_args, stream_config);
-
     }();
 
     if(appendkv_ave_time < 0.0f || fwd_ave_time < 0.0f)
