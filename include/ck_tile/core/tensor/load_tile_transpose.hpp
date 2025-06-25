@@ -49,10 +49,10 @@ struct DefaultTranspose
     {
         using InputEncoding = tile_distribution_encoding<sequence<>,
                                                          tuple<sequence<4>, sequence<4, 4>>,
-                                                         tuple<sequence<1, 2>>,
-                                                         tuple<sequence<0, 0>>,
-                                                         sequence<2>,
-                                                         sequence<1>>;
+                                                         tuple<sequence<2, 2>>,
+                                                         tuple<sequence<1, 0>>,
+                                                         sequence<1>,
+                                                         sequence<0>>;
 
         using OutputEncoding = tile_distribution_encoding<sequence<>,
                                                           tuple<sequence<16>, sequence<4>>,
@@ -66,10 +66,10 @@ struct DefaultTranspose
     {
         using InputEncoding = tile_distribution_encoding<sequence<>,
                                                          tuple<sequence<8>, sequence<2, 8>>,
-                                                         tuple<sequence<1, 2>>,
-                                                         tuple<sequence<0, 0>>,
-                                                         sequence<2>,
-                                                         sequence<1>>;
+                                                         tuple<sequence<2, 2>>,
+                                                         tuple<sequence<1, 0>>,
+                                                         sequence<1>,
+                                                         sequence<0>>;
 
         using OutputEncoding = tile_distribution_encoding<sequence<>,
                                                           tuple<sequence<16>, sequence<8>>,
