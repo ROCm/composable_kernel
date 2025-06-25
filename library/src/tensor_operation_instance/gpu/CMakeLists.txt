@@ -295,11 +295,8 @@ FOREACH(subdir_path ${dir_list})
 
         if(MIOPEN_REQ_LIBS_ONLY)
             message(STATUS "Removing all sources that are not required for MIOpen")
-            if("${cmake_instance}" MATCHES "gemm" OR 
-               "${cmake_instance}" MATCHES "mha" OR 
-               "${cmake_instance}" MATCHES "contraction" OR 
-               "${cmake_instance}" MATCHES "reduce")
-                    set(add_inst 0)
+            if(NOT "${cmake_instance}" MATCHES "conv")
+                set(add_inst 0)
             endif()
         endif()
 
@@ -328,7 +325,7 @@ ENDFOREACH()
 
 
 
-if(CK_DEVICE_OTHER_INSTANCES)
+if(CK_DEVICE_OTHER_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         add_library(device_other_operations ${CK_DEVICE_OTHER_INSTANCES})
         add_library(composablekernels::device_other_operations ALIAS device_other_operations)
         set_target_properties(device_other_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
