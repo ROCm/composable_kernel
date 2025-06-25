@@ -49,7 +49,6 @@ function(build_gemm_for_datatype datatype)
         
         math(EXPR num_chunks "( ${total_files} + ${chunk_size} - 1 ) / ${chunk_size}")
         math(EXPR num_chunks_minus_1 "${num_chunks} - 1")
-        
         foreach(i RANGE 0 ${num_chunks_minus_1})
             math(EXPR start "${i} * ${chunk_size} + ${first}")
             math(EXPR end "${start} + ${chunk_size} - 1")
@@ -68,10 +67,11 @@ function(build_gemm_for_datatype datatype)
                 list(APPEND sub_intermediate_libs ${sub_intermediate_lib_name})
             endif()
         endforeach()
+        
         # ------------------ Bundle the object libs into one static lib ---------
-        if(sub_intermediate_libs) 
+        list(LENGTH sub_intermediate_libs sub_intermediate_libs_len)
+        if(sub_intermediate_libs AND sub_intermediate_libs_len GREATER 1)
             set(intermediate_lib_name "gemm_staticlib_${name}_${datatype}")
-            
             # Collect the $<TARGET_OBJECTS:...> expressions
             set(obj_exprs)
             foreach(objlib IN LISTS sub_intermediate_libs)
@@ -91,7 +91,7 @@ function(build_gemm_for_datatype datatype)
     target_link_libraries(gemm_template_instances_${datatype} INTERFACE ${intermediate_libs})
     target_include_directories(gemm_template_instances_${datatype} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}
-        "${working_path}" 
+        "${working_path}"
     )
     set_target_properties(gemm_template_instances_${datatype} PROPERTIES LINKER_LANGUAGE CXX)
     
@@ -100,7 +100,7 @@ function(build_gemm_for_datatype datatype)
     add_library(gemm_host_api_${datatype} INTERFACE)
     target_include_directories(gemm_host_api_${datatype} INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}
-        "${working_path}"  
+        "${working_path}"
     )
     target_link_libraries(gemm_host_api_${datatype} INTERFACE gemm_template_instances_${datatype})
 
