@@ -99,7 +99,7 @@ class GemmCodeGenerator:
                     ) in tile:
                         instance_name = f"gemm_{trait}_{tile_m}x{tile_n}x{tile_k}_{warp_m}x{warp_n}x{warp_k}.cpp"
                         
-                        if name not in file_name:
+                        if instance_name not in file_name:
                             file_name.add(instance_name)
                             f.write(str(w_p / instance_name) + "\n")
                             files_listed += 1
