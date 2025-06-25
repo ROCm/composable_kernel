@@ -516,13 +516,11 @@ class KernelComponentFactory:
 class CustomFactory(KernelComponentFactory):
     @staticmethod
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
+        result = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
         if dtype == 'fp16' or dtype == 'bf16':
-            return {
-                128 : [FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')),
-                       FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),]
-            }
-        else:
-            return None
+            if 128 in result.keys():
+                result[128].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')))
+        return result
 
 def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
