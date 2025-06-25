@@ -67,7 +67,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     // ck::Sequence<16, 128, 1>
     static constexpr auto block_slice_lengths = BlockSliceLengths{};
-    // ck::Sequence<1, 16, 1>
+    // ck::Sequence<16, 16, 1>
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
 
     // ck::Sequence<1, 1, 1>
@@ -76,10 +76,10 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     // After a load, each thread moves by `thread_steps` instead of loading the next elements.
     // It makes the whole wavefront load contiguous memory, what is required for direct loads.
-    // ck::Sequence<1, 16, 1>
+    // ck::Sequence<16, 16, 1>
     static constexpr auto thread_steps = thread_cluster_lengths * thread_single_load_size;
 
-    // ck::Sequence<16, 8, 1>
+    // ck::Sequence<1, 8, 1>
     static constexpr auto thread_slice_lengths = block_slice_lengths / thread_steps;
 
     static __device__ constexpr bool AreThreadClusterLengthsValid()
@@ -204,9 +204,10 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
         const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
 #if 0
-        if(threadIdx.x < 64)
+        if(blockIdx.x == 0 && threadIdx.x < 64)
         {
-            printf("threadIdx.x: %d, thread_cluster_idx[0] = %d, thread_cluster_idx[1] = %d, "
+            printf("DirectCopyToLds CNSTRTR threadIdx.x: %d, thread_cluster_idx[0] = %d, "
+                   "thread_cluster_idx[1] = %d, "
                    "thread_cluster_idx[2] = %d\n",
                    static_cast<int>(threadIdx.x),
                    thread_cluster_idx.At(Number<0>{}),
@@ -217,15 +218,46 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         const auto wave_data_idx_begin = wave_cluster_idx * wave_single_load_size;
 
         SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
+
         // We don't need threadwise offset for lds since it was calculate by HW
         // We still need input the wavewise offset.
         SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin);
+
+#if 0
+        if(blockIdx.x == 0 && threadIdx.x < 64)
+        {
+            printf("DirectCopyToLds CNSTRTR threadId %d -- src_offset: %ld, dst_offset: %ld\n",
+                   static_cast<int>(threadIdx.x),
+                   static_cast<long>(src_coord_.GetOffset()),
+                   static_cast<long>(dst_coord_.GetOffset()));
+        }
+#endif
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
+#if 1
+        if(blockIdx.x == 0 && threadIdx.x < 64)
+        {
+            printf("DirectCopyToLds SetSrcSliceOrigin threadIdx.x: %d, src_slice_origin_idx = {%d, "
+                   "%d, %d}\n",
+                   static_cast<int>(threadIdx.x),
+                   src_slice_origin_idx.At(Number<0>{}),
+                   src_slice_origin_idx.At(Number<1>{}),
+                   src_slice_origin_idx.At(Number<2>{}));
+        }
+#endif
         src_coord_        = make_tensor_coordinate(src_desc, src_slice_origin_idx);
         src_slice_origin_ = src_slice_origin_idx;
+
+#if 0
+        if(blockIdx.x == 0 && threadIdx.x < 64)
+        {
+            printf("DirectCopyToLds SetSrcSliceOrigin threadId %d -- src_offset: %ld\n",
+                   static_cast<int>(threadIdx.x),
+                   static_cast<long>(src_coord_.GetOffset()));
+        }
+#endif
     }
 
     __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
@@ -247,13 +279,21 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
     {
         // CK_PRINT<decltype(block_slice_lengths)>(); // ck::Sequence<16, 128, 1>
 
-        // CK_PRINT<decltype(thread_cluster_lengths)>(); // ck::Sequence<1, 16, 1>
+        //  CK_PRINT<decltype(thread_cluster_lengths)>(); // ck::Sequence<16, 16, 1>
 
-        // CK_PRINT<decltype(thread_single_load_size)>();//ck::Sequence<1, 1, 1>
+        //  CK_PRINT<decltype(thread_single_load_size)>(); // ck::Sequence<1, 1, 1>
 
-        // CK_PRINT<decltype(thread_steps)>(); // ck::Sequence<1, 16, 1>
+        //  CK_PRINT<decltype(thread_steps)>(); // ck::Sequence<16, 16, 1>
 
-        // CK_PRINT<decltype(thread_slice_lengths)>();//ck::Sequence<16, 8, 1>
+        //  CK_PRINT<decltype(thread_slice_lengths)>(); // ck::Sequence<1, 8, 1>
+
+        // DynamicBuffer<ck::AddressSpaceEnum::Global, const ck::f6_pk_t<_BitInt(6), 16>, long,
+        // true, ck::AmdBufferCoherenceEnum::DefaultCoherence>
+        // CK_PRINT<SrcBuffer>();
+
+        // DynamicBuffer<ck::AddressSpaceEnum::Lds, ck::f6_pk_t<_BitInt(6), 16>,
+        // ck::integral_constant<long, 2048>, true, ck::AmdBufferCoherenceEnum::DefaultCoherence>
+        // CK_PRINT<DstBuffer>();
 
         static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum::Global,
                       "Source data must come from a global memory buffer.");
@@ -269,28 +309,58 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
         constexpr auto dst_access_lengths = thread_slice_lengths;
 
-        // CK_PRINT<decltype(dst_access_lengths)>();//ck::Sequence<16, 8, 1>
+        // CK_PRINT<decltype(dst_access_lengths)>(); // ck::Sequence<1, 8, 0>
 
         const auto dst_forward_steps  = generate_steps(dst_desc, 1);
         const auto dst_backward_steps = generate_steps(dst_desc, -1);
         const auto src_forward_steps  = generate_steps(src_desc, 1);
         const auto src_backward_steps = generate_steps(src_desc, -1);
-        // ck::Tuple<ck::TensorCoordinateStep<1, 3, ck::Sequence<0>>, ck::TensorCoordinateStep<1, 3,
+        // Tuple<ck::TensorCoordinateStep<1, 3, ck::Sequence<0>>, ck::TensorCoordinateStep<1, 3,
         // ck::Sequence<0>>, ck::TensorCoordinateStep<1, 3, ck::Sequence<0>>>
-        // CK_PRINT<decltype(dst_forward_steps)>();
+        //    CK_PRINT<decltype(dst_forward_steps)>();
 
-        // ck::Tuple<ck::TensorCoordinateStep<9, 3, ck::Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>>,
-        // ck::TensorCoordinateStep<9, 3, ck::Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>>,
-        // ck::TensorCoordinateStep<9, 3, ck::Sequence<0, 0, 0, 0, 0, 0, 0, 0, 0>>>
-        // CK_PRINT<decltype(src_forward_steps)>();
+        // Tuple<ck::TensorCoordinateStep<6, 3, ck::Sequence<0, 0, 0, 0, 0, 0>>,
+        // ck::TensorCoordinateStep<6, 3, ck::Sequence<0, 0, 0, 0, 0, 0>>,
+        // ck::TensorCoordinateStep<6, 3, ck::Sequence<0, 0, 0, 0, 0, 0>>>
+        //  CK_PRINT<decltype(src_forward_steps)>();
 
 #if 0
         if(blockIdx.x == 0 && threadIdx.x < 64)
         {
-            printf("DirectCopyToLds -- threadId: %d, src_offset: %ld, dst_offset: %ld\n",
+            printf("DirectCopyToLds threadId %d -- src_buf.p_data_ = %p, src_offset: %ld, "
+                   "dst_buf.p_data_ = %p, dst_offset: %ld\n",
                    static_cast<int>(threadIdx.x),
+                   static_cast<const void*>(src_buf.p_data_),
                    static_cast<long>(src_coord_.GetOffset()),
+                   static_cast<const void*>(dst_buf.p_data_),
                    static_cast<long>(dst_coord_.GetOffset()));
+        }
+#endif
+
+#if 1
+        if(blockIdx.x == 0 && threadIdx.x < 64)
+        {
+            // print SrcBuffer::type
+
+            const auto src_offset = src_coord_.GetOffset();
+            if constexpr(packed_size_v<SrcData> == 16)
+            {
+                printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                       "src_buf.p_data_[src_offset] = 0x%08x %08x %08x\n",
+                       static_cast<int>(threadIdx.x),
+                       static_cast<long>(src_offset),
+                       src_buf.p_data_[src_offset].data_[0],
+                       src_buf.p_data_[src_offset].data_[1],
+                       src_buf.p_data_[src_offset].data_[2]);
+            }
+            else if constexpr(packed_size_v<SrcData> == 1 || packed_size_v<SrcData> == 2)
+            {
+                printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                       "src_buf.p_data_[src_offset] = 0x%02x\n",
+                       static_cast<int>(threadIdx.x),
+                       static_cast<long>(src_offset),
+                       src_buf.p_data_[src_offset].data);
+            }
         }
 #endif
 
@@ -302,38 +372,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             // Check if src data is not in the logic padding area.
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
-            // ck::DynamicBuffer<ck::AddressSpaceEnum::Global, const ck::f6_pk_t<_BitInt(6), 16>,
-            // long, true, ck::AmdBufferCoherenceEnum::DefaultCoherence>
-            // CK_PRINT<SrcBuffer>();
 
-            // ck::DynamicBuffer<ck::AddressSpaceEnum::Lds, ck::f6_pk_t<_BitInt(6), 16>,
-            // ck::integral_constant<long, 2048>, true,
-            // ck::AmdBufferCoherenceEnum::DefaultCoherence>
-            // CK_PRINT<DstBuffer>();
-
-            // CK_PRINT<ScalarPerVector>(); // 1
-
-            // ck::TensorDescriptor<ck::Tuple<ck::Embed<ck::Tuple<int, int>, ck::Tuple<int,
-            // ck::integral_constant<int, 1>>>, ck::UnMerge<ck::Tuple<int,
-            // ck::integral_constant<int, 16>, int>, false>, ck::PassThrough<int>,
-            // ck::PassThrough<int>, ck::Xor<ck::Tuple<int, ck::integral_constant<int, 16>>, true>,
-            // ck::PassThrough<int>, ck::Merge_v3_division_mod<ck::Tuple<int,
-            // ck::integral_constant<int, 16>>>, ck::PassThrough<int>, ck::PassThrough<int>>,
-            // ck::Tuple<ck::Sequence<0>, ck::Sequence<2>, ck::Sequence<1>, ck::Sequence<3>,
-            // ck::Sequence<6, 4>, ck::Sequence<5>, ck::Sequence<7, 9>, ck::Sequence<8>,
-            // ck::Sequence<10>>, ck::Tuple<ck::Sequence<1, 2>, ck::Sequence<3, 4, 5>,
-            // ck::Sequence<6>, ck::Sequence<7>, ck::Sequence<8, 9>, ck::Sequence<10>,
-            // ck::Sequence<11>, ck::Sequence<12>, ck::Sequence<13>>, ck::Sequence<11, 12, 13>,
-            // long>
-            // CK_PRINT<SrcDesc>();
-
-            // ck::TensorDescriptor<ck::Tuple<ck::Embed<ck::Tuple<ck::integral_constant<int, 16>,
-            // ck::integral_constant<int, 128>, ck::integral_constant<int, 1>>,
-            // ck::Tuple<ck::integral_constant<int, 1>, ck::integral_constant<int, 16>,
-            // ck::integral_constant<int, 1>>>>, ck::Tuple<ck::Sequence<0>>,
-            // ck::Tuple<ck::Sequence<1, 2, 3>>, ck::Sequence<1, 2, 3>, ck::integral_constant<long,
-            // 2048>
-            // CK_PRINT<DstDesc>();
 #if 0
             if(blockIdx.x == 0 && threadIdx.x < 64)
             {
