@@ -188,10 +188,10 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     MPerBlock,   128,    KPerBlock,
     16,   16,
     16,   16,
-    4,    4,
+    8,    2,
     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
-    2,    4,   S<1, 4, 1, 64>, S<2, 1, 1, 1>,
+    2,    2,   S<1, 4, 1, 64>, S<2, 1, 1, 1>,
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, 0, false, false, MulRoutedWeight, ck::index_t, A0DataType>;
 // clang-format on
 
