@@ -396,7 +396,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, is_src_valid);
 
-#if 1
+#if 0
             if(blockIdx.x == 0 && threadIdx.x < 64)
             {
                 const auto lds_offset =

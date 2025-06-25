@@ -331,7 +331,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         // }
 
         a_m_k(0, 0) = a_data_element(0.5f);
-        a_m_k(1, 0) = a_data_element(0.5f);
+        a_m_k(1, 0) = a_data_element(0.25f);
 
 #endif
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(a_m_k_scale);
@@ -343,8 +343,9 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         for(ck::index_t i = 0; i < K; i += ck::packed_size_v<BDataType>)
         {
             (*b_k_n)(i, 0) = b_data_element(2.0f);
-            (*b_k_n)(i, 1) = b_data_element(2.0f);
+            // (*b_k_n)(i, 1) = b_data_element(2.0f);
         }
+        //  (*b_k_n)(0, 1) = b_data_element(4.0f);
 #endif
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
 
