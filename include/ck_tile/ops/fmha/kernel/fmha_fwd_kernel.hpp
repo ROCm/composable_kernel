@@ -808,6 +808,7 @@ struct FmhaFwdKernel
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
+              ck_tile::index_t min_seqlen_q,
               float p_drop,
               bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
@@ -847,7 +848,7 @@ struct FmhaFwdKernel
             window_size_left,
             window_size_right,
             mask_type,
-            0, // min_seqlen_q
+            min_seqlen_q,
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
@@ -890,6 +891,7 @@ struct FmhaFwdKernel
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
+              ck_tile::index_t min_seqlen_q,
               float p_drop,
               bool s_randval,
               const std::tuple<const void*, const void*>& drop_seed_offset)
@@ -929,6 +931,7 @@ struct FmhaFwdKernel
             window_size_left,
             window_size_right,
             mask_type,
+            min_seqlen_q,
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
