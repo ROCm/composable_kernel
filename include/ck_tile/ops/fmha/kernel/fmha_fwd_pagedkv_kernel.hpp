@@ -694,7 +694,7 @@ struct FmhaFwdPagedKVKernel
                              min_seqlen_q);
     }
 
-    CK_TILE_HOST static void PrintParameter(Kargs& kargs, int num_batches)
+    CK_TILE_HOST static void PrintParameters(const Kargs& kargs, int num_batches)
     {
         static bool dummy = [&]() {
             std::cout << std::endl;
@@ -770,7 +770,7 @@ struct FmhaFwdPagedKVKernel
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
                                                 ck_tile::index_t hdim_v_,
-                                                bool has_padded_seqlen_k = false)
+                                                bool has_padded_seqlen_k)
     {
         // has_padded_seqlen_k is determined by checking (seqlen_k_ptr != nullptr)
         if(has_padded_seqlen_k)
