@@ -569,16 +569,16 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                             Tuple<EDataType*>,
                             Block2TileMapElementwise,
                             CDEElementwiseOperation,
-                            BlockSize,
+                            ElementwiseBlocksize,
                             NPerBlock,
                             NPerBlock,
                             NPerBlock / ClusterLengthNPerBlock,
                             NPerBlock / ClusterLengthNPerBlock,
-                            Sequence<0, 1>,
+                            Sequence<1, 0>,
                             Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
-                            Sequence<1>,
-                            I1,
-                            I0>;
+                            Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
+                            I0,
+                            I1>;
 
     static auto
     MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const EGridDesc_M_N& e_grid_desc_m_n)
@@ -678,11 +678,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
-            c_space_size_bytes =
-                ck::accumulate_n<long_index_t>(
-                    e_g_n_k_wos_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
-                sizeof(AccDataType);
-
             // A/B/E Batch/N Stride
             compute_ptr_offset_of_groups_.BatchStrideA_ = a_g_n_c_wis_strides_[0];
             compute_ptr_offset_of_groups_.BatchStrideB_ = b_g_k_c_xs_strides_[0];
@@ -890,8 +885,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         NHWGCTransposeDescType a_out_transpose_desc_, e_in_transpose_desc_;
         GKCYXTransposeDescType b_in_transpose_desc_;
         GKYXCTransposeDescType b_out_transpose_desc_;
-
-        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -1295,8 +1288,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 GridwiseGemmSplitK::CalculateHasMainKBlockLoop(K_split);
 
             const auto clear_workspace = [&]() {
-                hip_check_error(hipMemsetAsync(
-                    gemm_arg.p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
+                hip_check_error(hipMemsetAsync(gemm_arg.p_c_grid,
+                                               0,
+                                               arg.GetWorkspaceETensorSizeBytes(),
+                                               stream_config.stream_id_));
             };
 
             const auto Run = [&](const auto& kernel) {
