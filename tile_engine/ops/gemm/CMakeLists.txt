@@ -1,5 +1,4 @@
 
-#set(GEMM_DATATYPE fp8 fp16)
 set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
 
 function(build_gemm_for_datatype datatype)
@@ -61,18 +60,21 @@ function(build_gemm_for_datatype datatype)
                 endif()
             endforeach()
 
-            if(chunk_files)
+            list(LENGTH chunk_files chunk_files_len)
+            if(chunk_files_len AND chunk_files_len GREATER 1)
                 set(sub_intermediate_lib_name "gemm_objlib_${name}_${i}_${datatype}")
                 add_library(${sub_intermediate_lib_name} OBJECT ${chunk_files})
                 list(APPEND sub_intermediate_libs ${sub_intermediate_lib_name})
             endif()
+
         endforeach()
-        
+
         # ------------------ Bundle the object libs into one static lib ---------
         list(LENGTH sub_intermediate_libs sub_intermediate_libs_len)
         if(sub_intermediate_libs AND sub_intermediate_libs_len GREATER 1)
             set(intermediate_lib_name "gemm_staticlib_${name}_${datatype}")
             # Collect the $<TARGET_OBJECTS:...> expressions
+            
             set(obj_exprs)
             foreach(objlib IN LISTS sub_intermediate_libs)
                 list(APPEND obj_exprs $<TARGET_OBJECTS:${objlib}>)
@@ -84,8 +86,8 @@ function(build_gemm_for_datatype datatype)
             #endforeach()
             list(APPEND intermediate_libs ${intermediate_lib_name})
         endif()
-    endforeach()
 
+    endforeach()
     # Interface library for instances
     add_library(gemm_template_instances_${datatype} INTERFACE)
     target_link_libraries(gemm_template_instances_${datatype} INTERFACE ${intermediate_libs})
@@ -94,7 +96,6 @@ function(build_gemm_for_datatype datatype)
         "${working_path}"
     )
     set_target_properties(gemm_template_instances_${datatype} PROPERTIES LINKER_LANGUAGE CXX)
-    
     
     # Host API interface library
     add_library(gemm_host_api_${datatype} INTERFACE)
