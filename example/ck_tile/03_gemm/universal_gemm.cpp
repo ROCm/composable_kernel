@@ -40,7 +40,7 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
         ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
                                                    GemmConfig::TileParitionerGroupNum,
                                                    GemmConfig::TileParitionerM01>;
-
+    //extra
     using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
                                            GemmConfig::kPadN,
                                            GemmConfig::kPadK,
@@ -49,6 +49,18 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                            ELayout,
                                            GemmConfig::NumWaveGroups>;
 
+    //extra
+    using GemmPipelineProblem =
+        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+    //extra
+    using BaseGemmPipeline = typename PipelineTypeTraits<
+        GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
+
+    
+    const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
+    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
+    
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
@@ -60,15 +72,17 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                                                  GemmConfig::UseStructuredSparsity,
                                                                  Persistent,
                                                                  GemmConfig::NumWaveGroups>;
-    using GemmPipelineProblem =
-        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+    //TODO:: num_loop to pass to the problem
+    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                               BDataType,
+                                                                               AccDataType,
+                                                                               GemmShape,
+                                                                               GemmUniversalTraits,
+                                                                               scheduler>;
 
-    using BaseGemmPipeline = typename PipelineTypeTraits<
-        GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
+    using GemmPipeline = typename PipelineTypeTraits<
+                GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
-    const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
-    const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
@@ -81,17 +95,7 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
             constexpr auto scheduler        = GemmConfig::Scheduler;
             constexpr auto memory_operation = memory_operation_.value;
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                               BDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               scheduler,
-                                                                               has_hot_loop_v,
-                                                                               tail_number_v>;
-
-            using GemmPipeline = typename PipelineTypeTraits<
-                GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+            
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
@@ -101,7 +105,7 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                                  DsLayout,
                                                  ELayout,
                                                  CDEElementWise,
-                                                 GemmPipelineProblem::kBlockSize,
+                                                 UniversalGemmProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  GemmConfig::M_Warp,

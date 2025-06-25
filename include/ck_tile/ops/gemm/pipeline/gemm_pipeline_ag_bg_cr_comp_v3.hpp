@@ -145,7 +145,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
-    static constexpr bool HasHotLoop = Problem::HasHotLoop;
+    static constexpr bool HasHotLoop = Problem::HasHotLoop; //base::BlockHasHotloop(num_loop)
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
