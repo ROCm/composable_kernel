@@ -118,7 +118,7 @@ class GemmConfig:
     trait_config: TraitConfig
 
     @classmethod
-    def from_json(cls: Type["GemmConfig"], filepath: str) -> "GemmConfig":
+    def from_json(cls: Type["GemmConfig"], filepath: str, datatype: str) -> "GemmConfig":
         """JSON configuration loader with validation controls"""
         config_path = Path(filepath)
 
@@ -129,18 +129,24 @@ class GemmConfig:
             with config_path.open("r") as f:
                 config_dict = json.load(f)
 
+            a_type = datatype
+            b_type = datatype
+            c_type = datatype
+            if b_type == 'int4':
+                a_type = "fp16"
+            if b_type in ['bf8', 'fp8', 'int4']:
+                c_type = "fp16"
+
             # Parse problem config
+            #TODO: Not reading datatype information from json file.
             problem = ProblemConfig(
                 datatypes=(
                     EnumConfigParam(
-                        values=config_dict["problem"]["datatype_a"]["values"]
-                    ),
+                        values=[a_type]),
                     EnumConfigParam(
-                        values=config_dict["problem"]["datatype_b"]["values"]
-                    ),
+                        values=[b_type]),
                     EnumConfigParam(
-                        values=config_dict["problem"]["datatype_c"]["values"]
-                    ),
+                        values=[c_type])
                 ),
                 layouts=(
                     EnumConfigParam(
