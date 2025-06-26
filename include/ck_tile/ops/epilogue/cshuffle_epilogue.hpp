@@ -9,6 +9,10 @@
 
 namespace ck_tile {
 
+// Global static barrier array - initialized once at program startup
+// constexpr index_t MAX_STATIC_TILES = 4;  // Adjust based on max grid size
+// __device__ static uint32_t global_static_barriers[MAX_STATIC_TILES] = {0};  // Initialize to zeros
+
 template <typename ADataType_,
           typename BDataType_,
           typename AccDataType_,
@@ -138,14 +142,53 @@ struct CShuffleEpilogue
         return kMWave * kNWave * kMPerXdl * kNPerXdl * sizeof(ODataType);
     }
 
+    
+    CK_TILE_DEVICE static void barrier_reset(uint32_t* per_tile_barriers)
+    {
+        if constexpr(Problem::EnableZeroing) {
+            if(per_tile_barriers != nullptr && threadIdx.x == 0) {
+                __atomic_store_n(&per_tile_barriers[blockIdx.x], 0, __ATOMIC_RELAXED);
+            }
+        }
+    }
+
+    CK_TILE_DEVICE static void barrier_wait(uint32_t* per_tile_barriers, uint32_t target_value = 1)
+    {
+        if constexpr(Problem::EnableZeroing) {
+            if(per_tile_barriers != nullptr) {
+                if(threadIdx.x == 0) {
+                    while(__atomic_load_n(&per_tile_barriers[blockIdx.x], __ATOMIC_ACQUIRE) < target_value) {
+                        __builtin_amdgcn_s_sleep(1);
+                    }
+                }
+                __syncthreads();
+            }
+        }
+    }
+
+    CK_TILE_DEVICE static void barrier_inc(uint32_t* per_tile_barriers, bool check_completion = true)
+    {
+        if constexpr(Problem::EnableZeroing) {
+            if(per_tile_barriers != nullptr && threadIdx.x == 0) {
+                // Increment barrier to signal this k-batch is done
+                uint32_t completed_batches = __atomic_fetch_add(&per_tile_barriers[blockIdx.x], 1, __ATOMIC_RELEASE) + 1;
+                
+                // Check if all batches completed and reset if needed
+                if(check_completion && completed_batches >= static_cast<uint32_t>(gridDim.z)) {
+                    __atomic_store_n(&per_tile_barriers[blockIdx.x], 0, __ATOMIC_RELAXED);
+                }
+            }
+        }
+    }
+
+
+
     template <typename ODramWindow, typename OAccTile>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window, 
                                 const OAccTile& o_acc_tile, 
                                 void* p_smem,
-                                uint32_t* p_barrier = nullptr,     // barrier array
-                                index_t k_batch_id = 0,            // current k-batch
-                                uint32_t k_batch_total = 1,         // total k-batches
-                                index_t tile_id = 0)               // tile ID)
+                                uint32_t* cleared_c_tile_barrier = nullptr,
+                                uint32_t* updated_batches_barrier = nullptr)
     {
 
         const index_t iMWarp = get_warp_id() / kNWave;
@@ -179,29 +222,8 @@ struct CShuffleEpilogue
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+        
 
-        // STEP 1: Handle Zeroing synchronization
-        if constexpr(Problem::EnableZeroing)
-        {
-            if(k_batch_id == 0)
-            {
-                // First k-batch: Reset barrier
-                if(threadIdx.x == 0 && p_barrier != nullptr)
-                {
-                    p_barrier[tile_id] = 0;  // Clear barrier
-                }
-                __syncthreads();
-            }
-            else
-            {
-                // Subsequent k-batches: Wait until tile is cleared
-                if(threadIdx.x == 0 && p_barrier != nullptr)
-                {
-                    while(__atomic_load_n(&p_barrier[tile_id], __ATOMIC_RELAXED) == 0) {}
-                }
-                __syncthreads();
-            }
-        } 
 
         CWarpTensor c_warp_in_tensor;
         static_for<0, num_access, 1>{}([&](auto iAccess) {
@@ -223,16 +245,34 @@ struct CShuffleEpilogue
             const auto c_out_tensor =
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
             
-            // STEP 2: Write with correct operation for Zeroing
             if constexpr(Problem::EnableZeroing)
             {
-                if(k_batch_id == 0)
-                {
-                    store_tile(out_dram_window, c_out_tensor);  // SET for first k-batch
+                // Wait for C tile to be zeroed before first access
+                if constexpr(iAccess == 0) {
+                    if(cleared_c_tile_barrier != nullptr) {
+                        if(threadIdx.x == 0) {
+                            while(__atomic_load_n(&cleared_c_tile_barrier[blockIdx.x], __ATOMIC_ACQUIRE) == 0) {
+                                __builtin_amdgcn_s_sleep(1);
+                            }
+                        }
+                        __syncthreads();
+                    }
                 }
-                else
-                {
-                    update_tile(out_dram_window, c_out_tensor); // ATOMIC_ADD for others
+
+                // All k-batches use atomic add (since C is already zeroed)
+                update_tile(out_dram_window, c_out_tensor);
+                
+                // After last access, increment completed batches counter
+                if constexpr(iAccess == num_access - 1) {
+                    if(updated_batches_barrier != nullptr && threadIdx.x == 0) {
+                        uint32_t completed = __atomic_fetch_add(&updated_batches_barrier[blockIdx.x], 1, __ATOMIC_RELEASE) + 1;
+                        
+                        // If all k-batches completed, reset for next tile
+                        if(completed >= static_cast<uint32_t>(gridDim.z)) {
+                            __atomic_store_n(&cleared_c_tile_barrier[blockIdx.x], 0, __ATOMIC_RELEASE);
+                            __atomic_store_n(&updated_batches_barrier[blockIdx.x], 0, __ATOMIC_RELEASE);
+                        }
+                    }
                 }
             }
             else
@@ -254,20 +294,7 @@ struct CShuffleEpilogue
             }
         });
 
-        // STEP 3: Signal completion for Zeroing
-        if constexpr(Problem::EnableZeroing)
-        {
-            if(threadIdx.x == 0 && p_barrier != nullptr)
-            {
-                uint32_t completed = atomicInc(&p_barrier[tile_id], k_batch_total);
-                
-                // Clear barrier when last k-batch completes
-                if(completed == k_batch_total - 1)
-                {
-                    p_barrier[tile_id] = 0;  // Reset for next iteration
-                }
-            }
-        }
+       
     }
 };
 } // namespace ck_tile
