@@ -35,7 +35,7 @@ CK_TILE_HOST_DEVICE bf16x4_t add_bf16x4_t(const bf16x4_t& a, const bf16x4_t& b)
     return rtn;
 }
 
-CK_TILE_HOST_DEVICE bf16x2_t add_f16x2_t(const f16x2_t& a, const f16x2_t& b)
+CK_TILE_HOST_DEVICE f16x2_t add_f16x2_t(const f16x2_t& a, const f16x2_t& b)
 {
     f16x2_t rtn;
     rtn[0] = add<f16_t, float>(a[0], b[0]);
