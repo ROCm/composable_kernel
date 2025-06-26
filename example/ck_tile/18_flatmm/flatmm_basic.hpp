@@ -161,9 +161,9 @@ struct GemmConfig
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 #elif defined(USING_MFMA_16x16x32_F8) //MI300 FP8 16X16
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128;
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
