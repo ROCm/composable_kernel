@@ -270,8 +270,8 @@ struct wmma_type<WmmaInstr::wmma_i32_16x16x16_iu8,
               class FloatA,
               class FloatB,
               class FloatC,
-              bool neg_a = false,
-              bool neg_b = false,
+              bool neg_a = true,
+              bool neg_b = true,
               bool clamp = false>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
@@ -390,8 +390,8 @@ struct wmma_type<WmmaInstr::wmma_i32_16x16x16_iu8_gfx12,
               class FloatA,
               class FloatB,
               class FloatC,
-              bool neg_a = false,
-              bool neg_b = false,
+              bool neg_a = true,
+              bool neg_b = true,
               bool clamp = false>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
     {
