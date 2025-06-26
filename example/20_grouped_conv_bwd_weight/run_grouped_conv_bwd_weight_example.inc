@@ -77,7 +77,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
 
     // do GEMM
     ck::tensor_operation::device::ParamsSplitK split_k_parameters;
-    split_k_parameters.split_k_value_ = split_k;
+    split_k_parameters.fixed_value_ = split_k;
     
     auto conv     = DeviceConvBwdWeightInstance<NDimSpatial>{};
     auto invoker  = conv.MakeInvoker();

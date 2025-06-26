@@ -6,6 +6,7 @@
 #include <iostream>
 #include <numeric>
 #include <sstream>
+#include <typeinfo> 
 
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/env.hpp"
@@ -527,14 +528,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(e_g_k_c_xs_lengths,
                                                                     e_g_k_c_xs_strides);
 
-            if (split_k_parameters.split_k_mode_== SplitKMode::BestOccupancyWithOversubscription) 
+            if (split_k_parameters.strategy_== SplitKStrategy::BestOccupancy ||
+                split_k_parameters.strategy_== SplitKStrategy::BestOccupancyWithMinQuantization) 
             {
                 constexpr int k_batch_initial = 1;
-                k_batch_ = 1;
-
-                if (split_k_parameters.oversubscription_ > 0)
-                {
-                    const auto descs_initial =
+                const auto descs_initial =
                         conv_to_gemm_transformer
                             .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
                                 Conv_N_,
@@ -552,31 +550,50 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                                 input_right_pads,
                                 k_batch_initial);
 
-                    const auto& c_grid_desc_m_n   = descs_initial[I2];
-                    const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
+                const auto& c_grid_desc_m_n   = descs_initial[I2];
+                const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
 
-                    // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
-                    // Hence, the grid is just size of the tile map.
-                    const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
-                    k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
-                    k_batch_ = split_k_parameters.oversubscription_ * get_k_batch_value(max_occupancy.value_, grid_size);
-                    
+                // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
+                // Hence, the grid is just size of the tile map.
+                const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
+                k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths); 
+                m_dim_size_ = c_grid_desc_m_n.GetLength(I0);
+                n_dim_size_ = c_grid_desc_m_n.GetLength(I1);
+                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size);
+                data_type_ = typeid(ABDataType).name();
+                arithmetic_intensity_ = (2.0 * k_dim_size_ * m_dim_size_ * n_dim_size_) /
+                                        ((m_dim_size_ * k_dim_size_ *  + k_dim_size_ * n_dim_size_   + m_dim_size_ * n_dim_size_)* sizeof(ABDataType));
+                
+                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "[SPLIT-K AUTODEDUCE] Best occupancy k_batch value: " << k_batch_ << std::endl; 
+                }
+
+                if (split_k_parameters.strategy_== SplitKStrategy::BestOccupancyWithMinQuantization)
+                {
+                    k_batch_ = get_closest_full_wave_value(k_batch_, grid_size);
                     if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                     {
-                        std::cout << "[SPLIT-K AUTODEDUCE] Oversubscription factor: " 
-                                    << split_k_parameters.oversubscription_ << std::endl;
-                        std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
+                        std::cout << "[SPLIT-K AUTODEDUCE] Minimum wave quantization k_batch value: " 
                                     << k_batch_ << std::endl; 
                     }
                 }
+
+                // TODO: Impose some max limit for the k_batch_ value?
+
+                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
+                                << k_batch_ << std::endl; 
+                }
             }
-            else if (split_k_parameters.split_k_mode_ == SplitKMode::FixedSplitK)
+            else if (split_k_parameters.strategy_ == SplitKStrategy::FixedSplitK)
             {
-                k_batch_ = split_k_parameters.split_k_value_;
+                k_batch_ = split_k_parameters.fixed_value_;
             }
             else
             {
-                throw std::runtime_error("Unsupported split_k_mode.");
+                throw std::runtime_error("Unsupported Split-K strategy.");
             }
             
             const auto descs =

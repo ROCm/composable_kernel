@@ -171,7 +171,7 @@ bool run_grouped_conv(bool do_verification,
     const std::array<const void*, NumDs> ds = {wei_device_buf.GetDeviceBuffer()};
 
     ck::tensor_operation::device::ParamsSplitK split_k_params;
-    split_k_params.split_k_value_ = split_k;
+    split_k_params.fixed_value_ = split_k;
 
     auto conv     = DeviceConvNDFwdInstance{};
     auto invoker  = conv.MakeInvoker();

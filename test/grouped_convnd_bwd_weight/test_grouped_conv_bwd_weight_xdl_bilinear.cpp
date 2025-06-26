@@ -168,7 +168,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         {
             auto& op_ptr      = op_ptrs[i];
             ck::tensor_operation::device::ParamsSplitK params_split_k;
-            params_split_k.split_k_value_ = split_k;
+            params_split_k.fixed_value_ = split_k;
             auto argument_ptr = op_ptr->MakeArgumentPointer(
                 static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                 static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),

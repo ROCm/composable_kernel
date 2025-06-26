@@ -32,7 +32,6 @@ def run_ck_profiler_cmd(cmd, disabled_ops, run_id, log_to_stdout=False):
       disabled_ops_str += op + ";"
     disabled_ops_str = disabled_ops_str.strip(';')
     env_vars["CK_PROFILER_DISABLED_OPS"] = disabled_ops_str
-    env_vars["CK_PROFILER_OUTPUT_DIR"] = working_dir
     run_id_str = f"_{run_id}" if run_id else ""
     env_vars["CK_PROFILER_OUTPUT_FILE"] = f"{working_dir}/conv_profiler_output{run_id_str}_{pid}.csv"
     if log_to_stdout:

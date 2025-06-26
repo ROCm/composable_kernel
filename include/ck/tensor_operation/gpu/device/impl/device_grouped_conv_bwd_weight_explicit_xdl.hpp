@@ -143,7 +143,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                       end(e_g_k_c_xs_lengths),
                       begin(filter_spatial_lengths_));
 
-            const auto split_k = split_k_parameters.split_k_value_;
+            const auto split_k = split_k_parameters.fixed_value_;
             if constexpr(IsTwoStageNeeded)
             {
                 const index_t merged_filter_dims = std::accumulate(begin(e_g_k_c_xs_lengths),

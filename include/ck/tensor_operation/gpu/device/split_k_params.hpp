@@ -9,25 +9,17 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-  enum class SplitKMode
+enum class SplitKStrategy
 {
     FixedSplitK = 0,
-    BestOccupancyWithOversubscription
+    BestOccupancy,
+    BestOccupancyWithMinQuantization
 };
 
 struct ParamsSplitK
 {
-  SplitKMode split_k_mode_{SplitKMode::FixedSplitK};
-  index_t split_k_value_{1};
-  index_t oversubscription_{-1};
-
-  std::string to_string() const
-  {
-    const std::string str = (split_k_mode_ == SplitKMode::FixedSplitK) 
-      ? "FixedSplitK = " + std::to_string(split_k_value_)
-      : "BestOccupancyWithOversubscription = " + std::to_string(oversubscription_);
-    return str;
-  }
+  SplitKStrategy strategy_{SplitKStrategy::FixedSplitK};
+  index_t fixed_value_{1};
 };
 
 }

@@ -97,7 +97,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         auto conv = GroupedConvBwdWeightDeviceInstance{};
 
         ck::tensor_operation::device::ParamsSplitK params_split_k;
-        params_split_k.split_k_value_ = split_k;
+        params_split_k.fixed_value_ = split_k;
         auto argument = conv.MakeArgument(nullptr,
                                           nullptr,
                                           nullptr,

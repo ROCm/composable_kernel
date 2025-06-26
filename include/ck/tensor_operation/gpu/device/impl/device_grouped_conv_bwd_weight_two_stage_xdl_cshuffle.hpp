@@ -549,7 +549,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads},
-              k_batch_{split_k_parameters.split_k_value_}
+              k_batch_{split_k_parameters.fixed_value_}
         {
             c_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
