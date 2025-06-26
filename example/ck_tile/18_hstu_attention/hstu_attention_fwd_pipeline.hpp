@@ -368,7 +368,9 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                 move_tile_window(v_dram_window, {0, kK1});
 
-                __builtin_amdgcn_sched_barrier(0);
+                // for i_k1 = k1_loop-1, the loading is for next iteration
+                k_tile = load_tile(k_dram_window);
+                move_tile_window(k_dram_window, {kK1, 0});
 
                 block_sync_lds();
                 // execute current unroll of gemm_0
@@ -394,14 +396,6 @@ struct HstuAttentionFwdPipelineQRKSVS
                 {
                     tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, sacc_tile);
                 }
-
-                __builtin_amdgcn_sched_barrier(0);
-
-                // for i_k1 = k1_loop-1, the loading is for next iteration
-                k_tile = load_tile(k_dram_window);
-                move_tile_window(k_dram_window, {kK1, 0});
-
-                __builtin_amdgcn_sched_barrier(0);
 
                 if constexpr(HstuMask::IsMasking)
                 {
