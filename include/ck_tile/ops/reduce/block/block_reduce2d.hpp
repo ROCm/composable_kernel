@@ -241,7 +241,7 @@ struct BlockReduce2dCrossWarpSync
             });
         }
         block_sync_lds();
-
+#if 0
         // load from smem. here we let everythread to do compute :)
         index_t local_warp_id = warp_id / num_reduce_warps;
         index_t local_smem_os = local_warp_id * num_reduce_warps;
@@ -269,6 +269,37 @@ struct BlockReduce2dCrossWarpSync
 
             y_tensor.get_thread_buffer()(i_0) = v_local;
         });
+#else
+        if(warp_id == 0)
+        {
+            static_for<0, thread_buf_size, 1>{}([&](auto i) {
+                DataType v = 0;
+                if(lane_id < num_reduce_warps)
+                {
+                    v = smem_ptr[lane_id + i * num_warps];
+                }
+
+                for(index_t offset = 1; offset < num_reduce_warps; offset <<= 1)
+                {
+                    DataType o = warp_shuffle_down(v, offset);
+                    if(lane_id + offset < num_reduce_warps)
+                    {
+                        v = reduce_func(v, o);
+                    }
+                }
+                // Lane 0 now has the final reduced value for element i
+                if(lane_id == 0)
+                {
+                    smem_ptr[i * num_warps] = v;
+                }
+            });
+        }
+        block_sync_lds(); // ensure final result is written
+
+        // Broadcast to all threads
+        static_for<0, thread_buf_size, 1>{}(
+            [&](auto i) { y_tensor.get_thread_buffer()(i) = smem_ptr[i * num_warps]; });
+#endif
     }
 };
 
