@@ -87,12 +87,6 @@ reference_grouped_conv_bwd_weight(const HostTensor<InDataType>& input,
                            wi >= 0 &&
                            ck_tile::type_convert<std::size_t>(wi) < input.get_lengths()[4])
                         {
-                            // if(g == 0 && k == 0 && y == 0 && x == 0 && c == 0) {
-                            //     // printf("weight g k c y x = %lu %lu %lu %lu %lu %f\n", g, k, c,
-                            //     y, x, v_acc);
-                            //     // printf("hi %ld wi %ld\n", hi, wi);
-                            //     printf("input %d, ")
-                            // }
                             InDataType v_in   = input(g, n, c, hi, wi);
                             OutDataType v_out = output(g, n, k, ho, wo);
 

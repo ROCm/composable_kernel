@@ -442,21 +442,7 @@ struct null_tensor_view
 {
 };
 
-// template <address_space_enum BufferAddressSpace = address_space_enum::generic,
-//           amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
-//           typename DataType,
-//           typename... Ts>
-// CK_TILE_HOST_DEVICE constexpr auto make_tensor_view(DataType* p,
-//                                                     const tensor_descriptor<Ts...>& desc)
-// {
-//     auto buffer_view =
-//         make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
-
-//     return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
-// }
-
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
-          memory_operation_enum DstInMemOp      = memory_operation_enum::set,
           amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
           typename DataType,
           typename... Ts>
@@ -466,7 +452,7 @@ CK_TILE_HOST_DEVICE constexpr auto make_tensor_view(DataType* p,
     auto buffer_view =
         make_buffer_view<BufferAddressSpace, Coherence>(p, desc.get_element_space_size());
 
-    return tensor_view<decltype(buffer_view), decltype(desc), DstInMemOp>{buffer_view, desc};
+    return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }
 
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,

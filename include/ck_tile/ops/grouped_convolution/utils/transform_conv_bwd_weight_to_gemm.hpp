@@ -530,8 +530,6 @@ struct TransformConvBwdWeightToGemm
                                             make_tuple(KStride, CStride));
     }
 
-    // Make ABCGridDescriptor
-
     // TODO: implement ck_tile::tensor_layout::convolution that describe packed/strided dimemsion as
     // properties
 
