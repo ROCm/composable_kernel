@@ -98,7 +98,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
     return os << "]";
 }
 
-auto create_args(int argc, char* argv[], int start_index=0)
+auto create_args(int argc, char* argv[], int start_index = 0)
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "weather do CPU validation or not")
@@ -372,26 +372,33 @@ bool run(const ck_tile::ArgParser& arg_parser)
 }
 
 template <typename DataType>
-bool run_test_cases(std::vector<std::vector<std::string>>& test_cases){
+bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
+{
     const int num_args = 6;
-    bool valid = true;
-    for (std::size_t idx = 0; idx < test_cases.size(); ++idx){
+    bool valid         = true;
+    for(std::size_t idx = 0; idx < test_cases.size(); ++idx)
+    {
         assert(test_cases[idx].size() == num_args && "invalid number of arguments");
-    
+
         char* argv[] = {test_cases[idx][0].data(),
-                        test_cases[idx][1].data(), 
+                        test_cases[idx][1].data(),
                         test_cases[idx][2].data(),
-                        test_cases[idx][3].data(), 
+                        test_cases[idx][3].data(),
                         test_cases[idx][4].data(),
                         test_cases[idx][5].data(),
                         nullptr};
 
         auto [result, arg_parser] = create_args(num_args, argv);
-        if(!result) return -1;
-        
+        if(!result)
+        {
+            valid = false;
+            break;
+        }
+
         valid = valid && run<DataType>(arg_parser);
 
-        if (!valid) break;
+        if(!valid)
+            break;
     }
 
     return valid;
