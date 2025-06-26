@@ -1719,7 +1719,7 @@ inline __host__ __device__ f6_t f6_convert_rne(float x, float scale = 1.0f)
         f6_t f6_array[32];
     } out{};
 
-    out.f6_vector = __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(in1, in2, scale);
+    out.f6_vector = f6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(in1, in2, scale)};
 
     return out.f6_array[0];
 #else
@@ -1742,7 +1742,7 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
 #if defined(__gfx950__)
     float16_t* in1 = reinterpret_cast<float16_t*>(&x);
     float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
-    return __builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(*in1, *in2, scale);
+    return f6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(*in1, *in2, scale)};
 #else
     union
     {
@@ -1811,7 +1811,8 @@ inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
         f6_t f6_array[32];
     } out{};
 
-    out.f6_vector = __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(in.float_vector, rng, scale);
+    out.f6_vector =
+        f6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(in.float_vector, rng, scale)};
 
     return out.f6_array[0];
 #else
@@ -1845,7 +1846,7 @@ inline __host__ __device__ f6x32_t f6_convert_sr(float32_t x, float scale = 1.0f
         prand_generator<float, seed>(reinterpret_cast<size_t>(&x), float_values.float_array[0]);
 #endif
 #if defined(__gfx950__)
-    return __builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(x, rng, scale);
+    return f6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(x, rng, scale)};
 #else
     union
     {
@@ -1993,9 +1994,9 @@ inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
 #if defined(__gfx950__)
     union
     {
-        f6x32_t f6_vector;
         f6_t f6_array[32];
-    } in{x};
+        f6x32_t f6_vector;
+    } in{{x}};
 
     union
     {
@@ -2004,7 +2005,8 @@ inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
     } out{};
 
     out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
-        in.f6_vector, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+        in.f6_vector.template AsType<f6x32_t::data_t>()[Number<0>{}],
+        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
     return out.float_array[0];
 #else
     return utils::to_float<f6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
@@ -2025,7 +2027,8 @@ inline __host__ __device__ float32_t type_convert<float32_t, f6x32_t>(f6x32_t x)
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
-        x, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+        x.template AsType<f6x32_t::data_t>()[Number<0>{}],
+        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
 #else
     union
     {
@@ -2095,7 +2098,7 @@ inline __host__ __device__ bf6_t bf6_convert_rne(float x, float scale = 1.0f)
         bf6_t bf6_array[32];
     } out{};
 
-    out.bf6_vector = __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(in1, in2, scale);
+    out.bf6_vector = bf6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(in1, in2, scale)};
 
     return out.bf6_array[0];
 #else
@@ -2119,7 +2122,7 @@ inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1
 #if defined(__gfx950__)
     float16_t* in1 = reinterpret_cast<float16_t*>(&x);
     float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
-    return __builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(*in1, *in2, scale);
+    return bf6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(*in1, *in2, scale)};
 #else
     union
     {
@@ -2173,7 +2176,8 @@ inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
         bf6_t bf6_array[32];
     } out{};
 
-    out.bf6_vector = __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(in.float_vector, rng, scale);
+    out.bf6_vector =
+        bf6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(in.float_vector, rng, scale)};
 
     return out.bf6_array[0];
 #else
@@ -2209,7 +2213,7 @@ inline __host__ __device__ bf6x32_t bf6_convert_sr(float32_t x, float scale = 1.
         prand_generator<float, seed>(reinterpret_cast<size_t>(&x), float_values.float_array[0]);
 #endif
 #if defined(__gfx950__)
-    return __builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(x, rng, scale);
+    return bf6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(x, rng, scale)};
 #else
     union
     {
@@ -2290,9 +2294,9 @@ inline __host__ __device__ float type_convert<float, bf6_t>(bf6_t x)
 #if defined(__gfx950__)
     union
     {
-        bf6x32_t bf6_vector;
         bf6_t bf6_array[32];
-    } in{x};
+        bf6x32_t bf6_vector;
+    } in{{x}};
 
     union
     {
@@ -2301,7 +2305,8 @@ inline __host__ __device__ float type_convert<float, bf6_t>(bf6_t x)
     } out{};
 
     out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
-        in.bf6_vector, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+        in.bf6_vector.template AsType<bf6x32_t::data_t>()[Number<0>{}],
+        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
     return out.float_array[0];
 #else
     return utils::to_float<bf6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
@@ -2323,7 +2328,8 @@ inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t 
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
-        x, type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+        x.template AsType<bf6x32_t::data_t>()[Number<0>{}],
+        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
 #else
     union
     {

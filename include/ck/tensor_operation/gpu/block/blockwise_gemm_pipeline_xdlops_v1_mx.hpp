@@ -731,7 +731,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             });
 #endif
 
-#if 1 // disable all output
+#if 0 // disable all output
                                         if((!is_B_zero || !is_A_zero) && blockIdx.x == 0 &&
                                            (threadIdx.x == 0 || threadIdx.x == 1))
                                         {
@@ -1517,7 +1517,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                         });
 #endif
 
-#if 1 // disable all output
+#if 0 // disable all output
                                     if((!is_B_zero || !is_A_zero) && blockIdx.x == 0 &&
                                        (threadIdx.x == 0 || threadIdx.x == 1))
                                     {

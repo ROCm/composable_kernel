@@ -1447,7 +1447,7 @@ struct non_native_vector_base<
         typename nnvb_data_t_selector<T>::type; // select data_t based on declared base type
     using element_t = typename T::element_type; // select element_t based on declared element type
     static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
-    static constexpr size_t size_factor = __builtin_vectorelements(data_t);
+    static constexpr size_t size_factor = sizeof(data_t) / sizeof(element_t);
     using data_v = element_t __attribute__((ext_vector_type(N * size_factor)));
     using type   = non_native_vector_base<T, N>;
 
@@ -1460,7 +1460,7 @@ struct non_native_vector_base<
     } data_;
 
     // Broadcast single value to vector
-    template <index_t N2 = 2, typename = enable_if_t<N >= N2>>
+    // template <index_t N2 = 2, typename = enable_if_t<N >= N2>>
     __host__ __device__ constexpr non_native_vector_base(data_t a) : data_{}
     {
         // TODO: consider removing initialization similar to vector_type<T, 256>
@@ -1474,22 +1474,15 @@ struct non_native_vector_base<
         : non_native_vector_base(bit_cast<data_t>(f))
     {
     }
+
     __host__ __device__ constexpr non_native_vector_base() : non_native_vector_base(T{}){};
 
     __host__ __device__ constexpr non_native_vector_base(data_v v) : data_{v} {}
 
+    __host__ __device__ constexpr non_native_vector_base(element_t v) : data_{data_v(v)} {}
+
     __host__ __device__ constexpr operator data_v() const { return data_.dN; }
-    // __host__ __device__ constexpr operator data_t() const
-    // {
-    //     if constexpr(N == 1)
-    //     {
-    //         return data_.dxN[Number<0>{}];
-    //     }
-    //     else
-    //     {
-    //         return data_.dxN; // XXX this should cause an error
-    //     }
-    // }
+
     __host__ __device__ constexpr operator T() const
     {
         if constexpr(N == 1)
@@ -1499,6 +1492,30 @@ struct non_native_vector_base<
         else
         {
             return data_.dTxN; // XXX this should cause an error
+        }
+    }
+
+    template <typename X>
+    __host__ __device__ constexpr const auto& AsType() const
+    {
+        static_assert(is_same_v<X, data_t> || is_same_v<X, data_v> || is_same_v<X, T>,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same_v<X, data_v>)
+        {
+            return data_.dNx1;
+        }
+        else if constexpr(is_same_v<X, data_t>)
+        {
+            return data_.dxN;
+        }
+        else if constexpr(is_same_v<X, T>)
+        {
+            return data_.dTxN;
+        }
+        else
+        {
+            return err;
         }
     }
 };

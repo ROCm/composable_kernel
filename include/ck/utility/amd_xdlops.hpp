@@ -1045,15 +1045,52 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                                FloatC& reg_c)
     {
 #if defined(__gfx950__)
-        int32x6_t arg_a = bit_cast<int32x6_t>(reg_a);
-        int32x6_t arg_b = bit_cast<int32x6_t>(reg_b);
-
         using arg_type = int32x8_t;
+        arg_type arg_a{
+            static_cast<int32_t>(reg_a.template AsType<f6x16x2_t::data_t>()[Number<0>{}][0]),
+            static_cast<int32_t>(reg_a.template AsType<f6x16x2_t::data_t>()[Number<0>{}][1]),
+            static_cast<int32_t>(reg_a.template AsType<f6x16x2_t::data_t>()[Number<0>{}][2]),
+            static_cast<int32_t>(reg_a.template AsType<f6x16x2_t::data_t>()[Number<1>{}][0]),
+            static_cast<int32_t>(reg_a.template AsType<f6x16x2_t::data_t>()[Number<1>{}][1]),
+            static_cast<int32_t>(reg_a.template AsType<f6x16x2_t::data_t>()[Number<1>{}][2]),
+            0,
+            0};
+        arg_type arg_b{
+            static_cast<int32_t>(reg_b.template AsType<f6x16x2_t::data_t>()[Number<0>{}][0]),
+            static_cast<int32_t>(reg_b.template AsType<f6x16x2_t::data_t>()[Number<0>{}][1]),
+            static_cast<int32_t>(reg_b.template AsType<f6x16x2_t::data_t>()[Number<0>{}][2]),
+            static_cast<int32_t>(reg_b.template AsType<f6x16x2_t::data_t>()[Number<1>{}][0]),
+            static_cast<int32_t>(reg_b.template AsType<f6x16x2_t::data_t>()[Number<1>{}][1]),
+            static_cast<int32_t>(reg_b.template AsType<f6x16x2_t::data_t>()[Number<1>{}][2]),
+            0,
+            0};
+#if 1
+        if constexpr(OpselA == 0 && OpselB == 0)
+        {
+            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
+            {
+                printf("arg_a: 0x%08x %08x %08x %08x %08x %08x\n",
+                       static_cast<uint32_t>(arg_a[0]),
+                       static_cast<uint32_t>(arg_a[1]),
+                       static_cast<uint32_t>(arg_a[2]),
+                       static_cast<uint32_t>(arg_a[3]),
+                       static_cast<uint32_t>(arg_a[4]),
+                       static_cast<uint32_t>(arg_a[5]));
+                printf("arg_b: 0x%08x %08x %08x %08x %08x %08x\n",
+                       static_cast<uint32_t>(arg_b[0]),
+                       static_cast<uint32_t>(arg_b[1]),
+                       static_cast<uint32_t>(arg_b[2]),
+                       static_cast<uint32_t>(arg_b[3]),
+                       static_cast<uint32_t>(arg_b[4]),
+                       static_cast<uint32_t>(arg_b[5]));
+            }
+        }
+#endif
 
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
-                arg_type{arg_a[0], arg_a[1], arg_a[2], arg_a[3], arg_a[4], arg_a[5], 0, 0},
-                arg_type{arg_b[0], arg_b[1], arg_b[2], arg_b[3], arg_b[4], arg_b[5], 0, 0},
+                arg_a,
+                arg_b,
                 reg_c.template AsType<float4_t>()[Number<0>{}],
                 2,      // cbsz {0 FP8 E4M3; 1 FP8 E5M2; 2 FP6 E2M3; 3 FP6 E3M2; 4 FP4 E2M1}
                 2,      // blgp

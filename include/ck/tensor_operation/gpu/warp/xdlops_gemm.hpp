@@ -1425,8 +1425,7 @@ struct XdlopsGemm
                           MPerXdlops == 64,
                       "Only support GemmMPerXdlops == 4, 8, 16, 32 or 64 for xdlops");
 
-        static_assert(KPack * 2 % mfma_instr.k_per_blk == 0,
-                      "KPack should be a multiple of k_per_blk");
+        static_assert(KPack % mfma_instr.k_per_blk == 0, "KPack should be a multiple of k_per_blk");
     }
 
     // XDL output supporting C = A * B
