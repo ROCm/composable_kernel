@@ -35,11 +35,11 @@ CK_TILE_HOST_DEVICE bf16x4_t add_bf16x4_t(const bf16x4_t& a, const bf16x4_t& b)
     return rtn;
 }
 
-CK_TILE_HOST_DEVICE f16x2_t add_f16x2_t(const f16x2_t& a, const f16x2_t& b)
+CK_TILE_HOST_DEVICE fp16x2_t add_f16x2_t(const fp16x2_t& a, const fp16x2_t& b)
 {
-    f16x2_t rtn;
-    rtn[0] = add<f16_t, float>(a[0], b[0]);
-    rtn[1] = add<f16_t, float>(a[1], b[1]);
+    fp16x2_t rtn;
+    rtn[0] = add<fp16_t, float>(a[0], b[0]);
+    rtn[1] = add<fp16_t, float>(a[1], b[1]);
     return rtn;
 }
 
@@ -327,13 +327,13 @@ CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, fp16x2_t const& x)
     union U32F162_ADDR
     {
         uint32_t* u32_a;
-        f16x2_t* f162_a;
+        fp16x2_t* f162_a;
     };
 
     union U32F162
     {
         uint32_t u32;
-        f16x2_t f162;
+        fp16x2_t f162;
     };
 
     U32F162_ADDR dword_addr;
@@ -345,10 +345,10 @@ CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, fp16x2_t const& x)
 
     do
     {
-        old_v      = cur_v.u32;
-        new_.bf162 = add_f16x2_t(cur_v.f162, x);
-        new_v      = new_.u32;
-        cur_v.u32  = atomicCAS(dword_addr.u32_a, old_v, new_v);
+        old_v     = cur_v.u32;
+        new_.f162 = add_f16x2_t(cur_v.f162, x);
+        new_v     = new_.u32;
+        cur_v.u32 = atomicCAS(dword_addr.u32_a, old_v, new_v);
     } while(cur_v.u32 != old_v);
 #endif
 }
@@ -360,7 +360,7 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
                       (std::is_same<T, uint32_t>::value && (N == 1)) ||
                       (std::is_same<T, float>::value && (N == 1 || N == 2)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
-                      (std::is_same<T, fp16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
+                      (std::is_same<T, fp16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, bf16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, fp8_t>::value && (N == 4 || N == 8 || N == 16)) ||
                       (std::is_same<T, bf8_t>::value && (N == 4 || N == 8 || N == 16)),
@@ -458,11 +458,10 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
     }
     else if constexpr(std::is_same<T, fp16_t>::value)
     {
-         static_for<0, N / 2, 1>{}([&](auto i) 
-         {
+        static_for<0, N / 2, 1>{}([&](auto i) {
             atomic_add(c_style_pointer_cast<fp16x2_t*>(p_dst) + i,
                        x.template get_as<fp16x2_t>()[i]);
-         }
+        });
     }
 }
 
