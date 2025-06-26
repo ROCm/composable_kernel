@@ -7,6 +7,9 @@
 #include "ck_tile/core/container/thread_buffer.hpp"
 
 namespace ck_tile {
+#define HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN                        \
+    __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2f16) && \
+        __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2bf16)
 
 template <typename T, typename ComputeType>
 CK_TILE_HOST_DEVICE T add(const T& a, const T& b)
@@ -29,6 +32,14 @@ CK_TILE_HOST_DEVICE bf16x4_t add_bf16x4_t(const bf16x4_t& a, const bf16x4_t& b)
     rtn[1] = add<bf16_t, float>(a[1], b[1]);
     rtn[2] = add<bf16_t, float>(a[2], b[2]);
     rtn[3] = add<bf16_t, float>(a[3], b[3]);
+    return rtn;
+}
+
+CK_TILE_HOST_DEVICE bf16x2_t add_f16x2_t(const f16x2_t& a, const f16x2_t& b)
+{
+    f16x2_t rtn;
+    rtn[0] = add<f16_t, float>(a[0], b[0]);
+    rtn[1] = add<f16_t, float>(a[1], b[1]);
     return rtn;
 }
 
@@ -310,46 +321,35 @@ CK_TILE_DEVICE void atomic_add<bf8x8_t>(bf8x8_t* p_dst, bf8x8_t const& x)
 template <>
 CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, fp16x2_t const& x)
 {
-#if defined(__gfx12__)
-    // currently builtin function is not supported by compiler
-    // __builtin_amdgcn_global_atomic_fadd_v2f16(c_style_pointer_cast<fp16x2_t*>(p_dst),
-    //                                           x.template get_as<fp16x2_t>()[I0]);
-    fp16x2_t tmp;
-    asm volatile("global_atomic_pk_add_f16  %0, %1, %2, off th:TH_ATOMIC_NT_RETURN "
-                 : "=v"(tmp)
-                 : "v"(c_style_pointer_cast<fp16x2_t*>(p_dst)), "v"(x)
-                 : "memory");
-#else // TODO: other generations is not support now
-    ignore = p_dst;
-    ignore = x;
-#endif
-}
+#if HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN
+    __builtin_amdgcn_global_atomic_fadd_v2f16(c_style_pointer_cast<fp16x2_t*>(p_dst), x);
+#else
+    union U32F162_ADDR
+    {
+        uint32_t* u32_a;
+        f16x2_t* f162_a;
+    };
 
-//
-// Atomic add for fp16x4_t
-//
-template <>
-CK_TILE_DEVICE void atomic_add<fp16x4_t>(fp16x4_t* p_dst, fp16x4_t const& x)
-{
-#if defined(__gfx12__)
-    // currently builtin function is not supported by compiler
-    // __builtin_amdgcn_global_atomic_fadd_v2f16(c_style_pointer_cast<fp16x2_t*>(p_dst),
-    //                                           x.template get_as<fp16x2_t>()[I0]);
-    fp16x2_t tmp;
-    asm volatile("global_atomic_pk_add_f16  %0, %1, %2, off th:TH_ATOMIC_NT_RETURN "
-                 : "=v"(tmp)
-                 : "v"(c_style_pointer_cast<fp16x2_t*>(p_dst)),
-                   "v"(__builtin_shufflevector(x, x, 0, 1))
-                 : "memory");
+    union U32F162
+    {
+        uint32_t u32;
+        f16x2_t f162;
+    };
 
-    asm volatile("global_atomic_pk_add_f16  %0, %1, %2, off th:TH_ATOMIC_NT_RETURN "
-                 : "=v"(tmp)
-                 : "v"(c_style_pointer_cast<fp16x2_t*>(p_dst) + 1),
-                   "v"(__builtin_shufflevector(x, x, 2, 3))
-                 : "memory");
-#else // TODO: other generations is not support now
-    ignore = p_dst;
-    ignore = x;
+    U32F162_ADDR dword_addr;
+    U32F162 cur_v;
+    U32F162 new_;
+    uint32_t old_v, new_v;
+    dword_addr.f162_a = p_dst;
+    cur_v.u32         = *dword_addr.u32_a;
+
+    do
+    {
+        old_v      = cur_v.u32;
+        new_.bf162 = add_f16x2_t(cur_v.f162, x);
+        new_v      = new_.u32;
+        cur_v.u32  = atomicCAS(dword_addr.u32_a, old_v, new_v);
+    } while(cur_v.u32 != old_v);
 #endif
 }
 
@@ -458,24 +458,11 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
     }
     else if constexpr(std::is_same<T, fp16_t>::value)
     {
-        if constexpr(N == 1)
-        {
-            // atomic_add(c_style_pointer_cast<fp16_t*>(p_dst), x.template get_as<fp16_t>()[I0]);
-        }
-        else if constexpr(N == 2)
-        {
-            atomic_add(c_style_pointer_cast<fp16x2_t*>(p_dst), x.template get_as<fp16x2_t>()[I0]);
-        }
-        else if constexpr(N == 4)
-        {
-            atomic_add(c_style_pointer_cast<fp16x4_t*>(p_dst), x.template get_as<fp16x4_t>()[I0]);
-        }
-        else if constexpr(N == 8)
-        {
-            atomic_add(c_style_pointer_cast<fp16x4_t*>(p_dst), x.template get_as<fp16x4_t>()[I0]);
-            atomic_add(c_style_pointer_cast<fp16x4_t*>(p_dst) + 1,
-                       x.template get_as<fp16x4_t>()[I1]);
-        }
+         static_for<0, N / 2, 1>{}([&](auto i) 
+         {
+            atomic_add(c_style_pointer_cast<fp16x2_t*>(p_dst) + i,
+                       x.template get_as<fp16x2_t>()[i]);
+         }
     }
 }
 
