@@ -234,17 +234,20 @@ struct tile_distribution
         printf("tile_distribution{");
         //
         printf("tile_distribution_encoding: ");
-        print(DstrEncode{});
+        // print(DstrEncode{});
+        DstrEncode{}.print();
         printf(", ");
         //
         printf("ps_ys_to_xs_: ");
-        print(ps_ys_to_xs_);
+        // print(ps_ys_to_xs_);
+        ps_ys_to_xs_.print();
         printf(", ");
         //
         printf("ys_to_d_: ");
-        print(ys_to_d_);
+        // print(ys_to_d_);
+        ys_to_d_.print();
         //
-        printf("}");
+        printf("}\n");
     }
 };
 

@@ -384,31 +384,38 @@ struct tile_distribution_encoding
         printf("NDimX: %d, NDimP: %d, NDimY: %d, ", NDimX, NDimP, NDimY);
         //
         printf("rs_lengths_: ");
-        print(rs_lengths_);
+        // print(rs_lengths_);
+        rs_lengths_.print();
         printf(", ");
         //
         printf("hs_lengthss_: ");
-        print(hs_lengthss_);
+        // print(hs_lengthss_);
+        hs_lengthss_.print();
         printf(", ");
         //
         printf("ps_to_rhss_major_: ");
-        print(ps_to_rhss_major_);
+        // print(ps_to_rhss_major_);
+        ps_to_rhss_major_.print();
         printf(", ");
         //
         printf("ps_to_rhss_minor_: ");
-        print(ps_to_rhss_minor_);
+        // print(ps_to_rhss_minor_);
+        ps_to_rhss_minor_.print();
         printf(", ");
         //
         printf("ys_to_rhs_major_: ");
-        print(ys_to_rhs_major_);
+        // print(ys_to_rhs_major_);
+        ys_to_rhs_major_.print();
         printf(", ");
         //
         printf("ys_to_rhs_minor_: ");
-        print(ys_to_rhs_minor_);
+        // print(ys_to_rhs_minor_);
+        ys_to_rhs_minor_.print();
         printf(", ");
         //
-        printf("detail: ");
-        print(detail{});
+        // printf("detail: ");
+        // print(detail{});
+        // detail{}.print();
         //
         printf("}");
     }

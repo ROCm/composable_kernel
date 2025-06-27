@@ -56,24 +56,19 @@ template <index_t BlockSize,
           index_t YPerTile,
           index_t XPerTile,
           index_t VecSize,
-          tile_distribution_pattern DistributionPattern,
-          index_t NumWaveGroups = 1>
+          tile_distribution_pattern DistributionPattern>
 struct TileDistributionEncodingPattern2D : public TileDistributionEncodingPattern
 {
 };
 
 // Thread raked
-template <index_t BlockSize,
-          index_t YPerTile,
-          index_t XPerTile,
-          index_t VecSize,
-          index_t NumWaveGroups>
+template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize>
 struct TileDistributionEncodingPattern2D<BlockSize,
-                                         YPerTile,
-                                         XPerTile,
+                                         YPerTile,  // not contiguous (K for B in RowMajor)
+                                         XPerTile,  // contiguous (N for B in RowMajor)
                                          VecSize,
-                                         tile_distribution_pattern::thread_raked,
-                                         NumWaveGroups> : public TileDistributionEncodingPattern
+                                         tile_distribution_pattern::thread_raked>
+    : public TileDistributionEncodingPattern
 {
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
@@ -88,76 +83,55 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     static constexpr index_t Y1 = warp_size / X0;
     static_assert(X0 * Y1 == warp_size, "X0 * Y1 must cover whole wavefront!");
 
-    static constexpr index_t Y0 = num_warps / NumWaveGroups;
+    static constexpr index_t Y0 = num_warps;
     //  YPerWarp = YPerTile / Y0;
     //  Y2 = YPerWarp / Y1;
-    static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront
+    static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters per thread
 
-    static_assert(X0 * Y1 * Y0 * NumWaveGroups == BlockSize,
-                  "X0 * warp_ys * Y0 must cover whole workgroup!");
+    static_assert(X0 * Y1 * Y0 == BlockSize, "X0 * warp_ys * Y0 must cover whole workgroup!");
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
 
     CK_TILE_HOST_DEVICE static constexpr auto Make2DStaticTileDistribution()
     {
-        if constexpr(NumWaveGroups != 1)
-        {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<Y0>,
-                                           tuple<sequence<Y1, Y2>, sequence<X0, X1>>,
-                                           tuple<sequence<0>, sequence<1, 2>>,
-                                           tuple<sequence<0>, sequence<0, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<1, 1>>{});
-        }
-        else
-        {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<0>, sequence<1, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<2, 1>>{});
-        }
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<0>, sequence<1, 0>>,  // Y0=num_warps, <Y1, X0>
+                                       sequence<1, 2>,
+                                       sequence<2, 1>>{});  // <Y2, X1=vec_size>
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffled2DStaticTileDistribution()
     {
-        if constexpr(NumWaveGroups != 1)
-        {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<Y0>,
-                                           tuple<sequence<X0, X1>, sequence<Y1, Y2>>,
-                                           tuple<sequence<0>, sequence<2, 1>>,
-                                           tuple<sequence<0>, sequence<0, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<1, 1>>{});
-        }
-        else
-        {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
-                                           tuple<sequence<2>, sequence<2, 1>>,
-                                           tuple<sequence<0>, sequence<1, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<1, 2>>{});
-        }
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<X0, X1>, sequence<Y0, Y1, Y2>>,
+                                       tuple<sequence<2>, sequence<2, 1>>,  // Ps are the same as non-shuffled
+                                       tuple<sequence<0>, sequence<1, 0>>,  // Y0=num_warps, <Y1=num_rows, X0=nvec_per_row>
+                                       sequence<1, 2>,      // Ys are transposed
+                                       sequence<1, 2>>{});  // <X1, Y2=new_vec_size>
+    }
+
+    CK_TILE_HOST_DEVICE static auto print()
+    {
+        printf("TileDistributionEncodingPattern2D<BlockSize:%d, YPerTile:%d, XPerTile:%d, VecSize:%d, thread_raked>: ",
+               BlockSize,
+               YPerTile,
+               XPerTile,
+               VecSize);
+        printf("{<Y0, Y1, Y2>: <%d, %d, %d>, <X0, X1>: <%d, %d>}\n", Y0, Y1, Y2, X0, X1);
     }
 };
 
 // Warp raked
-template <index_t BlockSize,
-          index_t YPerTile,
-          index_t XPerTile,
-          index_t VecSize,
-          index_t NumWaveGroups>
+template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize>
 struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
-                                         tile_distribution_pattern::warp_raked,
-                                         NumWaveGroups> : public TileDistributionEncodingPattern
+                                         tile_distribution_pattern::warp_raked>
+    : public TileDistributionEncodingPattern
 {
 
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -200,17 +174,13 @@ struct TileDistributionEncodingPattern2D<BlockSize,
 };
 
 // Block raked
-template <index_t BlockSize,
-          index_t YPerTile,
-          index_t XPerTile,
-          index_t VecSize,
-          index_t NumWaveGroups>
+template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize>
 struct TileDistributionEncodingPattern2D<BlockSize,
                                          YPerTile,
                                          XPerTile,
                                          VecSize,
-                                         tile_distribution_pattern::block_raked,
-                                         NumWaveGroups> : public TileDistributionEncodingPattern
+                                         tile_distribution_pattern::block_raked>
+    : public TileDistributionEncodingPattern
 {
 
     // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!

@@ -261,6 +261,12 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
 
         return flag;
     }
+    CK_TILE_HOST_DEVICE void print() const
+    {
+        static_for<0, sizeof...(T), 1>{}([this](auto i) {
+            get(i).print();
+        });
+    }
 
 #define TP_COM_() static_assert(I < size(), "wrong! out of range")
     // clang-format off

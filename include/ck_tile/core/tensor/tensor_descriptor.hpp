@@ -146,13 +146,12 @@ struct tensor_descriptor : public tensor_adaptor<Transforms,
 
         // tensor_adaptor
         Base::print();
-        printf(", ");
+        printf(",\n");
 
         // element_space_size_
-        printf("element_space_size_: ");
-        print(element_space_size_);
+        printf("  element_space_size_: %ld\n", static_cast<long>(element_space_size_.value));
 
-        printf("}");
+        printf("}\n");
     }
 
     // TODO make these private

@@ -17,6 +17,7 @@ struct constant
     CK_TILE_HOST_DEVICE constexpr operator value_type() const noexcept { return value; }
     CK_TILE_HOST_DEVICE constexpr value_type operator()() const noexcept { return value; }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return true; }
+    CK_TILE_HOST_DEVICE static void print() { printf("%ld", static_cast<long>(value)); }
 };
 
 template <typename T, T v>

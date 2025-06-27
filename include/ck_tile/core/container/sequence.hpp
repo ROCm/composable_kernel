@@ -199,9 +199,16 @@ struct sequence
 
     CK_TILE_HOST_DEVICE static void print()
     {
-        printf("sequence{size: %d, data: [", size());
-        ((printf("%d ", Is)), ...);
-        printf("]}");
+        // printf("sequence{size: %d, data: [", size());
+        // ((printf("%d ", Is)), ...);
+        // printf("]}");
+        printf("sequence<");
+        static_for<0, size(), 1>{}([&](auto i) {
+            if (i != 0)
+                printf(", ");
+            printf("%d", at(i).value);
+        });
+        printf(">");
     }
 };
 

@@ -144,12 +144,14 @@ struct pass_through : public base_transform<1, 1>
     {
         printf("pass_through{");
 
-        //
-        printf("up_lengths_:");
-        print(up_lengths_);
+        printf("up_lengths_: [");
+        static_for<0, UpLengths::size(), 1>{}([&](auto idim) {
+            if (idim != 0)
+                printf(", ");
+            printf("%d", up_lengths_.at(idim).value);
+        });
 
-        //
-        printf("}");
+        printf("]}");
     }
 };
 
@@ -538,15 +540,23 @@ struct embed : public base_transform<1, UpLengths::size()>
         printf("embed{");
 
         //
-        printf("up_lengths_: ");
-        print(up_lengths_);
-        printf(", ");
+        printf("up_lengths_: <");
+        static_for<0, UpLengths::size(), 1>{}([&](auto idim) {
+            if (idim != 0)
+                printf(", ");
+            printf("%d", up_lengths_.at(idim).value);
+        });
+        printf(">, ");
 
         //
-        printf("coefficients_: ");
-        print(coefficients_);
+        printf("coefficients_: <");
+        static_for<0, Coefficients::size(), 1>{}([&](auto idim) {
+            if (idim != 0)
+                printf(", ");
+            printf("%d", coefficients_.at(idim).value);
+        });
 
-        printf("}");
+        printf(">}");
     }
 };
 
@@ -706,12 +716,14 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
 
         //
         printf("low_lengths_ ");
-        print(low_lengths_);
+        // print(low_lengths_);
+        low_lengths_.print();
         printf(", ");
 
         //
         printf("up_lengths_ ");
-        print(up_lengths_);
+        // print(up_lengths_);
+        up_lengths_.print();
 
         printf("}");
     }
@@ -834,22 +846,33 @@ struct merge_v3_division_mod : public base_transform<LowLengths::size(), 1>
     CK_TILE_HOST_DEVICE void print() const
     {
         printf("Merge_v3_direct_division_mod{");
+        //
+        printf("low_lengths_: [");
+        static_for<0, LowLengths::size(), 1>{}([&](auto idim) {
+            if (idim != 0)
+                printf(", ");
+            printf("%d", low_lengths_.at(idim).value);
+        });
+        printf("], ");
 
         //
-        printf("low_lengths_ ");
-        print(low_lengths_);
-        printf(", ");
+        printf("low_lengths_scan_: [");
+        static_for<0, LowLengthsScan::size(), 1>{}([&](auto idim) {
+            if (idim != 0)
+                printf(", ");
+            printf("%d", low_lengths_scan_.at(idim).value);
+        });
+        printf("], ");
 
         //
-        printf("low_lengths_scan_ ");
-        print(low_lengths_scan_);
-        printf(", ");
+        printf("up_lengths_: [");
+        static_for<0, UpLengths::size(), 1>{}([&](auto idim) {
+            if (idim != 0)
+                printf(", ");
+            printf("%d", up_lengths_.at(idim).value);
+        });
 
-        //
-        printf("up_lengths_ ");
-        print(up_lengths_);
-
-        printf("}");
+        printf("]}");
     }
 };
 
@@ -964,15 +987,23 @@ struct unmerge : public base_transform<1, UpLengths::size()>
         printf("unmerge{");
 
         //
-        printf("up_lengths_");
-        print(up_lengths_);
-        printf(", ");
+        printf("up_lengths_: [");
+        static_for<0, UpLengths::size(), 1>{}([&](auto idim) {
+            if (idim != 0)
+                printf(", ");
+            printf("%d", up_lengths_.at(idim).value);
+        });
+        printf("], ");
 
         //
-        printf("up_lengths_scan_");
-        print(up_lengths_scan_);
+        printf("up_lengths_scan_: [");
+        static_for<0, UpLengthsScan::size(), 1>{}([&](auto idim) {
+            if (idim != 0)
+                printf(", ");
+            printf("%d", up_lengths_scan_.at(idim).value);
+        });
 
-        printf("}");
+        printf("]}");
     }
 };
 
@@ -1158,7 +1189,8 @@ struct replicate : public base_transform<0, UpLengths::size()>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        // print(up_lengths_);
+        up_lengths_.print();
 
         printf("}");
     }
@@ -1431,7 +1463,11 @@ struct xor_t : public base_transform<2, 2>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        static_for<0, UpLengths::size(), 1>{}([&](auto idim) {
+            if (idim != 0)
+                printf(", ");
+            printf("%d", up_lengths_.at(idim).value);
+        });
         printf(", ");
 
         printf("}");
