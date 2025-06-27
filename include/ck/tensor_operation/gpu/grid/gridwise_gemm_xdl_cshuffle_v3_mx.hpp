@@ -1532,6 +1532,18 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                          a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
+#if 1
+        if(blockIdx.x == 0 && threadIdx.x == 0)
+        {
+            printf(
+                "a_block_desc_ak0_m_ak1.GetElementSpaceSize() = %ld, a_block_space_size_aligned = "
+                "%ld, b_block_desc_bk0_n_bk1.GetElementSpaceSize() = %ld\n",
+                static_cast<long>(a_block_desc_ak0_m_ak1.GetElementSpaceSize()),
+                static_cast<long>(a_block_space_size_aligned),
+                static_cast<long>(b_block_desc_bk0_n_bk1.GetElementSpaceSize()));
+        }
+#endif
+
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
 

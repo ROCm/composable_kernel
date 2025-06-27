@@ -1064,7 +1064,7 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
             static_cast<int32_t>(reg_b.template AsType<f6x16x2_t::data_t>()[Number<1>{}][2]),
             0,
             0};
-#if 1
+#if 0
         if constexpr(OpselA == 0 && OpselB == 0)
         {
             if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))

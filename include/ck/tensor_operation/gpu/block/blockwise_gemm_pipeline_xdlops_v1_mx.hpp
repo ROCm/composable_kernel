@@ -334,168 +334,6 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
         __builtin_amdgcn_s_waitcnt(3952); // wait for EXP_CNT, LDS, GDS, Constant and Message
         block_sync_lds();
 
-#if 0
-        if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1))
-        {
-            auto a_grid0      = a_grid_buf[0];
-            auto a_grid0_ptr  = &(a_grid_buf[0]);
-            auto a_block0     = a_block_buf[0];
-            auto a_block0_ptr = &(a_block_buf[0]);
-            auto a_grid1      = a_grid_buf[1];
-            auto a_grid1_ptr  = &(a_grid_buf[1]);
-            auto a_block1     = a_block_buf[1];
-            auto a_block1_ptr = &(a_block_buf[1]);
-            auto a_grid10     = a_grid_buf[10];
-            auto a_block10    = a_block_buf[10];
-
-             auto a_grid16  = a_grid_buf[16];
-             auto a_block16 = a_block_buf[16];
-             auto b_grid16  = b_grid_buf[16];
-             auto b_block16 = b_block_buf[16];
-
-            auto a_grid32  = a_grid_buf[32];
-            auto a_block32 = a_block_buf[32];
-            auto b_grid32  = b_grid_buf[32];
-            auto b_block32 = b_block_buf[32];
-
-            // print ComputeTypeA
-            auto print_cmp_t = [](const char* str, const ComputeTypeA& v) {
-                if constexpr(APackedSize == 16)
-                {
-                    printf("%s = 0x", str);
-                    for(int ii = 0; ii < v.vector_size; ++ii)
-                    {
-                        printf("%08x ", v.data_[ii]);
-                    }
-                    printf("\n");
-                }
-                else if constexpr(APackedSize == 1)
-                {
-                    printf("%s = 0x%02x\n", str, v.data);
-                }
-            };
-
-            if(threadIdx.x == 0)
-            {
-                print_cmp_t("thread 0; a_grid0", a_grid0);
-                print_cmp_t("thread 0; a_block0", a_block0);
-
-                print_cmp_t("thread 0; a_grid1", a_grid1);
-                print_cmp_t("thread 0; a_block1", a_block1);
-
-                printf("thread 0; a_grid0_ptr = %p\n", static_cast<const void*>(a_grid0_ptr));
-                printf("thread 0; a_grid1_ptr = %p\n", static_cast<const void*>(a_grid1_ptr));
-
-                printf("thread 0; a_block0_ptr = %p\n", static_cast<const void*>(a_block0_ptr));
-                printf("thread 0; a_block1_ptr = %p\n", static_cast<const void*>(a_block1_ptr));
-
-                print_cmp_t("thread 0; a_grid10", a_grid10);
-                print_cmp_t("thread 0; a_block10", a_block10);
-            }
-            else if(threadIdx.x == 1)
-            {
-                print_cmp_t("thread 1; a_grid32", a_grid32);
-                print_cmp_t("thread 1; a_block16", a_block16);
-                print_cmp_t("thread 1; b_grid32", b_grid32);
-                print_cmp_t("thread 1; b_block32", b_block32);
-                // print_cmp_t("thread 1; a_grid16", a_grid16);
-                // print_cmp_t("thread 1; a_block16", a_block16);
-                // print_cmp_t("thread 1; b_grid16", b_grid16);
-                // print_cmp_t("thread 1; b_block16", b_block16);
-            }
-        }
-#endif
-#if 1
-        if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1))
-        {
-            auto a_grid0  = a_grid_buf[0];
-            auto a_block0 = a_block_buf[0];
-
-            auto a_grid32  = a_grid_buf[32];
-            auto a_block17 = a_block_buf[17];
-
-            // auto a_block16 = a_block_buf[16];
-            // auto a_grid0_ptr  = &(a_grid_buf[0]);
-            // auto a_block0_ptr = &(a_block_buf[0]);
-            // auto a_grid1      = a_grid_buf[1];
-            // auto a_grid1_ptr  = &(a_grid_buf[1]);
-            // auto a_block1     = a_block_buf[1];
-            // auto a_block1_ptr = &(a_block_buf[1]);
-            // auto a_grid10     = a_grid_buf[10];
-            // auto a_block10    = a_block_buf[10];
-
-            //   auto a_grid16  = a_grid_buf[16];
-            //  auto b_grid16  = b_grid_buf[16];
-            //  auto b_block16 = b_block_buf[16];
-
-            auto b_grid0   = b_grid_buf[0];
-            auto b_block0  = b_block_buf[0];
-            auto b_grid32  = b_grid_buf[32];
-            auto b_block17 = b_block_buf[17];
-
-            //    auto a_block32 = a_block_buf[32];
-            //   auto b_block32 = b_block_buf[32];
-
-            if constexpr(APackedSize == 16)
-            {
-                if(threadIdx.x == 0)
-                {
-                    printf("BlockwiseGEMMPipeline Run threadId %d -- a_grid0 = "
-                           "0x%08x %08x %08x, a_block0 = 0x%08x %08x %08x\n",
-                           static_cast<int>(threadIdx.x),
-                           a_grid0.data_[0],
-                           a_grid0.data_[1],
-                           a_grid0.data_[2],
-                           a_block0.data_[0],
-                           a_block0.data_[1],
-                           a_block0.data_[2]);
-
-                    printf("BlockwiseGEMMPipeline Run threadId %d -- b_grid0 = "
-                           "0x%08x %08x %08x, b_block0 = 0x%08x %08x %08x\n",
-                           static_cast<int>(threadIdx.x),
-                           b_grid0.data_[0],
-                           b_grid0.data_[1],
-                           b_grid0.data_[2],
-                           b_block0.data_[0],
-                           b_block0.data_[1],
-                           b_block0.data_[2]);
-                }
-                else if(threadIdx.x == 1)
-                {
-                    printf("BlockwiseGEMMPipeline Run threadId %d -- a_grid32 = "
-                           "0x%08x %08x %08x, a_block17 = 0x%08x %08x %08x\n",
-                           static_cast<int>(threadIdx.x),
-                           a_grid32.data_[0],
-                           a_grid32.data_[1],
-                           a_grid32.data_[2],
-                           a_block17.data_[0],
-                           a_block17.data_[1],
-                           a_block17.data_[2]);
-
-                    printf("BlockwiseGEMMPipeline Run threadId %d -- b_grid32 = "
-                           "0x%08x %08x %08x, b_block17 = 0x%08x %08x %08x\n",
-                           static_cast<int>(threadIdx.x),
-                           b_grid32.data_[0],
-                           b_grid32.data_[1],
-                           b_grid32.data_[2],
-                           b_block17.data_[0],
-                           b_block17.data_[1],
-                           b_block17.data_[2]);
-                }
-            }
-            else if constexpr(APackedSize == 1 || APackedSize == 2)
-            {
-                // printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
-                //        "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
-                //        "dst_buf.p_data_[dst_offset] = 0x%02x\n",
-                //        static_cast<int>(threadIdx.x),
-                //        static_cast<long>(src_offset),
-                //        src_buf.p_data_[src_offset].data,
-                //        lds_offset,
-                //        dst_buf.p_data_[lds_offset].data);
-            }
-        }
-#endif
         // Initialize C
         c_thread_buf.Clear();
 
@@ -618,6 +456,119 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                 // load for next k loop
                 block_sync_lds();
+
+#if 1
+                if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1 || threadIdx.x == 2))
+                {
+                    auto a_grid0  = a_grid_buf[0];
+                    auto a_block0 = a_block_buf[0];
+
+                    auto a_grid32  = a_grid_buf[32];
+                    auto a_block17 = a_block_buf[17];
+
+                    auto a_grid512  = a_grid_buf[512];
+                    auto a_block256 = a_block_buf[256];
+
+                    auto b_grid0   = b_grid_buf[0];
+                    auto b_block0  = b_block_buf[0];
+                    auto b_grid32  = b_grid_buf[32];
+                    auto b_block17 = b_block_buf[17];
+
+                    auto b_grid512  = b_grid_buf[32 * 16];
+                    auto b_block256 = b_block_buf[16 * 16];
+
+                    //    auto a_block32 = a_block_buf[32];
+                    //   auto b_block32 = b_block_buf[32];
+
+                    if constexpr(APackedSize == 16)
+                    {
+                        if(threadIdx.x == 0)
+                        {
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- a_grid0 = "
+                                   "0x%08x %08x %08x, a_block0 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   a_grid0.data_[0],
+                                   a_grid0.data_[1],
+                                   a_grid0.data_[2],
+                                   a_block0.data_[0],
+                                   a_block0.data_[1],
+                                   a_block0.data_[2]);
+
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- a_grid512 = "
+                                   "0x%08x %08x %08x, a_block256 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   a_grid512.data_[0],
+                                   a_grid512.data_[1],
+                                   a_grid512.data_[2],
+                                   a_block256.data_[0],
+                                   a_block256.data_[1],
+                                   a_block256.data_[2]);
+
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- b_grid0 = "
+                                   "0x%08x %08x %08x, b_block0 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   b_grid0.data_[0],
+                                   b_grid0.data_[1],
+                                   b_grid0.data_[2],
+                                   b_block0.data_[0],
+                                   b_block0.data_[1],
+                                   b_block0.data_[2]);
+                        }
+                        else if(threadIdx.x == 1)
+                        {
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- a_grid32 = "
+                                   "0x%08x %08x %08x, a_block17 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   a_grid32.data_[0],
+                                   a_grid32.data_[1],
+                                   a_grid32.data_[2],
+                                   a_block17.data_[0],
+                                   a_block17.data_[1],
+                                   a_block17.data_[2]);
+
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- b_grid32 = "
+                                   "0x%08x %08x %08x, b_block17 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   b_grid32.data_[0],
+                                   b_grid32.data_[1],
+                                   b_grid32.data_[2],
+                                   b_block17.data_[0],
+                                   b_block17.data_[1],
+                                   b_block17.data_[2]);
+                        }
+                        else if(threadIdx.x == 2)
+                        {
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- b_grid512 = "
+                                   "0x%08x %08x %08x, b_block256 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   b_grid512.data_[0],
+                                   b_grid512.data_[1],
+                                   b_grid512.data_[2],
+                                   b_block256.data_[0],
+                                   b_block256.data_[1],
+                                   b_block256.data_[2]);
+                        }
+                    }
+                    else if constexpr(APackedSize == 1 || APackedSize == 2)
+                    {
+                        // printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                        //        "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
+                        //        "dst_buf.p_data_[dst_offset] = 0x%02x\n",
+                        //        static_cast<int>(threadIdx.x),
+                        //        static_cast<long>(src_offset),
+                        //        src_buf.p_data_[src_offset].data,
+                        //        lds_offset,
+                        //        dst_buf.p_data_[lds_offset].data);
+                    }
+                }
+#endif
+
                 a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
                 b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
@@ -1410,6 +1361,119 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         });
                 });
             });
+
+#if 1
+            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1 || threadIdx.x == 2))
+            {
+                auto a_grid0  = a_grid_buf[0];
+                auto a_block0 = a_block_buf[0];
+
+                auto a_grid32  = a_grid_buf[32];
+                auto a_block17 = a_block_buf[17];
+
+                auto a_grid512  = a_grid_buf[512];
+                auto a_block256 = a_block_buf[256];
+
+                auto b_grid0   = b_grid_buf[0];
+                auto b_block0  = b_block_buf[0];
+                auto b_grid32  = b_grid_buf[32];
+                auto b_block17 = b_block_buf[17];
+
+                auto b_grid512  = b_grid_buf[32 * 16];
+                auto b_block256 = b_block_buf[16 * 16];
+
+                //    auto a_block32 = a_block_buf[32];
+                //   auto b_block32 = b_block_buf[32];
+
+                if constexpr(APackedSize == 16)
+                {
+                    if(threadIdx.x == 0)
+                    {
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- a_grid0 = "
+                               "0x%08x %08x %08x, a_block0 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               a_grid0.data_[0],
+                               a_grid0.data_[1],
+                               a_grid0.data_[2],
+                               a_block0.data_[0],
+                               a_block0.data_[1],
+                               a_block0.data_[2]);
+
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- a_grid512 = "
+                               "0x%08x %08x %08x, a_block256 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               a_grid512.data_[0],
+                               a_grid512.data_[1],
+                               a_grid512.data_[2],
+                               a_block256.data_[0],
+                               a_block256.data_[1],
+                               a_block256.data_[2]);
+
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- b_grid0 = "
+                               "0x%08x %08x %08x, b_block0 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               b_grid0.data_[0],
+                               b_grid0.data_[1],
+                               b_grid0.data_[2],
+                               b_block0.data_[0],
+                               b_block0.data_[1],
+                               b_block0.data_[2]);
+                    }
+                    else if(threadIdx.x == 1)
+                    {
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- a_grid32 = "
+                               "0x%08x %08x %08x, a_block17 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               a_grid32.data_[0],
+                               a_grid32.data_[1],
+                               a_grid32.data_[2],
+                               a_block17.data_[0],
+                               a_block17.data_[1],
+                               a_block17.data_[2]);
+
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- b_grid32 = "
+                               "0x%08x %08x %08x, b_block17 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               b_grid32.data_[0],
+                               b_grid32.data_[1],
+                               b_grid32.data_[2],
+                               b_block17.data_[0],
+                               b_block17.data_[1],
+                               b_block17.data_[2]);
+                    }
+                    else if(threadIdx.x == 2)
+                    {
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- b_grid512 = "
+                               "0x%08x %08x %08x, b_block256 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               b_grid512.data_[0],
+                               b_grid512.data_[1],
+                               b_grid512.data_[2],
+                               b_block256.data_[0],
+                               b_block256.data_[1],
+                               b_block256.data_[2]);
+                    }
+                }
+                else if constexpr(APackedSize == 1 || APackedSize == 2)
+                {
+                    // printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                    //        "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
+                    //        "dst_buf.p_data_[dst_offset] = 0x%02x\n",
+                    //        static_cast<int>(threadIdx.x),
+                    //        static_cast<long>(src_offset),
+                    //        src_buf.p_data_[src_offset].data,
+                    //        lds_offset,
+                    //        dst_buf.p_data_[lds_offset].data);
+                }
+            }
+#endif
+
             static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                 static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
                     static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {

@@ -236,7 +236,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
-#if 0
+#if 1
         if(blockIdx.x == 0 && threadIdx.x < 64)
         {
             printf("DirectCopyToLds SetSrcSliceOrigin threadIdx.x: %d, src_slice_origin_idx = {%d, "
@@ -324,44 +324,13 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         // ck::TensorCoordinateStep<6, 3, ck::Sequence<0, 0, 0, 0, 0, 0>>>
         //  CK_PRINT<decltype(src_forward_steps)>();
 
-#if 0
+#if 1
         if(blockIdx.x == 0 && threadIdx.x < 1)
         {
             printf("DirectCopyToLds threadId %d -- src_buf.p_data_ = %p, dst_buf.p_data_ = %p\n",
                    static_cast<int>(threadIdx.x),
                    static_cast<const void*>(src_buf.p_data_),
                    static_cast<const void*>(dst_buf.p_data_));
-        }
-#endif
-
-#if 0
-        if(blockIdx.x == 0 && threadIdx.x < 64)
-        {
-            // print SrcBuffer::type
-
-            const auto src_offset = src_coord_.GetOffset();
-            const auto dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
-
-            if constexpr(packed_size_v<SrcData> == 16)
-            {
-                printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
-                       "src_buf.p_data_[src_offset] = 0x%08x %08x %08x, dst_offset: %d\n",
-                       static_cast<int>(threadIdx.x),
-                       static_cast<long>(src_offset),
-                       src_buf.p_data_[src_offset].data_[0],
-                       src_buf.p_data_[src_offset].data_[1],
-                       src_buf.p_data_[src_offset].data_[2],
-                       dst_offset);
-            }
-            else if constexpr(packed_size_v<SrcData> == 1 || packed_size_v<SrcData> == 2)
-            {
-                printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
-                       "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d\n",
-                       static_cast<int>(threadIdx.x),
-                       static_cast<long>(src_offset),
-                       src_buf.p_data_[src_offset].data,
-                       dst_offset);
-            }
         }
 #endif
 
@@ -397,7 +366,8 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                 dst_buf, src_offset, dst_offset, is_src_valid);
 
 #if 0
-            if(blockIdx.x == 0 && threadIdx.x < 64)
+            if(blockIdx.x == 0 && threadIdx.x < 640 &&
+               dst_buf.p_data_ == reinterpret_cast<const void*>(0x1000000000000))
             {
                 const auto lds_offset =
                     dst_offset + ScalarPerVector * (ThreadGroup::GetThreadId() % 64);
