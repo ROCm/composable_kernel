@@ -1532,7 +1532,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                          a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-#if 1
+#if 0
         if(blockIdx.x == 0 && threadIdx.x == 0)
         {
             printf(

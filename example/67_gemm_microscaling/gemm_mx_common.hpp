@@ -33,24 +33,28 @@ using ck::type_convert;
 
 struct ExecutionConfig final
 {
-    int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 1;     // (0=constant values, 1=integer values, 2=decimal values)
-    bool time_kernel    = false; // (0=no, 1=yes)
-    int verbosity       = 1;     // (0=no info, 1=verbose info)
+    int do_verification = 1;    // (0=no, 1=CPU)
+    int init_method     = 2;    // (0=constant values, 1=integer values, 2=decimal values)
+    bool time_kernel    = true; // (0=no, 1=yes)
+    int verbosity       = 1;    // (0=no info, 1=verbose info)
     int warm_up         = 10;
     int repeat          = 10;
 };
 
 struct ProblemSizeSplitK final
 {
-#if 1
+#if 0
     ck::index_t M = 256;
     ck::index_t N = 256;
     ck::index_t K = 512; // 32
-#else
+#elif 0
     ck::index_t M = 512;
     ck::index_t N = 512;
     ck::index_t K = 1024;
+#else
+    ck::index_t M = 3840;
+    ck::index_t N = 4096;
+    ck::index_t K = 4096;
 #endif
 
     ck::index_t StrideA = -1;
@@ -250,6 +254,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         throw std::runtime_error("wrong! K must be multiple of ScaleBlockSize.");
     };
 
+    if(K % ck::packed_size_v<ADataType> != 0 || K % ck::packed_size_v<BDataType> != 0)
+    {
+        throw std::runtime_error("wrong! K must be multiple of packed size.");
+    };
+
     // Hardcode scale layouts as per pipeline assumptions
     // TODO: Allow user to specify scale layouts
     using AScaleLayout = Row;
@@ -360,15 +369,17 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         break;
 
     case 1:
-        a_m_k.GenerateTensorDistr(int_distr{-5, 6});  // Z[-5,5]
-        b_k_n->GenerateTensorDistr(int_distr{-5, 6}); // Z[-5,5]
+        a_m_k.GenerateTensorDistr(
+            int_distr{-5, 5}, ck::identity{}, std::minstd_rand(time(nullptr))); // Z[-5,5]
+        b_k_n->GenerateTensorDistr(int_distr{-5, 5});                           // Z[-5,5]
         static_assert(ck::is_same_v<XDataType, ck::e8m0_bexp_t>);
-        a_m_k_scale.GenerateTensorDistr(int_distr{120, 129}); // scales: {0.25, 0.5, 1, 2}
-        b_k_n_scale.GenerateTensorDistr(int_distr{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        a_m_k_scale.GenerateTensorDistr(int_distr{125, 128}); // scales: {0.25, 0.5, 1, 2}
+        b_k_n_scale.GenerateTensorDistr(int_distr{125, 128}); // scales: {0.25, 0.5, 1, 2}
         break;
 
     case 2:
-        a_m_k.GenerateTensorDistr(float_distr{-2.0, 2.0});
+        a_m_k.GenerateTensorDistr(
+            float_distr{-2.0, 2.0}, ck::identity{}, std::minstd_rand(time(nullptr))); // R[-2,2]
         a_m_k_scale.GenerateTensorDistr(float_distr{powf(2.0f, -125.0f), 1.0f});
 
         b_k_n->GenerateTensorDistr(float_distr{-2.0, 2.0});
@@ -851,8 +862,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         }
 #endif
         std::cout << "Submatrix of c_m_n_device_result (16x16):" << std::endl;
-        auto st_i = 240;
-        auto st_j = 240;
+        auto st_i = 230;
+        auto st_j = 230;
         for(int i = 0; i < 16; ++i)
         {
             for(int j = 0; j < 16; ++j)
@@ -860,7 +871,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 if(st_i + i < M && st_j + j < N)
                 {
                     std::cout << std::setw(14) << std::fixed << std::setprecision(5)
-                              << type_convert<float>(c_m_n_device_result(i, j));
+                              << type_convert<float>(c_m_n_device_result(st_i + i, st_j + j));
                 }
             }
             // std::cout << "\t\t";

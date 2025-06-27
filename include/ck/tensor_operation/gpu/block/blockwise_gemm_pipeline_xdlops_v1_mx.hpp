@@ -363,7 +363,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     constexpr auto k_step =
                         k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
 
-#if 1
+#if 0
                     if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
                     {
                         if constexpr(k == 0)
@@ -457,7 +457,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 // load for next k loop
                 block_sync_lds();
 
-#if 1
+#if 0
                 if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1 || threadIdx.x == 2))
                 {
                     auto a_grid0  = a_grid_buf[0];
@@ -620,7 +620,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                                     make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
 
-#if 1 // check for zero A and B
+#if 0 // check for zero A and B
                                             if(b_thread_vec.template AsType<ComputeTypeB>()(ik) ==
                                                ComputeTypeB{0})
                                             {
@@ -671,7 +671,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                                         bool is_C_zero = true;
                                         ignore         = is_C_zero;
-#if 1 // check for zero C
+#if 0 // check for zero C
                                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}(
                                             [&](auto m) {
                                                 if(c_thread_buf[Number<c_offset + m>{}] == 0.0f) {}
@@ -1362,7 +1362,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                 });
             });
 
-#if 1
+#if 0
             if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1 || threadIdx.x == 2))
             {
                 auto a_grid0  = a_grid_buf[0];
@@ -1520,7 +1520,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                                             b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                                 make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
 
-#if 1 // check for zero A and B
+#if 0 // check for zero A and B
                                         if(b_thread_vec.template AsType<ComputeTypeB>()(ik) ==
                                            ComputeTypeB{0})
                                         {
@@ -1570,7 +1570,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                                     bool is_C_zero = true;
                                     ignore         = is_C_zero;
-#if 1 // check for zero C
+#if 0 // check for zero C
                                     static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}(
                                         [&](auto m) {
                                             if(c_thread_buf[Number<c_offset + m>{}] == 0.0f) {}
