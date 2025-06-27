@@ -79,9 +79,8 @@ class TestCkTileElementwise : public ::testing::Test
         h_y_ref.SetZero();
 
         // Device Buffers
-        auto d_xs_mems_owner = make_uniform_array_with_factory<NumInputs>([&](std::size_t i) {
-            return ck_tile::DeviceMem(h_xs[i]);
-        });
+        auto d_xs_mems_owner = make_uniform_array_with_factory<NumInputs>(
+            [&](std::size_t i) { return ck_tile::DeviceMem(h_xs[i]); });
         for(int i = 0; i < NumInputs; ++i)
         {
             d_xs_mems_owner[i].ToDevice(h_xs[i].data());
