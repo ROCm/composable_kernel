@@ -425,12 +425,13 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
 
+    // memory on host to store gpu reference result
+    ck_tile::HostTensor<CDataType> c_m_n_ref(
+        ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
+    c_m_n_ref.SetZero();
+
     if(arg_parser.get_int("v") == 1)
     {
-        ck_tile::HostTensor<CDataType> c_m_n_ref(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
-        c_m_n_ref.SetZero();
-
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_m_k, b_k_n, c_m_n_ref);
         const float max_accumulated_value =
@@ -460,13 +461,8 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             b_k_n_dev_buf.ToDevice(b_k_n.data());
         }
 
-        // memory on host to store gpu reference result
-        ck_tile::HostTensor<CDataType> c_m_n_ref(
-            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         // memory on device to store gpu reference result
         ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_ref.get_element_space_size_in_bytes());
-
-        c_m_n_ref.SetZero();
         c_m_n_gpu_buf_ref.SetZero();
 
         ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
