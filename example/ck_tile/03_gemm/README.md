@@ -1,16 +1,44 @@
-# GEMM Matrix Multiplication
+# GEMM with CK Tile
 
-This folder contains example for GEMM using ck_tile tile-programming implementation. Currently, it only supports the basic feature of the CK Tile GEMM, but creates the placeholders for the future support on different GEMM pipeline and different GEMM modules. In the near future, we will gradually migrate all the GEMM features from old CK to CK Tile.
+This example demonstrates matrix multiplication (GEMM) using the CK Tile programming model, focusing on tile-based parallelism and modular kernel design.
 
-## build
-```
-# in the root of ck_tile
+---
+
+## Algorithm and Math
+
+GEMM computes:
+$$
+C = A \times B
+$$
+where $A$ is $[M, K]$, $B$ is $[K, N]$, and $C$ is $[M, N]$.
+
+- **Tilewise GEMM**: Each thread block computes a tile of $C$ by loading tiles of $A$ and $B$, performing blockwise matrix multiply-accumulate, and writing results back.
+
+---
+
+## Tile Programming Model
+
+- **Tiles**: Each thread block processes a tile of $C$.
+- **Tile Engine**: Handles loading tiles from global memory, performing GEMM in registers, and storing results.
+- **Pipeline**: Modular design allows swapping different memory/computation pipelines (e.g., basic, memory-bound).
+
+---
+
+## Features
+
+- **Flexible Layouts**: Supports row/column-major and custom strides for $A$, $B$, $C$.
+- **Batching**: Batched GEMM supported.
+- **Precision**: Supports fp16, bf16, fp8, bf8.
+- **Validation**: CPU/GPU validation and error tolerance options.
+
+---
+
+## Build & Run
+
+```bash
 mkdir build && cd build
-# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
-# The basic pipeline method on the gemm calculation
+sh ../script/cmake-ck-dev.sh ../ <arch>
 make tile_example_gemm_basic -j
-# The memory bound pipeline on the gemm calculation
 make tile_example_gemm_universal -j
 ```
 This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal`
@@ -35,3 +63,24 @@ args:
      -repeat    number of iterations to benchmark the kernel (default:100)
       -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
 ```
+
+
+## Source Structure
+
+- **Kernels**: `gemm_basic.cpp`, `universal_gemm.cpp` (different pipelines)
+- **Utils**: `gemm_utils.hpp` (helper functions)
+- **Build**: `CMakeLists.txt`, `run_gemm_example.inc`
+- **Scripts**: `script/` (build and run helpers)
+
+---
+
+## Related CK Tile Examples
+
+- [01_fmha](../01_fmha/README.md): Fused multi-head attention (FMHA)
+- [02_layernorm2d](../02_layernorm2d/README.md): Tile-programming LayerNorm
+- [16_batched_gemm](../16_batched_gemm/README.md): Batched GEMM with tiles
+
+For tile engine and distribution, see `include/ck_tile/tile_engine/` and `include/ck_tile/tile_program/tile_distribution/`.
+
+---
+[Back to CK Tile Examples](../README.md)

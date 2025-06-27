@@ -46,3 +46,58 @@ Table of supported cases by instance factory with fused elementwise operation:
 
 * **Bilinear** - 3D, NHWGC, bf16/fp16/fp32
 * **Scale** - 3D, NHWGC, bf16/fp16/fp32
+
+---
+
+## Theory
+
+**Grouped convolution backward data** computes the gradient of the input tensor with respect to the loss, given the output gradient and the weights, for each group independently. This is essential for training CNNs and grouped/expert models.
+
+**Mathematical Formulation:**
+For each group $g$:
+$$
+\text{InputGrad}^g = \text{ConvBwdData}(\text{OutputGrad}^g, \text{Weights}^g)
+$$
+
+- Supports 1D, 2D, and 3D grouped convolutions.
+- Utilizes implicit GEMM for efficient computation.
+- Supports fused elementwise operations (e.g., bilinear, scale).
+
+## How to Run
+
+### Prerequisites
+```bash
+cd composable_kernel/build
+make -j install
+```
+
+### Build and Execute
+```bash
+cd composable_kernel/client_example/10_grouped_convnd_bwd_data
+mkdir build && cd build
+cmake -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc ..
+make -j
+
+# Example run (2D grouped convolution backward data)
+./grouped_conv2d_bwd_data
+```
+
+## Source Code Structure
+
+### Directory Layout
+```
+client_example/10_grouped_convnd_bwd_data/
+├── grouped_conv1d_bwd_data.cpp         # 1D grouped convolution backward data
+├── grouped_conv2d_bwd_data.cpp         # 2D grouped convolution backward data
+├── grouped_conv3d_bwd_data.cpp         # 3D grouped convolution backward data
+├── CMakeLists.txt                      # Build configuration for the example
+```
+
+### Key Functions
+
+- **main()** (in each `.cpp`):  
+  Sets up input/output tensors, configures grouped convolution parameters, launches the backward data kernel, and verifies the result.
+- **Grouped convolution backward kernel invocation**:  
+  Uses the Composable Kernel device API to launch grouped convolution backward data for different dimensions and data types.
+
+This client example provides a comprehensive demonstration of grouped convolution backward data for efficient CNN and vision transformer training.
