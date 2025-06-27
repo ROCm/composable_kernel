@@ -261,10 +261,10 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v3<
         static_for<0, buffer_load_a_stages, 1>{}([&](auto i) {
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
+                if constexpr(((i < buffer_load_stages_more) &&
                               (imfma % buffer_load_issue_point_interval_more ==
                                buffer_load_issue_point_a)) ||
-                             (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
+                             ((i >= buffer_load_stages_more) &&
                               (imfma % buffer_load_issue_point_interval_less ==
                                buffer_load_issue_point_a)) || 
                               ((num_mfma_perstage < buffer_load_perstage_less) && 
@@ -278,25 +278,18 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v3<
                 }
                 // __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
             });
-            // Scale load, 1A
-            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
             // __builtin_amdgcn_sched_barrier(0);
         });
 
         // B global read
         static_for<0, buffer_load_b_stages, 1>{}([&](auto i) {
-            // Scale load, 1B
-            // if constexpr (i.value==0){
-            //     __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-            // }
-
             static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
                 __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
 
-                if constexpr(((i < buffer_load_stages_more) &&
+                if constexpr((((i+buffer_load_a_stages) < buffer_load_stages_more) &&
                               (imfma % buffer_load_issue_point_interval_more ==
                                buffer_load_issue_point_b)) ||
-                             ((i >= buffer_load_stages_more) &&
+                             (((i+buffer_load_a_stages) >= buffer_load_stages_more) &&
                               (imfma % buffer_load_issue_point_interval_less ==
                                buffer_load_issue_point_b)) || 
                               ((num_mfma_perstage < buffer_load_perstage_less) && 
@@ -311,9 +304,19 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v3<
                 }
                 // __builtin_amdgcn_sched_group_barrier(0x800, 2, 0); // v_pk_fma
             });
+            // __builtin_amdgcn_sched_barrier(0);
+        });
+
+        //load scale
+        static_for<0, buffer_load_a_stages, 1>{}([&](auto i) {
+            ignore = i;
+            // Scale load, 1A
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+        });
+        static_for<0, buffer_load_b_stages, 1>{}([&](auto i) {
+            ignore = i;
             // Scale load, 1B
             __builtin_amdgcn_sched_group_barrier(0x020, 2, 0); // VMEM read
-            // __builtin_amdgcn_sched_barrier(0);
         });
 
         // lds synchronization, prefetch next loop local A
@@ -788,7 +791,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v3<
                         c_scale_thread_buf_up(m0) = a_scale_thread_bufs[mfma_reg_buf][m0] * b_scale_thread_bufs_up[mfma_reg_buf][I0];
                     });
 
-                    HotLoopScheduler();
+                    // HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
                 };
 
