@@ -1,8 +1,12 @@
-# GEMM with Bilinear Operations
+# Composable Kernel GEMM Bilinear Example
+
+## Introduction
+
+This example demonstrates GEMM (General Matrix Multiplication) fused with bilinear operations on auxiliary tensors using Composable Kernel (CK). Bilinear fusion patterns are widely used in neural networks for gating, attention, and multimodal feature fusion, where the output of a matrix multiplication is combined elementwise with one or more additional tensors.
+
+---
 
 ## Theory
-
-This example demonstrates **GEMM with bilinear operations on auxiliary tensors**. Bilinear fusion patterns are used in neural networks for gating, attention, and multimodal feature fusion, where the output of a matrix multiplication is combined elementwise with one or more additional tensors.
 
 **Mathematical Formulation:**
 $$
@@ -18,20 +22,44 @@ $$
 - Gated: $F = (A \times B) \odot \sigma(D) + E$
 - Weighted: $F = \alpha (A \times B) + \beta (D \odot E)$
 
-**Algorithmic Background:**
-- The GEMM result is kept in registers and combined with auxiliary tensors in the epilogue.
-- No intermediate results are written to global memory.
-- This pattern is common in attention, gating, and feature interaction layers.
+The GEMM result is kept in registers and combined with auxiliary tensors in the epilogue, avoiding intermediate writes to global memory. This pattern is common in attention, gating, and feature interaction layers.
+
+---
+
+## CK GEMM Bilinear API Overview
+
+CK provides a composable API for GEMM with multiple auxiliary tensors via the `DeviceGemmMultipleD` operation.
+
+### Template Parameters
+
+- **ALayout** - A matrix layout (RowMajor/ColumnMajor)
+- **BLayout** - B matrix layout (RowMajor/ColumnMajor)
+- **DsLayout** - Layouts for auxiliary tensors (tuple)
+- **ELayout** - Output matrix layout (RowMajor/ColumnMajor)
+- **ADataType** - A matrix data type
+- **BDataType** - B matrix data type
+- **DsDataType** - Data types for auxiliary tensors (tuple)
+- **EDataType** - Output matrix data type
+- **AElementwiseOperation** - Fused operation on tensor A before GEMM
+- **BElementwiseOperation** - Fused operation on tensor B before GEMM
+- **CDEElementwiseOperation** - Fused operation on C, D, E after GEMM
+
+### Supported Data Types and Layouts
+
+- Supports fp16, int8, and other types depending on the device operation.
+- Supports RowMajor and ColumnMajor layouts for all tensors.
+
+### Supported Device Operations
+
+- **DeviceGemmMultipleD**: Standard multi-tensor GEMM
+- **DeviceGemmMultipleD_Bilinear**: GEMM with bilinear fusion in the epilogue
+
+---
 
 ## How to Run
 
-### Prerequisites
-```bash
-cd composable_kernel/build
-make -j install
-```
-
 ### Build and Execute
+
 ```bash
 cd composable_kernel/example/02_gemm_bilinear
 mkdir build && cd build
@@ -42,12 +70,15 @@ make -j
 ./gemm_bilinear_xdl -M 1024 -N 1024 -K 512 --verify=1 --time=1
 ```
 
+---
+
 ## Source Code Structure
 
-### Directory Layout
 ```
 example/02_gemm_bilinear/
 ├── gemm_bilinear_xdl.cpp         # Main example: sets up, runs, and verifies GEMM with bilinear fusion
+├── gemm_bilinear_wmma_fp16.cpp   # WMMA FP16 variant
+├── gemm_bilinear_wmma_int8.cpp   # WMMA int8 variant
 include/ck/tensor_operation/gpu/device/
 │   └── device_gemm_multiple_d.hpp       # Device-level API for multi-tensor GEMM
 include/ck/tensor_operation/gpu/device/impl/
@@ -73,5 +104,7 @@ include/ck/tensor_operation/gpu/element/
   Implements the tiled/blocking GEMM kernel with multi-tensor epilogue.
 - **element_wise_operation** (in `element_wise_operation.hpp`):  
   Defines bilinear and other elementwise operations.
+
+---
 
 This example demonstrates how Composable Kernel supports complex multi-tensor fusion patterns for advanced neural network architectures.

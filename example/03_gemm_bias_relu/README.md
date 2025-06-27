@@ -19,12 +19,6 @@ $$
 
 ## How to Run
 
-### Prerequisites
-```bash
-cd composable_kernel/build
-make -j install
-```
-
 ### Build and Execute
 ```bash
 cd composable_kernel/example/03_gemm_bias_relu

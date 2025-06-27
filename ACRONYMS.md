@@ -59,7 +59,6 @@ This file lists technical acronyms found throughout the Composable Kernel codeba
 | SWA     | Sliding Window Attention | Attention mechanism with a limited window for each token |
 | TLB     | Translation Lookaside Buffer | Memory management unit cache for virtual-to-physical address translation |
 | TPU     | Tensor Processing Unit | Google's custom AI accelerator |
-| V100/A100 | NVIDIA GPU Models | High-end GPUs for HPC/ML workloads |
 | VGPR    | Vector General Purpose Register | GPU register for vector operations |
 | WARP    | Group of Threads | Smallest scheduling unit on NVIDIA GPUs (32 threads) |
 | WMMA    | Warp Matrix Multiply-Accumulate | NVIDIA's matrix-multiply hardware primitive |
