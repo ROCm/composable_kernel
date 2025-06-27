@@ -238,6 +238,8 @@ struct FmhaFwdPagedKVKernel
           std::conditional_t<kIsPagedKV, CommonPageBlockTableKargs, CacheBatchIdxKargs>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<4>>
     {
+        const int32_t* seqlen_k_ptr;
+
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k; // when using paged-kvcache, this will be stride/size for
                                          // single kcache page-block
@@ -289,6 +291,7 @@ struct FmhaFwdPagedKVKernel
                   void* o_ptr,
                   ck_tile::index_t seqlen_q,
                   ck_tile::index_t seqlen_k,
+                  const void* seqlen_k_ptr, // only used for (paged-) kvcache
                   ck_tile::index_t hdim_q,
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head_q,
@@ -351,6 +354,7 @@ struct FmhaFwdPagedKVKernel
                     {},               // placeholder for fp8_static_quant args
                     {},               // placeholder for pagedkv
                     {},               // placeholder for logits_soft_cap
+                    reinterpret_cast<const int32_t*>(seqlen_k_ptr),
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -414,6 +418,7 @@ struct FmhaFwdPagedKVKernel
               void* o_ptr,
               ck_tile::index_t seqlen_q,
               ck_tile::index_t seqlen_k,
+              const void* seqlen_k_ptr,  // only used for (paged-) kvcache
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -455,6 +460,7 @@ struct FmhaFwdPagedKVKernel
                              o_ptr,
                              seqlen_q,
                              seqlen_k,
+                             seqlen_k_ptr,
                              hdim_q,
                              hdim_v,
                              num_head_q,
@@ -694,7 +700,7 @@ struct FmhaFwdPagedKVKernel
                              min_seqlen_q);
     }
 
-    CK_TILE_HOST static void PrintParameter(Kargs& kargs, int num_batches)
+    CK_TILE_HOST static void PrintParameters(const Kargs& kargs, int num_batches)
     {
         static bool dummy = [&]() {
             std::cout << std::endl;
@@ -770,7 +776,7 @@ struct FmhaFwdPagedKVKernel
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
                                                 ck_tile::index_t hdim_v_,
-                                                bool has_padded_seqlen_k = false)
+                                                bool has_padded_seqlen_k)
     {
         // has_padded_seqlen_k is determined by checking (seqlen_k_ptr != nullptr)
         if(has_padded_seqlen_k)
@@ -974,6 +980,11 @@ struct FmhaFwdPagedKVKernel
             }
 
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
+
+            if(kargs.seqlen_k_ptr != nullptr)
+            {
+                kargs.seqlen_k = kargs.seqlen_k_ptr[i_batch];
+            }
         }
 
         // for simplicity, batch stride we just modify the pointer
@@ -1099,63 +1110,65 @@ struct FmhaFwdPagedKVKernel
             }(),
             {i_m0, 0});
 
-        auto k_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
-            if constexpr(kIsPagedKV)
-            {
-                const auto* block_indices =
-                    reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    i_batch_ * kargs.batch_stride_block_table;
-                const index_t num_blocks =
-                    integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
+        auto k_page_block_navigator =
+            [&, i_batch_ = i_batch, i_nhead_ = i_nhead / kargs.nhead_ratio_qk]() {
+                if constexpr(kIsPagedKV)
+                {
+                    const auto* block_indices =
+                        reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
+                        i_batch_ * kargs.batch_stride_block_table;
+                    const index_t num_blocks =
+                        integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
 
-                const long_index_t fixed_offset = i_nhead_ * kargs.nhead_stride_k;
+                    const long_index_t fixed_offset = i_nhead_ * kargs.nhead_stride_k;
 
-                return make_page_block_navigator<const KDataType, 0>(
-                    kargs.k_ptr,
-                    kargs.batch_stride_k, // kcache page-block stride/size
-                    fixed_offset,
-                    block_indices,
-                    num_blocks,
-                    kargs.page_block_size,
-                    k_dram,
-                    make_k_dram(nullptr,
-                                (kv_l2p_offset + kargs.seqlen_k) -
-                                    (num_blocks - 1) * kargs.page_block_size));
-            }
-            else
-            {
-                return make_page_block_navigator(k_dram);
-            }
-        }();
+                    return make_page_block_navigator<const KDataType, 0>(
+                        kargs.k_ptr,
+                        kargs.batch_stride_k, // kcache page-block stride/size
+                        fixed_offset,
+                        block_indices,
+                        num_blocks,
+                        kargs.page_block_size,
+                        k_dram,
+                        make_k_dram(nullptr,
+                                    (kv_l2p_offset + kargs.seqlen_k) -
+                                        (num_blocks - 1) * kargs.page_block_size));
+                }
+                else
+                {
+                    return make_page_block_navigator(k_dram);
+                }
+            }();
 
-        auto v_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
-            if constexpr(kIsPagedKV)
-            {
-                const auto* block_indices =
-                    reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    i_batch_ * kargs.batch_stride_block_table;
-                const index_t num_blocks =
-                    integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
+        auto v_page_block_navigator =
+            [&, i_batch_ = i_batch, i_nhead_ = i_nhead / kargs.nhead_ratio_qk]() {
+                if constexpr(kIsPagedKV)
+                {
+                    const auto* block_indices =
+                        reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
+                        i_batch_ * kargs.batch_stride_block_table;
+                    const index_t num_blocks =
+                        integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
 
-                const long_index_t fixed_offset = i_nhead_ * kargs.nhead_stride_v;
+                    const long_index_t fixed_offset = i_nhead_ * kargs.nhead_stride_v;
 
-                return make_page_block_navigator<const VDataType, 1>(
-                    kargs.v_ptr,
-                    kargs.batch_stride_v, // vcache page-block stride/size
-                    fixed_offset,
-                    block_indices,
-                    num_blocks,
-                    kargs.page_block_size,
-                    v_dram,
-                    make_v_dram(nullptr,
-                                (kv_l2p_offset + kargs.seqlen_k) -
-                                    (num_blocks - 1) * kargs.page_block_size));
-            }
-            else
-            {
-                return make_page_block_navigator(v_dram);
-            }
-        }();
+                    return make_page_block_navigator<const VDataType, 1>(
+                        kargs.v_ptr,
+                        kargs.batch_stride_v, // vcache page-block stride/size
+                        fixed_offset,
+                        block_indices,
+                        num_blocks,
+                        kargs.page_block_size,
+                        v_dram,
+                        make_v_dram(nullptr,
+                                    (kv_l2p_offset + kargs.seqlen_k) -
+                                        (num_blocks - 1) * kargs.page_block_size));
+                }
+                else
+                {
+                    return make_page_block_navigator(v_dram);
+                }
+            }();
 
         auto k_dram_window_lengths =
             make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{});
