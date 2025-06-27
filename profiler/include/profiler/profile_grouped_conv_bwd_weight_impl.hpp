@@ -78,8 +78,8 @@ struct PerfResults
         case SplitKStrategy::BestOccupancy:
             return std::to_string(split_k_arg) + " (best occupancy)";
             break;
-        case SplitKStrategy::BestOccupancyWithMinQuantization:
-            return std::to_string(split_k_arg) + " (best occupancy with min wave quantization)";
+        case SplitKStrategy::Optimized:
+            return std::to_string(split_k_arg) + " (optimized)";
             break;
         default:
             break;
@@ -111,8 +111,8 @@ struct PerfResults
                 return "Fixed Split-K";
             case SplitKStrategy::BestOccupancy:
                 return "Best Occupancy";
-            case SplitKStrategy::BestOccupancyWithMinQuantization:
-                return "Best Occupancy with Minimum Wave Quantization";
+            case SplitKStrategy::Optimized:
+                return "Optimized";
             default:
                 return "Unknown Strategy";
             }
@@ -150,18 +150,18 @@ struct PerfResults
 
     void set_common_params(ck::index_t m_dim_size, ck::index_t n_dim_size, ck::index_t k_dim_size, float arithmetic_intensity)
     {
-        // if (m_dim_size_ > 0 && m_dim_size != m_dim_size_)
-        // {
-        //     std::cerr << "Error: m_dim_size cannot be set multiple times. Old value " << m_dim_size_ << ". New value " << m_dim_size << std::endl;
-        //     exit(EXIT_FAILURE);
-        // }
+        if (m_dim_size_ > 0 && m_dim_size != m_dim_size_)
+        {
+            std::cerr << "Error: m_dim_size cannot be set multiple times. Old value " << m_dim_size_ << ". New value " << m_dim_size << std::endl;
+            exit(EXIT_FAILURE);
+        }
         m_dim_size_ = m_dim_size;
 
-        // if (n_dim_size_ > 0 && n_dim_size != n_dim_size_)
-        // {
-        //     std::cerr << "Error: n_dim_size cannot be set multiple times. Old value " << n_dim_size_ << ". New value " << n_dim_size << std::endl;
-        //     exit(EXIT_FAILURE);
-        // }
+        if (n_dim_size_ > 0 && n_dim_size != n_dim_size_)
+        {
+            std::cerr << "Error: n_dim_size cannot be set multiple times. Old value " << n_dim_size_ << ". New value " << n_dim_size << std::endl;
+            exit(EXIT_FAILURE);
+        }
         n_dim_size_ = n_dim_size;
 
         if (k_dim_size_ > 0 && k_dim_size != k_dim_size_)
@@ -171,12 +171,12 @@ struct PerfResults
         }
         k_dim_size_ = k_dim_size;
 
-        //const float eps = std::numeric_limits<float>::epsilon();
-        // if (arithmetic_intensity_ > 0.0f && std::abs(arithmetic_intensity - arithmetic_intensity_) > eps)
-        // {
-        //     std::cerr << "Error: arithmetic_intensity cannot be set multiple times. Old value " << arithmetic_intensity_ << ". New value " << arithmetic_intensity << std::endl;
-        //     exit(EXIT_FAILURE);
-        // }
+        const float eps = std::numeric_limits<float>::epsilon();
+        if (arithmetic_intensity_ > 0.0f && std::abs(arithmetic_intensity - arithmetic_intensity_) > eps)
+        {
+            std::cerr << "Error: arithmetic_intensity cannot be set multiple times. Old value " << arithmetic_intensity_ << ". New value " << arithmetic_intensity << std::endl;
+            exit(EXIT_FAILURE);
+        }
         arithmetic_intensity_ = arithmetic_intensity;
     }
 
@@ -223,8 +223,8 @@ void write_perf_results_to_file(const PerfResults& perf_results_global,
             return "SplitKStrategy::FixedSplitK";
         case SplitKStrategy::BestOccupancy:
             return "SplitKStrategy::BestOccupancy";
-        case SplitKStrategy::BestOccupancyWithMinQuantization:
-            return "SplitKStrategy::BestOccupancyWithMinQuantization";
+        case SplitKStrategy::Optimized:
+            return "SplitKStrategy::Optimized";
         default:
             return "Unknown Strategy";
         }
@@ -465,8 +465,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     range_copy(conv_param.input_right_pads_, begin(input_right_pads));
 
     std::vector<ck::index_t> fixed_split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
-    std::vector<SplitKStrategy> best_occupancy_list = {SplitKStrategy::BestOccupancy,
-                                                   SplitKStrategy::BestOccupancyWithMinQuantization};
+    std::vector<SplitKStrategy> best_occupancy_list = {SplitKStrategy::BestOccupancy, SplitKStrategy::Optimized};
     bool profile_all = true;
     if(split_k != "all")
     {
@@ -586,7 +585,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                           << PerfResults::split_k_str(split_k_list[split_k_id], split_k_arg_value) << std::endl;
                 
                 if (split_k_list[split_k_id].strategy_ ==
-                    SplitKStrategy::BestOccupancy || split_k_list[split_k_id].strategy_ == SplitKStrategy::BestOccupancyWithMinQuantization)
+                    SplitKStrategy::BestOccupancy || split_k_list[split_k_id].strategy_ == SplitKStrategy::Optimized)
                 {
                     const auto strategy = split_k_list[split_k_id].strategy_;
                     

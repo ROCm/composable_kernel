@@ -13,7 +13,7 @@ enum class SplitKStrategy
 {
     FixedSplitK = 0,
     BestOccupancy,
-    BestOccupancyWithMinQuantization
+    Optimized
 };
 
 struct ParamsSplitK

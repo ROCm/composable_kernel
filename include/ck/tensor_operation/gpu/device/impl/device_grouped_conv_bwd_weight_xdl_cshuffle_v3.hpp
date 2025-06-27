@@ -497,7 +497,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                       begin(output_spatial_lengths_));
 
             if (split_k_parameters.strategy_== SplitKStrategy::BestOccupancy ||
-                split_k_parameters.strategy_== SplitKStrategy::BestOccupancyWithMinQuantization)
+                split_k_parameters.strategy_== SplitKStrategy::Optimized)
             {
                 constexpr int k_batch_initial = 1;
                 const auto descs_initial =
@@ -520,39 +520,42 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
 
                 const auto& a_grid_desc_kbatch_k0_m_k1 = descs_initial[I0];
                 const auto& b_grid_desc_kbatch_k0_n_k1 = descs_initial[I1];
-                m_dim_size_ = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
-                n_dim_size_ = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
+                const auto gemmM = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
+                const auto gemmN = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
 
                 // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
                 // Hence, the grid is just size of the tile map.
-                const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(m_dim_size_, n_dim_size_);
-                k_dim_size_ = get_bwd_weight_gemm_k<NDimSpatial>(a_g_n_k_wos_lengths);
-                k_batch_ = get_k_batch_value(max_occupancy.value_, grid_size);
+                const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN);
+                std::tie(m_dim_size_, n_dim_size_, k_dim_size_) = 
+                    get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
+                const auto k_grid_size = k_dim_size_ / K0PerBlock;
+
+                k_batch_ = split_k_parameters.strategy_== SplitKStrategy::BestOccupancy
+                    ? get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size)
+                    : get_optimized_k_batch_value(max_occupancy.value_, grid_size, k_grid_size);
+
                 data_type_ = typeid(ABDataType).name();
                 arithmetic_intensity_ = (2.0 * k_dim_size_ * m_dim_size_ * n_dim_size_) /
-                                        ((m_dim_size_ * k_dim_size_ *  + k_dim_size_ * n_dim_size_   + m_dim_size_ * n_dim_size_)* sizeof(ABDataType));
+                                        ((m_dim_size_ * k_dim_size_ + k_dim_size_ * n_dim_size_ + m_dim_size_ * n_dim_size_) * sizeof(ABDataType));
 
                 // For small GemmK size, cap the max value of the k_batch.
                 const auto k_batch_max = static_cast<index_t>((k_dim_size_ - 1) / K0PerBlock);
                 if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
+                    std::cout << "[SPLIT-K AUTODEDUCE] m_dim_size: " 
+                                << m_dim_size_ << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] n_dim_size: "
+                                << n_dim_size_ << std::endl;
                     std::cout << "[SPLIT-K AUTODEDUCE] k_dim_size: " 
                                 << k_dim_size_ << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] K0PerBlock: " << K0PerBlock << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] K0PerBlock: " 
+                                << K0PerBlock << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] arithmetic intensity: "
+                                << arithmetic_intensity_ << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] data type: "
+                                << data_type_ << " (size " << sizeof(ABDataType) << " bytes)" << std::endl;
                     std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " 
                                 << k_batch_max << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] Best occupancy k_batch value: " 
-                                << k_batch_ << std::endl;
-                }
-
-                if (split_k_parameters.strategy_== SplitKStrategy::BestOccupancyWithMinQuantization)
-                {
-                    k_batch_ = get_closest_full_wave_value(k_batch_, grid_size);
-                    if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                        std::cout << "[SPLIT-K AUTODEDUCE] Minimum wave quantization k_batch value: " 
-                                    << k_batch_ << std::endl; 
-                    }
                 }
 
                 k_batch_ = std::min(k_batch_, k_batch_max);

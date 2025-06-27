@@ -30,13 +30,13 @@ struct DeviceProperties
   int wavefront_size_;
 };
 
-inline ck::index_t get_k_batch_value(int max_occupancy, ck::index_t grid_size)
+inline ck::index_t get_best_occupancy_k_batch_value(int max_occupancy, ck::index_t grid_size)
 {
     static DeviceProperties device_properties;
     const int num_cu = device_properties.num_cu_;
     ck::index_t k_batch = 1;
 
-    const auto optimal_split = static_cast<ck::index_t>(std::round((1.0 *max_occupancy * num_cu) / (grid_size)));
+    const auto optimal_split = static_cast<ck::index_t>(std::floor((1.0 *max_occupancy * num_cu) / (grid_size)));
     if (optimal_split > 1)
     {
       k_batch = optimal_split;
@@ -53,9 +53,12 @@ inline ck::index_t get_k_batch_value(int max_occupancy, ck::index_t grid_size)
 }
 
 template <ck::index_t NDimSpatial>
-inline index_t get_bwd_weight_gemm_k(const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths)
+inline auto get_bwd_weight_gemm_sizes(
+  const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths,
+  const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_lengths)
 {
   static constexpr auto I1 = Number<1>{};
+  static constexpr auto I2 = Number<2>{};
 
   // The input array has elements in the order: G, N, K, Do, Ho, Wo
   // GemmK = N * Do * Ho * Wo for the BWD weight pass.
@@ -65,49 +68,66 @@ inline index_t get_bwd_weight_gemm_k(const std::array<index_t, NDimSpatial + 3>&
                                       index_t{1},
                                       std::multiplies<>{});
   const auto gemmK = a_g_n_k_wos_lengths[I1] * DoHoWo;
-  return gemmK;
+
+  // The GEMM M dimension is the number of output channels.
+  const auto gemmM = e_g_k_c_xs_lengths[I1];
+
+  // The output array has elements in the order: G, K, C, X, Y, Z
+  // GemmN = C * X * Y * Z for the BWD weight pass.
+  const index_t XYZ = std::accumulate(begin(e_g_k_c_xs_lengths) + spatial_offset,
+                                      end(e_g_k_c_xs_lengths),
+                                      index_t{1},
+                                      std::multiplies<>{});
+  const auto gemmN = e_g_k_c_xs_lengths[I2] * XYZ;
+  return std::make_tuple(gemmM, gemmN, gemmK);
 }
 
-inline ck::index_t get_closest_full_wave_value(ck::index_t split_k_value, ck::index_t grid_size)
+inline ck::index_t get_optimized_k_batch_value(int max_occupancy, ck::index_t grid_size_mn, ck::index_t grid_size_k)
 {
   static DeviceProperties device_properties;
   const int num_compute_units = device_properties.num_cu_;
+  const auto nproc = max_occupancy * num_compute_units;
+  
+  const auto max_split_k = grid_size_k;
+  double best_score = 0;
+  ck::index_t best_split_k = 1;
 
-  if ((split_k_value * grid_size) % num_compute_units == 0)
+  for (ck::index_t split_k = 1; split_k <= max_split_k; ++split_k)
   {
-    return split_k_value;
-  }
+    const auto k_tiles_per_split = (grid_size_k + split_k - 1) / split_k;
 
-  int best_split_k_modification =0;
-  int min_cost = std::numeric_limits<int>::max();
-  for (int k = -split_k_value + 1; k < num_compute_units - split_k_value; ++k)
-  {
-    const auto remainder = ((k + split_k_value) * grid_size) % num_compute_units;
-    const auto wave_quant_cost = (N-remainder)*(N-remainder);
-    const auto relative_k_change = 100.0 * (k/split_k_value);
-    const auto k_change_cost = relative_k_change * relative_k_change;
-    const auto cost = k_change_cost + 2.0*wave_quant_cost;
-    if (cost < min_cost)
+    // Tail loop cost - the split_k may not divide grid_k evenly, leading to a tail loop
+    const auto tail_loop_score = (grid_size_k % split_k == 0) ? 0 : 1.0 / (grid_size_k % split_k);
+
+    // Check load balance - how evenly can we distribute the splits
+    const auto total_blocks = split_k * grid_size_mn;
+    const auto load_balance_score = total_blocks % nproc == 0 ? 1.0 : (nproc - (total_blocks % nproc)) / nproc;
+
+    // Compute cache locality score based on k-tile size per split
+    // Smaller k_tiles_per_split generally means better cache reuse within each split
+    const auto cache_locality_score = k_tiles_per_split > 0 ? 1.0 / k_tiles_per_split : 0;
+
+    // Synchronization overhead increases with more splits, i.e., the score gets lower
+    const auto sync_overhead_score = 1.0 / (1.0 + split_k);
+
+    const auto total_score = 0.5*load_balance_score + 0.3*cache_locality_score + 0.1*sync_overhead_score + 0.1*tail_loop_score;
+
+    if (total_score > best_score)
     {
-      min_cost = cost;
-      best_split_k_modification = k;
-    }
-    else if (std::abs(cost - min_cost) < std::numeric_limits<double>::epsilon())
-    {
-      // For equally good candidates, select the one with smaller absolute value
-      if (std::abs(k) < std::abs(best_split_k_modification))
-      {
-        best_split_k_modification = k;
-      }
-      else if (std::abs(k) == std::abs(best_split_k_modification))
-      {
-        // If absolute values are equal, prefer the larger one
-        best_split_k_modification = std::max(best_split_k_modification, k);
-      }
+      best_score = total_score;
+      best_split_k = split_k;
     }
   }
 
-  return split_k_value + best_split_k_modification;
+  if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+  {
+    std::cout << "[SPLIT-K AUTODEDUCE] Max active thread blocks per CU for GEMM kernel:  " << max_occupancy << std::endl;
+    std::cout << "[SPLIT-K AUTODEDUCE] Output grid size:  " << grid_size_mn << std::endl;
+    std::cout << "[SPLIT-K AUTODEDUCE] K grid size:  " << grid_size_k << std::endl;
+    std::cout << "[SPLIT-K AUTODEDUCE] Optimal split-k value " << best_split_k << " for K-batch."<< std::endl;
+  }
+
+  return best_split_k;
 }
 
 } // namespace device
