@@ -23,7 +23,16 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           ck_tile::DeviceMem& b_k_n_dev_buf,
                           ck_tile::DeviceMem& c_m_n_dev_buf,
@@ -44,20 +53,29 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     ck_tile::BatchedGemmHostArgs args;
     args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
     args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
-    args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
+    args.e_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
     args.k_batch        = kbatch;
     args.M              = M;
     args.N              = N;
     args.K              = K;
     args.stride_A       = stride_A;
     args.stride_B       = stride_B;
-    args.stride_C       = stride_C;
+    args.stride_E       = stride_C;
     args.batch_stride_A = batch_stride_A;
     args.batch_stride_B = batch_stride_B;
-    args.batch_stride_C = batch_stride_C;
+    args.batch_stride_E = batch_stride_C;
     args.batch_count    = batch_count;
 
-    float ave_time = batched_gemm<ALayout, BLayout, CLayout>(
+    float ave_time = batched_gemm<ADataType,
+                                  BDataType,
+                                  DsDataType,
+                                  AccDataType,
+                                  CDataType,
+                                  ALayout,
+                                  BLayout,
+                                  DsLayout,
+                                  CLayout,
+                                  CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::string op_name{"Batched Gemm"};
@@ -169,22 +187,30 @@ int run_batched_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_batched_gemm<ALayout, BLayout, CLayout>(a_m_k_dev_buf,
-                                                   b_k_n_dev_buf,
-                                                   c_m_n_dev_buf,
-                                                   M,
-                                                   N,
-                                                   K,
-                                                   stride_A,
-                                                   stride_B,
-                                                   stride_C,
-                                                   batch_stride_A,
-                                                   batch_stride_B,
-                                                   batch_stride_C,
-                                                   batch_count,
-                                                   kbatch,
-                                                   n_warmup,
-                                                   n_repeat);
+    invoke_batched_gemm<ADataType,
+                        BDataType,
+                        ck_tile::tuple<>,
+                        AccDataType,
+                        CDataType,
+                        ALayout,
+                        BLayout,
+                        ck_tile::tuple<>,
+                        CLayout>(a_m_k_dev_buf,
+                                 b_k_n_dev_buf,
+                                 c_m_n_dev_buf,
+                                 M,
+                                 N,
+                                 K,
+                                 stride_A,
+                                 stride_B,
+                                 stride_C,
+                                 batch_stride_A,
+                                 batch_stride_B,
+                                 batch_stride_C,
+                                 batch_count,
+                                 kbatch,
+                                 n_warmup,
+                                 n_repeat);
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
 

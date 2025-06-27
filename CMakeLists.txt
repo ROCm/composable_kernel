@@ -308,6 +308,7 @@ endif()
 
 option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
 option(USE_OPT_GFX11 "Whether to enable LDS cumode and Wavefront32 mode for GFX11 silicons." OFF)
+option(ENABLE_ASM_DUMP "Whether to enable assembly dump for kernels." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -319,6 +320,12 @@ if(USE_OPT_GFX11)
     add_compile_options(-mcumode)
     add_compile_options(-mno-wavefrontsize64)
     message(STATUS "CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
+endif()
+
+if(ENABLE_ASM_DUMP)
+    add_compile_options(--save-temps) 
+    add_compile_options(-Wno-gnu-line-marker)
+    message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
 endif()
 
 ## Threads
@@ -627,7 +634,7 @@ option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
 add_subdirectory(library)
 
-if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
+if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY)
    rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name

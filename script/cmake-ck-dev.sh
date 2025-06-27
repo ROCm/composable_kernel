@@ -16,7 +16,7 @@ fi
 
 cmake                                                                                             \
 -D CMAKE_PREFIX_PATH=/opt/rocm/                                                                   \
--D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                         \
+-D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++                                                  \
 -D CMAKE_CXX_FLAGS="-std=c++17 -O3 -ftemplate-backtrace-limit=0  -fPIE  -Wno-gnu-line-marker"     \
 -D CMAKE_BUILD_TYPE=Release                                                                       \
 -D BUILD_DEV=ON                                                                                   \
