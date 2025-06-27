@@ -259,6 +259,7 @@ struct tile_window_with_static_distribution
               bool oob_conditional_check  = true,
               bool pre_nop                = false>
     CK_TILE_DEVICE auto async_load_raw(LdsTileWindow_&& lds_tile,
+                                       index_t lds_offset                   = 0,
                                        number<i_access_unsupport_>          = {},
                                        bool_constant<oob_conditional_check> = {},
                                        bool_constant<pre_nop>               = {}) const
@@ -288,7 +289,7 @@ struct tile_window_with_static_distribution
                 sizeof(LdsDataType) -
             size_per_buf;
 
-        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
+        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id() + lds_offset;
         m0_set_with_memory(m0_init_value); // This should be wave independent
 
         using Traits = typename Base::Traits;

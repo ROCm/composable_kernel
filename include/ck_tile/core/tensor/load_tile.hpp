@@ -98,9 +98,11 @@ CK_TILE_DEVICE auto async_load_tile_raw(LdsTileWindow_&& lds_tile,
                                         const TileWindow_& tile_window,
                                         number<i_access>                     = {},
                                         bool_constant<oob_conditional_check> = {},
-                                        bool_constant<pre_nop>               = {})
+                                        bool_constant<pre_nop>               = {},
+                                        index_t lds_offset                   = 0)
 {
     return tile_window.async_load_raw(lds_tile,
+                                      lds_offset,
                                       number<i_access>{},
                                       bool_constant<oob_conditional_check>{},
                                       bool_constant<pre_nop>{});
