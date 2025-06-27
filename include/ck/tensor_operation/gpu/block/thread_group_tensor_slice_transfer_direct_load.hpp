@@ -236,7 +236,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
-#if 1
+#if 0
         if(blockIdx.x == 0 && threadIdx.x < 64)
         {
             printf("DirectCopyToLds SetSrcSliceOrigin threadIdx.x: %d, src_slice_origin_idx = {%d, "
@@ -324,7 +324,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         // ck::TensorCoordinateStep<6, 3, ck::Sequence<0, 0, 0, 0, 0, 0>>>
         //  CK_PRINT<decltype(src_forward_steps)>();
 
-#if 1
+#if 0
         if(blockIdx.x == 0 && threadIdx.x < 1)
         {
             printf("DirectCopyToLds threadId %d -- src_buf.p_data_ = %p, dst_buf.p_data_ = %p\n",
