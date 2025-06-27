@@ -272,6 +272,25 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
 }
 
+template <typename CDataType>
+bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+               const ck_tile::HostTensor<CDataType>& c_m_n_ref,
+               const ck_tile::tuple<double, double>& rtol_atol,
+               const char* variant)
+{
+    bool pass = ck_tile::check_err(c_m_n_dev_result,
+                                   c_m_n_ref,
+                                   "Error: Incorrect results!",
+                                   rtol_atol.at(ck_tile::number<0>{}),
+                                   rtol_atol.at(ck_tile::number<1>{}));
+
+    std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+              << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "The " << variant << " verification result is:" << (pass ? "correct" : "fail")
+              << std::endl;
+    return pass;
+}
+
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType = ADataType,
@@ -438,16 +457,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, kbatch, max_accumulated_value);
-        pass = ck_tile::check_err(c_m_n_dev_result,
-                                  c_m_n_ref,
-                                  "Error: Incorrect results!",
-                                  rtol_atol.at(ck_tile::number<0>{}),
-                                  rtol_atol.at(ck_tile::number<1>{}));
-
-        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                  << std::endl;
-        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+        pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "CPU");
     }
     else if(arg_parser.get_int("v") == 2)
     {
@@ -483,15 +493,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, kbatch, max_accumulated_value);
-        pass = ck_tile::check_err(c_m_n_dev_result,
-                                  c_m_n_ref,
-                                  "Error: Incorrect results!",
-                                  rtol_atol.at(ck_tile::number<0>{}),
-                                  rtol_atol.at(ck_tile::number<1>{}));
-        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                  << std::endl;
-        std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
+        pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "GPU");
     }
 
     return pass;
