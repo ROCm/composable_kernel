@@ -23,7 +23,7 @@
 
 int main()
 {
-    std::vector<std::vector<std::string>> test_cases = create_test_cases("fp16");
+    std::vector<std::vector<std::string>> test_cases = create_test_cases_fp16();
 
-    return !run_test_cases<ck_tile::half_t>(test_cases);
+    return !(run_test_cases<ck_tile::half_t>(test_cases));
 }
