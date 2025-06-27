@@ -195,26 +195,6 @@ class OutputManager
                     jsonl_file << "\"" << EscapeJsonString(value) << "\"";
                 }
             }
-
-            jsonl_file << ",\"operation_params\":{";
-            bool first = true;
-            for(const auto& [key, value] : result.metadata)
-            {
-                if(!first)
-                    jsonl_file << ",";
-                jsonl_file << "\"" << EscapeJsonString(key) << "\":";
-
-                if(IsNumeric(value))
-                {
-                    jsonl_file << value;
-                }
-                else
-                {
-                    jsonl_file << "\"" << EscapeJsonString(value) << "\"";
-                }
-                first = false;
-            }
-            jsonl_file << "}";
         }
 
         jsonl_file << "}" << std::endl;

@@ -21,6 +21,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "profiler/io_profiler.hpp"
 
 namespace ck {
 namespace profiler {
@@ -139,10 +140,28 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         ref_invoker.Run(ref_argument);
     }
 
-    std::string best_op_name;
-    float best_avg_time   = 0;
-    float best_tflops     = 0;
-    float best_gb_per_sec = 0;
+    // Create metadata for structured reporting
+    auto create_conv_metadata = [&]() {
+        std::string conv_type = "grouped_conv" + std::to_string(NDimSpatial) + "d";
+
+        // Extract key dimensions from conv_param
+        int N = conv_param.N_;
+        int C = conv_param.C_;
+        int K = conv_param.K_;
+
+        // For spatial dimensions, use the first spatial dimension as representative
+        int H = conv_param.input_spatial_lengths_.empty() ? 1 : conv_param.input_spatial_lengths_[0];
+        int W = conv_param.input_spatial_lengths_.size() > 1 ? conv_param.input_spatial_lengths_[1] : 1;
+
+        // For filter dimensions
+        int Y = conv_param.filter_spatial_lengths_.empty() ? 1 : conv_param.filter_spatial_lengths_[0];
+        int X = conv_param.filter_spatial_lengths_.size() > 1 ? conv_param.filter_spatial_lengths_[1] : 1;
+
+        return ck::profiler::io::CreateConvMetadata<InDataType, WeiDataType, OutDataType>(
+            N, C, H, W, K, Y, X, conv_type);
+    };
+
+    float best_tflops = 0;
 
     // profile device op instances
     bool pass = true;
@@ -172,15 +191,13 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
             float gb_per_sec = num_btype / 1.E6 / avg_time;
 
-            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << op_name << std::endl;
+            // Report result using structured reporting
+            auto metadata = create_conv_metadata();
+            ck::profiler::io::ReportResult(op_name, avg_time, tflops, gb_per_sec, metadata);
 
             if(tflops > best_tflops)
             {
-                best_op_name    = op_name;
-                best_tflops     = tflops;
-                best_avg_time   = avg_time;
-                best_gb_per_sec = gb_per_sec;
+                best_tflops = tflops;
             }
 
             if(do_verification)
@@ -252,9 +269,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         run_impl(op_ptr, argument_ptr);
     }
 
-    std::cout << "Best configuration parameters:"
-              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
+    // Report the best result using structured reporting
+    ck::profiler::io::ReportBestResult();
 
     return pass;
 }
