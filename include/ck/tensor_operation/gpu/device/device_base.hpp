@@ -5,6 +5,7 @@
 
 #include <string>
 #include <sstream>
+#include <memory>
 
 #include "ck/stream_config.hpp"
 
