@@ -366,6 +366,16 @@ bool test_moe_sorting(ck_tile::ArgParser args)
 }
 
 template <typename WeightType, typename IndexType = ck_tile::index_t>
+bool run_test_case(int argc, char* argv[])
+{
+    auto [result, args] = create_args(argc, argv);
+    if(!result)
+        return false;
+
+    return test_moe_sorting<WeightType, IndexType>(args);
+}
+
+template <typename WeightType, typename IndexType = ck_tile::index_t>
 bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
 {
     bool valid = true;
@@ -373,26 +383,25 @@ bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
     for(std::size_t test_idx = 0; test_idx < test_cases.size(); ++test_idx)
     {
 
-        const int num_args = test_cases[test_idx].size();
-        char* argv[]       = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-        std::size_t idx;
+        constexpr int max_num_args = 5;
+        const int num_args         = test_cases[test_idx].size();
 
-        for(idx = 0; idx < test_cases[test_idx].size(); ++idx)
+        assert(max_num_args >= num_args && "Invalid number of arguments in test case");
+
+        char* argv[max_num_args + 1];
+        argv[max_num_args] = nullptr;
+
+        int arg_idx;
+
+        for(arg_idx = 0; arg_idx < num_args; ++arg_idx)
         {
-            argv[idx] = test_cases[test_idx][idx].data();
+            argv[arg_idx] = test_cases[test_idx][arg_idx].data();
         }
-        argv[idx] = nullptr;
+        argv[arg_idx] = nullptr;
 
         try
         {
-            auto [result, args] = create_args(num_args, argv);
-            if(!result)
-            {
-                valid = false;
-                break;
-            }
-
-            valid = valid && test_moe_sorting<WeightType, IndexType>(args);
+            valid = valid && run_test_case<WeightType, IndexType>(num_args, argv);
 
             if(!valid)
                 break;
@@ -400,56 +409,60 @@ bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
         catch(const std::runtime_error& e)
         {
             std::cerr << "Runtime error: " << e.what() << '\n';
-            return EXIT_FAILURE;
+            return false;
         }
     }
 
     return valid;
 }
 
+std::vector<std::vector<std::string>> create_test_cases()
+{
+    return {{"-t=80", "-e=17", "-moe_buf_size=16"},
+            {"-t=111", "-e=117", "-moe_buf_size=4"},
+            {"-t=1000", "-e=55", "-moe_buf_size=1024"},
+            {"-t=99", "-e=120", "-moe_buf_size=10244"},
+            {"-t=175", "-e=64", "-k=8"},
+            {"-t=65", "-e=8", "-k=2"},
+            {"-t=1", "-e=25"},
+            {"-t=31", "-e=19", "-k=15"},
+            {"-t=81", "-e=37", "-k=7"},
+            {"-t=23", "-e=1", "-k=1"},
+            {"-t=127", "-e=99", "-k=19"},
+            {"-t=71", "-e=11", "-k=11"},
+            {"-t=1", "-e=1", "-k=1"},
+            {"-t=99", "-e=2", "-k=1"},
+            {"-t=333", "-e=99", "-k=13"},
+            {"-t=11", "-e=256", "-k=5"},
+            {"-t=64", "-e=455", "-k=8"},
+            {"-t=777", "-e=802", "-k=99"},
+            {"-t=4097", "-e=906", "-k=51"},
+            {"-t=128", "-e=32", "-k=5", "-moe_buf_size=262144"},
+            {"-t=13", "-e=64", "-k=3", "-local_eid=4,5,6,7,8,9,10,11"},
+            {"-t=99", "-e=33", "-k=9", "-local_eid=6,10,11,15,19"},
+            {"-t=80", "-e=99", "-k=10", "-local_eid=0,8,12,33"},
+            {"-t=11", "-e=256", "-k=5", "-local_eid=99,110,129"},
+            {"-t=128", "-e=128", "-k=6", "-moe_buf_size=163840"},
+            {"-t=8192", "-e=32", "-k=5", "-moe_buf_size=163840"},
+            {"-t=8192", "-e=32", "-k=8", "-moe_buf_size=163840"},
+            {"-t=8192", "-e=256", "-k=5", "-moe_buf_size=163840"},
+            {"-t=8192", "-e=256", "-k=8", "-moe_buf_size=163840"},
+            {"-t=163840", "-e=256", "-k=8", "-moe_buf_size=163840"},
+            {"-t=12", "-local_t=3", "-e=256", "-k=5", "-local_eid=9,10,199,145"},
+            {"-t=67", "-local_t=9", "-e=555", "-k=5", "-local_eid=19,23,24,25,26,99"},
+            {"-t=99", "-local_t=93", "-e=121", "-moe_buf_size=10244"},
+            {"-t=536", "-local_t=345", "-e=802", "-k=99"},
+            {"-t=331", "-local_t=39", "-e=83", "-k=33"},
+            {"-t=765", "-local_t=654", "-e=783", "-k=8"},
+            {"-t=23", "-local_t=9", "-e=1", "-k=1"},
+            {"-t=7", "-local_t=0", "-e=89", "-k=1", "-local_eid=0,8,12,33"},
+            {"-t=61", "-local_t=0", "-e=333", "-k=99", "-local_eid=0,8,12,33"},
+            {"-t=133940", "-local_t=111921", "-e=256", "-k=17", "-moe_buf_size=133940"}};
+}
+
 int main()
 {
-    std::vector<std::vector<std::string>> test_cases{
-        {"-t=80", "-e=17", "-moe_buf_size=16"},
-        {"-t=111", "-e=117", "-moe_buf_size=4"},
-        {"-t=1000", "-e=55", "-moe_buf_size=1024"},
-        {"-t=99", "-e=120", "-moe_buf_size=10244"},
-        {"-t=175", "-e=64", "-k=8"},
-        {"-t=65", "-e=8", "-k=2"},
-        {"-t=1", "-e=25"},
-        {"-t=31", "-e=19", "-k=15"},
-        {"-t=81", "-e=37", "-k=7"},
-        {"-t=23", "-e=1", "-k=1"},
-        {"-t=127", "-e=99", "-k=19"},
-        {"-t=71", "-e=11", "-k=11"},
-        {"-t=1", "-e=1", "-k=1"},
-        {"-t=99", "-e=2", "-k=1"},
-        {"-t=333", "-e=99", "-k=13"},
-        {"-t=11", "-e=256", "-k=5"},
-        {"-t=64", "-e=455", "-k=8"},
-        {"-t=777", "-e=802", "-k=99"},
-        {"-t=4097", "-e=906", "-k=51"},
-        {"-t=128", "-e=32", "-k=5", "-moe_buf_size=262144"},
-        {"-t=13", "-e=64", "-k=3", "-local_eid=4,5,6,7,8,9,10,11"},
-        {"-t=99", "-e=33", "-k=9", "-local_eid=6,10,11,15,19"},
-        {"-t=80", "-e=99", "-k=10", "-local_eid=0,8,12,33"},
-        {"-t=11", "-e=256", "-k=5", "-local_eid=99,110,129"},
-        {"-t=128", "-e=128", "-k=6", "-moe_buf_size=163840"},
-        {"-t=8192", "-e=32", "-k=5", "-moe_buf_size=163840"},
-        {"-t=8192", "-e=32", "-k=8", "-moe_buf_size=163840"},
-        {"-t=8192", "-e=256", "-k=5", "-moe_buf_size=163840"},
-        {"-t=8192", "-e=256", "-k=8", "-moe_buf_size=163840"},
-        {"-t=163840", "-e=256", "-k=8", "-moe_buf_size=163840"},
-        {"-t=12", "-local_t=3", "-e=256", "-k=5", "-local_eid=9,10,199,145"},
-        {"-t=67", "-local_t=9", "-e=555", "-k=5", "-local_eid=19,23,24,25,26,99"},
-        {"-t=99", "-local_t=93", "-e=121", "-moe_buf_size=10244"},
-        {"-t=536", "-local_t=345", "-e=802", "-k=99"},
-        {"-t=331", "-local_t=39", "-e=83", "-k=33"},
-        {"-t=765", "-local_t=654", "-e=783", "-k=8"},
-        {"-t=23", "-local_t=9", "-e=1", "-k=1"},
-        {"-t=7", "-local_t=0", "-e=89", "-k=1", "-local_eid=0,8,12,33"},
-        {"-t=61", "-local_t=0", "-e=333", "-k=99", "-local_eid=0,8,12,33"},
-        {"-t=133940", "-local_t=111921", "-e=256", "-k=17", "-moe_buf_size=133940"}};
+    std::vector<std::vector<std::string>> test_cases = create_test_cases();
 
     return !run_test_cases<float, ck_tile::index_t>(test_cases);
 }

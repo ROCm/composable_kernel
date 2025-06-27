@@ -23,25 +23,7 @@
 
 int main()
 {
-    std::vector<std::vector<std::string>> test_cases{
-        {"-prec=fp32", "-shape=3,8", "-perm=1,0", "-v=1", "-warmup=0", "-repeat=1"},
-        {"-prec=fp32", "-shape=48,6,8", "-perm=2,1,0", "-v=1", "-warmup=0", "-repeat=1"},
-        {"-prec=fp32", "-shape=24,128,3", "-perm=0,2,1", "-v=1", "-warmup=0", "-repeat=1"},
-        {"-prec=fp32", "-shape=4,10,7,6", "-perm=0,2,3,1", "-v=1", "-warmup=0", "-repeat=1"},
-        {"-prec=fp32", "-shape=8,24,36,10", "-perm=3,1,2,0", "-v=1", "-warmup=0", "-repeat=1"},
-        {"-prec=fp32", "-shape=8,1,36,4", "-perm=2,1,0,3", "-v=1", "-warmup=0", "-repeat=1"},
-        {"-prec=fp32",
-         "-shape=5,10,16,2,36,4",
-         "-perm=4,5,2,1,0,3",
-         "-v=1",
-         "-warmup=0",
-         "-repeat=1"},
-        {"-prec=fp32",
-         "-shape=2,32,8,3,6,2,5,4",
-         "-perm=5,2,4,7,1,6,3,0",
-         "-v=1",
-         "-warmup=0",
-         "-repeat=1"}};
+    std::vector<std::vector<std::string>> test_cases = create_test_cases("fp32");
 
     return !run_test_cases<float>(test_cases);
 }

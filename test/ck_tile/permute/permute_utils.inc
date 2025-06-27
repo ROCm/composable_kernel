@@ -338,20 +338,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(do_validation)
     {
         reference_permute(x, y, perm);
-#if 0
-        if constexpr (std::is_same_v<float, DataType>){
-            // using itype = to_integer_type<sizeof(DataType)>;
-            fflush(stdout);
-            for(int zz = 0; zz < static_cast<int>(x.get_element_size()); zz++   ) {
-                printf("%3.0f ", x.mData[zz]);
-            }
-            printf("->\n");
-            for(int zz = 0; zz < static_cast<int>(x.get_element_size()); zz++   ) {
-                printf("%3.0f ", y.mData[zz]);
-            }
-            fflush(stdout);
-        }
-#endif
+
         ck_tile::HostTensor<DataType> y_dev(y.get_lengths());
 
         y_buf.FromDevice(y_dev.data());
@@ -372,34 +359,62 @@ bool run(const ck_tile::ArgParser& arg_parser)
 }
 
 template <typename DataType>
+bool run_test_case(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+
+    if(!result)
+        return false;
+
+    return run<DataType>(arg_parser);
+}
+
+template <typename DataType>
 bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
 {
-    const int num_args = 6;
-    bool valid         = true;
-    for(std::size_t idx = 0; idx < test_cases.size(); ++idx)
+    bool valid             = true;
+    constexpr int num_args = 6;
+    char* argv[num_args + 1];
+    argv[num_args] = nullptr;
+
+    for(std::size_t test_idx = 0; test_idx < test_cases.size(); ++test_idx)
     {
-        assert(test_cases[idx].size() == num_args && "invalid number of arguments");
+        assert(test_cases[test_idx].size() == num_args &&
+               "invalid number of arguments in test case");
 
-        char* argv[] = {test_cases[idx][0].data(),
-                        test_cases[idx][1].data(),
-                        test_cases[idx][2].data(),
-                        test_cases[idx][3].data(),
-                        test_cases[idx][4].data(),
-                        test_cases[idx][5].data(),
-                        nullptr};
-
-        auto [result, arg_parser] = create_args(num_args, argv);
-        if(!result)
+        for(int arg_idx = 0; arg_idx < num_args; ++arg_idx)
         {
-            valid = false;
-            break;
+            argv[arg_idx] = test_cases[test_idx][arg_idx].data();
         }
 
-        valid = valid && run<DataType>(arg_parser);
+        valid = valid && run_test_case<DataType>(num_args, argv);
 
         if(!valid)
             break;
     }
 
     return valid;
+}
+
+std::vector<std::vector<std::string>> create_test_cases(const std::string prec)
+{
+    return {
+        {"-prec=" + prec, "-shape=3,8", "-perm=1,0", "-v=1", "-warmup=0", "-repeat=1"},
+        {"-prec=" + prec, "-shape=48,6,8", "-perm=2,1,0", "-v=1", "-warmup=0", "-repeat=1"},
+        {"-prec=" + prec, "-shape=24,128,3", "-perm=0,2,1", "-v=1", "-warmup=0", "-repeat=1"},
+        {"-prec=" + prec, "-shape=4,10,7,6", "-perm=0,2,3,1", "-v=1", "-warmup=0", "-repeat=1"},
+        {"-prec=" + prec, "-shape=8,24,36,10", "-perm=3,1,2,0", "-v=1", "-warmup=0", "-repeat=1"},
+        {"-prec=" + prec, "-shape=8,1,36,4", "-perm=2,1,0,3", "-v=1", "-warmup=0", "-repeat=1"},
+        {"-prec=" + prec,
+         "-shape=5,10,16,2,36,4",
+         "-perm=4,5,2,1,0,3",
+         "-v=1",
+         "-warmup=0",
+         "-repeat=1"},
+        {"-prec=" + prec,
+         "-shape=2,32,8,3,6,2,5,4",
+         "-perm=5,2,4,7,1,6,3,0",
+         "-v=1",
+         "-warmup=0",
+         "-repeat=1"}};
 }
