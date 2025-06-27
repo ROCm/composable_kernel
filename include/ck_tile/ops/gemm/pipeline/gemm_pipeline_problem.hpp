@@ -222,11 +222,20 @@ struct UniversalGemmPipelineProblem
     static constexpr auto Scheduler  = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum    = TailNum_;
-
+    
     static constexpr bool TransposeC            = Traits::TransposeC;
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
     static constexpr index_t NumWaveGroups = Traits::NumWaveGroups;
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "gemm_problem", 
+                      concat('x', kBlockSize),
+                      concat('x', kPadM, kPadN, kPadK),
+                      Scheduler);
+        // clang-format on
+    }
 };
 
 } // namespace ck_tile

@@ -35,12 +35,17 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
                                                                        FlatmmConfig::TileParitionerGroupNum, 
                                                                        FlatmmConfig::TileParitionerM01>;
 
-    using CodegenGemmTraits = ck_tile::TileGemmTraits<FlatmmConfig::kPadM,
-                                                      FlatmmConfig::kPadN,
-                                                      FlatmmConfig::kPadK,
-                                                      ALayout,
-                                                      BLayout,
-                                                      CLayout>;
+    using CodegenGemmTraits = ck_tile::TileGemmUniversalTraits<FlatmmConfig::kPadM,
+                                                                FlatmmConfig::kPadN,
+                                                                FlatmmConfig::kPadK,
+                                                                FlatmmConfig::DoubleSmemBuffer,
+                                                                ALayout,
+                                                                BLayout,
+                                                                CLayout,
+                                                                FlatmmConfig::TransposeC,
+                                                                FlatmmConfig::UseStructuredSparsity,
+                                                                false,
+                                                                FlatmmConfig::NumWaveGroups>;
 
     using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
                                                                 BDataType,

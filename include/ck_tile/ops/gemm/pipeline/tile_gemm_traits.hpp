@@ -48,7 +48,7 @@ struct TileGemmUniversalTraits
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
     static constexpr bool kPadK = kPadK_;
-
+    static constexpr int _VectorSize = 16;
     static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
 
     using ALayout = ALayout_;

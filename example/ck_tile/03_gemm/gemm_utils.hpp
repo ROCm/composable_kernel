@@ -52,7 +52,7 @@ struct GemmConfigBase
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    sttaic constexpr bool preshuffle = false;
+    static constexpr bool Preshuffle = false;
 };
 
 template <typename PrecType>
@@ -231,7 +231,7 @@ struct GemmConfigPreshufle_1 : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 1 ? 64 : 16;
 
     static constexpr int kBlockPerCu = 2;
-    static constexpr bool preshuffle                     = true;
+    static constexpr bool Preshuffle                     = true;
 };
 
 template <typename PrecType>
@@ -250,7 +250,7 @@ struct GemmConfigPreshufle_2 : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 1 ? 32 : 16;
 
     static constexpr int kBlockPerCu = 2;
-    static constexpr bool preshuffle                     = true;
+    static constexpr bool Preshuffle                     = true;
 };
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
