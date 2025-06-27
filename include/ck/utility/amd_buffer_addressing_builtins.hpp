@@ -80,7 +80,7 @@ __device__ half2_t llvm_amdgcn_raw_buffer_atomic_add_fp16x2(
     int32x4_t rsrc,
     index_t voffset,
     index_t soffset,
-    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.v2f16.v4i32");
+    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.v2f16");
 
 // buffer atomic-add i32
 __device__ int32_t llvm_amdgcn_raw_buffer_atomic_add_i32(
@@ -88,7 +88,7 @@ __device__ int32_t llvm_amdgcn_raw_buffer_atomic_add_i32(
     int32x4_t rsrc,
     index_t voffset,
     index_t soffset,
-    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.add.i32.v4i32");
+    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.add.i32");
 
 // buffer atomic-add fp32
 __device__ float llvm_amdgcn_raw_buffer_atomic_add_fp32(
@@ -96,15 +96,15 @@ __device__ float llvm_amdgcn_raw_buffer_atomic_add_fp32(
     int32x4_t rsrc,
     index_t voffset,
     index_t soffset,
-    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.f32.v4i32");
+    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.f32");
 
 // buffer atomic-add fp32
-__device__ double llvm_amdgcn_raw_buffer_atomic_max_fp64(
-    double vdata,
-    int32x4_t rsrc, // dst_wave_buffer_resource
-    int voffset,    // dst_thread_addr_offset
-    int soffset,    // dst_wave_addr_offset
-    int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64.v4i32");
+__device__ double
+llvm_amdgcn_raw_buffer_atomic_max_fp64(double vdata,
+                                       int32x4_t rsrc, // dst_wave_buffer_resource
+                                       int voffset,    // dst_thread_addr_offset
+                                       int soffset,    // dst_wave_addr_offset
+                                       int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64");
 
 // memory coherency bit for buffer store/load instruction
 // check ISA manual for each GFX target
@@ -827,7 +827,7 @@ llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 index_t voffset,
                                 index_t soffset,
                                 index_t offset,
-                                index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds.v4i32");
+                                index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
 
 #ifndef __HIPCC_RTC__
 template <typename T, index_t NumElemsPerThread>
