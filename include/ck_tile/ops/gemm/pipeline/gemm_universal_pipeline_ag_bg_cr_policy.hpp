@@ -147,26 +147,27 @@ struct UniversalGemmBasePolicy
             // How many elements we can write by single thread to LDS
             constexpr auto KThreadWrite     = TileEncodingPattern::X1;
             constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
-            
+
             constexpr auto KThreadRead     = get_warp_size() / NPerXdl;
             constexpr auto K0PerThreadRead = BK0 / KThreadRead;
 
             // check if we exceed all 32banks width - (32x4B)
             constexpr auto LdsBanksWidth = 128;
-            constexpr auto kfold = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth) 
-                                    ? 1
-                                    : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
+            constexpr auto kfold         = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth)
+                                               ? 1
+                                               : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
             // 1<=npair<=n0
-            constexpr auto npair = (BK1 * NPerXdl * sizeof(BDataType) > LdsBanksWidth)
-                                       ? 1
-                                       : ((LdsBanksWidth / (BK1 * NPerXdl * sizeof(BDataType))) > N0
-                                              ? N0
-                                              : LdsBanksWidth / (BK1 * NPerXdl * sizeof(BDataType)));
+            constexpr auto npair =
+                (BK1 * NPerXdl * sizeof(BDataType) > LdsBanksWidth)
+                    ? 1
+                    : ((LdsBanksWidth / (BK1 * NPerXdl * sizeof(BDataType))) > N0
+                           ? N0
+                           : LdsBanksWidth / (BK1 * NPerXdl * sizeof(BDataType)));
 
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},
@@ -175,8 +176,7 @@ struct UniversalGemmBasePolicy
                            number<kfold * N0 / npair>{},
                            number<npair>{},
                            BK1),
-                BK1
-            );
+                BK1);
 
             constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                 b_lds_block_desc,
