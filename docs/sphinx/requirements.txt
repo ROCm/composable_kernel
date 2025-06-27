@@ -278,7 +278,7 @@ sphinx-notfound-page==1.1.0
     # via rocm-docs-core
 sphinxcontrib-applehelp==2.0.0
     # via sphinx
-sphinxcontrib-bibtex==2.6.3
+sphinxcontrib-bibtex==2.6.4
     # via -r requirements.in
 sphinxcontrib-devhelp==2.0.0
     # via sphinx

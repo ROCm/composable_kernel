@@ -1473,7 +1473,12 @@ struct GridwiseMoeGemm
                                         index_t fused_token = scale_token_ids.AsType<index_t>()[m4];
                                         const index_t token_offset = fused_token & 0xffffff;
                                         return token_offset < problem.NumTokens
-                                                   ? p_sorted_weights_0[token_offset]
+                                                   ? p_sorted_weights_0[IsInputGemm
+                                                                            ? token_offset
+                                                                            : token_offset *
+                                                                                      problem.TopK +
+                                                                                  (fused_token >>
+                                                                                   24)]
                                                    : 0.0;
                                     }
                                     else
@@ -2190,7 +2195,12 @@ struct GridwiseMoeGemm
                                         index_t fused_token = scale_token_ids.AsType<index_t>()[m4];
                                         const index_t token_offset = fused_token & 0xffffff;
                                         return token_offset < problem.NumTokens
-                                                   ? p_sorted_weights_0[token_offset]
+                                                   ? p_sorted_weights_0[IsInputGemm
+                                                                            ? token_offset
+                                                                            : token_offset *
+                                                                                      problem.TopK +
+                                                                                  (fused_token >>
+                                                                                   24)]
                                                    : 0.0;
                                     }
                                     else

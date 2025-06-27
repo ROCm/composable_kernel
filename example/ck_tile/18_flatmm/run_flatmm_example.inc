@@ -73,6 +73,7 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
+          typename FlatmmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout>
@@ -102,9 +103,15 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
     args.stride_B = stride_B;
     args.stride_C = stride_C;
 
-    float ave_time =
-        flatmm_calc<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+    float ave_time = flatmm_calc<ADataType,
+                                 BDataType,
+                                 AccDataType,
+                                 CDataType,
+                                 FlatmmConfig,
+                                 ALayout,
+                                 BLayout,
+                                 CLayout>(
+        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
@@ -120,7 +127,11 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
     return ave_time;
 }
 
-template <typename PrecType, typename ALayout, typename BLayout, typename CLayout>
+template <typename PrecType,
+          typename FlatmmConfig,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
 int run_flatmm_example_with_layouts(int argc,
                                     char* argv[],
                                     const ALayout a_layout                  = ALayout{},
@@ -131,11 +142,10 @@ int run_flatmm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using ADataType    = typename GemmBasicTypeConfig<PrecType>::ADataType;
-    using BDataType    = typename GemmBasicTypeConfig<PrecType>::BDataType;
-    using CDataType    = typename GemmBasicTypeConfig<PrecType>::CDataType;
-    using AccDataType  = typename GemmBasicTypeConfig<PrecType>::AccDataType;
-    using FlatmmConfig = FlatmmConfig<ADataType>;
+    using ADataType   = typename GemmBasicTypeConfig<PrecType>::ADataType;
+    using BDataType   = typename GemmBasicTypeConfig<PrecType>::BDataType;
+    using CDataType   = typename GemmBasicTypeConfig<PrecType>::CDataType;
+    using AccDataType = typename GemmBasicTypeConfig<PrecType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -145,10 +155,10 @@ int run_flatmm_example_with_layouts(int argc,
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    ck_tile::index_t kbatch = arg_parser.get_int("split_k");
-
-    int n_warmup = arg_parser.get_int("warmup");
-    int n_repeat = arg_parser.get_int("repeat");
+    ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
+    int n_warmup                 = arg_parser.get_int("warmup");
+    int n_repeat                 = arg_parser.get_int("repeat");
+    ck_tile::index_t init_method = arg_parser.get_int("init");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -162,8 +172,26 @@ int run_flatmm_example_with_layouts(int argc,
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
     // TODO: add different init types
-    ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
-    ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
+    if(init_method == 0)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_origin_host);
+    }
+    else if(init_method == 1)
+    {
+        ck_tile::FillMonotonicSeq<ADataType>{}(a_host);
+        ck_tile::FillMonotonicSeq<BDataType>{}(b_origin_host);
+    }
+    else if(init_method == 2)
+    {
+        ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_origin_host);
+    }
+    else
+    {
+        a_host.SetZero();
+        b_origin_host.SetZero();
+    }
 
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_dev_buf(c_rslt_host.get_element_space_size_in_bytes());
@@ -173,23 +201,28 @@ int run_flatmm_example_with_layouts(int argc,
 
     // do pre-shuffle
     ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<FlatmmConfig>(b_origin_host);
-
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
 
-    invoke_flatmm<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
-        a_dev_buf,
-        b_shuffle_dev_buf,
-        c_dev_buf,
-        M,
-        N,
-        K,
-        stride_A,
-        stride_B,
-        stride_C,
-        kbatch,
-        n_warmup,
-        n_repeat);
+    invoke_flatmm<ADataType,
+                  BDataType,
+                  AccDataType,
+                  CDataType,
+                  FlatmmConfig,
+                  ALayout,
+                  BLayout,
+                  CLayout>(a_dev_buf,
+                           b_shuffle_dev_buf,
+                           c_dev_buf,
+                           M,
+                           N,
+                           K,
+                           stride_A,
+                           stride_B,
+                           stride_C,
+                           kbatch,
+                           n_warmup,
+                           n_repeat);
 
     c_dev_buf.FromDevice(c_rslt_host.data());
     bool pass = true;
