@@ -418,7 +418,7 @@ struct FmhaFwdPagedKVKernel
               void* o_ptr,
               ck_tile::index_t seqlen_q,
               ck_tile::index_t seqlen_k,
-              const void* seqlen_k_ptr,  // only used for (paged-) kvcache
+              const void* seqlen_k_ptr, // only used for (paged-) kvcache
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
