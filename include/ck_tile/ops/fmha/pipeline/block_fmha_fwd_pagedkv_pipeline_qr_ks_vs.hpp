@@ -454,13 +454,12 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col - kv_l2p_offset);
-                            // return !variant.LogitsMask(variant_params,
-                            //                            block_indices.batch_idx,
-                            //                            row,
-                            //                            col,
-                            //                            block_indices.qo_head_idx,
-                            //                            block_indices.kv_head_idx);
+                            return !variant.LogitsMask(variant_params,
+                                                       block_indices.batch_idx,
+                                                       row,
+                                                       col - kv_l2p_offset,
+                                                       block_indices.qo_head_idx,
+                                                       block_indices.kv_head_idx);
                         });
                 }
             }

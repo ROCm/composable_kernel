@@ -638,6 +638,7 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
                                          args.o_ptr,
                                          args.seqlen_q,
                                          args.seqlen_k,
+                                         args.seqlen_k_ptr,
                                          args.hdim_q,
                                          args.hdim_v,
                                          args.nhead_q,
@@ -673,8 +674,7 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
         }
     }();
 
-    // FmhaKernel::PrintParameter(kargs, args.batch);
-
+    // FmhaKernel::PrintParameters(kargs, args.batch);
     if constexpr(FmhaKernel::kIsGroupMode)
     {
         dim3 grids = FmhaKernel::GridSize(
