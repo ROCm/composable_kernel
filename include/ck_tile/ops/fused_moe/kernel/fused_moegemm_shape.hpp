@@ -101,7 +101,7 @@ struct FusedMoeGemmShape
     static constexpr index_t Repeat_N1 = Block_N1 / ThreadPerBlock_N1;
     static constexpr index_t Repeat_K1 = Block_K1 / ThreadPerBlock_K1;
 
-    static constexpr index_t BlockSize = warpSize * NumWarps;
+    static constexpr index_t BlockSize = WarpSize * NumWarps;
 
     // some assert
     static_assert(Block_M0 == Block_M1);

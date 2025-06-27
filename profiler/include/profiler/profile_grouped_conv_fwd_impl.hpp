@@ -12,6 +12,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_clamp.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -34,20 +35,20 @@ template <ck::index_t NDimSpatial,
           typename OutDataType,
           typename AComputeType = InDataType,
           typename BComputeType = AComputeType,
-          typename IndexType    = ck::index_t>
+          typename IndexType    = ck::index_t,
+          typename OutElementOp = ck::tensor_operation::element_wise::PassThrough>
 bool profile_grouped_conv_fwd_impl(int do_verification,
                                    int init_method,
                                    bool do_log,
                                    bool time_kernel,
-                                   const ck::utils::conv::ConvParam& conv_param)
+                                   const ck::utils::conv::ConvParam& conv_param,
+                                   const OutElementOp out_element_op = OutElementOp{})
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
-    const auto out_element_op = OutElementOp{};
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);

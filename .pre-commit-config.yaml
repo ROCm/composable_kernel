@@ -12,3 +12,9 @@ repos:
         verbose: false
         language: script
         types: [c++]
+    - id: remove-exec-bit
+      name: Remove executable bit from non-executable files
+      entry: script/remove_exec_bit.sh
+      language: script
+      types_or: [c++, text]
+      verbose: true
