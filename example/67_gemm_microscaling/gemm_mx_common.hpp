@@ -385,7 +385,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         b_k_n->GenerateTensorDistr(float_distr{-2.0, 2.0});
         b_k_n_scale.GenerateTensorDistr(float_distr{powf(2.0f, -125.0f), 1.0f});
         break;
-
+#if 0
     case 13: // Initializations for development and debugging
         ck::utils::FillConstant<ADataType>{a_data_element(0.0f)}(a_m_k);
         for(ck::index_t j = 0; j < K; j += ck::packed_size_v<ADataType>)
@@ -480,6 +480,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             }
         }
         break;
+#endif
     default:
         if(config.verbosity > 0)
         {
