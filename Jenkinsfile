@@ -374,7 +374,7 @@ def cmake_build(Map conf=[:]){
                 archiveArtifacts "clang_build_analysis.log"
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
-                    if (!params.RUN_ALL_UNIT_TESTS){
+                    if (!runAllUnitTests){
                         sh "../script/launch_tests.sh"
                     }
                     else{
@@ -393,7 +393,7 @@ def cmake_build(Map conf=[:]){
             else{
                 // run unit tests unless building library for all targets
                 if (!params.BUILD_INSTANCES_ONLY){
-                    if (!params.RUN_ALL_UNIT_TESTS){
+                    if (!runAllUnitTests){
                         sh "../script/launch_tests.sh"
                     }
                     else{
