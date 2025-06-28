@@ -6,9 +6,6 @@
 #include "ck/utility/amd_ck_fp8.hpp"
 #include "ck/utility/e8m0.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
-#include "ck/utility/array.hpp"
-
-#include <iomanip> // for std::setfill and std::setw
 
 /// Definitions from <cstdint>, <cmath> conflict with
 /// /opt/rocm/include/hip/amd_detail/amd_hip_vector_types.h.
@@ -90,57 +87,14 @@ struct f6_pk_t
         : data_{init}
     {
         // TODO: consider removing initialization similar to vector_type<T, 256>
-#if 0
-
-#if !defined(__HIP_DEVICE_COMPILE__)
-        printf("f6_pk_t(storage_type init) init = 0x");
-#else
-        printf("f6_pk_t(storage_type init) = 0x");
-#endif
-
-        for(int ii = 0; ii < vector_size; ++ii)
-        {
-            printf("%08x ", init.data_[ii]);
-        }
-        printf("\n");
-
-#if !defined(__HIP_DEVICE_COMPILE__)
-        printf("f6_pk_t(storage_type init) data = 0x");
-#else
-        printf("f6_pk_t(storage_type init) data = 0x");
-#endif
-
-        for(int ii = 0; ii < vector_size; ++ii)
-        {
-            printf("%08x ", data.data_[ii]);
-        }
-        printf("\n");
-#endif
     }
 
     // Initialize from a vector type with the same size as packed_size
     template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == packed_size>>
     __attribute__((host)) __attribute__((device)) f6_pk_t(const T& v)
     {
-        static_for<0, packed_size, 1>{}([&](auto i) {
-            pack(v[static_cast<index_t>(i)], static_cast<index_t>(i));
-#if 0
-#if !defined(__HIP_DEVICE_COMPILE__)
-            printf("host f6_pk_t(const T& v) %d = 0x", static_cast<int>(i));
-#else
-            printf("device f6_pk_t(const T& v) %d = 0x", static_cast<int>(i));
-#endif
-
-            for(int ii = 0; ii < vector_size; ++ii)
-            {
-                printf("%08x ", data.data_[ii]);
-            }
-            printf("\n");
-#endif
-        });
-#if !defined(__HIP_DEVICE_COMPILE__)
-        // exit(0);
-#endif
+        static_for<0, packed_size, 1>{}(
+            [&](auto i) { pack(v[static_cast<index_t>(i)], static_cast<index_t>(i)); });
     }
 
     // Broadcast single initialization value to all packed elements
@@ -148,20 +102,6 @@ struct f6_pk_t
         : f6_pk_t(static_cast<int8_t __attribute__((ext_vector_type(packed_size)))>(v))
     {
         // TODO: consider removing initialization similar to vector_type<T, 256>
-#if 0
-
-#if !defined(__HIP_DEVICE_COMPILE__)
-        printf("host f6_pk_t(const int8_t v) = 0x");
-#else
-        printf("device f6_pk_t(const int8_t v) = 0x");
-#endif
-
-        for(int ii = 0; ii < vector_size; ++ii)
-        {
-            printf("%08x ", data.data_[ii]);
-        }
-        printf("\n");
-#endif
     }
 
     template <typename T>

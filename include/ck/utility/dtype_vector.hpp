@@ -1460,7 +1460,6 @@ struct non_native_vector_base<
     } data_;
 
     // Broadcast single value to vector
-    // template <index_t N2 = 2, typename = enable_if_t<N >= N2>>
     __host__ __device__ constexpr non_native_vector_base(data_t a) : data_{}
     {
         // TODO: consider removing initialization similar to vector_type<T, 256>

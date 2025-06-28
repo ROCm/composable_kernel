@@ -70,7 +70,6 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     // e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
     // or in chunks of 32 / APackedSize for FP6/FP4
     static constexpr index_t KThreadChunk = (APackedSize == 1) ? 16 : 32 / APackedSize;
-    // static constexpr index_t KThreadChunk = 16 / sizeof(ComputeTypeA);
 
     static_assert(APackedSize == BPackedSize, "APackedSize must be equal to BPackedSize for now");
 

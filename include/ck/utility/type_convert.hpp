@@ -1773,25 +1773,7 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
         uint8_array[static_cast<index_t>(i)] =
             utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale);
     });
-
-#if 0
-    f6x32_pk_t out{uint8_array}; // pack the 6-bit values into a packed type
-#if !defined(__HIP_DEVICE_COMPILE__)
-    printf("host f6_convert_rne = 0x");
-#else
-    printf("device f6_convert_rne = 0x");
-#endif
-
-    for(int ii = 0; ii < 6; ++ii)
-    {
-        printf("%08x ", out.data.data_[ii]);
-    }
-    printf("\n");
-
-    return f6x32_t{out};
-#else
     return f6x32_t{f6x32_pk_t{uint8_array}};
-#endif
 #endif
 }
 
@@ -1935,24 +1917,7 @@ inline __host__ __device__ f6x32_t type_convert<f6x32_t, float32_t>(float32_t x)
 template <>
 inline __host__ __device__ f6x32_pk_t type_convert<f6x32_pk_t, float32_t>(float32_t x)
 {
-#if 0
-    auto tmp = type_convert<f6x32_t>(x);
-#if !defined(__HIP_DEVICE_COMPILE__)
-    printf("type_convert<f6x32_pk_t, float32_t> tmp = 0x");
-#else
-    printf("type_convert<f6x32_pk_t, float32_t> tmp = 0x");
-#endif
-
-    for(int ii = 0; ii < 6; ++ii)
-    {
-        printf("%08x ", tmp.data_.dN[ii]);
-    }
-    printf("\n");
-
-    return static_cast<f6x32_pk_t>(tmp);
-#else
     return static_cast<f6x32_pk_t>(type_convert<f6x32_t>(x));
-#endif
 }
 
 template <>
@@ -1975,21 +1940,6 @@ inline __host__ __device__ f6x16_t type_convert<f6x16_t, float16_t>(float16_t x)
     out.v32 = f6_convert_sr(in.v32);
 #else
     out.v32 = f6_convert_rne(in.v32);
-#endif
-
-#if 0
-    // Print the first three 32-bit integers in hexadecimal format
-    for(int i = 0; i < 6; ++i)
-    {
-        printf("data[%d] = 0x%08x ", i, out.v32.data_.dN[i]);
-    }
-    printf("\n");
-
-    // std::cout << "data = 0x" << std::hex << std::setfill('0') << std::setw(8)
-    //           << result.data.data_[0] << " " << result.data.data_[1] << " " <<
-    //           result.data.data_[2]
-    //           << std::dec;
-    // std::cout << std::endl;
 #endif
 
     return out.v16x2[0];

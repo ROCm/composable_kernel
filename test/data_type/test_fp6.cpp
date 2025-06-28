@@ -315,17 +315,6 @@ __global__ void test_f6_convert_rne(float* p_test, uint64_t* p_completed)
     auto f6x32_vec = f6_convert_rne(float32_in);
     float32_out    = type_convert<ck::float32_t>(f6x32_vec);
 
-#if 0
-    auto f6x32_vec_cnstr = f6x32_pk_t(0x08);
-    for(int ii = 0; ii < 6; ++ii)
-    {
-        printf("data[%d] = 0x%08x ", ii, f6x32_vec.data_.dN[ii]);
-    }
-    printf("\n");
-#endif
-    // data[0] = 0x08208208 data[1] = 0x82082082 data[2] = 0x20820820 data[3] = 0x08208208
-    // data[4] = 0x82082082 data[5] = 0x20820820
-
     ck::static_for<0, N, 1>{}([&](auto ii) { p_test[i++] = float32_out[static_cast<int>(ii)]; });
     i = N;
 }
@@ -354,21 +343,6 @@ TEST(MXFP6, DeviceF6ConvertRNE)
 
     auto f6x32_vec_tc    = ck::type_convert<f6x32_pk_t>(ck::float32_t(1.0f));
     auto f6x32_vec_cnstr = f6x32_pk_t(0x08);
-#if 0
-    printf("f6x32_vec_tc = 0x");
-    for(int ii = 0; ii < 6; ++ii)
-    {
-        printf("%08x ", f6x32_vec_tc.data_[ii]);
-    }
-    printf("\n");
-
-    printf("f6x32_vec_cnstr = 0x");
-    for(int ii = 0; ii < 6; ++ii)
-    {
-        printf("%08x ", f6x32_vec_cnstr.data_[ii]);
-    }
-    printf("\n");
-#endif
 
     EXPECT_EQ(f6x32_vec_tc, f6x32_vec_cnstr);
 }

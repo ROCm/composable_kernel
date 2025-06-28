@@ -195,8 +195,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                is_scale_mfma>::selected_mfma.k_per_blk /
                       APackedSize);
 
-    // static_assert(KPack == 0);
-
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
@@ -369,21 +367,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         }
         else
         {
-#if 0
-            // if(blockIdx.x == 0 && threadIdx.x == 0)
-            {
-                // FP4 K = 256, KPerBlock = 128, AK0Number = 8, AK1Value = 16
-                // FP6 K = 32, KPerBlock = 16, AK0Number = 16, AK1Value = 1
-                // FP8 K = 512, KPerBlock = 256, AK0Number = 16, AK1Value = 16
-                printf("MakeAGridDescriptor_AK0_M_AK1 -- K = %d, KPerBlock = %d, AK0Number = %d, "
-                       "AK1Value = %d\n",
-                       K,
-                       KPerBlock,
-                       static_cast<int>(AK0Number),
-                       AK1Value);
-            }
-#endif
-
             // not pad M or K
             const auto a_grid_desc_ak0_m_ak1 = transform_tensor_descriptor(
                 a_grid_desc_mraw_kraw,
@@ -391,7 +374,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                            make_pass_through_transform(M)),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
-#if 1
+
             const auto a_grid_desc_permuted = transform_tensor_descriptor(
                 a_grid_desc_ak0_m_ak1,
                 make_tuple(make_pass_through_transform(K / KPerBlock),
@@ -399,10 +382,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                            make_pass_through_transform(AK1Value)),
                 make_tuple(Sequence<0>{}, Sequence<2, 1>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<2, 1>{}, Sequence<3>{}));
-#else
-            const auto a_grid_desc_permuted = a_grid_desc_ak0_m_ak1;
-#endif
-#if 1
+
             const auto a_grid_desc = transform_tensor_descriptor(
                 a_grid_desc_permuted,
                 make_tuple(
@@ -411,9 +391,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                     make_pass_through_transform(AK1Value)),
                 make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
-#else
-            const auto a_grid_desc          = a_grid_desc_permuted;
-#endif
+
             return a_grid_desc;
         }
     }
@@ -512,7 +490,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                         make_pass_through_transform(N)),
                     make_tuple(Sequence<1>{}, Sequence<0>{}),
                     make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
-#if 1
+
                 const auto b_grid_desc_permuted = transform_tensor_descriptor(
                     b_grid_desc_bk0_n_bk1,
                     make_tuple(make_pass_through_transform(K / KPerBlock),
@@ -520,9 +498,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                make_pass_through_transform(BK1Value)),
                     make_tuple(Sequence<0>{}, Sequence<2, 1>{}, Sequence<3>{}),
                     make_tuple(Sequence<0>{}, Sequence<2, 1>{}, Sequence<3>{}));
-#else
-                const auto b_grid_desc_permuted = b_grid_desc_bk0_n_bk1;
-#endif
+
                 const auto b_grid_desc = transform_tensor_descriptor(
                     b_grid_desc_permuted,
                     make_tuple(
@@ -844,11 +820,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
-            // 16, 128, 1
-            // CK_PRINT<decltype(make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number))>();
-            // 1, 16, 1
-            // CK_PRINT<decltype(make_tuple(AK1Number, Number<KPerBlock>{}, I1))>();
-
             // contiguous in LDS
             return make_naive_tensor_descriptor(
                 make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
@@ -1413,7 +1384,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
                                    c_grid_desc_mblock_mperblock_nblock_nperblock)
     {
-        // static_assert(false);
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1464,24 +1434,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
-        // Sequence<AK0Number, MPerBlock, AK1Number> = <16, 128, 1>
-
-        // ck::Sequence<16, 16, 1>
-        //   CK_PRINT<ABlockTransferThreadClusterLengths_AK0_M_AK1>();
-
-        // ck::Sequence<1, 0, 2>
-        // CK_PRINT<ABlockTransferThreadClusterArrangeOrder>();
-
-        // CK_PRINT<decltype(a_grid_desc_ak0_m_ak1)>();
-        // CK_PRINT<decltype(a_block_desc_ak0_m_ak1)>();
-
-        // ck::Sequence<1, 0, 2>
-        //    CK_PRINT<ABlockTransferSrcAccessOrder>();
-
-        // CK_PRINT<ABlockTransferSrcVectorDim>(); // 2
-
-        //  CK_PRINT<ABlockTransferSrcScalarPerVector>(); // 1
-
         auto a_blockwise_copy =
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<AK0Number, MPerBlock, AK1Number>,
@@ -1531,18 +1483,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             reinterpret_cast<BDataType*>(static_cast<char*>(p_shared) +
                                          a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
-
-#if 0
-        if(blockIdx.x == 0 && threadIdx.x == 0)
-        {
-            printf(
-                "a_block_desc_ak0_m_ak1.GetElementSpaceSize() = %ld, a_block_space_size_aligned = "
-                "%ld, b_block_desc_bk0_n_bk1.GetElementSpaceSize() = %ld\n",
-                static_cast<long>(a_block_desc_ak0_m_ak1.GetElementSpaceSize()),
-                static_cast<long>(a_block_space_size_aligned),
-                static_cast<long>(b_block_desc_bk0_n_bk1.GetElementSpaceSize()));
-        }
-#endif
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);

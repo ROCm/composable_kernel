@@ -1064,28 +1064,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
             static_cast<int32_t>(reg_b.template AsType<f6x16x2_t::data_t>()[Number<1>{}][2]),
             0,
             0};
-#if 0
-        if constexpr(OpselA == 0 && OpselB == 0)
-        {
-            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 0))
-            {
-                printf("arg_a: 0x%08x %08x %08x %08x %08x %08x\n",
-                       static_cast<uint32_t>(arg_a[0]),
-                       static_cast<uint32_t>(arg_a[1]),
-                       static_cast<uint32_t>(arg_a[2]),
-                       static_cast<uint32_t>(arg_a[3]),
-                       static_cast<uint32_t>(arg_a[4]),
-                       static_cast<uint32_t>(arg_a[5]));
-                printf("arg_b: 0x%08x %08x %08x %08x %08x %08x\n",
-                       static_cast<uint32_t>(arg_b[0]),
-                       static_cast<uint32_t>(arg_b[1]),
-                       static_cast<uint32_t>(arg_b[2]),
-                       static_cast<uint32_t>(arg_b[3]),
-                       static_cast<uint32_t>(arg_b[4]),
-                       static_cast<uint32_t>(arg_b[5]));
-            }
-        }
-#endif
 
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
