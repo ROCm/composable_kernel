@@ -4,7 +4,7 @@
 
 int main()
 {
-    std::vector<std::vector<std::string>> test_cases = generate_test_cases("fp16");
+    std::vector<std::vector<std::string>> test_cases = generate_test_cases("bf16");
 
     return !run_test_cases<ck_tile::bf16_t>(test_cases);
 }
