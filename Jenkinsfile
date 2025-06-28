@@ -219,6 +219,8 @@ def buildDocker(install_prefix){
 
 def cmake_build(Map conf=[:]){
 
+    LOCAL_BRANCH_NAME = "develop"
+    
     def compiler = build_compiler()
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
@@ -226,7 +228,7 @@ def cmake_build(Map conf=[:]){
     def prefixpath = conf.get("prefixpath","/opt/rocm")
     def setup_args = conf.get("setup_args","")
     // make sure all unit tests always run on develop branch
-    def runAllUnitTests = (env.BRANCH_NAME == "develop") ? true : params.RUN_ALL_UNIT_TESTS
+    def runAllUnitTests = (LOCAL_BRANCH_NAME == "develop") ? true : params.RUN_ALL_UNIT_TESTS
     
     if (prefixpath != "/usr/local"){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
@@ -600,7 +602,7 @@ def Build_CK(Map conf=[:]){
                         if (params.RUN_FULL_QA && arch == 1){
                             // run full tests on gfx90a
                             echo "Run full performance tests"
-                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${LOCAL_BRANCH_NAME} ${NODE_NAME}"
                             archiveArtifacts "perf_gemm.log"
                             archiveArtifacts "perf_resnet50_N256.log"
                             archiveArtifacts "perf_resnet50_N4.log"
@@ -619,7 +621,7 @@ def Build_CK(Map conf=[:]){
                         else if ( arch == 1 ){
                             // run standard tests on gfx90a
                             echo "Run performance tests"
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${LOCAL_BRANCH_NAME} ${NODE_NAME}"
                             archiveArtifacts "perf_gemm.log"
                             archiveArtifacts "perf_onnx_gemm.log"
                             archiveArtifacts "perf_resnet50_N256.log"
@@ -630,35 +632,35 @@ def Build_CK(Map conf=[:]){
                         //else if ( arch == 3){
                             // run basic tests on gfx1030
                         //    echo "Run gemm performance tests"
-                        //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
+                        //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${LOCAL_BRANCH_NAME} ${NODE_NAME} gfx10"
                         //    archiveArtifacts "perf_onnx_gemm_gfx10.log"
                         //    stash includes: "perf_onnx_gemm_gfx10.log", name: "perf_log_gfx10"
                         //}
                         else if ( arch == 4){
                             // run basic tests on gfx11
                             echo "Run gemm performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx11"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${LOCAL_BRANCH_NAME} ${NODE_NAME} gfx11"
                             archiveArtifacts "perf_onnx_gemm_gfx11.log"
                             stash includes: "perf_onnx_gemm_gfx11.log", name: "perf_log_gfx11"
                         }
                         else if ( arch == 5 ){
                             // run basic tests on gfx12
                             echo "Run gemm performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${LOCAL_BRANCH_NAME} ${NODE_NAME} gfx12"
                             archiveArtifacts "perf_onnx_gemm_gfx12.log"
                             stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
                         }
                         else if ( arch == 6 ){
                             // run basic tests on gfx908
                             echo "Run performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx908"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${LOCAL_BRANCH_NAME} ${NODE_NAME} gfx908"
                             archiveArtifacts "perf_onnx_gemm_gfx908.log"
                             stash includes: "perf_onnx_gemm_gfx908.log", name: "perf_log_gfx908"
                         }
                         else if ( arch == 7 ){
                             // run basic tests on gfx950
                             echo "Run performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx950"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${LOCAL_BRANCH_NAME} ${NODE_NAME} gfx950"
                             archiveArtifacts "perf_onnx_gemm_gfx950.log"
                             stash includes: "perf_onnx_gemm_gfx950.log", name: "perf_log_gfx950"
                         }
@@ -1081,7 +1083,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
-                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${LOCAL_BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1100,7 +1102,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
-                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${LOCAL_BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1125,7 +1127,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 tile_example_batched_transpose && \
                                            cd ../ &&
-                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
+                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${LOCAL_BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1144,7 +1146,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
                                            make -j64 tile_example_batched_transpose && \
                                            cd ../ &&
-                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
+                                           example/ck_tile/35_batched_transpose/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${LOCAL_BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1169,7 +1171,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 tile_example_gemm_universal && \
                                            cd ../ &&
-                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
+                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${LOCAL_BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1188,7 +1190,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
                                            make -j64 tile_example_gemm_universal && \
                                            cd ../ &&
-                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
+                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${LOCAL_BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
