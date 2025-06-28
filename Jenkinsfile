@@ -225,7 +225,9 @@ def cmake_build(Map conf=[:]){
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
     def prefixpath = conf.get("prefixpath","/opt/rocm")
     def setup_args = conf.get("setup_args","")
-
+    // make sure all unit tests always run on develop branch
+    def runAllUnitTests = (env.BRANCH_NAME == "develop") ? true : params.RUN_ALL_UNIT_TESTS
+    
     if (prefixpath != "/usr/local"){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
     }
@@ -372,7 +374,7 @@ def cmake_build(Map conf=[:]){
                 archiveArtifacts "clang_build_analysis.log"
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
-                    if (!params.RUN_ALL_UNIT_TESTS){
+                    if (!runAllUnitTests){
                         sh "../script/launch_tests.sh"
                     }
                     else{
@@ -391,7 +393,7 @@ def cmake_build(Map conf=[:]){
             else{
                 // run unit tests unless building library for all targets
                 if (!params.BUILD_INSTANCES_ONLY){
-                    if (!params.RUN_ALL_UNIT_TESTS){
+                    if (!runAllUnitTests){
                         sh "../script/launch_tests.sh"
                     }
                     else{
@@ -897,9 +899,25 @@ pipeline {
             defaultValue: false,
             description: "Build CK and run tests on gfx908 (default: OFF)")
         booleanParam(
+            name: "BUILD_GFX90A",
+            defaultValue: true,
+            description: "Build CK and run tests on gfx90a (default: ON)")
+        booleanParam(
+            name: "BUILD_GFX942",
+            defaultValue: true,
+            description: "Build CK and run tests on gfx942 (default: ON)")
+        booleanParam(
             name: "BUILD_GFX950",
             defaultValue: false,
             description: "Build CK and run tests on gfx950 (default: OFF)")
+        booleanParam(
+            name: "BUILD_GFX10",
+            defaultValue: true,
+            description: "Build CK and run tests on gfx10 (default: ON)")
+        booleanParam(
+            name: "BUILD_GFX11",
+            defaultValue: true,
+            description: "Build CK and run tests on gfx11 (default: ON)")
         booleanParam(
             name: "BUILD_GFX12",
             defaultValue: true,
@@ -1282,7 +1300,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { (params.BUILD_GFX942.toBoolean() || params.RUN_FULL_QA.toBoolean()) && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
                     environment{
@@ -1320,7 +1338,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "rocm/composable_kernel-private:ck_ub22.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub22.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1349,7 +1367,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX90A.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
@@ -1388,7 +1406,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX10.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1030") }
                     environment{
@@ -1409,7 +1427,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX11.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1101") }
                     environment{
