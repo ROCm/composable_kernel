@@ -54,7 +54,7 @@ namespace device {
  *
  * Conditions for achieving computational load balancing on different hardware platforms can vary.
  *
- * \tparam KPerBlock is the number of elements in K dimension that each block processes (multiply with packed_size_v to get the real KPerBlock)
+ * \tparam KPerBlock is the number of elements in K dimension that each block processes (multiply with packed_size_v to get the actual KPerBlock)
  *
  * Serialized version of the algorithm:
  * \code
