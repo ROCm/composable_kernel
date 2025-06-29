@@ -311,8 +311,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     static_assert(NumGroupsToMerge >= 1);
 
-    static constexpr bool isMultiA = is_detected<is_tuple, ADataType>::value;
-    static constexpr bool isMultiB = is_detected<is_tuple, BDataType>::value;
+    static constexpr bool isMultiA  = is_detected<is_tuple, ADataType>::value;
+    static constexpr bool isMultiB  = is_detected<is_tuple, BDataType>::value;
+    static constexpr bool isMultiAB = isMultiA || isMultiB;
 
     // NGCHW is not supported for multiAB
     static_assert(!(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
@@ -322,6 +323,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     static constexpr index_t NumATensor = GetNumABTensors<isMultiA, ADataType>();
     static constexpr index_t NumBTensor = GetNumABTensors<isMultiB, BDataType>();
     static constexpr index_t NumDTensor = DsDataType::Size();
+
+    static constexpr bool DoElementwiseBeforeCShuffle =
+        NumDTensor == 0 && !isMultiAB && is_same_v<EDataType, bhalf_t> &&
+        !is_same_v<CDEElementwiseOperation, tensor_operation::element_wise::PassThrough>;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -465,7 +470,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         BBlockLdsExtraN, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,         \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                      \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,             \
-        BComputeDataType
+        BComputeDataType, DoElementwiseBeforeCShuffle
     // Use appropriate gridwise gemm
     using GridwiseGemm = std::conditional_t<
         isMultiA || isMultiB,

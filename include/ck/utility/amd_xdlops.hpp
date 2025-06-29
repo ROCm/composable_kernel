@@ -881,11 +881,6 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32, OpselA, OpselB>
 #endif
     }
 };
-#define BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS 1
-
-#ifndef BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS
-#define BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS 0
-#endif
 
 template <index_t MPerWave, index_t NPerWave, index_t OpselA, index_t OpselB>
 struct intrin_mfma_scale_f32_16x16x128f8f6f4;
@@ -893,48 +888,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4;
 template <index_t OpselA, index_t OpselB>
 struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
 {
-
-#define V_MFMA_SCALE_F32_16X16X128_F8F6F4(OPF_F8F6F4_CTRL_A,                   \
-                                          OPF_F8F6F4_CTRL_B,                   \
-                                          F8F6F4_VEC_TYPE_A,                   \
-                                          F8F6F4_VEC_TYPE_B,                   \
-                                          OPSEL_A_L,                           \
-                                          OPSEL_A_H,                           \
-                                          OPSEL_B_L,                           \
-                                          OPSEL_B_H)                           \
-    if constexpr((OpselA == 1 * OPSEL_A_L + 2 * OPSEL_A_H) &&                  \
-                 (OpselB == 1 * OPSEL_B_L + 2 * OPSEL_B_H))                    \
-    asm volatile("v_mfma_scale_f32_16x16x128_f8f6f4  %0, %1, %2, %3, %4, %5  " \
-                 "op_sel:[" #OPSEL_A_L "," #OPSEL_A_H "] "                     \
-                 "op_sel_hi:[" #OPSEL_B_L "," #OPSEL_B_H "] "                  \
-                 "cbsz:" #OPF_F8F6F4_CTRL_A " blgp:" #OPF_F8F6F4_CTRL_B        \
-                 : "+v"(reg_c.template AsType<float4_t>()(Number<0>{}))        \
-                 : "v"(bit_cast<F8F6F4_VEC_TYPE_A>(reg_a)),                    \
-                   "v"(bit_cast<F8F6F4_VEC_TYPE_B>(reg_b)),                    \
-                   "v"(reg_c.template AsType<float4_t>()[Number<0>{}]),        \
-                   "v"(scale_a),                                               \
-                   "v"(scale_b))
-#define BOOL4_CASES(F) \
-    do                 \
-    {                  \
-        F(0, 0, 0, 0); \
-        F(0, 0, 0, 1); \
-        F(0, 0, 1, 0); \
-        F(0, 0, 1, 1); \
-        F(0, 1, 0, 0); \
-        F(0, 1, 0, 1); \
-        F(0, 1, 1, 0); \
-        F(0, 1, 1, 1); \
-        F(1, 0, 0, 0); \
-        F(1, 0, 0, 1); \
-        F(1, 0, 1, 0); \
-        F(1, 0, 1, 1); \
-        F(1, 1, 0, 0); \
-        F(1, 1, 0, 1); \
-        F(1, 1, 1, 0); \
-        F(1, 1, 1, 1); \
-    } while(0)
-
     template <class FloatC>
     __device__ static void Run(const f8x32_t& reg_a,
                                const int32_t& scale_a,
@@ -943,7 +896,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                                FloatC& reg_c)
     {
 #if defined(__gfx950__)
-#if BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
@@ -957,11 +909,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                 OpselB, // OPSEL
                 scale_b);
 #else
-#define f8_cases(...) V_MFMA_SCALE_F32_16X16X128_F8F6F4(0, 0, int32x8_t, int32x8_t, __VA_ARGS__)
-        BOOL4_CASES(f8_cases);
-#undef f8_cases
-#endif
-#else
         ignore = reg_a;
         ignore = scale_a;
         ignore = reg_b;
@@ -978,7 +925,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                                FloatC& reg_c)
     {
 #if defined(__gfx950__)
-#if BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
@@ -991,10 +937,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                 scale_a,
                 OpselB, // OPSEL
                 scale_b);
-#else
-#define bf8_cases(...) V_MFMA_SCALE_F32_16X16X128_F8F6F4(1, 1, int32x8_t, int32x8_t, __VA_ARGS__)
-        BOOL4_CASES(bf8_cases);
-#endif
 #else
         ignore = reg_a;
         ignore = scale_a;
@@ -1012,7 +954,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                                FloatC& reg_c)
     {
 #if defined(__gfx950__)
-#if BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
@@ -1025,11 +966,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                 scale_a,
                 OpselB, // OPSEL
                 scale_b);
-#else
-#define f8bf8_cases(...) V_MFMA_SCALE_F32_16X16X128_F8F6F4(0, 1, int32x8_t, int32x8_t, __VA_ARGS__)
-        BOOL4_CASES(f8bf8_cases);
-#undef f8bf8_cases
-#endif
 #else
         ignore = reg_a;
         ignore = scale_a;
@@ -1047,7 +983,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                                FloatC& reg_c)
     {
 #if defined(__gfx950__)
-#if BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS
         // https://github.com/ROCm/llvm-project/blob/656552edc693e2bb4abc9258399c39d190fce2b3/llvm/test/Verifier/AMDGPU/mfma-scale.ll#L10
         reg_c.template AsType<float4_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
@@ -1060,11 +995,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                 scale_a,
                 OpselB, // OPSEL
                 scale_b);
-#else
-#define bf8f8_cases(...) V_MFMA_SCALE_F32_16X16X128_F8F6F4(1, 0, int32x8_t, int32x8_t, __VA_ARGS__)
-        BOOL4_CASES(bf8f8_cases);
-#undef bf8f8_cases
-#endif
 #else
         ignore = reg_a;
         ignore = scale_a;
@@ -1141,24 +1071,13 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
     }
 
     template <class FloatC>
-    __device__ static void
-    Run(const f4x32_t& reg_a, // misalignment between pk_f4_t, 32 and f4_t, 32
-        const int32_t scale_a,
-        const f4x32_t& reg_b,
-        const int32_t scale_b,
-        FloatC& reg_c)
+    __device__ static void Run(const f4x32_t& reg_a,
+                               const int32_t scale_a,
+                               const f4x32_t& reg_b,
+                               const int32_t scale_b,
+                               FloatC& reg_c)
     {
-#if 0
-        if(get_thread_local_1d_id()){
-            printf("Tid: %03d, Scale A: %08x, Scale B: %08x, OpSelA: %d, OpSelB: %d\n",
-                get_thread_local_1d_id(),
-                *reinterpret_cast<const uint32_t*>(&scale_a), *reinterpret_cast<const
-                uint32_t*>(&scale_b),
-                OpselA, OpselB);
-        }
-#endif
 #if defined(__gfx950__)
-#if BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS
         int32x4_t arg_a = bit_cast<int32x4_t>(reg_a);
         int32x4_t arg_b = bit_cast<int32x4_t>(reg_b);
         using arg_type  = int32x8_t;
@@ -1174,11 +1093,6 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
                 OpselB, // OPSEL
                 scale_b);
 #else
-#define f4_cases(...) V_MFMA_SCALE_F32_16X16X128_F8F6F4(4, 4, int32x4_t, int32x4_t, __VA_ARGS__)
-        BOOL4_CASES(f4_cases);
-#undef f4_cases
-#endif
-#else
         ignore = reg_a;
         ignore = scale_a;
         ignore = reg_b;
@@ -1186,9 +1100,7 @@ struct intrin_mfma_scale_f32_16x16x128f8f6f4<16, 16, OpselA, OpselB>
         ignore = reg_c;
 #endif
     }
-#undef BOOL4_CASES
-#undef V_MFMA_SCALE_F32_16X16X128_F8F6F4
-}; // namespace ck
+};
 
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_16x16x128f8f6f4;

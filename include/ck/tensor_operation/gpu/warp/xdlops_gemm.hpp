@@ -1146,15 +1146,6 @@ struct MfmaSelector
 #endif
     }
 
-    // Use single rate mfma instruction for this special case A (f8_t) * B (pk_i4_t)
-    // See example gemm_xdl_fp8_pk_i4_bpreshuffle_v3
-    // TODO: explore optimization opportunity by using new mfma instructions on gfx950
-    template <>
-    constexpr auto GetMfma<f8_t, 32, 32, pk_i4_t, true, false>()
-    {
-        return MfmaInstr::mfma_f32_32x32x16f8f8;
-    }
-
     template <>
     constexpr auto GetMfma<f8_t, 32, 32, f8_t, true, false>()
     {

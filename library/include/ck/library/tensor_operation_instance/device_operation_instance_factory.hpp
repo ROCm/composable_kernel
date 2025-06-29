@@ -121,6 +121,7 @@ using AddFastGelu         = ck::tensor_operation::element_wise::AddFastGelu;
 using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
 using AddRelu             = ck::tensor_operation::element_wise::AddRelu;
 using AddClamp            = ck::tensor_operation::element_wise::AddClamp;
+using Clamp               = ck::tensor_operation::element_wise::Clamp;
 using AddSilu             = ck::tensor_operation::element_wise::AddSilu;
 using AddReluAdd          = ck::tensor_operation::element_wise::AddReluAdd;
 using FastGelu            = ck::tensor_operation::element_wise::FastGelu;

@@ -165,17 +165,6 @@ inline constexpr bool is_native_type()
            is_same<T, f8_fnuz_t>::value || is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value;
 }
 
-template <typename T>
-struct is_f8f6f4
-{
-    static constexpr bool value =
-        is_same_v<T, f8_t> || is_same_v<T, bf8_t> || is_same_v<T, f6_t> || is_same_v<T, bf6_t> ||
-        is_same_v<T, f6x16_pk_t> || is_same_v<T, f6x32_pk_t> || is_same_v<T, bf6x16_pk_t> ||
-        is_same_v<T, bf6x32_pk_t> || is_same_v<T, f4_t> || is_same_v<T, f4x2_pk_t>;
-};
-template <typename T>
-inline constexpr bool is_f8f6f4_v = is_f8f6f4<T>::value;
-
 // scalar_type
 template <typename TV>
 struct scalar_type;

@@ -40,7 +40,7 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    // Hardcode to 64, as HIP-provided "warpSize" would return 32 on RDNA GPUs.
+    // Hardcode to 64, as HIP-provided "WarpSize" would return 32 on RDNA GPUs.
     static constexpr index_t WaveSize = 64;
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
