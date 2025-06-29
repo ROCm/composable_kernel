@@ -1797,14 +1797,14 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
                                             reinterpret_cast<uintptr_t>(smem)),
                                         sizeof(uint32_t),
                                         v_offset,
-                                        0,
-                                        0,
+                                        src_wave_addr_offset,
+                                        src_immediate_addr_offset,
                                         static_cast<index_t>(coherence));
     }
     else
     {
         llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
-                                        reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(      ),
+                                        reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(reinterpret_cast<uintptr_t>(smem)),
                                         bytes,
                                         src_thread_addr_offset,
                                         src_wave_addr_offset,
@@ -2798,7 +2798,7 @@ template <typename T, index_t N, address_space_enum BufferAddressSpace>
 __device__ auto amd_transpose_load_to_vgpr(const T* in_ptr)
 {
 
-    static_assert(__has_builtin(__builtin_amdgcn_raw_buffer_load_b32),
+    static_assert(__has_builtin(__builtin_amdgcn_ds_read_tr16_b64_v4f16),
                   "We need to have the compatible compiler version to build this instruction");
     if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::half_t>)
     {
