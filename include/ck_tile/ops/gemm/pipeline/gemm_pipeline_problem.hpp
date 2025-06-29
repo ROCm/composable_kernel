@@ -14,7 +14,10 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename ComputeDataType_ = ADataType_>
+          typename ComputeDataType_ = ADataType_,
+          bool FixedVectorSize_     = false,
+          index_t VectorSizeA_      = 1,
+          index_t VectorSizeB_      = 1>
 struct GemmPipelineProblemBase
 {
     using Traits = remove_cvref_t<Traits_>;
@@ -23,6 +26,8 @@ struct GemmPipelineProblemBase
     using BDataType       = remove_cvref_t<BDataType_>;
     using CDataType       = remove_cvref_t<CDataType_>;
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
+
+    static constexpr bool FixedVectorSize = FixedVectorSize_;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
@@ -115,7 +120,11 @@ struct GemmPipelineProblemBase
     }
 
     static constexpr index_t VectorSizeA = []() {
-        if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(FixedVectorSize)
+        {
+            return VectorSizeA_;
+        }
+        else if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
             return kPadK ? 1 : GetAlignmentA();
         }
@@ -126,7 +135,11 @@ struct GemmPipelineProblemBase
     }();
 
     static constexpr index_t VectorSizeB = []() {
-        if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
+        if constexpr(FixedVectorSize)
+        {
+            return VectorSizeB_;
+        }
+        else if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
         {
             return kPadN ? 1 : GetAlignmentB();
         }
@@ -153,13 +166,19 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename ComputeDataType_ = ADataType_>
+          typename ComputeDataType_ = ADataType_,
+          bool FixedVectorSize_     = false,
+          index_t VectorSizeA_      = 1,
+          index_t VectorSizeB_      = 1>
 using GemmPipelineProblem = GemmPipelineProblemBase<ADataType_,
                                                     BDataType_,
                                                     CDataType_,
                                                     BlockGemmShape_,
                                                     Traits_,
-                                                    ComputeDataType_>;
+                                                    ComputeDataType_,
+                                                    FixedVectorSize_,
+                                                    VectorSizeA_,
+                                                    VectorSizeB_>;
 
 template <typename ADataType_,
           typename BDataType_,
@@ -169,7 +188,10 @@ template <typename ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full,
-          typename ComputeDataType_        = ADataType_>
+          typename ComputeDataType_        = ADataType_,
+          bool FixedVectorSize_            = false,
+          index_t VectorSizeA_             = 1,
+          index_t VectorSizeB_             = 1>
 struct UniversalGemmPipelineProblem
 {
     using Traits = remove_cvref_t<Traits_>;
@@ -178,6 +200,10 @@ struct UniversalGemmPipelineProblem
     using BDataType       = remove_cvref_t<BDataType_>;
     using CDataType       = remove_cvref_t<CDataType_>;
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
+
+    static constexpr bool FixedVectorSize = FixedVectorSize_;
+    static constexpr index_t VectorSizeA  = VectorSizeA_;
+    static constexpr index_t VectorSizeB  = VectorSizeB_;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 

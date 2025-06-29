@@ -15,16 +15,27 @@ If user does not provide kernel configuration, the tile engine uses default kern
 # in the root of composable kernel create build directory
 mkdir build && cd build
 # build composable kernel
-sh ../script/cmake-ck-dev.sh  ../ <arch> # replace <arch> with the appropriate architecture (example gfx942) or leave blank
-# generate the executable
-make benchmark_gemm -j
+# replace [Arch] with the appropriate architecture or leave blank and 
+# replace [Datatype1;Datatype2;...] in comma separated datatypes string (possible datatypes are [fp8, bf8, int8, fp16, bf16])
+sh ../script/cmake-ck-dev.sh  ../ [Arch] -DGEMM_DATATYPE="[Datatype1;Datatype2]" 
+# generate different executable for each passed datatype
+make benchmark_gemm_[Datatype1] -j
+make benchmark_gemm_[Datatype2] -j
 ```
-`benchmark_gemm` will be located in the `./bin/` directory.
+`benchmark_gemm_[Datatypes]` will be located in the `./bin/` directory.
 
-`benchmark_gemm` must be rebuilt everytime if configuration file is modified.
+`benchmark_gemm_[Datatypes]` must be rebuilt everytime if configuration file is modified.
 
 ``` bash
-rm -rf tile_engine/ && make benchmark_gemm -j  # rebuild
+rm -rf tile_engine/ && make benchmark_gemm_[Datatypes] -j  # rebuild
+```
+
+## For eaxmple build for gfx942 for fp8 and fp16 datatypes
+``` bash
+mkdir build && cd build
+sh ../script/cmake-ck-dev.sh  ../ gfx942 -DGEMM_DATATYPE="fp8;fp16" 
+make benchmark_gemm_fp8 -j
+make benchmark_gemm_fp16 -j
 ```
 
 ## benchmark_gemm inputs
