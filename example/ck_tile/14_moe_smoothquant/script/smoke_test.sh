@@ -1,5 +1,5 @@
 #!/bin/sh
-EXE=build/bin/tile_example_moe_smoothquant
+EXE=/home/composable_kernel/build/bin/tile_example_moe_smoothquant
 
 for pr_i in "fp16" "bf16" ; do
 for pr_o in "int8" "fp8" ; do
