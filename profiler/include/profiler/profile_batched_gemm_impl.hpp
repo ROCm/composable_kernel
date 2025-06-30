@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -41,12 +41,12 @@ bool profile_batched_gemm_impl(int do_verification,
                                int M,
                                int N,
                                int K,
-                               int BatchStrideA,
-                               int BatchStrideB,
-                               int BatchStrideC,
                                int StrideA,
                                int StrideB,
                                int StrideC,
+                               int BatchStrideA,
+                               int BatchStrideB,
+                               int BatchStrideC,
                                int BatchCount)
 {
     bool pass = true;

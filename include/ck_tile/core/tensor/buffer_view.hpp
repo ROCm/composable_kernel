@@ -5,7 +5,11 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
+#if __clang_major__ == 20
+#include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
+#else
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
+#endif
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
@@ -14,6 +18,7 @@
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 
 namespace ck_tile {
 
@@ -127,6 +132,28 @@ struct buffer_view<address_space_enum::generic,
                 return X{invalid_element_value_};
             }
         }
+    }
+
+    /*
+    In the generic address space, we do not support the transpose instruction in the buffer view.
+    Will report compilation error when developer wants to use it.
+    */
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr auto transpose_get(index_t i,
+                                                index_t linear_offset,
+                                                bool is_valid_element,
+                                                bool_constant<oob_conditional_check> = {}) const
+    {
+        static_assert(false, "Error: transpose load not supported in global memory space.");
+        ignore = i;
+        ignore = linear_offset;
+        ignore = is_valid_element;
+        return;
     }
 
     // i is offset of T, not X. i should be aligned to X
@@ -353,6 +380,28 @@ struct buffer_view<address_space_enum::global,
                 }
             }
         }
+    }
+
+    /*
+    In the global memory address space, we do not support the transpose instruction in the buffer
+    view. Will report compilation error when developer wants to use it.
+    */
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr auto transpose_get(index_t i,
+                                                index_t linear_offset,
+                                                bool is_valid_element,
+                                                bool_constant<oob_conditional_check> = {}) const
+    {
+        static_assert(false, "Error: transpose load not supported in global memory space.");
+        ignore = i;
+        ignore = linear_offset;
+        ignore = is_valid_element;
+        return;
     }
 
     // i is offset of T, not X. i should be aligned to X
@@ -849,6 +898,47 @@ struct buffer_view<address_space_enum::lds,
         smem_load<sizeof(X)>{}(dst, v_offset * sizeof(T), i_offset * sizeof(T));
     }
 
+    template <typename X,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr auto transpose_get([[maybe_unused]] index_t i,
+                                                [[maybe_unused]] index_t linear_offset,
+                                                bool is_valid_element) const
+    {
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+        if(is_valid_element)
+        {
+#if defined(__gfx950__)
+            constexpr index_t t_per_x               = scalar_per_x_vector / scalar_per_t_vector;
+            constexpr address_space_enum addr_space = get_address_space();
+            return amd_transpose_load_to_vgpr<remove_cvref_t<T>, t_per_x, addr_space>(
+                p_data_ + i + linear_offset);
+#else
+            return X{numeric<remove_cvref_t<T>>::zero()};
+#endif
+        }
+        else
+        {
+            if constexpr(InvalidElementUseNumericalZeroValue)
+            {
+                return X{numeric<remove_cvref_t<T>>::zero()};
+            }
+            else
+            {
+                return X{invalid_element_value_};
+            }
+        }
+    }
+
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,
@@ -920,6 +1010,15 @@ struct buffer_view<address_space_enum::lds,
                          std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
                         (std::is_same_v<remove_cvref_t<T>, int8x16_t> &&
                          std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
+                        // int8 on thread buffer
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 8>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 4>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 2>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 1>>) ||
                         // ext_vector_type for pk_int4 must use int8_t as type
                         (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
                          std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 1>>) ||
@@ -942,6 +1041,8 @@ struct buffer_view<address_space_enum::lds,
 
                 if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
                               std::is_same_v<remove_cvref_t<X>, int8_t>) ||
+                             (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                              std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 1>>) ||
                              (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
                               std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 1>>))
                 {
@@ -952,6 +1053,8 @@ struct buffer_view<address_space_enum::lds,
                 }
                 else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
                                    std::is_same_v<remove_cvref_t<X>, int8x2_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 2>>) ||
                                   (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
                                    std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 2>>))
                 {
@@ -962,6 +1065,8 @@ struct buffer_view<address_space_enum::lds,
                 }
                 else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
                                    std::is_same_v<remove_cvref_t<X>, int8x4_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 4>>) ||
                                   (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
                                    std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 4>>))
                 {
@@ -972,6 +1077,8 @@ struct buffer_view<address_space_enum::lds,
                 }
                 else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
                                    std::is_same_v<remove_cvref_t<X>, int8x8_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 8>>) ||
                                   (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
                                    std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 8>>))
                 {

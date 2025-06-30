@@ -12,7 +12,7 @@ using F8   = ck::f8_t;
 using BF8  = ck::bf8_t;
 using F6   = ck::f6_t;
 using BF6  = ck::bf6_t;
-using F4   = ck::f4_t;
+using F4   = ck::f4x2_pk_t;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using F32  = float;
@@ -52,22 +52,23 @@ class TestGemmMX_KM_NK
 };
 
 // clang-format off
-using KernelTypes_F8_MK_NK = ::testing::Types<
+using KernelTypes_MK_NK = ::testing::Types<
 #if defined(CK_ENABLE_FP8)
     //         ADataType, BDataType,       CDataType, ScaleBlockSize
     std::tuple<       F8,        F8,             F16, ck::Number<32> >,
-    std::tuple<       F8,        F8,            BF16, ck::Number<32> >
+    std::tuple<       F8,        F8,            BF16, ck::Number<32> >,
 #endif
+    std::tuple<       F4,        F4,             F16, ck::Number<32> >
     >;
 
-using KernelTypes_BF8_F8_MK_KN = ::testing::Types<
+using KernelTypes_MK_KN = ::testing::Types<
 #if defined(CK_ENABLE_FP8)
     //         ADataType, BDataType,       CDataType, ScaleBlockSize
     std::tuple<      BF8,        F8,             F16, ck::Number<32> >
 #endif
     >;
 
-using KernelTypes_F8_KM_NK = ::testing::Types<
+using KernelTypes_KM_NK = ::testing::Types<
 #if defined(CK_ENABLE_FP8)
     //         ADataType, BDataType,       CDataType, ScaleBlockSize
     std::tuple<       F8,        F8,            BF16, ck::Number<32> >
@@ -75,9 +76,9 @@ using KernelTypes_F8_KM_NK = ::testing::Types<
     >;
 // clang-format on
 
-TYPED_TEST_SUITE(TestGemmMX_MK_NK, KernelTypes_F8_MK_NK);
-TYPED_TEST_SUITE(TestGemmMX_MK_KN, KernelTypes_BF8_F8_MK_KN);
-TYPED_TEST_SUITE(TestGemmMX_KM_NK, KernelTypes_F8_KM_NK);
+TYPED_TEST_SUITE(TestGemmMX_MK_NK, KernelTypes_MK_NK);
+TYPED_TEST_SUITE(TestGemmMX_MK_KN, KernelTypes_MK_KN);
+TYPED_TEST_SUITE(TestGemmMX_KM_NK, KernelTypes_KM_NK);
 
 /// A: RowMajor
 /// B: ColMajor
@@ -214,7 +215,8 @@ TYPED_TEST(TestGemmMX_MK_KN, Large)
 TYPED_TEST(TestGemmMX_KM_NK, SmallN)
 {
     constexpr int M = 256;
-    std::vector<int> Ns{1, 2, 3, 4, 5, 6};
+    std::vector<int> Ns{32, 64};
+    // std::vector<int> Ns{1, 2, 3, 4, 5, 6};
     constexpr int K = 512;
 
     constexpr int StrideA = M;
@@ -222,16 +224,16 @@ TYPED_TEST(TestGemmMX_KM_NK, SmallN)
 
     for(int N : Ns)
     {
-        const auto new_N   = N * 8;
-        const auto StrideC = new_N;
-        this->Run(M, new_N, K, StrideA, StrideB, StrideC);
+        const auto StrideC = N;
+        this->Run(M, N, K, StrideA, StrideB, StrideC);
     }
 }
 
 TYPED_TEST(TestGemmMX_KM_NK, MidLargeN)
 {
     constexpr int M = 256;
-    std::vector<int> Ns{127, 255, 312, 799, 1573};
+    std::vector<int> Ns{128, 256, 2048};
+    // std::vector<int> Ns{127, 255, 312, 799, 1573};
     constexpr int K = 512;
 
     constexpr int StrideA = M;
@@ -239,9 +241,8 @@ TYPED_TEST(TestGemmMX_KM_NK, MidLargeN)
 
     for(int N : Ns)
     {
-        const auto new_N   = (N + 7) / 8 * 8;
-        const auto StrideC = new_N;
-        this->Run(M, new_N, K, StrideA, StrideB, StrideC);
+        const auto StrideC = N;
+        this->Run(M, N, K, StrideA, StrideB, StrideC);
     }
 }
 

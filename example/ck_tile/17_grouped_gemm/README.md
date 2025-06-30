@@ -1,6 +1,6 @@
 # Grouped CShuffle GEMM
 
-This folder contains example for Grouped GEMM using ck_tile tile-programming implementation. Currently, it only supports the basic feature of the CK Tile GEMM, but creates the placeholders for the future support on different GEMM pipeline and different GEMM modules. In the near future, we will gradually migrate all the GEMM features from old CK to CK Tile.
+This folder contains example for Grouped GEMM using ck_tile tile-programming implementation.
 
 ## build
 ```

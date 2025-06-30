@@ -561,7 +561,16 @@ struct FmhaFwdSplitKVKernel
         const index_t i_nhead           = blockIdx.y;
         const index_t i_batch           = blockIdx.z;
 
-        return ck_tile::make_tuple(i_tile_m, i_tile_n, i_split, i_nhead, i_batch);
+        if constexpr(kHasMask)
+        {
+            // assume that num_tile_n1 is always 1
+            return ck_tile::make_tuple(
+                (gridDim.x / kargs.num_splits) - 1 - i_tile_m, i_tile_n, i_split, i_nhead, i_batch);
+        }
+        else
+        {
+            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_split, i_nhead, i_batch);
+        }
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }

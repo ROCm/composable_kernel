@@ -22,9 +22,9 @@ void add_device_gemm_mx_xdl_f8_f8_f16_mk_nk_mn_default_instances(
                                              Col,
                                              Row,
                                              F8,
-                                             e8m0_bexp_t,
+                                             E8M0PK,
                                              F8,
-                                             e8m0_bexp_t,
+                                             E8M0PK,
                                              F16,
                                              32,
                                              PassThrough,
@@ -36,10 +36,24 @@ void add_device_gemm_mx_xdl_f8_f8_bf16_mk_nk_mn_default_instances(
                                              Col,
                                              Row,
                                              F8,
-                                             e8m0_bexp_t,
+                                             E8M0PK,
                                              F8,
-                                             e8m0_bexp_t,
+                                             E8M0PK,
                                              BF16,
+                                             32,
+                                             PassThrough,
+                                             PassThrough,
+                                             PassThrough>>>& instances);
+
+void add_device_gemm_mx_xdl_f4_f4_f16_mk_nk_mn_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmMX<Row,
+                                             Col,
+                                             Row,
+                                             F4,
+                                             I32,
+                                             F4,
+                                             I32,
+                                             F16,
                                              32,
                                              PassThrough,
                                              PassThrough,
@@ -50,9 +64,9 @@ void add_device_gemm_mx_xdl_bf8_f8_f16_mk_kn_mn_default_instances(
                                              Row,
                                              Row,
                                              BF8,
-                                             e8m0_bexp_t,
+                                             E8M0PK,
                                              F8,
-                                             e8m0_bexp_t,
+                                             E8M0PK,
                                              F16,
                                              32,
                                              PassThrough,
@@ -64,9 +78,9 @@ void add_device_gemm_mx_xdl_f8_f8_bf16_km_nk_mn_default_instances(
                                              Col,
                                              Row,
                                              F8,
-                                             e8m0_bexp_t,
+                                             E8M0PK,
                                              F8,
-                                             e8m0_bexp_t,
+                                             E8M0PK,
                                              BF16,
                                              32,
                                              PassThrough,
@@ -94,7 +108,8 @@ struct DeviceOperationInstanceFactory<
                                                ScaleBlockSize,
                                                ck::tensor_operation::element_wise::PassThrough,
                                                ck::tensor_operation::element_wise::PassThrough,
-                                               ck::tensor_operation::element_wise::PassThrough>>
+                                               ck::tensor_operation::element_wise::PassThrough>,
+    enable_if_t<!is_same_v<BLayout, MFMA>>> // non-weight-pre-shuffle
 {
     using DeviceOp = DeviceGemmMX<ALayout,
                                   BLayout,
@@ -127,6 +142,11 @@ struct DeviceOperationInstanceFactory<
 
                 add_device_gemm_mx_xdl_f8_f8_bf16_mk_nk_mn_default_instances(op_ptrs);
             }
+            else if constexpr(is_same_v<ADataType, F4> && is_same_v<BDataType, F4> &&
+                              is_same_v<CDataType, F16>)
+            {
+                add_device_gemm_mx_xdl_f4_f4_f16_mk_nk_mn_default_instances(op_ptrs);
+            }
         }
         else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                           is_same_v<CLayout, Row>)
@@ -153,6 +173,73 @@ struct DeviceOperationInstanceFactory<
     }
 };
 
+void add_device_gemm_mx_xdl_f4_f4_f16_mk_mfma_mn_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmMX<Row,
+                                             MFMA,
+                                             Row,
+                                             F4,
+                                             I32,
+                                             F4,
+                                             I32,
+                                             F16,
+                                             32,
+                                             PassThrough,
+                                             PassThrough,
+                                             PassThrough>>>& instances);
+
+template <typename ADataType,
+          typename AScaleDataType,
+          typename BDataType,
+          typename BScaleDataType,
+          typename CDataType,
+          index_t ScaleBlockSize,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGemmMX<ALayout,
+                                               BLayout,
+                                               CLayout,
+                                               ADataType,
+                                               AScaleDataType,
+                                               BDataType,
+                                               BScaleDataType,
+                                               CDataType,
+                                               ScaleBlockSize,
+                                               ck::tensor_operation::element_wise::PassThrough,
+                                               ck::tensor_operation::element_wise::PassThrough,
+                                               ck::tensor_operation::element_wise::PassThrough>,
+    enable_if_t<is_same_v<BLayout, MFMA>>>
+{
+    using DeviceOp = DeviceGemmMX<ALayout,
+                                  BLayout,
+                                  CLayout,
+                                  ADataType,
+                                  AScaleDataType,
+                                  BDataType,
+                                  BScaleDataType,
+                                  CDataType,
+                                  ScaleBlockSize,
+                                  ck::tensor_operation::element_wise::PassThrough,
+                                  ck::tensor_operation::element_wise::PassThrough,
+                                  ck::tensor_operation::element_wise::PassThrough>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+        if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, MFMA> && is_same_v<CLayout, Row>)
+        {
+            if constexpr(is_same_v<ADataType, F4> && is_same_v<BDataType, F4> &&
+                         is_same_v<CDataType, F16>)
+            {
+                add_device_gemm_mx_xdl_f4_f4_f16_mk_mfma_mn_default_instances(op_ptrs);
+            }
+        }
+
+        return op_ptrs;
+    }
+};
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
