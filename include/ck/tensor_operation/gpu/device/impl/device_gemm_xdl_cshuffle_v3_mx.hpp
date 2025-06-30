@@ -119,7 +119,7 @@ template <typename ALayout,
           index_t BlockSize,      // Thread block size
           index_t MPerBlock,
           index_t NPerBlock,
-          index_t KPerBlock, // multiply with packed_size_v to get the real KPerBlock
+          index_t KPerBlock, // multiply with packed_size_v to get the actual KPerBlock
           index_t AK1,
           index_t BK1,
           index_t MPerXDL,
