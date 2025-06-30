@@ -74,8 +74,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using BDataType                    = std::tuple_element_t<4, Tuple>;
     using AccDataType                  = std::tuple_element_t<5, Tuple>;
     using CDataType                    = std::tuple_element_t<6, Tuple>;
-    static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
-    static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
+    static constexpr auto Scheduler    = std::tuple_element_t<10, Tuple>::value;
+    static constexpr auto PipelineType = std::tuple_element_t<11, Tuple>::value;
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
@@ -89,17 +89,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
                      const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
+        constexpr ck_tile::index_t M_Warp_Tile = std::tuple_element_t<7, Tuple>{};
+        constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<8, Tuple>{};
+        constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<9, Tuple>{};
+
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
         constexpr ck_tile::index_t K_Tile = (PipelineType == GemmPipelineType::CompV4) ? 32 : 64;
 
-        constexpr ck_tile::index_t M_Warp = 2;
-        constexpr ck_tile::index_t N_Warp = 2;
+        constexpr ck_tile::index_t M_Warp = 4;
+        constexpr ck_tile::index_t N_Warp = 4;
         constexpr ck_tile::index_t K_Warp = 1;
-
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 16;
 
         constexpr bool kPadM = PadM;
         constexpr bool kPadN = PadN;
