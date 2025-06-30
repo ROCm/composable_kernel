@@ -2112,7 +2112,7 @@ inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1
         out.bf6_array[i] = utils::sat_convert_to_type<bf6_t>(in.float_array[i] / scale);
     });
 
-    return out.bf6_vector;
+    return out.bf6_vector; // XXX
 #endif
 }
 
@@ -2255,6 +2255,37 @@ template <>
 inline __host__ __device__ bf6x32_pk_t type_convert<bf6x32_pk_t, float32_t>(float32_t x)
 {
     return static_cast<bf6x32_pk_t>(type_convert<bf6x32_t>(x));
+}
+
+template <>
+inline __host__ __device__ bf6x16_t type_convert<bf6x16_t, float16_t>(float16_t x)
+{
+
+    union
+    {
+        float16_t v16x2[2];
+        float32_t v32;
+    } in{{x, x}};
+
+    union
+    {
+        bf6x32_t v32;
+        bf6x16_t v16x2[2];
+    } out{};
+
+#if CK_USE_SR_F6_CONVERSION
+    out.v32 = bf6_convert_sr(in.v32);
+#else
+    out.v32 = bf6_convert_rne(in.v32);
+#endif
+
+    return out.v16x2[0];
+}
+
+template <>
+inline __host__ __device__ bf6x16_pk_t type_convert<bf6x16_pk_t, float16_t>(float16_t x)
+{
+    return static_cast<bf6x16_pk_t>(type_convert<bf6x16_t>(x));
 }
 
 /**

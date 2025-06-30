@@ -335,6 +335,50 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                     constexpr auto k_step =
                         k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
 
+#if 0
+                    if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 32))
+                    {
+                        if constexpr(k == 0)
+                        {
+                            if(threadIdx.x == 0)
+                            {
+                                printf("MRepeat = %d\n", MRepeat); // 4
+                                printf("NRepeat = %d\n", NRepeat); // 4
+                                printf("KRepeat = %d\n", KRepeat); // 2
+                                printf("KPack = %d\n", KPack);     // 2
+
+                                printf("KXdlPack = %d\n", KXdlPack); // 2
+                                printf("MXdlPack = %d\n", MXdlPack); // 2
+                                printf("NXdlPack = %d\n", NXdlPack); // 2
+
+                                printf("APackedSize = %d\n", APackedSize); // 16
+                                printf("BPackedSize = %d\n", BPackedSize); // 16
+                                printf("AMmaKStride = %d\n", AMmaKStride); // 2
+                                printf("BMmaKStride = %d\n", BMmaKStride); // 2
+
+                                printf("a_scale_thread_vec_size = %lu\n",
+                                       a_scale_thread_vec_size); // 4
+                                printf("b_scale_thread_vec_size = %lu\n",
+                                       b_scale_thread_vec_size); // 4
+
+                                printf("xdlops_gemm.GetRegSizePerXdlops() = %d\n",
+                                       xdlops_gemm.GetRegSizePerXdlops()); // 4
+                                printf("mfma_instr.k_per_blk = %d\n",
+                                       xdlops_gemm.mfma_instr.k_per_blk); // 32
+                                printf("xdlops_gemm.KPerXdlops = %d\n",
+                                       xdlops_gemm.KPerXdlops); // 128
+                                printf("xdlops_gemm.K1PerXdlops = %d\n",
+                                       xdlops_gemm.K1PerXdlops); // 32
+                                printf("xdlops_gemm.K0PerXdlops = %d\n\n",
+                                       xdlops_gemm.K0PerXdlops); // 4
+
+                                printf("sizeof(ComputeTypeA) = %lu\n\n",
+                                       sizeof(ComputeTypeA)); // 16
+                            }
+                        }
+                    }
+#endif
+                    // NOTE: KThreadChunk is the number of packed storages
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, xdlops_gemm.K1PerXdlops / APackedSize / KThreadChunk, 1>{}(
                             [&](auto chunk) {
@@ -384,6 +428,119 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
 
                 // load for next k loop
                 block_sync_lds();
+
+#if 0
+                if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1 || threadIdx.x == 2))
+                {
+                    auto a_grid0  = a_grid_buf[0];
+                    auto a_block0 = a_block_buf[0];
+
+                    auto a_grid32  = a_grid_buf[32];
+                    auto a_block17 = a_block_buf[17];
+
+                    auto a_grid512  = a_grid_buf[512];
+                    auto a_block256 = a_block_buf[256];
+
+                    auto b_grid0   = b_grid_buf[0];
+                    auto b_block0  = b_block_buf[0];
+                    auto b_grid32  = b_grid_buf[32];
+                    auto b_block17 = b_block_buf[17];
+
+                    auto b_grid512  = b_grid_buf[32 * 16];
+                    auto b_block256 = b_block_buf[16 * 16];
+
+                    //    auto a_block32 = a_block_buf[32];
+                    //   auto b_block32 = b_block_buf[32];
+
+                    if constexpr(APackedSize == 16)
+                    {
+                        if(threadIdx.x == 0)
+                        {
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- a_grid0 = "
+                                   "0x%08x %08x %08x, a_block0 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   a_grid0.data_[0],
+                                   a_grid0.data_[1],
+                                   a_grid0.data_[2],
+                                   a_block0.data_[0],
+                                   a_block0.data_[1],
+                                   a_block0.data_[2]);
+
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- a_grid512 = "
+                                   "0x%08x %08x %08x, a_block256 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   a_grid512.data_[0],
+                                   a_grid512.data_[1],
+                                   a_grid512.data_[2],
+                                   a_block256.data_[0],
+                                   a_block256.data_[1],
+                                   a_block256.data_[2]);
+
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- b_grid0 = "
+                                   "0x%08x %08x %08x, b_block0 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   b_grid0.data_[0],
+                                   b_grid0.data_[1],
+                                   b_grid0.data_[2],
+                                   b_block0.data_[0],
+                                   b_block0.data_[1],
+                                   b_block0.data_[2]);
+                        }
+                        else if(threadIdx.x == 1)
+                        {
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- a_grid32 = "
+                                   "0x%08x %08x %08x, a_block17 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   a_grid32.data_[0],
+                                   a_grid32.data_[1],
+                                   a_grid32.data_[2],
+                                   a_block17.data_[0],
+                                   a_block17.data_[1],
+                                   a_block17.data_[2]);
+
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- b_grid32 = "
+                                   "0x%08x %08x %08x, b_block17 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   b_grid32.data_[0],
+                                   b_grid32.data_[1],
+                                   b_grid32.data_[2],
+                                   b_block17.data_[0],
+                                   b_block17.data_[1],
+                                   b_block17.data_[2]);
+                        }
+                        else if(threadIdx.x == 2)
+                        {
+                            printf("BlockwiseGEMMPipeline i = %d threadId %d -- b_grid512 = "
+                                   "0x%08x %08x %08x, b_block256 = 0x%08x %08x %08x\n",
+                                   i,
+                                   static_cast<int>(threadIdx.x),
+                                   b_grid512.data_[0],
+                                   b_grid512.data_[1],
+                                   b_grid512.data_[2],
+                                   b_block256.data_[0],
+                                   b_block256.data_[1],
+                                   b_block256.data_[2]);
+                        }
+                    }
+                    else if constexpr(APackedSize == 1 || APackedSize == 2)
+                    {
+                        // printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                        //        "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
+                        //        "dst_buf.p_data_[dst_offset] = 0x%02x\n",
+                        //        static_cast<int>(threadIdx.x),
+                        //        static_cast<long>(src_offset),
+                        //        src_buf.p_data_[src_offset].data,
+                        //        lds_offset,
+                        //        dst_buf.p_data_[lds_offset].data);
+                    }
+                }
+#endif
+
                 a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
                 b_blockwise_copy.Run(b_grid_desc, b_grid_buf, b_block_desc, b_block_buf);
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
@@ -569,6 +726,119 @@ struct BlockwiseGemmXdlops_pipeline_v1_mx<BlockGemmPipelineScheduler::Intrawave,
                         });
                 });
             });
+
+#if 0
+            if(blockIdx.x == 0 && (threadIdx.x == 0 || threadIdx.x == 1 || threadIdx.x == 2))
+            {
+                auto a_grid0  = a_grid_buf[0];
+                auto a_block0 = a_block_buf[0];
+
+                auto a_grid32  = a_grid_buf[32];
+                auto a_block17 = a_block_buf[17];
+
+                auto a_grid512  = a_grid_buf[512];
+                auto a_block256 = a_block_buf[256];
+
+                auto b_grid0   = b_grid_buf[0];
+                auto b_block0  = b_block_buf[0];
+                auto b_grid32  = b_grid_buf[32];
+                auto b_block17 = b_block_buf[17];
+
+                auto b_grid512  = b_grid_buf[32 * 16];
+                auto b_block256 = b_block_buf[16 * 16];
+
+                //    auto a_block32 = a_block_buf[32];
+                //   auto b_block32 = b_block_buf[32];
+
+                if constexpr(APackedSize == 16)
+                {
+                    if(threadIdx.x == 0)
+                    {
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- a_grid0 = "
+                               "0x%08x %08x %08x, a_block0 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               a_grid0.data_[0],
+                               a_grid0.data_[1],
+                               a_grid0.data_[2],
+                               a_block0.data_[0],
+                               a_block0.data_[1],
+                               a_block0.data_[2]);
+
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- a_grid512 = "
+                               "0x%08x %08x %08x, a_block256 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               a_grid512.data_[0],
+                               a_grid512.data_[1],
+                               a_grid512.data_[2],
+                               a_block256.data_[0],
+                               a_block256.data_[1],
+                               a_block256.data_[2]);
+
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- b_grid0 = "
+                               "0x%08x %08x %08x, b_block0 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               b_grid0.data_[0],
+                               b_grid0.data_[1],
+                               b_grid0.data_[2],
+                               b_block0.data_[0],
+                               b_block0.data_[1],
+                               b_block0.data_[2]);
+                    }
+                    else if(threadIdx.x == 1)
+                    {
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- a_grid32 = "
+                               "0x%08x %08x %08x, a_block17 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               a_grid32.data_[0],
+                               a_grid32.data_[1],
+                               a_grid32.data_[2],
+                               a_block17.data_[0],
+                               a_block17.data_[1],
+                               a_block17.data_[2]);
+
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- b_grid32 = "
+                               "0x%08x %08x %08x, b_block17 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               b_grid32.data_[0],
+                               b_grid32.data_[1],
+                               b_grid32.data_[2],
+                               b_block17.data_[0],
+                               b_block17.data_[1],
+                               b_block17.data_[2]);
+                    }
+                    else if(threadIdx.x == 2)
+                    {
+                        printf("BlockwiseGEMMPipeline i=%d threadId %d -- b_grid512 = "
+                               "0x%08x %08x %08x, b_block256 = 0x%08x %08x %08x\n",
+                               -1,
+                               static_cast<int>(threadIdx.x),
+                               b_grid512.data_[0],
+                               b_grid512.data_[1],
+                               b_grid512.data_[2],
+                               b_block256.data_[0],
+                               b_block256.data_[1],
+                               b_block256.data_[2]);
+                    }
+                }
+                else if constexpr(APackedSize == 1 || APackedSize == 2)
+                {
+                    // printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                    //        "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
+                    //        "dst_buf.p_data_[dst_offset] = 0x%02x\n",
+                    //        static_cast<int>(threadIdx.x),
+                    //        static_cast<long>(src_offset),
+                    //        src_buf.p_data_[src_offset].data,
+                    //        lds_offset,
+                    //        dst_buf.p_data_[lds_offset].data);
+                }
+            }
+#endif
+
             static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                 static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
                     static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
