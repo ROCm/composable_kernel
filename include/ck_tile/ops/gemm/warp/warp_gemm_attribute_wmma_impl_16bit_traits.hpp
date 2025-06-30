@@ -1,17 +1,17 @@
-template <typename Arch, typename FloatType>
+template <typename Arch, typename ADType, typename BDType, typename CDType>
 struct WmmaTraits16BitBase;
 
 // GFX11 specialization 16 bits basic settings
-template <typename FloatType>
-struct WmmaTraits16BitBase<gfx11_t, FloatType>
+template <typename ADType, typename BDType, typename CDType>
+struct WmmaTraits16BitBase<gfx11_t, ADType, BDType, CDType>
 {
-    using ADataType = FloatType;
-    using BDataType = FloatType;
-    using CDataType = float;
+    using ADataType = ADType;
+    using BDataType = BDType;
+    using CDataType = CDType;
 
-    using AVecType = ext_vector_t<FloatType, 16>;
-    using BVecType = ext_vector_t<FloatType, 16>;
-    using CVecType = ext_vector_t<float, 8>;
+    using AVecType = ext_vector_t<ADataType, 16>;
+    using BVecType = ext_vector_t<BDataType, 16>;
+    using CVecType = ext_vector_t<CDataType, 8>;
 
     static constexpr index_t kM = 16;
     static constexpr index_t kN = 16;
@@ -46,16 +46,16 @@ struct WmmaTraits16BitBase<gfx11_t, FloatType>
 };
 
 // GFX12 specialization 16 bits basic settings
-template <typename FloatType>
-struct WmmaTraits16BitBase<gfx12_t, FloatType>
+template <typename ADType, typename BDType, typename CDType>
+struct WmmaTraits16BitBase<gfx12_t, ADType, BDType, CDType>
 {
-    using ADataType = FloatType;
-    using BDataType = FloatType;
-    using CDataType = float;
+    using ADataType = ADType;
+    using BDataType = BDType;
+    using CDataType = CDType;
 
-    using AVecType = ext_vector_t<FloatType, 8>;
-    using BVecType = ext_vector_t<FloatType, 8>;
-    using CVecType = ext_vector_t<float, 8>;
+    using AVecType = ext_vector_t<ADataType, 8>;
+    using BVecType = ext_vector_t<BDataType, 8>;
+    using CVecType = ext_vector_t<CDataType, 8>;
 
     static constexpr index_t kM = 16;
     static constexpr index_t kN = 16;
@@ -91,7 +91,8 @@ struct WmmaTraits16BitBase<gfx12_t, FloatType>
 
 // fp16 specialization - GFX11
 template <>
-struct WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16> : WmmaTraits16BitBase<gfx11_t, fp16_t>
+struct WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16>
+    : WmmaTraits16BitBase<gfx11_t, fp16_t, fp16_t, float>
 {
     template <bool clamp = false>
     CK_TILE_DEVICE static CVecType
@@ -110,7 +111,8 @@ struct WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16> : WmmaTraits16BitB
 
 // fp16 specialization - GFX12
 template <>
-struct WmmaTraits<gfx12_t, fp16_t, fp16_t, float, 16, 16, 16> : WmmaTraits16BitBase<gfx12_t, fp16_t>
+struct WmmaTraits<gfx12_t, fp16_t, fp16_t, float, 16, 16, 16>
+    : WmmaTraits16BitBase<gfx12_t, fp16_t, fp16_t, float>
 {
     template <bool clamp = false>
     CK_TILE_DEVICE static CVecType
