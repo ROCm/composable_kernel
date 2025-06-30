@@ -1,13 +1,16 @@
-// GFX11 specialization
-template <>
-struct WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16>
+template <typename Arch, typename FloatType>
+struct WmmaTraits16BitBase;
+
+// GFX11 specialization 16 bits basic settings
+template <typename FloatType>
+struct WmmaTraits16BitBase<gfx11_t, FloatType>
 {
-    using ADataType = fp16_t;
-    using BDataType = fp16_t;
+    using ADataType = FloatType;
+    using BDataType = FloatType;
     using CDataType = float;
 
-    using AVecType = ext_vector_t<fp16_t, 16>;
-    using BVecType = ext_vector_t<fp16_t, 16>;
+    using AVecType = ext_vector_t<FloatType, 16>;
+    using BVecType = ext_vector_t<FloatType, 16>;
     using CVecType = ext_vector_t<float, 8>;
 
     static constexpr index_t kM = 16;
@@ -40,33 +43,18 @@ struct WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16>
     using kCPs2RHssTransMinor = sequence<1, 0>;
     using kCYs2RHsTransMajor  = sequence<2, 2>;
     using kCYs2RHsTransMinor  = sequence<0, 2>;
-
-    // Architecture-specific WMMA intrinsic
-    template <bool clamp = false>
-    CK_TILE_DEVICE static CVecType
-    wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
-    {
-#ifdef __gfx11__
-        return __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(a_vec, b_vec, c_vec);
-#else
-        ck_tile::ignore = a_vec;
-        ck_tile::ignore = b_vec;
-        ck_tile::ignore = c_vec;
-        return CVecType{0.f};
-#endif
-    }
 };
 
-// GFX12 specialization
-template <>
-struct WmmaTraits<gfx12_t, fp16_t, fp16_t, float, 16, 16, 16>
+// GFX12 specialization 16 bits basic settings
+template <typename FloatType>
+struct WmmaTraits16BitBase<gfx12_t, FloatType>
 {
-    using ADataType = fp16_t;
-    using BDataType = fp16_t;
+    using ADataType = FloatType;
+    using BDataType = FloatType;
     using CDataType = float;
 
-    using AVecType = ext_vector_t<fp16_t, 8>;
-    using BVecType = ext_vector_t<fp16_t, 8>;
+    using AVecType = ext_vector_t<FloatType, 8>;
+    using BVecType = ext_vector_t<FloatType, 8>;
     using CVecType = ext_vector_t<float, 8>;
 
     static constexpr index_t kM = 16;
@@ -99,8 +87,31 @@ struct WmmaTraits<gfx12_t, fp16_t, fp16_t, float, 16, 16, 16>
     using kCPs2RHssTransMinor = sequence<1, 0>;
     using kCYs2RHsTransMajor  = sequence<2, 2>;
     using kCYs2RHsTransMinor  = sequence<0, 2>;
+};
 
-    // Architecture-specific WMMA intrinsic
+// fp16 specialization - GFX11
+template <>
+struct WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16> : WmmaTraits16BitBase<gfx11_t, fp16_t>
+{
+    template <bool clamp = false>
+    CK_TILE_DEVICE static CVecType
+    wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
+    {
+#ifdef __gfx11__
+        return __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(a_vec, b_vec, c_vec);
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = c_vec;
+        return CVecType{0.f};
+#endif
+    }
+};
+
+// fp16 specialization - GFX12
+template <>
+struct WmmaTraits<gfx12_t, fp16_t, fp16_t, float, 16, 16, 16> : WmmaTraits16BitBase<gfx12_t, fp16_t>
+{
     template <bool clamp = false>
     CK_TILE_DEVICE static CVecType
     wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
