@@ -124,7 +124,6 @@ bool test_moe_sorting(ck_tile::ArgParser args)
         if(local_expert_masking)
         {
             auto local_eid = args.get_int_vec("local_eid");
-            // std::vector<int> v_ {num_experts, 0};
             ck_tile::HostTensor<IndexType> v_{{num_experts}};
             v_.SetZero();
             for(auto eid : local_eid)
@@ -139,7 +138,6 @@ bool test_moe_sorting(ck_tile::ArgParser args)
             return v_;
         }
         else
-            // return std::vector<int>{};
             return ck_tile::HostTensor<IndexType>{{1}};
     }();
 
@@ -215,58 +213,6 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                               repeat};
 
     auto ms = moe_sorting(trait, karg, sc);
-    // auto ms = moe_sorting_mp(trait, karg, sc);
-
-#if 0
-    {
-        ck_tile::HostTensor<char> ws_host({workspace_size}, {1});
-        moe_sorting_ws.FromDevice(ws_host.data());
-
-        int * p_mesh = reinterpret_cast<int*>(ws_host.data());
-        ck_tile::index_t row_size = ck_tile::impl::moe_sorting_mp_mesh_stride(tokens);
-
-        std::cout << "topk_ids:" << std::endl;
-
-        int * p_topk_ids = reinterpret_cast<int*>(topk_ids_host.data());
-        for(int i_token = 0; i_token < tokens; i_token++) {
-            printf("[t:%2d]", i_token);
-            for(int i_topk = 0; i_topk < topk; i_topk++) {
-                printf("%d, ",p_topk_ids[i_token * topk + i_topk] );
-            }
-            printf("\n");
-        }
-        printf("----------------\n");
-
-        std::vector<int> l_cumsum (num_experts + 1, 0);
-        for(int i_expert = 0; i_expert < num_experts; i_expert++  ) {
-            printf("[e:%2d]", i_expert);
-            int e_cnt = 0;
-            for(int i_token = 0; i_token < tokens; i_token++) {
-                auto v_mesh = p_mesh[i_expert * row_size + i_token];
-                e_cnt += v_mesh != 0 ? 1 : 0;
-                printf("%d, ", v_mesh); 
-            }
-            int e_cnt_unit = (e_cnt + unit_size - 1) / unit_size;
-            printf("[%d/%d]", e_cnt, e_cnt_unit);
-            printf("\n");
-            l_cumsum[i_expert + 1] = l_cumsum[i_expert] + e_cnt_unit;
-        }
-
-        printf("----------------\n");
-        printf("cumsum:\n");
-        for(int i_cc= 0; i_cc < num_experts + 1; i_cc++) {
-            printf("%2d, ", l_cumsum[i_cc]);
-        }
-        printf("\n");
-        printf("----------------\n");
-
-        int * p_cumsum = p_mesh + ck_tile::impl::moe_sorting_mp_mesh_elem(tokens, num_experts);
-        for(int i_expert = 0; i_expert < num_experts + 1; i_expert++  ) {
-            printf("%2d(%d), ",p_cumsum[i_expert], p_cumsum[i_expert] / unit_size);
-        }
-        printf("\n");
-    }
-#endif
 
     printf("[%s|%s]tokens:%d", index_prec.c_str(), weight_prec.c_str(), tokens);
     if(is_local_token)
@@ -353,7 +299,6 @@ bool test_moe_sorting(ck_tile::ArgParser args)
             rtn &= ck_tile::check_err(
                 moe_buf_host, moe_buf_ref, std::string("OUT Error: Incorrect zero buf!"), 0, 0);
         }
-        // rtn &= ref_total_tokens_post_pad == sorted_id_cnt_host.mData[0];
     }
 
     printf("valid:%s", rtn ? "y" : "n");
