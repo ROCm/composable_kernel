@@ -1083,9 +1083,8 @@ struct BlockFmhaBwdPipelineTrLoadDefaultPolicy
         constexpr index_t smem_size_bias = GetSmemSizeBias<Problem>();
 
         constexpr index_t smem_size_stage0 = smem_size_k + smem_size_v;
-        constexpr index_t smem_size_stage1 = smem_size_q + smem_size_do + smem_size_lse +
+        constexpr index_t smem_size_stage1 = smem_size_q * 2 + smem_size_do * 2 + smem_size_lse +
                                              smem_size_d + max(smem_size_bias, smem_size_ds);
-
         return max(smem_size_stage0, smem_size_stage1);
     }
 };
