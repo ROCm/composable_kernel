@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -100,64 +100,64 @@ struct DeviceMoeGemmBlockScale
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
     using GridwiseGemm                  = GridwiseMoeGemmBlockScale<
-        ALayout,
-        BLayout,
-        DsLayout,
-        CLayout,
-        ADataType,
-        BDataType,
-        GemmAccDataType,
-        CShuffleDataType,
-        DsDataType,
-        CDataType,
-        AElementwiseOperation,
-        BElementwiseOperation,
-        CElementwiseOperation,
-        GemmSpec,
-        BlockSize,
-        ScaleBlockM,
-        ScaleBlockN,
-        ScaleBlockK,
-        MPerBlock,
-        NPerBlock,
-        KPerBlock,
-        AK1,
-        BK1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave,
-        ABlockTransferThreadClusterLengths_AK0_M_AK1,
-        ABlockTransferThreadClusterArrangeOrder,
-        ABlockTransferSrcAccessOrder,
-        ABlockTransferSrcVectorDim,
-        ABlockTransferSrcScalarPerVector,
-        ABlockTransferDstScalarPerVector_AK1,
-        false,
-        ABlockLdsExtraM,
-        BBlockTransferThreadClusterLengths_BK0_N_BK1,
-        BBlockTransferThreadClusterArrangeOrder,
-        BBlockTransferSrcAccessOrder,
-        BBlockTransferSrcVectorDim,
-        BBlockTransferSrcScalarPerVector,
-        BBlockTransferDstScalarPerVector_BK1,
-        false,
-        BBlockLdsExtraN,
-        CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
-        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CDEShuffleBlockTransferScalarPerVectors,
-        BlkGemmPipeSched,
-        BlkGemmPipelineVer,
-        ActivationOP,
-        NSwizzle,
-        IsInputGemm,
-        MulRoutedWeight,
-        IndexType,
-        ComputeTypeA,
-        ComputeTypeB,
-        LDSTypeA,
-        LDSTypeB>;
+                         ALayout,
+                         BLayout,
+                         DsLayout,
+                         CLayout,
+                         ADataType,
+                         BDataType,
+                         GemmAccDataType,
+                         CShuffleDataType,
+                         DsDataType,
+                         CDataType,
+                         AElementwiseOperation,
+                         BElementwiseOperation,
+                         CElementwiseOperation,
+                         GemmSpec,
+                         BlockSize,
+                         ScaleBlockM,
+                         ScaleBlockN,
+                         ScaleBlockK,
+                         MPerBlock,
+                         NPerBlock,
+                         KPerBlock,
+                         AK1,
+                         BK1,
+                         MPerXDL,
+                         NPerXDL,
+                         MXdlPerWave,
+                         NXdlPerWave,
+                         ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                         ABlockTransferThreadClusterArrangeOrder,
+                         ABlockTransferSrcAccessOrder,
+                         ABlockTransferSrcVectorDim,
+                         ABlockTransferSrcScalarPerVector,
+                         ABlockTransferDstScalarPerVector_AK1,
+                         false,
+                         ABlockLdsExtraM,
+                         BBlockTransferThreadClusterLengths_BK0_N_BK1,
+                         BBlockTransferThreadClusterArrangeOrder,
+                         BBlockTransferSrcAccessOrder,
+                         BBlockTransferSrcVectorDim,
+                         BBlockTransferSrcScalarPerVector,
+                         BBlockTransferDstScalarPerVector_BK1,
+                         false,
+                         BBlockLdsExtraN,
+                         CShuffleMXdlPerWavePerShuffle,
+                         CShuffleNXdlPerWavePerShuffle,
+                         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                         CDEShuffleBlockTransferScalarPerVectors,
+                         BlkGemmPipeSched,
+                         BlkGemmPipelineVer,
+                         ActivationOP,
+                         NSwizzle,
+                         IsInputGemm,
+                         MulRoutedWeight,
+                         IndexType,
+                         ComputeTypeA,
+                         ComputeTypeB,
+                         LDSTypeA,
+                         LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -265,17 +265,16 @@ struct DeviceMoeGemmBlockScale
                 }
             };
 
-            // constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) /
-            // BlockSize /
-            //                                  4 * (1 + GridwiseGemm::NWave);
-            // constexpr auto estimated_reg_b =
-            //     NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize / 4 * (2);
-            // constexpr auto estimated_reg_c =
-            //     MPerBlock * NPerBlock * sizeof(GemmAccDataType) / BlockSize / 4;
-            // constexpr auto estimated_reg_total =
-            //     estimated_reg_a + estimated_reg_b + estimated_reg_c;
+            constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) / BlockSize /
+                                             4 * (1 + GridwiseGemm::NWave);
+            constexpr auto estimated_reg_b = NPerBlock * KPerBlock * sizeof(BDataType) / BlockSize /
+                                             4 * (2) * (IsInputGemm ? 2 : 1);
+            constexpr auto estimated_reg_c = MPerBlock * NPerBlock * sizeof(GemmAccDataType) /
+                                             BlockSize / 4 * (IsInputGemm ? 2 : 1);
+            constexpr auto estimated_reg_total =
+                estimated_reg_a + estimated_reg_b + estimated_reg_c;
 
-            constexpr index_t minimum_occupancy = 2;
+            constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
 
             constexpr auto MemoryDataOp =
                 IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;

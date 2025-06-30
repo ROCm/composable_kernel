@@ -167,7 +167,7 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
-    std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
+    std::size_t GetOffsetFromMultiIndex(const std::vector<std::size_t>& iss) const
     {
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
@@ -202,7 +202,7 @@ struct joinable_thread : std::thread
     {
     }
 
-    joinable_thread(joinable_thread&&) = default;
+    joinable_thread(joinable_thread&&)            = default;
     joinable_thread& operator=(joinable_thread&&) = default;
 
     ~joinable_thread()
@@ -320,7 +320,7 @@ struct Tensor
     ~Tensor() = default;
 
     Tensor& operator=(const Tensor&) = default;
-    Tensor& operator=(Tensor&&) = default;
+    Tensor& operator=(Tensor&&)      = default;
 
     template <typename FromT>
     explicit Tensor(const Tensor<FromT>& other) : Tensor(other.template CopyAsType<T>())
@@ -514,7 +514,7 @@ struct Tensor
         }
     }
 
-    // Generate random values with multiple threads. Garanteed to give the same sequence with any
+    // Generate random values with multiple threads. Guaranteed to give the same sequence with any
     // number of threads provided.
     template <typename Distribution = std::uniform_real_distribution<float>,
               typename Mapping      = ck::identity,
@@ -574,7 +574,7 @@ struct Tensor
             if(it > 0)
                 threads.emplace_back(std::move(job));
             else
-                job(); // last thread, run in the main thread
+                job(); // last job run in the main thread
         }
         for(auto& t : threads)
             t.join();
@@ -600,12 +600,12 @@ struct Tensor
                      ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
-    T& operator()(std::vector<std::size_t> idx)
+    T& operator()(const std::vector<std::size_t>& idx)
     {
         return mData[mDesc.GetOffsetFromMultiIndex(idx) / ck::packed_size_v<ck::remove_cvref_t<T>>];
     }
 
-    const T& operator()(std::vector<std::size_t> idx) const
+    const T& operator()(const std::vector<std::size_t>& idx) const
     {
         return mData[mDesc.GetOffsetFromMultiIndex(idx) / ck::packed_size_v<ck::remove_cvref_t<T>>];
     }

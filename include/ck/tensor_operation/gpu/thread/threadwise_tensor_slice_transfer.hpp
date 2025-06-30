@@ -580,11 +580,6 @@ struct ThreadwiseTensorSliceTransfer_v2_gather
             });
         });
 
-        // printf("blockIdx.y: %d, tid: %d, dst_buf<%f>\n",
-        //        blockIdx.y,
-        //        threadIdx.x,
-        //        dst_buf(Number<0>{}));
-
         // move src coordinate back to slice origin (or not)
         if constexpr(SrcResetCoordinateAfterRun)
         {
@@ -828,8 +823,7 @@ struct ThreadwiseTensorSliceTransfer_v3
                 buffer_(Number<buffer_offset>{}) = src_tmp_vector.template AsType<SrcData>()[i];
             });
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -842,8 +836,7 @@ struct ThreadwiseTensorSliceTransfer_v3
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move
             static_for<0, nDim, 1>{}([&](auto i) {
@@ -988,8 +981,7 @@ struct ThreadwiseTensorSliceTransfer_v3
                 is_dst_valid,
                 dst_tmp_vector.template AsType<dst_vector_t>()[Number<0>{}]);
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -1002,8 +994,7 @@ struct ThreadwiseTensorSliceTransfer_v3
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move
             static_for<0, nDim, 1>{}([&](auto i) {
@@ -1287,9 +1278,6 @@ struct ThreadwiseTensorSliceTransfer_v4
     {
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
-
-        // static_assert(SliceLengths::At(Number<SrcVectorDim>{}) % SrcScalarPerVector == 0,
-        //               "wrong! Not divisible");
 
         if constexpr(is_same_v<remove_cvref_t<SrcData>, pk_i4_t> ||
                      is_same_v<remove_cvref_t<SrcData>, f4x2_pk_t>)

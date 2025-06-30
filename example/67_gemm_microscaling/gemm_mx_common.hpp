@@ -250,7 +250,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     using AScaleLayout = Row;
     using BScaleLayout = Col;
 
-    auto Scale_Padded_M = (M + 32 - 1) / 32 * 32;
+    auto Scale_Padded_M = ck::math::integer_least_multiple(M, ScaleBlockSize);
     auto Scale_Stride_AM =
         f_get_default_stride(Scale_Padded_M, K / ScaleBlockSize, -1, AScaleLayout{});
     auto Scale_Stride_BN = f_get_default_stride(K / ScaleBlockSize, N, -1, BScaleLayout{});
@@ -467,17 +467,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             std::cout << "Done." << std::endl;
             std::cout << "Comparing results..." << std::endl;
         }
-
-        // if(config.init_method == 0)
-        // {
-        //     auto expected = static_cast<float>(K);
-        //     auto computed = type_convert<float>(c_m_n_device_result(1, 12));
-
-        //     res_verified = res_verified && std::abs(expected - computed) <= 0.0f;
-        //     std::cout << "\nExpected vs Computed: " << expected << " vs " << computed
-        //               << ((res_verified) ? " (PASSED!)" : " (FAILED!)") << std::endl
-        //               << std::endl;
-        // }
 
         res_verified =
             res_verified &&

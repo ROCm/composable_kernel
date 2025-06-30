@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <type_traits>
+#include <memory>
 
 #include "ck/utility/functional2.hpp"
 

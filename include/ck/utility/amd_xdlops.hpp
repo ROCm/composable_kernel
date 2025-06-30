@@ -883,10 +883,6 @@ struct intrin_mfma_scale_f32_32x32x64f8f6f4<32, 32, OpselA, OpselB>
 };
 #define BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS 1
 
-#ifndef BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS
-#define BUILTIN_AMDGCN_MFMA_SCALE_F32_16X16X128_F8F6F4_WORKS 0
-#endif
-
 template <index_t MPerWave, index_t NPerWave, index_t OpselA, index_t OpselB>
 struct intrin_mfma_scale_f32_16x16x128f8f6f4;
 

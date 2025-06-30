@@ -648,7 +648,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                                     typename vector_type<ComputeTypeA,
                                                          xdlops_gemm.K1PerXdlops /
                                                              APackedSize>::type;
-
                                 using mfma_input_type_b =
                                     typename vector_type<ComputeTypeB,
                                                          xdlops_gemm.K1PerXdlops /
@@ -853,7 +852,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                         using mfma_input_type_a =
                             typename vector_type<ComputeTypeA,
                                                  xdlops_gemm.K1PerXdlops / APackedSize>::type;
-
                         using mfma_input_type_b =
                             typename vector_type<ComputeTypeB,
                                                  xdlops_gemm.K1PerXdlops / BPackedSize>::type;
@@ -974,7 +972,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                         using mfma_input_type_a =
                             typename vector_type<ComputeTypeA,
                                                  xdlops_gemm.K1PerXdlops / APackedSize>::type;
-
                         using mfma_input_type_b =
                             typename vector_type<ComputeTypeB,
                                                  xdlops_gemm.K1PerXdlops / BPackedSize>::type;
@@ -1097,7 +1094,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                         using mfma_input_type_a =
                             typename vector_type<ComputeTypeA,
                                                  xdlops_gemm.K1PerXdlops / APackedSize>::type;
-
                         using mfma_input_type_b =
                             typename vector_type<ComputeTypeB,
                                                  xdlops_gemm.K1PerXdlops / BPackedSize>::type;

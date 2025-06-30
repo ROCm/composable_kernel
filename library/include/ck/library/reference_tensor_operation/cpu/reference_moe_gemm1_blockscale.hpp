@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -110,7 +110,7 @@ struct ReferenceMoeGemm1BlockScale : public device::BaseOperator
 #if CK_USE_PK4_LAYOUT_SHUFFLE
                             v_a = i4_to_f32_gfx9(i4);
 #else
-                            v_a    = i4 - 8;
+                            v_a = i4 - 8;
 #endif
                         }
                         else

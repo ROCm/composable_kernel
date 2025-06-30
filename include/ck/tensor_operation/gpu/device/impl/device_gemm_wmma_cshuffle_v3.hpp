@@ -278,10 +278,10 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                     const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
                         arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
 
-                    auto size_a_buffer =
-                        a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
-                    auto size_b_buffer =
-                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
+                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
+                                         sizeof(ADataType) / GridwiseGemm::APackedSize;
+                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
+                                         sizeof(BDataType) / GridwiseGemm::BPackedSize;
 
                     ck::utility::RotatingMemWrapper<Argument> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
@@ -340,7 +340,8 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
             if(has_main_k_block_loop)
             {
                 // Tail number always full
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
+                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(arg.KBatch > 1)
                     {
@@ -368,7 +369,28 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
             }
             else
             {
-                // TODO: Implement
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                {
+                    if(arg.KBatch > 1)
+                    {
+                        const auto kernel =
+                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                         false,
+                                                         InMemoryDataOperationEnum::AtomicAdd,
+                                                         minimum_occupancy>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                         false,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         minimum_occupancy>;
+                        Run(kernel);
+                    }
+                }
             }
 
             return ave_time;
@@ -405,8 +427,8 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
             }
         }
 
-        if constexpr(std::is_same_v<ADataType, f8_t> || std::is_same_v<ADataType, bf8_t> ||
-                     std::is_same_v<BDataType, f8_t> || std::is_same_v<BDataType, bf8_t>)
+        if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
+                     std::is_same_v<ComputeTypeB, f8_t> || std::is_same_v<ComputeTypeB, bf8_t>)
         {
             if(ck::is_gfx11_supported())
             {
