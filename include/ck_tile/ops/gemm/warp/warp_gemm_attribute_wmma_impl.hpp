@@ -25,7 +25,9 @@ template <typename Arch,
           index_t K>
 struct WmmaTraits;
 
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_base_traits.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_16bit_traits.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_8bit_traits.hpp"
 
 // Generic WMMA implementation using traits
 template <typename Traits>
