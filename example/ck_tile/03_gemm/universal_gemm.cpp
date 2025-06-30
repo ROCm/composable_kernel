@@ -259,11 +259,11 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
                 argc, argv, Row{}, Col{}, Row{});
         }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
+        // else if(a_layout == "C" && b_layout == "C")
+        // {
+        //     return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+        //         argc, argv, Col{}, Col{}, Row{});
+        // }
         else
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices when "
@@ -272,26 +272,26 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
     else
     {
-        if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "C")
+        // if(a_layout == "R" && b_layout == "R")
+        // {
+        //     return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+        //         argc, argv, Row{}, Row{}, Row{});
+        // }
+        if(a_layout == "R" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
                 argc, argv, Row{}, Col{}, Row{});
         }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
+        // else if(a_layout == "C" && b_layout == "R")
+        // {
+        //     return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+        //         argc, argv, Col{}, Row{}, Row{});
+        // }
+        // else if(a_layout == "C" && b_layout == "C")
+        // {
+        //     return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+        //         argc, argv, Col{}, Col{}, Row{});
+        // }
         else
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices!");
