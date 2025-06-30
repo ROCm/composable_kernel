@@ -32,38 +32,40 @@ CK_DECLARE_ENV_VAR_STR(CK_PROFILER_OUTPUT_FILE)
 namespace ck {
 namespace profiler {
 
+using SplitKStrategy = ck::tensor_operation::device::SplitKStrategy;
+using ParamsSplitK = ck::tensor_operation::device::ParamsSplitK;
+
+struct BestPerformance
+{
+    std::string op_name_{""};
+    float avg_time_{std::numeric_limits<float>::max()};
+    float tflops_{std::numeric_limits<float>::min()};
+    ck::index_t split_k_value_{0};
+};
+
 struct PerfResults
 {
-    using SplitKStrategy = ck::tensor_operation::device::SplitKStrategy;
-    using ParamsSplitK = ck::tensor_operation::device::ParamsSplitK;
+    // Best performance for each split-K strategy
+    std::map<SplitKStrategy, BestPerformance> best_performance_{};
 
-    void update_best_occupancy_split_k(const std::string& op_name, float avg_time, float tflops, ck::index_t split_k_arg, SplitKStrategy strategy)
+    // GEMM problem parameters
+    ck::index_t m_dim_size_{-1};
+    ck::index_t n_dim_size_{-1};
+    ck::index_t k_dim_size_{-1};
+    float arithmetic_intensity_{0.0f};
+    std::string data_type_{""};
+
+    std::vector<std::tuple<std::string, ck::index_t, SplitKStrategy, float>> ranking_;
+
+    void update_best_perf(const std::string& op_name, float avg_time, float tflops, ck::index_t split_k_arg, SplitKStrategy strategy)
     {
-        if(tflops > best_occupancy_split_k_tflops_)
+        const auto& current_best_perf = best_performance_[strategy];
+        if(tflops > current_best_perf.tflops_)
         {
-            best_occupancy_split_k_op_name_    = op_name;
-            best_occupancy_split_k_avg_time_   = avg_time;
-            best_occupancy_split_k_tflops_     = tflops;
-            best_occupancy_split_k_value_      = split_k_arg;
-            best_occupancy_split_k_strategy_   = strategy;
+            best_performance_[strategy] = {op_name, avg_time, tflops, split_k_arg};
         }
 
         ranking_.emplace_back(op_name, split_k_arg, strategy, tflops);
-        std::sort(ranking_.begin(), ranking_.end(),
-                  [](const auto& a, const auto& b) { return std::get<3>(a) > std::get<3>(b); });
-    };
-
-    void update_fixed_split_k(const std::string& op_name, float avg_time, float tflops, ck::index_t split_k_arg)
-    {
-        if (tflops > fixed_split_k_tflops_)
-        {
-            fixed_split_k_op_name_    = op_name;
-            fixed_split_k_avg_time_   = avg_time;
-            fixed_split_k_tflops_     = tflops;
-            fixed_split_k_value_      = split_k_arg;
-        }
-
-        ranking_.emplace_back(op_name, split_k_arg, SplitKStrategy::FixedSplitK, tflops);
         std::sort(ranking_.begin(), ranking_.end(),
                   [](const auto& a, const auto& b) { return std::get<3>(a) > std::get<3>(b); });
     };
@@ -86,23 +88,7 @@ struct PerfResults
         }
     };
  
-    std::string print_fixed_split_k() const
-    {
-        ck::index_t rank, total_num;
-        std::tie(rank, total_num) = get_ranking(fixed_split_k_op_name_, fixed_split_k_value_);
-        std::stringstream ss;
-        ss << "\nFIXED SPLIT-K RESULTS"
-           << "\n========================";
-        ss << "\nname: " << fixed_split_k_op_name_ 
-            << "\navg_time: " << fixed_split_k_avg_time_
-            << "\ntflops: " << fixed_split_k_tflops_
-            << "\nGEMM-K: " << k_dim_size_
-            << "\nSplitK " << fixed_split_k_value_
-            << "\nRanking: " << rank << " / " << total_num;
-        return ss.str();
-    }
-
-    std::string print_best_occupancy_split_k() const
+    std::string print_best_performance() const
     {
         const auto& to_string = [](const SplitKStrategy strategy) {
             switch (strategy)
@@ -118,22 +104,36 @@ struct PerfResults
             }
         }; 
 
-        ck::index_t rank, total_num;
-        std::tie(rank, total_num) = get_ranking(best_occupancy_split_k_op_name_, best_occupancy_split_k_value_, best_occupancy_split_k_strategy_);
         std::stringstream ss;
-        ss << "\nBEST OCCUPANCY SPLIT-K RESULTS"
+        ss << "\nProblem Parameters"
            << "\n========================";
-        ss << "\nname: " << best_occupancy_split_k_op_name_ 
-            << "\navg_time: " << best_occupancy_split_k_avg_time_
-            << "\ntflops: " << best_occupancy_split_k_tflops_
-            << "\nGEMM-K: " << k_dim_size_
-            << "\nStrategy: " << to_string(best_occupancy_split_k_strategy_)
-            << "\nSplitK " << best_occupancy_split_k_value_
-            << "\nRanking: " << rank << " / " << total_num;
+        ss << "\nm_dim_size: " << m_dim_size_
+           << "\nn_dim_size: " << n_dim_size_
+           << "\nk_dim_size: " << k_dim_size_
+           << "\narithmetic_intensity: " << arithmetic_intensity_
+           << "\ndata_type: " << data_type_;
+        for (const auto& strategy : {SplitKStrategy::FixedSplitK, SplitKStrategy::BestOccupancy, SplitKStrategy::Optimized})
+        {
+            const auto& best_perf = best_performance_.find(strategy);
+            if (best_perf != best_performance_.end())
+            {
+                ck::index_t rank, total_num;
+                std::tie(rank, total_num) = get_ranking(best_perf->second.op_name_, best_perf->second.split_k_value_, strategy);
+                
+                ss << "\n\nBEST PERFORMANCE RESULTS (" << to_string(strategy) << ")"
+                   << "\n========================";
+                ss << "\nname: " << best_perf->second.op_name_ 
+                    << "\navg_time: " << best_perf->second.avg_time_
+                    << "\ntflops: " << best_perf->second.tflops_
+                    << "\nSplitK: " << best_perf->second.split_k_value_
+                    << "\nRanking: " << rank << " / " << total_num;
+            }
+        }
+
         return ss.str();
     }
 
-    std::tuple<size_t, size_t> get_ranking(const std::string& op_name, ck::index_t split_k, SplitKStrategy strategy = SplitKStrategy::FixedSplitK) const
+    std::tuple<size_t, size_t> get_ranking(const std::string& op_name, ck::index_t split_k, SplitKStrategy strategy) const
     {
         auto it = std::find_if(ranking_.begin(), ranking_.end(),
                                [&](const auto& entry) {
@@ -148,8 +148,24 @@ struct PerfResults
         return std::make_tuple(ranking_.size()+1, ranking_.size());
     };
 
-    void set_common_params(ck::index_t m_dim_size, ck::index_t n_dim_size, ck::index_t k_dim_size, float arithmetic_intensity)
+    void set_common_params(ck::index_t m_dim_size, ck::index_t n_dim_size, ck::index_t k_dim_size, float arithmetic_intensity, const std::string& data_type)
     {
+        if (data_type_.empty())
+        {
+            data_type_ = data_type;
+        }
+        else if (data_type_ != data_type)
+        {
+            std::cerr << "Error: data_type cannot be set multiple times. Old value " << data_type_ << ". New value " << data_type << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        if (m_dim_size <= 0 || n_dim_size <= 0 || k_dim_size <= 0)
+        {
+            std::cerr << "Error: m_dim_size, n_dim_size, and k_dim_size must be positive integers." << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
         if (m_dim_size_ > 0 && m_dim_size != m_dim_size_)
         {
             std::cerr << "Error: m_dim_size cannot be set multiple times. Old value " << m_dim_size_ << ". New value " << m_dim_size << std::endl;
@@ -178,35 +194,19 @@ struct PerfResults
             exit(EXIT_FAILURE);
         }
         arithmetic_intensity_ = arithmetic_intensity;
+
+        if (!data_type_.empty() && data_type != data_type_)
+        {
+            std::cerr << "Error: data_type cannot be set multiple times. Old value " << data_type_ << ". New value " << data_type << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        data_type_ = data_type;
     }
-
-    // Fixed split-K results
-    std::string fixed_split_k_op_name_{""};
-    float fixed_split_k_avg_time_{std::numeric_limits<float>::max()};
-    float fixed_split_k_tflops_{std::numeric_limits<float>::min()};
-    ck::index_t fixed_split_k_value_{0};
-
-    // Best occupancy split-K results
-    std::string best_occupancy_split_k_op_name_{""};
-    float best_occupancy_split_k_avg_time_{std::numeric_limits<float>::max()};
-    float best_occupancy_split_k_tflops_{std::numeric_limits<float>::min()};
-    ck::index_t best_occupancy_split_k_value_{0};
-    SplitKStrategy best_occupancy_split_k_strategy_;
-
-    // GEMM problem parameters
-    ck::index_t m_dim_size_{-1};
-    ck::index_t n_dim_size_{-1};
-    ck::index_t k_dim_size_{-1};
-    float arithmetic_intensity_{0.0f};
-
-    std::vector<std::tuple<std::string, ck::index_t, SplitKStrategy, float>> ranking_;
 };
 
 void write_perf_results_to_file(const PerfResults& perf_results_global, 
                                 const std::vector<PerfResults>& perf_results_list)
 {
-    using SplitKStrategy = ck::tensor_operation::device::SplitKStrategy;
-
     const auto& results_file = ck::EnvGetString(CK_ENV(CK_PROFILER_OUTPUT_FILE));
 
     if (results_file.empty())
@@ -231,25 +231,35 @@ void write_perf_results_to_file(const PerfResults& perf_results_global,
     };
 
     const auto& write_to_file = [&](const PerfResults res, std::ofstream& file, bool only_one_op = false) {
-        const auto gemm_k_size = res.k_dim_size_ > 0 ? std::to_string(res.k_dim_size_) : "N/A";
-        ck::index_t rank_fixed_split_k, rank_best_occupancy_split_k, total_num;
-        std::tie(rank_fixed_split_k, total_num) = res.get_ranking(res.fixed_split_k_op_name_, res.fixed_split_k_value_);
-        std::tie(rank_best_occupancy_split_k, std::ignore) = 
-            res.get_ranking(res.best_occupancy_split_k_op_name_, res.best_occupancy_split_k_value_, res.best_occupancy_split_k_strategy_);
 
-        file << res.fixed_split_k_op_name_ << separator
-             << res.fixed_split_k_avg_time_ << separator
-             << res.fixed_split_k_value_ << separator
-             << rank_fixed_split_k << separator;
-        if (!only_one_op) 
+        ck::index_t total_num = -1;
+        bool write_op_name = true;
+        for (const auto& strategy : {SplitKStrategy::FixedSplitK, SplitKStrategy::BestOccupancy, SplitKStrategy::Optimized})
         {
-            file << res.best_occupancy_split_k_op_name_ << separator;
+            const auto& best_perf = res.best_performance_.find(strategy);
+            if (best_perf != res.best_performance_.end())
+            {
+                BestPerformance perf;
+                std::tie(std::ignore, perf) = *best_perf;
+                ck::index_t rank;
+                std::tie(rank, total_num) = res.get_ranking(perf.op_name_, perf.split_k_value_, strategy);
+                if (write_op_name)
+                {
+                    file << perf.op_name_ << separator;
+                    if (only_one_op)
+                    {
+                        // If only one op is written, we do not need to write the op name again
+                        write_op_name = false;
+                    }
+                }
+                file << perf.avg_time_ << separator
+                     << perf.tflops_ << separator
+                     << perf.split_k_value_ << separator
+                     << rank << separator
+                     << to_string(strategy) << separator;
+            }
         }
-        file << res.best_occupancy_split_k_avg_time_ << separator
-             << res.best_occupancy_split_k_value_ << separator
-             << to_string(res.best_occupancy_split_k_strategy_) << separator
-             << rank_best_occupancy_split_k << separator
-             << total_num;
+        file << total_num;
     };
 
     if(!results_file.empty())
@@ -261,7 +271,8 @@ void write_perf_results_to_file(const PerfResults& perf_results_global,
             file << perf_results_global.m_dim_size_ << separator
                  << perf_results_global.n_dim_size_ << separator
                  << perf_results_global.k_dim_size_ << separator
-                 << perf_results_global.arithmetic_intensity_ << separator;
+                 << perf_results_global.arithmetic_intensity_ << separator
+                 << perf_results_global.data_type_ << separator;
 
             // First the global results
             write_to_file(perf_results_global, file);
@@ -342,8 +353,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using SplitKStrategy = ck::tensor_operation::device::SplitKStrategy;
-    using ParamsSplitK = ck::tensor_operation::device::ParamsSplitK;
+    // using SplitKStrategy = ck::tensor_operation::device::SplitKStrategy;
+    // using ParamsSplitK = ck::tensor_operation::device::ParamsSplitK;
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
@@ -465,7 +476,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     range_copy(conv_param.input_right_pads_, begin(input_right_pads));
 
     std::vector<ck::index_t> fixed_split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
-    std::vector<SplitKStrategy> best_occupancy_list = {SplitKStrategy::BestOccupancy, SplitKStrategy::Optimized};
+    std::vector<SplitKStrategy> best_occupancy_list = {SplitKStrategy::BestOccupancy /*, SplitKStrategy::Optimized*/};
     bool profile_all = true;
     if(split_k != "all")
     {
@@ -542,10 +553,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 const auto m_dim_size = split_k_arg->m_dim_size();
                 const auto n_dim_size = split_k_arg->n_dim_size();
                 const auto arithmetic_intensity = split_k_arg->arithmetic_intensity();
+                const auto& data_type = split_k_arg->data_type();
                 if (k_dim_size > 0)
                 {
-                    perf_results_local.set_common_params(m_dim_size, n_dim_size, k_dim_size, arithmetic_intensity);
-                    perf_results_global.set_common_params(m_dim_size, n_dim_size, k_dim_size, arithmetic_intensity);
+                    perf_results_local.set_common_params(m_dim_size, n_dim_size, k_dim_size, arithmetic_intensity, data_type);
+                    perf_results_global.set_common_params(m_dim_size, n_dim_size, k_dim_size, arithmetic_intensity, data_type);
                 }
                 supports_split_k_optimization = true;
             }
@@ -566,8 +578,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
                 auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-                constexpr int n_warm_up = 50;
-                constexpr int n_repeat = 150;
+                constexpr int n_warm_up = 25;
+                constexpr int n_repeat = 100;
                 StreamConfig config{nullptr, time_kernel};
                 config.cold_niters_ = n_warm_up;
                 config.nrepeat_ = n_repeat;
@@ -584,38 +596,16 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", SplitK "
                           << PerfResults::split_k_str(split_k_list[split_k_id], split_k_arg_value) << std::endl;
                 
-                if (split_k_list[split_k_id].strategy_ ==
-                    SplitKStrategy::BestOccupancy || split_k_list[split_k_id].strategy_ == SplitKStrategy::Optimized)
-                {
-                    const auto strategy = split_k_list[split_k_id].strategy_;
-                    
-                    perf_results_global.update_best_occupancy_split_k(
-                            op_name,
-                            avg_time, 
-                            tflops,                                                       
-                            split_k_arg_value,
-                            strategy);
-
-                    perf_results_local.update_best_occupancy_split_k(
-                            op_name,
-                            avg_time,
-                            tflops,                                                      
-                            split_k_arg_value,
-                            strategy);   
-                }
-                else 
-                {
-                    perf_results_global.update_fixed_split_k(op_name,
-                                                            avg_time,
-                                                            tflops,                                                             
-                                                            split_k_arg_value);
-
-                    perf_results_local.update_fixed_split_k(op_name,
-                                                            avg_time,
-                                                            tflops,                                                              
-                                                            split_k_arg_value);
-                }
-                
+                perf_results_local.update_best_perf(op_name,
+                                                    avg_time,
+                                                    tflops,
+                                                    split_k_arg_value,
+                                                    split_k_list[split_k_id].strategy_);
+                perf_results_global.update_best_perf(op_name,
+                                                     avg_time,
+                                                     tflops,
+                                                     split_k_arg_value,
+                                                     split_k_list[split_k_id].strategy_);
 
                 if(do_verification)
                 {
@@ -693,11 +683,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
     if (perf_results_list.size() > 0)
     {
-        std::cerr << perf_results_global.print_fixed_split_k() << std::endl;
+        std::cerr << perf_results_global.print_best_performance() << std::endl;
 
         if (profile_all)
         {
-            std::cerr << perf_results_global.print_best_occupancy_split_k() << std::endl;
             write_perf_results_to_file(perf_results_global, perf_results_list);
         }
     }

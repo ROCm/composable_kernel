@@ -535,8 +535,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                     : get_optimized_k_batch_value(max_occupancy.value_, grid_size, k_grid_size);
 
                 data_type_ = typeid(ABDataType).name();
-                arithmetic_intensity_ = (2.0 * k_dim_size_ * m_dim_size_ * n_dim_size_) /
-                                        ((m_dim_size_ * k_dim_size_ + k_dim_size_ * n_dim_size_ + m_dim_size_ * n_dim_size_) * sizeof(ABDataType));
+                arithmetic_intensity_ = calculate_arithmetic_intensity(m_dim_size_, n_dim_size_, k_dim_size_, sizeof(ABDataType));
 
                 // For small GemmK size, cap the max value of the k_batch.
                 const auto k_batch_max = static_cast<index_t>((k_dim_size_ - 1) / K0PerBlock);

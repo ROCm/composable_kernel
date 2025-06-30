@@ -566,8 +566,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                     : get_optimized_k_batch_value(max_occupancy.value_, grid_size, k_grid_size);
 
                 data_type_ = typeid(ABDataType).name();
-                arithmetic_intensity_ = (2.0 * k_dim_size_ * m_dim_size_ * n_dim_size_) /
-                                        ((m_dim_size_ * k_dim_size_ + k_dim_size_ * n_dim_size_ + m_dim_size_ * n_dim_size_) * sizeof(ABDataType));
+                arithmetic_intensity_ = calculate_arithmetic_intensity(m_dim_size_, n_dim_size_, k_dim_size_, sizeof(ABDataType));
                 
                 if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {

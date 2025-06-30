@@ -130,6 +130,14 @@ inline ck::index_t get_optimized_k_batch_value(int max_occupancy, ck::index_t gr
   return best_split_k;
 }
 
+inline float calculate_arithmetic_intensity(ck::index_t gemmM,
+                                     ck::index_t gemmN,
+                                     ck::index_t gemmK,
+                                     float bytes_per_element)
+{
+  return (2.0f * gemmM * gemmN * gemmK) / (bytes_per_element * (gemmM * gemmK + gemmK * gemmN + gemmM * gemmN));
+}
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
