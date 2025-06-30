@@ -66,4 +66,4 @@ using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, F16, F16, Row, Ro
                                      std::tuple<I8, I8, I32, I8, I8, Col, Col, Row, Row>>;
 
 TYPED_TEST_SUITE(TestGemmBilinear, KernelTypes);
-TYPED_TEST(TestGemmBilinear, Test) { this->Run({{16, 32, 64}, {512, 2048, 4096}, {2048, 1024, 16}}); }
+TYPED_TEST(TestGemmBilinear, Test) { this->Run(); }

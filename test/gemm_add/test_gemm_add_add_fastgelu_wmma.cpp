@@ -35,4 +35,4 @@ using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, F16, F16, F16, Ro
                                      std::tuple<F16, F16, F32, F16, F16, F16, Col, Col, Row, Row, Row>>;
 
 TYPED_TEST_SUITE(TestGemmAddAddFastgelu, KernelTypes);
-TYPED_TEST(TestGemmAddAddFastgelu, Test_BF16FP16) { this->Run(); }
+TYPED_TEST(TestGemmAddAddFastgelu, Test_FP16FP16) { this->Run(); }
