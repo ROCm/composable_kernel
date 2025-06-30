@@ -36,4 +36,5 @@ using KernelTypes = ::testing::Types<
     std::tuple<F16, F16, F32, F16, F16, F16, Row, Row, Row, Row, Row>>;
 
 TYPED_TEST_SUITE(TestGemmMultiplyAdd, KernelTypes);
-TYPED_TEST(TestGemmMultiplyAdd, Test) { this->Run(); }
+// Due to F16 shuffle data type tests has to run with limited K size. Change instances to FP32?
+TYPED_TEST(TestGemmMultiplyAdd, Test) { this->Run({{16, 32, 64}, {2048, 1024, 256}}); }

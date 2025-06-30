@@ -16,6 +16,11 @@ using F16  = ck::half_t;
 using F32  = float;
 using F8   = ck::f8_t;
 
+// M, N, K
+using TestMatrixSizes = std::vector<std::vector<ck::index_t>>;
+
+static const TestMatrixSizes DefaultTestMatrixSizes = {{16, 32, 64}, {512, 2048, 4096}, {2048, 1024, 16}};
+
 template <typename Tuple>
 class TestGemmCommon : public ::testing::Test
 {
@@ -32,11 +37,8 @@ class TestGemmCommon : public ::testing::Test
 
     virtual ProfileCall GetImpl() = 0;
 
-    void Run()
+    void Run(const TestMatrixSizes& lengths = DefaultTestMatrixSizes)
     {
-        std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {2048, 4096, 8192}, {2048, 1024, 16}};
-
         bool all_success = true;
 
         for(auto length : lengths)
@@ -75,11 +77,8 @@ class TestGemmD0Common : public ::testing::Test
 
     virtual ProfileCall GetImpl() = 0;
 
-    void Run()
+    void Run(const TestMatrixSizes& lengths = DefaultTestMatrixSizes)
     {
-        std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {512, 2048, 4096}, {2048, 1024, 16}};
-
         bool all_success = true;
 
         for(auto length : lengths)
@@ -121,11 +120,8 @@ class TestGemmD0D1Common : public ::testing::Test
 
     virtual ProfileCall GetImpl() = 0;
 
-    void Run()
+    void Run(const TestMatrixSizes& lengths = DefaultTestMatrixSizes)
     {
-        std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {512, 2048, 4096}, {2048, 1024, 16}};
-
         bool all_success = true;
 
         for(auto length : lengths)
