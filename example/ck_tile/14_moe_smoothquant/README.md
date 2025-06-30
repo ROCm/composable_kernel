@@ -1,6 +1,6 @@
 # MoE-SmoothQuant with CK Tile
 
-This example demonstrates MoE-SmoothQuant, a fused quantization operation for Mixture-of-Experts (MoE) models, using the CK Tile programming model. Unlike standard SmoothQuant, the input scale is expert-dependent, and the operation is fused with top-k expert selection.
+This example demonstrates MoE-SmoothQuant, a fused quantization operation for Mixture-of-Experts (MoE) models, using the CK Tile programming model. Unlike standard SmoothQuant, the input scale is expert-dependent, and the operation is fused with top-k expert selection. Specifically, it quantizes the top-k experts' outputs for each token using their respective expert scales. The input scale is from different expert `[expert, hidden]`, and we need reuse the `topk-id` from previous `topk-softmax` and select the corresponding `expert` from current topk, and expand the output/per-token-scale by `topk`
 
 ---
 
