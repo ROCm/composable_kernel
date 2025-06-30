@@ -1433,22 +1433,6 @@ struct GridwiseMoeGemmMXBNS
             problem.NPadded,
             problem.StrideC);
 
-#if 0
-        printf("blkx: %u, blky: %u, tidx: %u, tokes: %d, TopK: %d, M: %d, StrideA: %d, StrideB: "
-               "%d, MPadded: %d, NPadded: %d, KPadded: %d\n",
-               blockIdx.x,
-               blockIdx.y,
-               threadIdx.x,
-               problem.NumTokens,
-               problem.TopK,
-               problem.M,
-               problem.StrideA,
-               problem.StrideB,
-               problem.MPadded,
-               problem.NPadded,
-               problem.KPadded);
-#endif
-
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor_packed(
             make_tuple(problem.M / (MXdlPack * MPerXdl),
                        math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
@@ -1518,18 +1502,6 @@ struct GridwiseMoeGemmMXBNS
             }
             gather_offsets(m0) = static_cast<IndexType>(token_offset);
         });
-
-#if 1
-        printf("blkx: %u, blky: %u, tidx: %u, token_pos: %d, gather_offsets:<%d, %d, %d, %d>\n",
-               blockIdx.x,
-               blockIdx.y,
-               threadIdx.x,
-               token_pos,
-               gather_offsets[Number<0>{}],
-               gather_offsets[Number<1>{}],
-               gather_offsets[Number<2>{}],
-               gather_offsets[Number<3>{}]);
-#endif
 
         const index_t expert_stride =
             __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));

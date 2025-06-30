@@ -450,104 +450,6 @@ int main(int argc, char* argv[])
     auto b_element_op   = BElementOp{};
     auto cde_element_op = CDEElementOp{};
 
-#if 0
-    printf("a0_t_k_k:\n");
-    for(int t = 0; t < tokens; ++t)
-    {
-        for(int tk = 0; tk < topk; ++tk)
-        {
-            for(int k = 0; k < K; ++k)
-            {
-                auto f4x2 = a0_t_k_k(t, tk, k).data;
-                if(k % 2 == 0)
-                {
-                    ck::f4_t f4 = (f4x2 >> 4) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-                else
-                {
-                    ck::f4_t f4 = (f4x2 >> 0) & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
-
-    printf("a1_t_k_k:\n");
-    for(int t = 0; t < tokens; ++t)
-    {
-        for(int tk = 0; tk < topk; ++tk)
-        {
-            for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-            {
-                printf("%.2f ", ck::type_convert<float>(a1_t_k_k(t, tk, k)));
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
-
-    printf("a_scale_sorted: K/scale: %d\n", (K + ScaleBlockSize - 1) / ScaleBlockSize);
-    for(int i = 0; i < sorted_size; ++i)
-    {
-        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-        {
-            printf("%.2f ", ck::type_convert<float>(a_scale_sorted(i, k)));
-        }
-        printf("\n");
-    }
-
-    printf("a_scale_preshuffled:\n");
-    for(int i = 0; i < sorted_size; ++i)
-    {
-        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-        {
-            printf("%.2f ", ck::type_convert<float>(a_scale_preshuffled(i, k)));
-        }
-        printf("\n");
-    }
-
-    printf("b0_e_n_k:\n");
-    for(int e = 0; e < experts; ++e)
-    {
-        for(int n = 0; n < N; ++n)
-        {
-            for(int k = 0; k < K; ++k)
-            {
-                auto f4x2 = b0_e_n_k(e, k, n).data;
-                if(k % 2 == 0)
-                {
-                    ck::f4_t f4 = f4x2 >> 4 & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-                else
-                {
-                    ck::f4_t f4 = f4x2 >> 0 & 0xf;
-                    printf("%.2f ", ck::type_convert<float>(f4));
-                }
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
-
-    printf("b1_e_n_k:\n");
-    for(int e = 0; e < experts; ++e)
-    {
-        for(int k = 0; k < (K + ScaleBlockSize - 1) / ScaleBlockSize; ++k)
-        {
-            for(int n = 0; n < N; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(b1_e_n_k(e, k, n)));
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
-#endif
-
     // do GEMM
     auto device_op = DeviceOpInstance{};
 
@@ -671,28 +573,6 @@ int main(int argc, char* argv[])
         }
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
-
-#if 0
-        printf("e_t_n_device_result:\n");
-        for(int t = 0; t < tokens; ++t)
-        {
-            for(int n = 0; n < N; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(e_t_n_device_result(t, n)));
-            }
-            printf("\n");
-        }
-
-        printf("e_t_n_host_result:\n");
-        for(int t = 0; t < tokens; ++t)
-        {
-            for(int n = 0; n < N; ++n)
-            {
-                printf("%.2f ", ck::type_convert<float>(e_t_n_host_result(t, n)));
-            }
-            printf("\n");
-        }
-#endif
 
         return ck::utils::check_err(
                    e_t_n_device_result, e_t_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
