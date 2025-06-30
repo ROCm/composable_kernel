@@ -8,119 +8,68 @@
 
 namespace ck_tile {
 
-// FP16
-struct WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16
+// Architecture tags
+struct gfx11_t
 {
-    using ADataType = fp16_t;
-    using BDataType = fp16_t;
-    using CDataType = float;
-
-    using AVecType = ext_vector_t<fp16_t, 8>;
-    using BVecType = ext_vector_t<fp16_t, 8>;
-    using CVecType = ext_vector_t<float, 8>;
-
-    static constexpr index_t kM = 16;
-    static constexpr index_t kN = 16;
-    static constexpr index_t kK = 16;
-
-    static constexpr index_t kRepeat      = 1;
-    static constexpr index_t kAMLane      = 16;
-    static constexpr index_t kBNLane      = 16;
-    static constexpr index_t kABK0PerLane = 4;
-    static constexpr index_t kABKLane     = 2;
-    static constexpr index_t kABK1PerLane = 2;
-
-    static constexpr index_t kCMLane     = 2;
-    static constexpr index_t kCNLane     = 16;
-    static constexpr index_t kCM0PerLane = 4;
-    static constexpr index_t kCM1PerLane = 2;
-
-    static_assert(kCMLane * kCM0PerLane * kCM1PerLane == kM,
-                  "Product of kCMLane, kCM0PerLane and kCM1PerLane must equal kM");
-    static_assert(kCNLane == kN, "kCNLane must equal kN");
-    static_assert(kABK0PerLane * kABKLane * kABK1PerLane == kK,
-                  "kK must equal kABK0PerLane * kABKLane * kABK1PerLane");
-
-    using kABPs2RHssMajor = sequence<1, 2>;
-    using kABPs2RHssMinor = sequence<0, 1>;
-    using kABYs2RHsMajor  = sequence<2, 2>;
-    using kABYs2RHsMinor  = sequence<0, 2>;
-
-    using kCPs2RHssMajor = sequence<1, 2>;
-    using kCPs2RHssMinor = sequence<0, 1>;
-    using kCYs2RHsMajor  = sequence<2, 2>;
-    using kCYs2RHsMinor  = sequence<0, 2>;
-    // c_vec += a_vec * b_vec
-    template <bool clamp = false, bool post_nop_ = false>
-    CK_TILE_DEVICE void operator()(CVecType& c_vec,
-                                   const AVecType& a_vec,
-                                   const BVecType& b_vec,
-                                   bool_constant<post_nop_> = {}) const
-    {
-#if defined(__gfx13__)
-        c_vec = __builtin_amdgcn_wmma_f32_16x16x16_f16_clamp(a_vec, b_vec, c_vec, clamp);
-#else
-        ck_tile::ignore = c_vec;
-        ck_tile::ignore = a_vec;
-        ck_tile::ignore = b_vec;
-#endif
-    }
-
-    // c_vec = a_vec * b_vec
-    template <bool clamp = false>
-    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
-    {
-#if defined(__gfx13__)
-        return bit_cast<CVecType>(
-            __builtin_amdgcn_wmma_f32_16x16x16_f16_clamp(a_vec, b_vec, fp32x8_t{0.f}, clamp));
-#else
-        ck_tile::ignore = a_vec;
-        ck_tile::ignore = b_vec;
-        return CVecType{0.f};
-#endif
-    }
 };
-
-struct WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16_gfx11
+struct gfx12_t
 {
-    using ADataType = fp16_t;
-    using BDataType = fp16_t;
-    using CDataType = float;
+};
+// Base traits for WMMA operations
+template <typename Arch,
+          typename AType,
+          typename BType,
+          typename CType,
+          index_t M,
+          index_t N,
+          index_t K>
+struct WmmaTraits;
 
-    using AVecType = ext_vector_t<fp16_t, 16>;
-    using BVecType = ext_vector_t<fp16_t, 16>;
-    using CVecType = ext_vector_t<float, 8>;
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_fp16_traits.hpp"
 
-    static constexpr index_t kM = 16;
-    static constexpr index_t kN = 16;
-    static constexpr index_t kK = 16;
+// Generic WMMA implementation using traits
+template <typename Traits>
+struct WarpGemmAttributeWmmaImpl
+{
+    using ADataType = typename Traits::ADataType;
+    using BDataType = typename Traits::BDataType;
+    using CDataType = typename Traits::CDataType;
 
-    static constexpr index_t kRepeat      = 2;
-    static constexpr index_t kAMLane      = 16;
-    static constexpr index_t kBNLane      = 16;
-    static constexpr index_t kABK0PerLane = 1;
-    static constexpr index_t kABKLane     = 1;
-    static constexpr index_t kABK1PerLane = 16;
+    using AVecType = typename Traits::AVecType;
+    using BVecType = typename Traits::BVecType;
+    using CVecType = typename Traits::CVecType;
 
-    static constexpr index_t kCMLane     = 2;
-    static constexpr index_t kCNLane     = 16;
-    static constexpr index_t kCM0PerLane = 8;
-    static constexpr index_t kCM1PerLane = 1;
+    // Forward all static constants and type aliases
+    static constexpr index_t kM = Traits::kM;
+    static constexpr index_t kN = Traits::kN;
+    static constexpr index_t kK = Traits::kK;
 
-    using kABPs2RHssMajor = sequence<0, 2, 1>;
-    using kABPs2RHssMinor = sequence<0, 1, 0>;
-    using kABYs2RHsMajor  = sequence<2, 2>;
-    using kABYs2RHsMinor  = sequence<0, 2>;
+    static constexpr index_t kRepeat      = Traits::kRepeat;
+    static constexpr index_t kAMLane      = Traits::kAMLane;
+    static constexpr index_t kBNLane      = Traits::kBNLane;
+    static constexpr index_t kABK0PerLane = Traits::kABK0PerLane;
+    static constexpr index_t kABKLane     = Traits::kABKLane;
+    static constexpr index_t kABK1PerLane = Traits::kABK1PerLane;
 
-    using kCPs2RHssMajor = sequence<1, 2>;
-    using kCPs2RHssMinor = sequence<1, 0>;
-    using kCYs2RHsMajor  = sequence<1, 1>;
-    using kCYs2RHsMinor  = sequence<0, 2>;
+    static constexpr index_t kCMLane     = Traits::kCMLane;
+    static constexpr index_t kCNLane     = Traits::kCNLane;
+    static constexpr index_t kCM0PerLane = Traits::kCM0PerLane;
+    static constexpr index_t kCM1PerLane = Traits::kCM1PerLane;
 
-    using kCPs2RHssTransMajor = sequence<2, 1>;
-    using kCPs2RHssTransMinor = sequence<1, 0>;
-    using kCYs2RHsTransMajor  = sequence<2, 2>;
-    using kCYs2RHsTransMinor  = sequence<0, 2>;
+    using kABPs2RHssMajor = typename Traits::kABPs2RHssMajor;
+    using kABPs2RHssMinor = typename Traits::kABPs2RHssMinor;
+    using kABYs2RHsMajor  = typename Traits::kABYs2RHsMajor;
+    using kABYs2RHsMinor  = typename Traits::kABYs2RHsMinor;
+
+    using kCPs2RHssMajor = typename Traits::kCPs2RHssMajor;
+    using kCPs2RHssMinor = typename Traits::kCPs2RHssMinor;
+    using kCYs2RHsMajor  = typename Traits::kCYs2RHsMajor;
+    using kCYs2RHsMinor  = typename Traits::kCYs2RHsMinor;
+
+    using kCPs2RHssTransMajor = typename Traits::kCPs2RHssTransMajor;
+    using kCPs2RHssTransMinor = typename Traits::kCPs2RHssTransMinor;
+    using kCYs2RHsTransMajor  = typename Traits::kCYs2RHsTransMajor;
+    using kCYs2RHsTransMinor  = typename Traits::kCYs2RHsTransMinor;
 
     // c_vec += a_vec * b_vec
     template <bool clamp = false, bool post_nop_ = false>
@@ -129,100 +78,22 @@ struct WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16_gfx11
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-#ifdef __gfx11__
-        c_vec = __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(a_vec, b_vec, c_vec);
-#else
-        ck_tile::ignore = c_vec;
-        ck_tile::ignore = a_vec;
-        ck_tile::ignore = b_vec;
-#endif
+        c_vec = Traits::template wmma_intrinsic<clamp>(a_vec, b_vec, c_vec);
     }
 
     // c_vec = a_vec * b_vec
     template <bool clamp = false>
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
-#ifdef __gfx11__
         return bit_cast<CVecType>(
-            __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(a_vec, b_vec, fp32x8_t{0.f}));
-#else
-        ck_tile::ignore = a_vec;
-        ck_tile::ignore = b_vec;
-        return CVecType{0.f};
-#endif
+            Traits::template wmma_intrinsic<clamp>(a_vec, b_vec, CVecType{0.f}));
     }
 };
 
-struct WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16_gfx12
-{
-    using ADataType = fp16_t;
-    using BDataType = fp16_t;
-    using CDataType = float;
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16_gfx11 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16>>;
 
-    using AVecType = ext_vector_t<fp16_t, 8>;
-    using BVecType = ext_vector_t<fp16_t, 8>;
-    using CVecType = ext_vector_t<float, 8>;
-
-    static constexpr index_t kM = 16;
-    static constexpr index_t kN = 16;
-    static constexpr index_t kK = 16;
-
-    static constexpr index_t kRepeat      = 1;
-    static constexpr index_t kAMLane      = 16;
-    static constexpr index_t kBNLane      = 16;
-    static constexpr index_t kABK0PerLane = 2;
-    static constexpr index_t kABKLane     = 2;
-    static constexpr index_t kABK1PerLane = 4;
-
-    static constexpr index_t kCMLane     = 2;
-    static constexpr index_t kCNLane     = 16;
-    static constexpr index_t kCM0PerLane = 1;
-    static constexpr index_t kCM1PerLane = 8;
-
-    using kABPs2RHssMajor = sequence<2, 1>;
-    using kABPs2RHssMinor = sequence<1, 0>;
-    using kABYs2RHsMajor  = sequence<2, 2>;
-    using kABYs2RHsMinor  = sequence<0, 2>;
-
-    using kCPs2RHssMajor = sequence<1, 2>;
-    using kCPs2RHssMinor = sequence<1, 0>;
-    using kCYs2RHsMajor  = sequence<1, 1>;
-    using kCYs2RHsMinor  = sequence<0, 2>;
-
-    using kCPs2RHssTransMajor = sequence<2, 1>;
-    using kCPs2RHssTransMinor = sequence<1, 0>;
-    using kCYs2RHsTransMajor  = sequence<2, 2>;
-    using kCYs2RHsTransMinor  = sequence<0, 2>;
-
-    // c_vec += a_vec * b_vec
-    template <bool clamp = false, bool post_nop_ = false>
-    CK_TILE_DEVICE void operator()(CVecType& c_vec,
-                                   const AVecType& a_vec,
-                                   const BVecType& b_vec,
-                                   bool_constant<post_nop_> = {}) const
-    {
-#ifdef __gfx12__
-        c_vec = __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(a_vec, b_vec, c_vec);
-#else
-        ck_tile::ignore = c_vec;
-        ck_tile::ignore = a_vec;
-        ck_tile::ignore = b_vec;
-#endif
-    }
-
-    // c_vec = a_vec * b_vec
-    template <bool clamp = false>
-    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
-    {
-#ifdef __gfx12__
-        return bit_cast<CVecType>(
-            __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(a_vec, b_vec, fp32x8_t{0.f}));
-#else
-        ck_tile::ignore = a_vec;
-        ck_tile::ignore = b_vec;
-        return CVecType{0.f};
-#endif
-    }
-};
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16_gfx12 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, fp16_t, fp16_t, float, 16, 16, 16>>;
 
 } // namespace ck_tile
