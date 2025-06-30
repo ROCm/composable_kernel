@@ -14,7 +14,7 @@ mkdir build && cd build
 # (for example gfx90a or gfx942) or leave it blank
 sh ../script/cmake-ck-dev.sh  ../ <arch>
 # Make the copy kernel executable
-make test_copy -j
+make test_copy_kernel -j
 ```
 This will result in an executable `build/bin/test_copy_kernel`
 

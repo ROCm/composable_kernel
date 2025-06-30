@@ -50,11 +50,12 @@ struct TileCopyShape
     static_assert(WaveGroupSize == WarpPerBlock_M * WarpPerBlock_N, "Inconsisten wave group size!");
 };
 
-template <typename XDataType_, typename BlockShape_>
+template <typename XDataType_, typename BlockShape_, bool AsyncCopy_>
 struct TileCopyProblem
 {
     using XDataType  = remove_cvref_t<XDataType_>;
     using BlockShape = remove_cvref_t<BlockShape_>;
+    static constexpr bool AsyncCopy = AsyncCopy_;
 };
 
 template <typename Problem_>
@@ -62,6 +63,8 @@ struct TileCopy
 {
     using Problem   = ck_tile::remove_cvref_t<Problem_>;
     using XDataType = typename Problem::XDataType;
+
+    static constexpr bool AsyncCopy = Problem::AsyncCopy;
 
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeDRAMDistribution()
@@ -156,17 +159,26 @@ struct TileCopy
 
             if(my_id == warp_id)
             {
-                // load from DRAM to registers
-                load_tile(dram_tile, x_block_window);
+                if constexpr (AsyncCopy == false) {
+                    // load from DRAM to registers
+                    load_tile(dram_tile, x_block_window);
 
-                // store in lds
-                store_tile(x_block_lds_window_no_dist, dram_tile);
+                    // store in lds
+                    store_tile(x_block_lds_window_no_dist, dram_tile);
 
-                // read from lds to registers
-                load_tile(dram_tile, x_block_lds_window);
+                    // read from lds to registers
+                    load_tile(dram_tile, x_block_lds_window);
 
-                // store from registers to DRAM
-                store_tile(y_block_window, dram_tile);
+                    // store from registers to DRAM
+                    store_tile(y_block_window, dram_tile);
+                } else {
+                    async_load_tile(x_block_lds_window_no_dist, x_block_window);
+                    
+                    load_tile(dram_tile, x_block_lds_window);
+
+                    // store from registers to DRAM
+                    store_tile(y_block_window, dram_tile);
+                }
             }
             __syncthreads();
             move_tile_window(x_block_window, {0, S::Block_N});
