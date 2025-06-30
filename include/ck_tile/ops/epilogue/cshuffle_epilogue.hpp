@@ -186,6 +186,17 @@ struct CShuffleEpilogue
         
         
         CWarpTensor c_warp_in_tensor;
+
+        workgroup_barrier cleared_barrier(cleared_c_tile_barrier);
+        workgroup_barrier updated_barrier(updated_batches_barrier);
+
+        if constexpr(Problem::EnableZeroing)
+        {
+            // Wait for C tile to be zeroed before first access
+            cleared_barrier.wait_lt(1, blockIdx.x);
+        }
+        
+
         static_for<0, num_access, 1>{}([&](auto iAccess) {
            
             
@@ -214,55 +225,18 @@ struct CShuffleEpilogue
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
             
-            if constexpr(Problem::EnableZeroing)
+        
+        
+        
+            if constexpr(MemoryOperation == memory_operation_enum::set)
             {
-        
-                // Wait for C tile to be zeroed before first access
-                if constexpr(iAccess == 0) {
-                    if(cleared_c_tile_barrier != nullptr) {
-                        if(threadIdx.x == 0) {
-                            while( __atomic_load_n(&cleared_c_tile_barrier[blockIdx.x], __ATOMIC_ACQUIRE)== 0) {
-                                __builtin_amdgcn_s_sleep(1);
-                            }
-                        }
-                        __syncthreads();
-                    }
-                }
-
-           
-                // All k-batches use atomic add (since C is already zeroed)
-                update_tile(out_dram_window, c_out_tensor);
-
-                // After last access, increment completed batches counter
-                if constexpr(iAccess == num_access - 1) {
-                    
-                    if(updated_batches_barrier != nullptr && threadIdx.x == 0) {
-        
-                        uint32_t completed = __atomic_fetch_add(&updated_batches_barrier[blockIdx.x], 1, __ATOMIC_RELEASE) + 1;
-                        // If all k-batches completed, reset for next tile
-                        if(completed >= static_cast<uint32_t>(gridDim.z)) {
-                            __atomic_store_n(&cleared_c_tile_barrier[blockIdx.x], 0, __ATOMIC_RELEASE);
-                            __atomic_store_n(&updated_batches_barrier[blockIdx.x], 0, __ATOMIC_RELEASE);
-                            // printf("Barriers Reset. tile:%u \n", blockIdx.x);
-                        }
-
-                    }
-                }
-
-        
+                store_tile(out_dram_window, c_out_tensor);
             }
             else
             {
-                if constexpr(MemoryOperation == memory_operation_enum::set)
-                {
-                    store_tile(out_dram_window, c_out_tensor);
-                }
-                else
-                {
-                    update_tile(out_dram_window, c_out_tensor);
-                }
+                update_tile(out_dram_window, c_out_tensor);
             }
-
+        
            
             if constexpr(iAccess != num_access - 1)
             {
@@ -270,6 +244,22 @@ struct CShuffleEpilogue
                 move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
             }
         });
+
+        if constexpr(Problem::EnableZeroing)
+        {
+            // After last access, increment completed batches counter
+            updated_barrier.inc(blockIdx.x);  // Increment completion counter
+            
+            // Check if all k-batches completed and reset if needed
+            if(threadIdx.x == 0) {
+                uint32_t completed = updated_barrier.ld(blockIdx.x);
+                if(completed >= static_cast<uint32_t>(gridDim.z)) {
+                    // Reset barriers for next iteration
+                    cleared_barrier.set(blockIdx.x, 0);  // Reset cleared barrier
+                    updated_barrier.set(blockIdx.x, 0);  // Reset updated batches barrier
+                }
+            }
+        }
 
        
     }

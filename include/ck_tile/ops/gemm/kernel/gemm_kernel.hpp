@@ -13,6 +13,7 @@
 #include "ck_tile/core/utility/env.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/tensor/static_distributed_tensor.hpp"
+#include "ck_tile/core/arch/workgroup_barrier.hpp"
 
 
 namespace ck_tile {
@@ -688,6 +689,9 @@ struct GemmKernel
         if constexpr (UseZeroing) {
         
             if (blockIdx.z == 0) {
+                workgroup_barrier cleared_barrier(kargs.cleared_c_tile_barrier);
+                // cleared_barrier.wait_eq(blockIdx.x, 0); // Wait for all workgroups to be ready
+
                 auto& c_block_window = gemm_tile_windows.at(I2);
                 
                 auto block_gemm = typename GemmPipeline::BlockGemm();
@@ -704,11 +708,14 @@ struct GemmKernel
 
                 // Signal that C tile has been zeroed
 
-                if(kargs.cleared_c_tile_barrier && threadIdx.x == 0) {
-                    __atomic_store_n(&kargs.cleared_c_tile_barrier[blockIdx.x], 1, __ATOMIC_RELEASE);
-                }
-                __syncthreads();
-
+                
+                // __atomic_store_n(&kargs.cleared_c_tile_barrier[blockIdx.x], 1, __ATOMIC_RELEASE);
+                
+                // printf("before set kargs.cleared_c_tile_barrier[%u] = %u\n", blockIdx.x, cleared_barrier.ld(blockIdx.x));
+                cleared_barrier.inc(blockIdx.x);
+                // printf("after set kargs.cleared_c_tile_barrier[%u] = %u\n", blockIdx.x, cleared_barrier.ld(blockIdx.x));
+                // atomic_add(&kargs.cleared_c_tile_barrier[blockIdx.x], static_cast<uint32_t>(1));
+                
             }
         }
 
