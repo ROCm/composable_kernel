@@ -428,9 +428,17 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
         clear_tile(dk_acc);
 
         __builtin_amdgcn_sched_barrier(0);
-        // Hot loop
-        do
-        {
+
+        decltype(load_tile(q_lds_read_window)) q_reg_tensor;
+        decltype(load_tile(lse_lds_read_window)) lse;
+        decltype(load_tile_transpose(ds_lds_read_window)) ds_reg_tensor;
+        decltype(load_tile_transpose(ds_lds_read_window)) ds_reg_tensor_next;
+
+        auto main_body = [&](auto is_prologue_, auto is_epilogue_) mutable {
+            constexpr bool is_prologue = is_prologue_.value;
+            constexpr bool is_epilogue = is_epilogue_.value;
+            static_assert(is_prologue || is_epilogue, "is_prologue or is_epilogue should be true");
+            if constexpr(is_epilogue)
             {
                 __builtin_amdgcn_s_waitcnt(3952);
                 block_sync_lds();
@@ -444,8 +452,8 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 __builtin_amdgcn_s_waitcnt(3952);
                 block_sync_lds();
 
-                auto q_reg_tensor = load_tile(q_lds_read_window);
-                auto lse          = load_tile(lse_lds_read_window);
+                q_reg_tensor = load_tile(q_lds_read_window);
+                lse          = load_tile(lse_lds_read_window);
 
                 __builtin_amdgcn_s_waitcnt(3952);
                 block_sync_lds(); // TODO(Yi): is a wait enough?
@@ -630,8 +638,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 __builtin_amdgcn_s_waitcnt(3952);
                 block_sync_lds();
 
-                auto ds_reg_tensor      = load_tile_transpose(ds_lds_read_window);
-                auto ds_reg_tensor_next = decltype(ds_reg_tensor){};
+                ds_reg_tensor = load_tile_transpose(ds_lds_read_window);
                 move_tile_window(ds_lds_read_window, {kK4, 0});
 
                 // STAGE7 SGrad@K^T Gemm4
@@ -675,11 +682,21 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                     update_tile(dq_dram_window, dq_acc);
                 }
                 move_tile_window(dq_dram_window, {kM0, 0});
+            }
+        };
 
+        main_body(std::true_type{}, std::false_type{});
+        // Hot loop
+        if(num_total_loop > 1)
+        {
+            do
+            {
+                main_body(std::true_type{}, std::true_type{});
                 i_total_loops += 1;
                 seqlen_q_step += kM0;
-            }
-        } while(i_total_loops < num_total_loop);
+            } while(i_total_loops < num_total_loop - 1);
+        }
+        main_body(std::false_type{}, std::true_type{});
 
         // Results Scale
         if constexpr(FmhaDropout::IsDropout)
