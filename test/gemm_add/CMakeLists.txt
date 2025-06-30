@@ -39,3 +39,8 @@ add_gtest_executable(test_gemm_multiply_multiply_wmma test_gemm_multiply_multipl
 if(result EQUAL 0)
     target_link_libraries(test_gemm_multiply_multiply_wmma PRIVATE utility device_gemm_multiply_multiply_instance)
 endif()
+
+add_gtest_executable(test_gemm_bilinear_wmma test_gemm_bilinear_wmma.cpp)
+if(result EQUAL 0)
+    target_link_libraries(test_gemm_bilinear_wmma PRIVATE utility device_gemm_bilinear_instance)
+endif()
