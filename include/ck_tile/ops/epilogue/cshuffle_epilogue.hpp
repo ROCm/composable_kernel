@@ -142,55 +142,17 @@ struct CShuffleEpilogue
         return kMWave * kNWave * kMPerXdl * kNPerXdl * sizeof(ODataType);
     }
 
-    
-    CK_TILE_DEVICE static void barrier_reset(uint32_t* per_tile_barriers)
-    {
-        if constexpr(Problem::EnableZeroing) {
-            if(per_tile_barriers != nullptr && threadIdx.x == 0) {
-                __atomic_store_n(&per_tile_barriers[blockIdx.x], 0, __ATOMIC_RELAXED);
-            }
-        }
-    }
-
-    CK_TILE_DEVICE static void barrier_wait(uint32_t* per_tile_barriers, uint32_t target_value = 1)
-    {
-        if constexpr(Problem::EnableZeroing) {
-            if(per_tile_barriers != nullptr) {
-                if(threadIdx.x == 0) {
-                    while(__atomic_load_n(&per_tile_barriers[blockIdx.x], __ATOMIC_ACQUIRE) < target_value) {
-                        __builtin_amdgcn_s_sleep(1);
-                    }
-                }
-                __syncthreads();
-            }
-        }
-    }
-
-    CK_TILE_DEVICE static void barrier_inc(uint32_t* per_tile_barriers, bool check_completion = true)
-    {
-        if constexpr(Problem::EnableZeroing) {
-            if(per_tile_barriers != nullptr && threadIdx.x == 0) {
-                // Increment barrier to signal this k-batch is done
-                uint32_t completed_batches = __atomic_fetch_add(&per_tile_barriers[blockIdx.x], 1, __ATOMIC_RELEASE) + 1;
-                
-                // Check if all batches completed and reset if needed
-                if(check_completion && completed_batches >= static_cast<uint32_t>(gridDim.z)) {
-                    __atomic_store_n(&per_tile_barriers[blockIdx.x], 0, __ATOMIC_RELAXED);
-                }
-            }
-        }
-    }
-
-
 
     template <typename ODramWindow, typename OAccTile>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window, 
                                 const OAccTile& o_acc_tile, 
                                 void* p_smem,
                                 uint32_t* cleared_c_tile_barrier = nullptr,
-                                uint32_t* updated_batches_barrier = nullptr)
+                                uint32_t* updated_batches_barrier = nullptr,
+                                uint64_t* epilogue_timing = nullptr)
     {
-
+        // Timing variables for detailed epilogue analysis
+        
         const index_t iMWarp = get_warp_id() / kNWave;
         const index_t iNWarp = get_warp_id() - iMWarp * kNWave;
 
@@ -205,7 +167,8 @@ struct CShuffleEpilogue
             make_tile_window(o_lds_block,
                              make_tuple(number<kMWave * kMPerXdl>{}, number<kNWave * kNPerXdl>{}),
                              {0, 0});
-
+        
+        
         using SFC                    = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
                                         sequence<0, 1>,
                                         sequence<kMPerXdl * kMWave, kNPerXdl * kNWave>>;
@@ -223,10 +186,11 @@ struct CShuffleEpilogue
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
         
-
-
+        
         CWarpTensor c_warp_in_tensor;
         static_for<0, num_access, 1>{}([&](auto iAccess) {
+           
+            
             constexpr auto idx_y_start = SFC::get_index(iAccess);
 
             constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (kMPerXdl * kMWave)>{};
@@ -237,41 +201,100 @@ struct CShuffleEpilogue
                 merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
             const auto c_warp_in_tensor_casted = cast_tile<ODataType>(c_warp_in_tensor);
-
+            
+           
             block_sync_lds();
+
+           
             store_tile(in_lds_window, c_warp_in_tensor_casted);
+
+           
             block_sync_lds();
 
+           
             const auto c_out_tensor =
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
+
             
             if constexpr(Problem::EnableZeroing)
             {
+                uint64_t barrier_wait_start = 0, barrier_wait_end = 0;
+                uint64_t atomic_add_start = 0, atomic_add_end = 0;
+                uint64_t barrier_update_start = 0, barrier_update_end = 0;
+
                 // Wait for C tile to be zeroed before first access
                 if constexpr(iAccess == 0) {
                     if(cleared_c_tile_barrier != nullptr) {
+                        if(threadIdx.x == 0 && epilogue_timing != nullptr) {
+                            barrier_wait_start = __builtin_amdgcn_s_memrealtime();
+                        }
                         if(threadIdx.x == 0) {
-                            while(__atomic_load_n(&cleared_c_tile_barrier[blockIdx.x], __ATOMIC_ACQUIRE) == 0) {
+                            while( __atomic_load_n(&cleared_c_tile_barrier[blockIdx.x], __ATOMIC_ACQUIRE)== 0) {
                                 __builtin_amdgcn_s_sleep(1);
                             }
                         }
                         __syncthreads();
+                        if(threadIdx.x == 0 && epilogue_timing != nullptr) {
+                            barrier_wait_end = __builtin_amdgcn_s_memrealtime();
+                        }
                     }
                 }
 
+           
+                if(threadIdx.x == 0 && epilogue_timing != nullptr) {
+                    atomic_add_start = __builtin_amdgcn_s_memrealtime();
+                }
+    
+                
                 // All k-batches use atomic add (since C is already zeroed)
                 update_tile(out_dram_window, c_out_tensor);
+
+                if(threadIdx.x == 0 && epilogue_timing != nullptr) {
+                    atomic_add_end = __builtin_amdgcn_s_memrealtime();
+                }
+
                 
                 // After last access, increment completed batches counter
                 if constexpr(iAccess == num_access - 1) {
+                    
                     if(updated_batches_barrier != nullptr && threadIdx.x == 0) {
+                        if(epilogue_timing != nullptr) {
+                            barrier_update_start = __builtin_amdgcn_s_memrealtime();
+                        }
+
                         uint32_t completed = __atomic_fetch_add(&updated_batches_barrier[blockIdx.x], 1, __ATOMIC_RELEASE) + 1;
-                        
                         // If all k-batches completed, reset for next tile
                         if(completed >= static_cast<uint32_t>(gridDim.z)) {
                             __atomic_store_n(&cleared_c_tile_barrier[blockIdx.x], 0, __ATOMIC_RELEASE);
                             __atomic_store_n(&updated_batches_barrier[blockIdx.x], 0, __ATOMIC_RELEASE);
+                            // printf("Barriers Reset. tile:%u \n", blockIdx.x);
                         }
+
+                        if(epilogue_timing != nullptr) {
+                            barrier_update_end = __builtin_amdgcn_s_memrealtime();
+                        }
+                    }
+                }
+
+                // Store barrier timing (only for block 4, like your other timing)
+                if(threadIdx.x == 0 && epilogue_timing != nullptr && blockIdx.x == 4) {
+                    const double freq_mhz = 25.0;
+                    
+                    // Store timing for different barrier operations
+                    if constexpr(iAccess == 0) {
+                        // Barrier wait timing
+                        const double barrier_wait_us = (barrier_wait_end - barrier_wait_start) / freq_mhz;
+                        epilogue_timing[0] = barrier_wait_us * 1000; 
+                    }
+                    
+                    // Atomic add timing 
+                    const double atomic_add_us = (atomic_add_end - atomic_add_start) / freq_mhz;
+                    epilogue_timing[1] += atomic_add_us * 1000; 
+                    
+                    if constexpr(iAccess == num_access - 1) {
+                        // Barrier update timing
+                        const double barrier_update_us = (barrier_update_end - barrier_update_start) / freq_mhz;
+                        epilogue_timing[2] = barrier_update_us * 1000; 
                     }
                 }
             }
@@ -287,6 +310,7 @@ struct CShuffleEpilogue
                 }
             }
 
+           
             if constexpr(iAccess != num_access - 1)
             {
                 constexpr auto step = SFC::get_forward_step(iAccess);
