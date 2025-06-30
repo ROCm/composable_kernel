@@ -53,8 +53,8 @@ struct TileCopyShape
 template <typename XDataType_, typename BlockShape_, bool AsyncCopy_>
 struct TileCopyProblem
 {
-    using XDataType  = remove_cvref_t<XDataType_>;
-    using BlockShape = remove_cvref_t<BlockShape_>;
+    using XDataType                 = remove_cvref_t<XDataType_>;
+    using BlockShape                = remove_cvref_t<BlockShape_>;
     static constexpr bool AsyncCopy = AsyncCopy_;
 };
 
@@ -159,7 +159,8 @@ struct TileCopy
 
             if(my_id == warp_id)
             {
-                if constexpr (AsyncCopy == false) {
+                if constexpr(AsyncCopy == false)
+                {
                     // load from DRAM to registers
                     load_tile(dram_tile, x_block_window);
 
@@ -171,9 +172,11 @@ struct TileCopy
 
                     // store from registers to DRAM
                     store_tile(y_block_window, dram_tile);
-                } else {
+                }
+                else
+                {
                     async_load_tile(x_block_lds_window_no_dist, x_block_window);
-                    
+
                     load_tile(dram_tile, x_block_lds_window);
 
                     // store from registers to DRAM

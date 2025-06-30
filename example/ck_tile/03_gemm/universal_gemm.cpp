@@ -249,12 +249,12 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
         }
         else if(a_layout == "C" && b_layout == "R")
         {
-             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                 argc, argv, Col{}, Row{}, Row{});
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+                argc, argv, Col{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
-             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
                 argc, argv, Col{}, Row{}, Row{});
         }
         else
