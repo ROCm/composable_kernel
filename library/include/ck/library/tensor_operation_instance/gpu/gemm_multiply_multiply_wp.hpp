@@ -17,7 +17,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-#if (defined(CK_ENABLE_F16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_F16) || defined(CK_ENABLE_FP8))
 using TGemmMulMulF8F8F16Instances =
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                                      Col,
@@ -240,7 +240,7 @@ void add_device_gemm_multiply_multiply_weight_preshuffle_xdl_f8_f8_f16_mk_mfma16
     TGemmMulMulF8F8F16Instances& instances);
 #endif
 
-#if (defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
 using TGemmMulMulF8F8BF16Instances =
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitKBPreShuffle<Row,
                                                                      Col,
@@ -347,7 +347,7 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 // TODO: Add MFMA layout into tensor layout
-#if (defined(CK_ENABLE_F16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_F16) || defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, half_t>)
         {
@@ -422,7 +422,7 @@ struct DeviceOperationInstanceFactory<
         }
 #endif
 
-#if (defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, bhalf_t>)
         {

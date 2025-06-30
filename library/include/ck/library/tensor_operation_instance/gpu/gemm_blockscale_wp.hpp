@@ -16,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-#if (defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
 void add_device_gemm_blockscale_wp_xdl_f8_f8_bf16_mk_nk_mn_1_128_128_comp_default_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD_BlockScale_BPreshuffle<Row,
                                                                            Col,
@@ -143,7 +143,7 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-#if (defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<A0DataType, f8_t> && is_same_v<B0DataType, f8_t> &&
                      is_same_v<CDataType, bhalf_t>)
         {

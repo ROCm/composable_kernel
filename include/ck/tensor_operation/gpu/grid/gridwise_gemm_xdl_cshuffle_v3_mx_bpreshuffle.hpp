@@ -34,7 +34,7 @@ template <bool Use2LDS,
           TailNumber TailNum       = TailNumber::Full>
 __global__ enable_if_t<!Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
@@ -66,7 +66,7 @@ template <bool Use2LDS,
           TailNumber TailNum       = TailNumber::Full>
 __global__ enable_if_t<Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
