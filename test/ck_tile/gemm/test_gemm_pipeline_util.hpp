@@ -97,9 +97,11 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr ck_tile::index_t N_Tile = 256;
         constexpr ck_tile::index_t K_Tile = (PipelineType == GemmPipelineType::CompV4) ? 32 : 64;
 
-        constexpr ck_tile::index_t M_Warp = 4;
-        constexpr ck_tile::index_t N_Warp = 4;
-        constexpr ck_tile::index_t K_Warp = 1;
+        // TODO: Set IterPerWarp to 4 for now to avoid register overflow
+        constexpr ck_tile::index_t IterPerWarp = 4;
+        constexpr ck_tile::index_t M_Warp      = M_Tile / (IterPerWarp * M_Warp_Tile);
+        constexpr ck_tile::index_t N_Warp      = N_Tile / (IterPerWarp * N_Warp_Tile);
+        constexpr ck_tile::index_t K_Warp      = 1;
 
         constexpr bool kPadM = PadM;
         constexpr bool kPadN = PadN;
