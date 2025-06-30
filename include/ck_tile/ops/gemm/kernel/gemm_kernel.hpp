@@ -677,32 +677,16 @@ struct GemmKernel
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
     {
-         // Start timing
-        uint64_t start_time = 0, tensor_time = 0, zero_time = 0, gemm_time = 0, epilogue_time = 0;
-        uint64_t zero_start = 0, tensor_create_time = 0, tile_zero_time = 0, store_time = 0, barrier_time = 0, sync_time = 0;
-        uint64_t epilogue_detailed_timing[3] = {0}; 
-         
-        if(threadIdx.x == 0) {
-            start_time = __builtin_amdgcn_s_memrealtime();
-        }
-
         const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
             a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
         
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
-        // Timing: Tensor setup complete
-        if(threadIdx.x == 0) {
-            tensor_time = __builtin_amdgcn_s_memrealtime();
-        }
         
         // --- Per-tile zeroing for split-K ---
         if constexpr (UseZeroing) {
-            if(threadIdx.x == 0) {
-                zero_start = __builtin_amdgcn_s_memrealtime();
-            }
-
+        
             if (blockIdx.z == 0) {
                 auto& c_block_window = gemm_tile_windows.at(I2);
                 
@@ -712,47 +696,20 @@ struct GemmKernel
                 
                 // Create zero tensor with same distribution as C block tile
                 auto zero_tile = make_static_distributed_tensor<CDataType>(CDistribution{});
-                
-                if(threadIdx.x == 0) {
-                    tensor_create_time = __builtin_amdgcn_s_memrealtime();
-                }
-
+        
                 tile_elementwise_inout([](auto& c) { c = 0; }, zero_tile);
-
-                if(threadIdx.x == 0) {
-                    tile_zero_time = __builtin_amdgcn_s_memrealtime();
-                }
-                
+        
                 // Store the correctly typed zero tile to global memory
                 store_tile(c_block_window, zero_tile);
-
-                if(threadIdx.x == 0) {
-                    store_time = __builtin_amdgcn_s_memrealtime();
-                }
-
-                
 
                 // Signal that C tile has been zeroed
 
                 if(kargs.cleared_c_tile_barrier && threadIdx.x == 0) {
                     __atomic_store_n(&kargs.cleared_c_tile_barrier[blockIdx.x], 1, __ATOMIC_RELEASE);
                 }
-
-                if(threadIdx.x == 0) {
-                    barrier_time = __builtin_amdgcn_s_memrealtime();
-                }
                 __syncthreads();
 
-                if(threadIdx.x == 0) {
-                    sync_time = __builtin_amdgcn_s_memrealtime();
-                }
-                  
             }
-        }
-
-        // Timing: Zeroing complete
-        if(threadIdx.x == 0) {
-            zero_time = __builtin_amdgcn_s_memrealtime();
         }
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
@@ -765,10 +722,6 @@ struct GemmKernel
         const auto& c_block_tile = GemmPipeline{}.template operator()(
             a_block_window, b_block_window, num_loop, smem_ptr_0);
 
-        // Timing: GEMM computation complete
-        if(threadIdx.x == 0) {
-            gemm_time = __builtin_amdgcn_s_memrealtime();
-        }
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
@@ -778,64 +731,8 @@ struct GemmKernel
             c_block_tile, 
             smem_ptr_0, 
             kargs.cleared_c_tile_barrier,   // Pass cleared barrier
-            kargs.updated_batches_barrier, // Pass updated barrier
-            epilogue_detailed_timing); 
-
-        // Timing: Epilogue complete
-        if(threadIdx.x == 0 && blockIdx.x == 4) {
-            epilogue_time = __builtin_amdgcn_s_memrealtime();
+            kargs.updated_batches_barrier); // Pass updated barrier
             
-            // Calculate and print timing breakdown
-            const double freq_mhz = 25.0; // AMD GPU timer frequency (adjust for your GPU)
-            const double tensor_us = (tensor_time - start_time) / freq_mhz;
-            const double zero_us = (zero_time - tensor_time) / freq_mhz;
-            const double gemm_us = (gemm_time - zero_time) / freq_mhz;
-            const double epilogue_us = (epilogue_time - gemm_time) / freq_mhz;
-            const double total_us = (epilogue_time - start_time) / freq_mhz;
-            
-            // printf("Block %u Timing (μs): Tensor=%.2f, Zero=%.2f, GEMM=%.2f, Epilogue=%.2f, Total=%.2f\n",
-            //     blockIdx.x, tensor_us, zero_us, gemm_us, epilogue_us, total_us);
-            
-            // Calculate percentages
-            printf("Block %u Breakdown (%%): Tensor=%.1f%%, Zero=%.1f%%, GEMM=%.1f%%, Epilogue=%.1f%%, Total=%.2f\n",
-                blockIdx.x, 
-                100.0 * tensor_us / total_us,
-                100.0 * zero_us / total_us, 
-                100.0 * gemm_us / total_us,
-                100.0 * epilogue_us / total_us,
-                total_us);
-
-            
-            
-            if (UseZeroing && blockIdx.z == 0) {
-                const double tensor_create_us = (tensor_create_time - zero_start) / freq_mhz;
-                const double tile_zero_us = (tile_zero_time - tensor_create_time) / freq_mhz;
-                const double store_us = (store_time - tile_zero_time) / freq_mhz;
-                const double barrier_us = (barrier_time - store_time) / freq_mhz;
-                const double sync_us = (sync_time - barrier_time) / freq_mhz;
-                const double total_zero_us = (sync_time - zero_start) / freq_mhz;
-                
-                printf("Block %u Zero Breakdown (%%): Create=%.1f%%, TileZero=%.1f%%, Store=%.1f%%, Barrier=%.1f%%, Sync=%.1f%%, Total=%.2f\n",
-                    blockIdx.x,
-                    100.0 * tensor_create_us / total_zero_us,
-                    100.0 * tile_zero_us / total_zero_us,
-                    100.0 * store_us / total_zero_us,
-                    100.0 * barrier_us / total_zero_us,
-                    100.0 * sync_us / total_zero_us,
-                    total_zero_us);
-
-                const double barrier_wait_us = epilogue_detailed_timing[0] / 1000.0;    // Slot 0
-                const double atomic_add_us = epilogue_detailed_timing[1] / 1000.0;      // Slot 1
-                const double barrier_update_us = epilogue_detailed_timing[2] / 1000.0;  // Slot 2
-                const double total_barrier_us = barrier_wait_us + atomic_add_us + barrier_update_us;
-                printf("Block %u Barrier Breakdown (%%): Wait=%.1f%%, AtomicAdd=%.1f%%, Update=%.1f%%, Total=%.2f\n",
-                    blockIdx.x,
-                    100.0 * barrier_wait_us / total_barrier_us,
-                    100.0 * atomic_add_us / total_barrier_us,
-                    100.0 * barrier_update_us / total_barrier_us,
-                    total_barrier_us);                
-        }
-        }
 
     }
 
