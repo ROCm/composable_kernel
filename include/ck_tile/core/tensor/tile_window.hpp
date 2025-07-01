@@ -342,7 +342,6 @@ struct tile_window_with_static_distribution
                                    number<i_access_unsupport_>          = {},
                                    bool_constant<oob_conditional_check> = {}) const
     {
-#if defined(__HIP_DEVICE_COMPILE__)
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         using LdsDataType   = typename LdsTileWindow::DataType;
         using Traits        = typename Base::Traits;
@@ -387,9 +386,6 @@ struct tile_window_with_static_distribution
                 }
             });
         });
-#else
-        ignore = lds_tile;
-#endif
     }
 
     template <typename Policy, index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>

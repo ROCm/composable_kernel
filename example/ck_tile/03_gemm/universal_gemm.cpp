@@ -249,12 +249,12 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
         }
         else if(a_layout == "C" && b_layout == "R")
         {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
                 argc, argv, Col{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
                 argc, argv, Col{}, Col{}, Row{});
         }
         else
@@ -265,6 +265,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 }
 
 template <template <typename PreType> typename GemmConfig>
+int run_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
