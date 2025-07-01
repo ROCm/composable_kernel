@@ -140,6 +140,15 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
 
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "pipeline_AgBgCrCompV4", BlockSize,
+                      concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
+    }
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
