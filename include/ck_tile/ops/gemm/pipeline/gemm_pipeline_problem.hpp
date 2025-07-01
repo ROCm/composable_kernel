@@ -24,7 +24,7 @@ struct GemmPipelineProblemBase
 
     using ADataType       = remove_cvref_t<ADataType_>;
     using BDataType       = remove_cvref_t<BDataType_>;
-    using CDataType       = remove_cvref_t<CDataType_>;
+    using CDataType       = remove_cvref_t<CDataType_>; // actually AccDataType
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     static constexpr bool FixedVectorSize = FixedVectorSize_;
@@ -35,10 +35,8 @@ struct GemmPipelineProblemBase
     using BLayout = remove_cvref_t<typename Traits::BLayout>;
     using CLayout = remove_cvref_t<typename Traits::CLayout>;
 
-    static constexpr bool TransposeC = Traits::TransposeC;
-
-    static constexpr index_t NumWaveGroups = Traits::NumWaveGroups;
-
+    static constexpr bool TransposeC            = Traits::TransposeC;
+    static constexpr index_t NumWaveGroups      = Traits::NumWaveGroups;
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
@@ -60,7 +58,7 @@ struct GemmPipelineProblemBase
                       Scheduler);
         // clang-format on
     }
-    //This seems to be of no use
+    // This seems to be of no use
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
         constexpr index_t PackedSize =
@@ -198,18 +196,20 @@ struct UniversalGemmPipelineProblem
 
     using ADataType       = remove_cvref_t<ADataType_>;
     using BDataType       = remove_cvref_t<BDataType_>;
-    using CDataType       = remove_cvref_t<CDataType_>;
+    using CDataType       = remove_cvref_t<CDataType_>; // actually AccDataType
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     static constexpr bool FixedVectorSize = FixedVectorSize_;
-    static constexpr index_t VectorSizeA  = VectorSizeA_;
-    static constexpr index_t VectorSizeB  = VectorSizeB_;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
     using ALayout = remove_cvref_t<typename Traits::ALayout>;
     using BLayout = remove_cvref_t<typename Traits::BLayout>;
     using CLayout = remove_cvref_t<typename Traits::CLayout>;
+
+    static constexpr bool TransposeC            = Traits::TransposeC;
+    static constexpr index_t NumWaveGroups      = Traits::NumWaveGroups;
+    static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 
@@ -218,15 +218,14 @@ struct UniversalGemmPipelineProblem
     static constexpr bool kPadK = Traits::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
+    static constexpr auto Scheduler        = Scheduler_;
 
-    static constexpr auto Scheduler  = Scheduler_;
-    static constexpr auto HasHotLoop = HasHotLoop_;
-    static constexpr auto TailNum    = TailNum_;
-    
-    static constexpr bool TransposeC            = Traits::TransposeC;
-    static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
+    static constexpr index_t VectorSizeA = VectorSizeA_;
+    static constexpr index_t VectorSizeB = VectorSizeB_;
 
-    static constexpr index_t NumWaveGroups = Traits::NumWaveGroups;
+    static constexpr auto HasHotLoop        = HasHotLoop_;
+    static constexpr auto TailNum           = TailNum_;
+    static constexpr index_t VectorLoadSize = Traits::_VectorSize;
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off

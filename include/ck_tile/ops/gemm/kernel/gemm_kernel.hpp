@@ -40,7 +40,8 @@ struct GemmHostArgs
                               index_t stride_A_,
                               index_t stride_B_,
                               const std::array<index_t, NumDTensor>& stride_Ds_,
-                              index_t stride_E_)
+                              index_t stride_E_,
+                              bool preshuffle_flatmm_ = false)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           ds_ptr(ds_ptr_),
@@ -52,7 +53,8 @@ struct GemmHostArgs
           stride_B(stride_B_),
           stride_Ds(stride_Ds_),
           stride_E(stride_E_),
-          k_batch(k_batch_)
+          k_batch(k_batch_),
+          preshuffle_flatmm(preshuffle_flatmm_)
     {
     }
 
@@ -77,6 +79,7 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
+    bool preshuffle_flatmm = false; ///< Flag to indicate if its flatmm operator.
 };
 
 /// @brief The GEMM kernel device arguments.
@@ -110,6 +113,7 @@ struct GemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
+    index_t preshuffle_flatmm; ///< Flag to indicate if its flatmm operator.
 };
 
 /// @brief The GEMM kernel template.
@@ -239,7 +243,8 @@ struct GemmKernel
                           hostArgs.stride_B,
                           hostArgs.stride_Ds,
                           hostArgs.stride_E,
-                          hostArgs.k_batch};
+                          hostArgs.k_batch,
+                          hostArgs.preshuffle_flatmm};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -306,7 +311,7 @@ struct GemmKernel
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
-               GemmPipeline::kPadK == false)
+               GemmPipeline::kPadK == false) // k_batch is extra compared to flatmm
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
@@ -368,7 +373,7 @@ struct GemmKernel
         else
         {
             if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
-               GemmPipeline::kPadK == false)
+               GemmPipeline::kPadK == false) // again k_batch is extra compared to flatmm
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
@@ -573,6 +578,19 @@ struct GemmKernel
             }
         }();
 
+        index_t kFlatK = GemmPipeline::flatKPerWarp *
+                         (splitk_batch_offset.splitted_k /
+                          TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{}));
+        index_t kFlatN                 = kargs.N * kargs.K / kFlatK;
+        const auto& b_flat_tensor_view = [&]() {
+            return make_naive_tensor_view<address_space_enum::global>(
+                b_ptr,
+                make_tuple(kFlatN, kFlatK),
+                make_tuple(kFlatK, 1),
+                number<GemmPipeline::GetVectorSizeB()>{},
+                number<1>{});
+        }();
+
         const auto& ds_tensor_view = generate_tuple(
             [&](auto i) {
                 using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
@@ -613,18 +631,22 @@ struct GemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
-                    make_tuple(kargs.M, kargs.N),
+                    make_tuple(kargs.M, kargs.N), // arguments not matching with flatmm.
                     make_tuple(1, kargs.stride_E),
                     number<1>{},
                     number<1>{});
             }
         }();
-
+        if(kargs.preshuffle_flatmm)
+        {
+            // For flatmm, we need to use the flat B tensor view
+            return make_tuple(a_tensor_view, b_flat_tensor_view, ds_tensor_view, e_tensor_view);
+        }
         return make_tuple(a_tensor_view, b_tensor_view, ds_tensor_view, e_tensor_view);
     }
 
     template <typename TensorView>
-    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views)
+    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views, const KernelArgs& kargs)
     {
         const auto& a_pad_view = [&]() {
             const auto& a_tensor_view = views.at(I0);
@@ -661,6 +683,7 @@ struct GemmKernel
                                        sequence<false, GemmPipeline::kPadN>{});
             }
         }();
+        const auto& b_flat_tensor_view = views.at(I1);
 
         const auto& ds_pad_view = generate_tuple(
             [&](auto i) {
@@ -702,12 +725,19 @@ struct GemmKernel
             }
         }();
 
+        if(kargs.preshuffle_flatmm)
+        {
+            // For flatmm, we need to use the flat B tensor view
+            return make_tuple(a_pad_view, b_flat_tensor_view, ds_pad_view, e_pad_view);
+        }
         return make_tuple(a_pad_view, b_pad_view, ds_pad_view, e_pad_view);
     }
 
     template <typename PadView>
-    CK_TILE_DEVICE static auto
-    MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
+    CK_TILE_DEVICE static auto MakeGemmTileWindows(const PadView& views,
+                                                   const index_t i_m,
+                                                   const index_t i_n,
+                                                   const KernelArgs& kargs)
     {
         const auto& a_pad_view  = views.at(I0);
         const auto& b_pad_view  = views.at(I1);
@@ -748,6 +778,11 @@ struct GemmKernel
             }
         }();
 
+        const auto& b_flat_block_window = make_tile_window(
+            b_pad_view,
+            make_tuple(number<GemmPipeline::flatNPerWarp>{}, number<GemmPipeline::flatKPerWarp>{}),
+            {static_cast<int>(i_n / TilePartitioner::BlockGemmShape::WarpTile::at(I1)), 0});
+
         const auto ds_block_window = generate_tuple(
             [&](auto i) {
                 using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
@@ -772,6 +807,12 @@ struct GemmKernel
             e_pad_view,
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
             {i_m, i_n});
+
+        if(kargs.preshuffle_flatmm)
+        {
+            // For flatmm, we need to use the flat B tensor view}
+            return make_tuple(a_block_window, b_flat_block_window, ds_block_window, e_block_window);
+        }
 
         return make_tuple(a_block_window, b_block_window, ds_block_window, e_block_window);
     }
@@ -806,8 +847,9 @@ struct GemmKernel
             MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
                 a_ptr, b_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
 
-        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple, kargs);
+        auto gemm_tile_windows =
+            MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n, kargs);
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));

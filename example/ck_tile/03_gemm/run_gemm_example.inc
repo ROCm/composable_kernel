@@ -338,7 +338,8 @@ int run_gemm_example_with_layouts(int argc,
         ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
     }
 
-    if(preshuffle){
+    if(preshuffle)
+    {
         persistent = false; // Preshuffle is not supported with persistent mode
     }
 
@@ -347,10 +348,11 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
     static_assert(!GemmConfig::PermuteA, "Not implemented");
-    
-    if(preshuffle){
+
+    if(preshuffle)
+    {
         ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n);
-        //shuffled buffer B for device implementation
+        // shuffled buffer B for device implementation
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
     }
     if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)

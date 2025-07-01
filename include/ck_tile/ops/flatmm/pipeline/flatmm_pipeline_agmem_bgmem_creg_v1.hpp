@@ -9,6 +9,28 @@
 
 namespace ck_tile {
 
+template <typename Problem>
+struct BaseFlatmmPipelineAGmemBGmemCRegV1
+{
+    static constexpr index_t PrefetchStages  = 1;
+    static constexpr index_t PrefillStages   = 1;
+    static constexpr index_t GlobalBufferNum = 1;
+
+    CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
+
+    CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t) { return true; }
+
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t)
+    {
+        return TailNumber::Empty;
+    }
+
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto TailHandler(const RunFunction& run_func, bool, TailNumber)
+    {
+        return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Empty>{});
+    }
+};
 template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
 struct FlatmmPipelineAGmemBGmemCRegV1
 {
@@ -33,15 +55,27 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
-    static constexpr index_t GetVectorSizeA() { return Problem::VectorSizeA; }
-    static constexpr index_t GetVectorSizeB() { return Problem::VectorSizeB; }
-    static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
+    // static constexpr index_t GetVectorSizeA() { return Problem::VectorSizeA; }
+    // static constexpr index_t GetVectorSizeB() { return Problem::VectorSizeB; }
+    // static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
+
+    static constexpr index_t GetVectorSizeA()
+    {
+        return PipelinePolicy::template GetVectorSizeA<Problem>();
+    }
+    static constexpr index_t GetVectorSizeB()
+    {
+        return PipelinePolicy::template GetVectorSizeB<Problem>();
+    }
+    // static constexpr index_t GetVectorSizeC() { return PipelinePolicy::template
+    // GetVectorSizeC<Problem>(); }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr index_t kLdsAlignmentInBytes = 16;
+    static constexpr index_t NumWaveGroups        = Problem::NumWaveGroups;
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();
@@ -52,19 +86,18 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     using BlockTile            = remove_cvref_t<typename BlockGemmShape::BlockTile>;
     using BlockWarps           = remove_cvref_t<typename BlockGemmShape::BlockWarps>;
     using WarpTile             = remove_cvref_t<typename BlockGemmShape::WarpTile>;
+    // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
         return concat('_', "pipeline_AGmemBGmemCRegV1", 
                       concat('x', kMPerBlock, kNPerBlock, kKPerBlock,  BlockSize),
-                      concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
+                      concat('x', GetVectorSizeA(), GetVectorSizeB()),
                       concat('x', kPadM, kPadN, kPadK));
         // clang-format on
     }
-
-    // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
-    static constexpr bool DoubleSmemBuffer = false;
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 

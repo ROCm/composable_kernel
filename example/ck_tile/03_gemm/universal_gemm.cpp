@@ -41,8 +41,6 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                                    GemmConfig::TileParitionerGroupNum,
                                                    GemmConfig::TileParitionerM01>;
 
-    
-    
     using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
                                            GemmConfig::kPadN,
                                            GemmConfig::kPadK,
@@ -81,7 +79,7 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
             constexpr auto tail_number_v    = tail_number_.value;
             constexpr auto scheduler        = GemmConfig::Scheduler;
             constexpr auto memory_operation = memory_operation_.value;
-  
+
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                                BDataType,
                                                                                AccDataType,
@@ -216,19 +214,20 @@ template <typename GemmConfig,
           typename CPrecType = APrecType>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Row                 = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col                 = ck_tile::tensor_layout::gemm::ColumnMajor;
     auto [result, arg_parser] = create_args(argc, argv);
-    bool preshuffle = GemmConfig::Preshuffle;
-    
+    bool preshuffle           = GemmConfig::Preshuffle;
+
     if(preshuffle && std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
     {
         throw std::runtime_error("Preshuffle is not supported for this int4 datatype!");
     }
-    
+
     if(preshuffle && a_layout != "R" && b_layout != "C")
     {
-        throw std::runtime_error("Preshuffle is supported only for A(Row major), B(column major) input matrices!");
+        throw std::runtime_error(
+            "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
     }
 
     if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
