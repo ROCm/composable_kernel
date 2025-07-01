@@ -1,7 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 template <typename Arch, typename ADType, typename BDType, typename CDType>
 struct WmmaTraitsBase;
 
-// GFX11 specialization 16 bits basic settings
+// GFX11 specialization
 template <typename ADType, typename BDType, typename CDType>
 struct WmmaTraitsBase<gfx11_t, ADType, BDType, CDType>
 {
@@ -45,7 +48,7 @@ struct WmmaTraitsBase<gfx11_t, ADType, BDType, CDType>
     using kCYs2RHsTransMinor  = sequence<0, 2>;
 };
 
-// GFX12 specialization 16 bits basic settings
+// GFX12 specialization
 template <typename ADType, typename BDType, typename CDType>
 struct WmmaTraitsBase<gfx12_t, ADType, BDType, CDType>
 {

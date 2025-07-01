@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
 // int8 specialization - GFX11
 template <>
 struct WmmaTraits<gfx11_t, int8_t, int8_t, int32_t, 16, 16, 16>
