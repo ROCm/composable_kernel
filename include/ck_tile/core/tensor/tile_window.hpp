@@ -382,7 +382,7 @@ struct tile_window_with_static_distribution
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
                 }
             });
