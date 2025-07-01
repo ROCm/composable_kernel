@@ -36,6 +36,13 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 
     printf("Grid: x=%u y=%u z=%u\n", grids.x, grids.y, grids.z);
     printf("Block: x=%u y=%u z=%u\n", blocks.x, blocks.y, blocks.z);
+    printf("Host args: batch=%d, height=%d, width=%d, dim_stride=%d, dim_block_h=%d, dim_block_w=%d\n",
+           a.batch,
+           a.height,
+           a.width,
+           a.dim_stride,
+           a.dim_block_h,
+           a.dim_block_w);
     printf("kargs: kargs.batch=%d kargs.height=%d kargs.width=%d kargs.dim_stride=%d\n",
            kargs.batch,
            kargs.height,
