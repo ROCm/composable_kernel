@@ -51,7 +51,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         static const ck_tile::index_t K_Warp_Tile = 16;
     };
 
-    using grouped_gemm_kargs = ck_tile::GemmHostArgs</*NumDTensor = 0*/>;
+    using grouped_gemm_kargs = ck_tile::GemmHostArgs<>;
     std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
     {
         return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
@@ -84,19 +84,22 @@ class TestCkTileGroupedGemm : public ::testing::Test
         using Traits              = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
                                                GroupedGemKernelParam::kPadN,
                                                GroupedGemKernelParam::kPadK,
-                                               ALayout,
-                                               BLayout,
+                                               ck_tile::tuple<ALayout>,
+                                               ck_tile::tuple<BLayout>,
                                                CLayout>;
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GroupedGemKernelParam::kPadM,
                                                                      GroupedGemKernelParam::kPadN,
                                                                      GroupedGemKernelParam::kPadK,
                                                                      DoubleSmemBuffer,
-                                                                     ALayout,
-                                                                     BLayout,
+                                                                     ck_tile::tuple<ALayout>,
+                                                                     ck_tile::tuple<BLayout>,
                                                                      CLayout,
                                                                      TransposeC>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+        using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ck_tile::tuple<ADataType>,
+                                                                 ck_tile::tuple<BDataType>,
+                                                                 AccDataType,
+                                                                 GemmShape,
+                                                                 Traits>;
 
         using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
@@ -117,19 +120,20 @@ class TestCkTileGroupedGemm : public ::testing::Test
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
             constexpr auto memory_operation = memory_operation_.value;
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                               BDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               scheduler,
-                                                                               has_hot_loop_v,
-                                                                               tail_number_v>;
+            using UniversalGemmProblem =
+                ck_tile::UniversalGemmPipelineProblem<ck_tile::tuple<ADataType>,
+                                                      ck_tile::tuple<BDataType>,
+                                                      AccDataType,
+                                                      GemmShape,
+                                                      GemmUniversalTraits,
+                                                      scheduler,
+                                                      has_hot_loop_v,
+                                                      tail_number_v>;
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
+                ck_tile::CShuffleEpilogueProblem<ck_tile::tuple<ADataType>,
+                                                 ck_tile::tuple<BDataType>,
                                                  DsDataType,
                                                  AccDataType,
                                                  CDataType,
@@ -230,20 +234,23 @@ class TestCkTileGroupedGemm : public ::testing::Test
         using Traits = ck_tile::TileGemmTraits<GroupedGemKernelParam::kPadM,
                                                GroupedGemKernelParam::kPadN,
                                                GroupedGemKernelParam::kPadK,
-                                               ALayout,
-                                               BLayout,
+                                               ck_tile::tuple<ALayout>,
+                                               ck_tile::tuple<BLayout>,
                                                CLayout>;
         using GemmUniversalTraits =
             ck_tile::PersistentTileGemmUniversalTraits<GroupedGemKernelParam::kPadM,
                                                        GroupedGemKernelParam::kPadN,
                                                        GroupedGemKernelParam::kPadK,
                                                        DoubleSmemBuffer,
-                                                       ALayout,
-                                                       BLayout,
+                                                       ck_tile::tuple<ALayout>,
+                                                       ck_tile::tuple<BLayout>,
                                                        CLayout,
                                                        TransposeC>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+        using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ck_tile::tuple<ADataType>,
+                                                                 ck_tile::tuple<BDataType>,
+                                                                 AccDataType,
+                                                                 GemmShape,
+                                                                 Traits>;
 
         const auto Run = [&](const auto memory_operation_) {
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -251,17 +258,18 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
             // We create the GEMM pipeline without specifying hotloop or tailnumber.
             // These are automatically run inside the kernel based on the given input data.
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                               BDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               scheduler>;
+            using UniversalGemmProblem =
+                ck_tile::UniversalGemmPipelineProblem<ck_tile::tuple<ADataType>,
+                                                      ck_tile::tuple<BDataType>,
+                                                      AccDataType,
+                                                      GemmShape,
+                                                      GemmUniversalTraits,
+                                                      scheduler>;
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
+                ck_tile::CShuffleEpilogueProblem<ck_tile::tuple<ADataType>,
+                                                 ck_tile::tuple<BDataType>,
                                                  DsDataType,
                                                  AccDataType,
                                                  CDataType,
@@ -436,8 +444,18 @@ class TestCkTileGroupedGemm : public ::testing::Test
             const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
             void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
-            gemm_descs.push_back(
-                {p_a, p_b, {}, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], {}, stride_Cs[i]});
+            gemm_descs.push_back({{p_a},
+                                  {p_b},
+                                  {},
+                                  p_c,
+                                  kbatch,
+                                  M,
+                                  N,
+                                  K,
+                                  {stride_As[i]},
+                                  {stride_Bs[i]},
+                                  {},
+                                  stride_Cs[i]});
         }
 
         ck_tile::DeviceMem gemm_workspace;
@@ -451,15 +469,15 @@ class TestCkTileGroupedGemm : public ::testing::Test
             const bool splitk = gemm_descs[0].k_batch > 1;
             for(const auto& arg : gemm_descs)
             {
-                kargs.emplace_back(ck_tile::GemmKernelArgs<>{arg.a_ptr,
-                                                             arg.b_ptr,
+                kargs.emplace_back(ck_tile::GemmKernelArgs<>{{arg.as_ptr},
+                                                             {arg.bs_ptr},
                                                              {},
                                                              arg.e_ptr,
                                                              arg.M,
                                                              arg.N,
                                                              arg.K,
-                                                             arg.stride_A,
-                                                             arg.stride_B,
+                                                             {arg.stride_As},
+                                                             {arg.stride_Bs},
                                                              {},
                                                              arg.stride_E,
                                                              arg.k_batch});

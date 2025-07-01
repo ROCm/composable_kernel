@@ -83,15 +83,15 @@ float invoke_gemm(int n_warmup,
         const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
         {
-            kargs.emplace_back(ck_tile::GemmKernelArgs<>{arg.a_ptr,
-                                                         arg.b_ptr,
+            kargs.emplace_back(ck_tile::GemmKernelArgs<>{{arg.as_ptr},
+                                                         {arg.bs_ptr},
                                                          {},
                                                          arg.e_ptr,
                                                          arg.M,
                                                          arg.N,
                                                          arg.K,
-                                                         arg.stride_A,
-                                                         arg.stride_B,
+                                                         {arg.stride_As},
+                                                         {arg.stride_Bs},
                                                          {},
                                                          arg.stride_E,
                                                          arg.k_batch});
@@ -239,17 +239,27 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
-        gemm_descs.push_back(
-            {p_a, p_b, {}, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], {}, stride_Cs[i]});
+        gemm_descs.push_back({{p_a},
+                              {p_b},
+                              {},
+                              p_c,
+                              kbatch,
+                              M,
+                              N,
+                              K,
+                              {stride_As[i]},
+                              {stride_Bs[i]},
+                              {},
+                              stride_Cs[i]});
     }
 
-    invoke_gemm<ADataType,
-                BDataType,
+    invoke_gemm<ck_tile::tuple<ADataType>,
+                ck_tile::tuple<BDataType>,
                 ck_tile::tuple<>,
                 AccDataType,
                 CDataType,
-                ALayout,
-                BLayout,
+                ck_tile::tuple<ALayout>,
+                ck_tile::tuple<BLayout>,
                 ck_tile::tuple<>,
                 CLayout,
                 Persistent>(warmup, repeat, group_count, gemm_descs);

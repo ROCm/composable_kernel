@@ -23,10 +23,10 @@ struct BlockUniversalGemmAsBsCr
     {
         using Problem         = remove_cvref_t<PipelineProblem_>;
         using Policy          = remove_cvref_t<GemmPolicy_>;
-        using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-        using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+        using AsDataType      = remove_cvref_t<typename Problem::AsDataType>;
+        using BsDataType      = remove_cvref_t<typename Problem::BsDataType>;
         using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-        using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+        using EDataType       = remove_cvref_t<typename Problem::EDataType>;
         using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -86,10 +86,13 @@ struct BlockUniversalGemmAsBsCr
     public:
     using Traits = GemmTraits_<Problem_, Policy_>;
 
-    using ADataType       = remove_cvref_t<typename Traits::ADataType>;
-    using BDataType       = remove_cvref_t<typename Traits::BDataType>;
+    using AsDataType      = remove_cvref_t<typename Traits::AsDataType>;
+    using BsDataType      = remove_cvref_t<typename Traits::BsDataType>;
     using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
-    using CDataType       = remove_cvref_t<typename Traits::CDataType>;
+    using EDataType       = remove_cvref_t<typename Traits::EDataType>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
@@ -223,8 +226,8 @@ struct BlockUniversalGemmAsBsCr
                                        const ASmemBlockWindow& a_block_window,
                                        const BSmemBlockWindow& b_block_window)
         {
-            static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
-                          "The CDataType as defined in traits should be the same as correspoinding "
+            static_assert(std::is_same_v<EDataType, typename CBlockTensor::DataType>,
+                          "The EDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
             static_assert(std::is_same_v<ADataType, typename ASmemBlockWindow::DataType> &&
                               std::is_same_v<BDataType, typename BSmemBlockWindow::DataType>,
@@ -328,8 +331,8 @@ struct BlockUniversalGemmAsBsCr
                                        [[maybe_unused]] ASmemBlockWindow& a_block_window,
                                        [[maybe_unused]] BSmemBlockWindow& b_block_window)
         {
-            static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
-                          "The CDataType as defined in traits should be the same as correspoinding "
+            static_assert(std::is_same_v<EDataType, typename CBlockTensor::DataType>,
+                          "The EDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
 
             // hot loop:
@@ -436,8 +439,8 @@ struct BlockUniversalGemmAsBsCr
                                        const ASmemBlockWindow& a_block_window,
                                        const BSmemBlockWindow& b_block_window)
         {
-            static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
-                          "The CDataType as defined in traits should be the same as correspoinding "
+            static_assert(std::is_same_v<EDataType, typename CBlockTensor::DataType>,
+                          "The EDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
 
             // hot loop:
@@ -538,7 +541,7 @@ struct BlockUniversalGemmAsBsCr
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
+        auto c_block_tensor         = make_static_distributed_tensor<EDataType>(c_block_dstr);
 
         return c_block_tensor;
     }

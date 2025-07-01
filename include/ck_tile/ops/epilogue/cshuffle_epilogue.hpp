@@ -9,8 +9,8 @@
 
 namespace ck_tile {
 
-template <typename ADataType_,
-          typename BDataType_,
+template <typename AsDataType_,
+          typename BsDataType_,
           typename DsDataType_,
           typename AccDataType_,
           typename ODataType_,
@@ -32,8 +32,8 @@ template <typename ADataType_,
           index_t VectorSizeC_    = 1>
 struct CShuffleEpilogueProblem
 {
-    using ADataType                                        = remove_cvref_t<ADataType_>;
-    using BDataType                                        = remove_cvref_t<BDataType_>;
+    using AsDataType                                       = remove_cvref_t<AsDataType_>;
+    using BsDataType                                       = remove_cvref_t<BsDataType_>;
     using AccDataType                                      = remove_cvref_t<AccDataType_>;
     using ODataType                                        = remove_cvref_t<ODataType_>;
     using DsDataType                                       = remove_cvref_t<DsDataType_>;
@@ -63,12 +63,15 @@ template <typename Problem_, typename Policy_ = void>
 struct CShuffleEpilogue
 {
     using Problem     = remove_cvref_t<Problem_>;
-    using ADataType   = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType   = remove_cvref_t<typename Problem::BDataType>;
+    using AsDataType  = remove_cvref_t<typename Problem::AsDataType>;
+    using BsDataType  = remove_cvref_t<typename Problem::BsDataType>;
     using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
     using ODataType   = remove_cvref_t<typename Problem::ODataType>;
     using DsDataType  = remove_cvref_t<typename Problem::DsDataType>;
     using DsLayout    = remove_cvref_t<typename Problem::DsLayout>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse =
         std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;

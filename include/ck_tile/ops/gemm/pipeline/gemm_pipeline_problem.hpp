@@ -9,31 +9,42 @@
 
 namespace ck_tile {
 
-template <typename ADataType_,
-          typename BDataType_,
-          typename CDataType_,
+template <typename AsDataType_,
+          typename BsDataType_,
+          typename EDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename ComputeDataType_ = ADataType_,
-          bool FixedVectorSize_     = false,
-          index_t VectorSizeA_      = 1,
-          index_t VectorSizeB_      = 1>
+          typename AElementWise_ = ck_tile::element_wise::PassThrough,
+          typename BElementWise_ = ck_tile::element_wise::PassThrough,
+          typename ComputeDataType_ =
+              remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType_>>,
+          bool FixedVectorSize_ = false,
+          index_t VectorSizeA_  = 1,
+          index_t VectorSizeB_  = 1>
 struct GemmPipelineProblemBase
 {
     using Traits = remove_cvref_t<Traits_>;
 
-    using ADataType       = remove_cvref_t<ADataType_>;
-    using BDataType       = remove_cvref_t<BDataType_>;
-    using CDataType       = remove_cvref_t<CDataType_>;
+    using AsDataType      = remove_cvref_t<AsDataType_>;
+    using BsDataType      = remove_cvref_t<BsDataType_>;
+    using EDataType       = remove_cvref_t<EDataType_>;
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     static constexpr bool FixedVectorSize = FixedVectorSize_;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    using ALayout = remove_cvref_t<typename Traits::ALayout>;
-    using BLayout = remove_cvref_t<typename Traits::BLayout>;
-    using CLayout = remove_cvref_t<typename Traits::CLayout>;
+    using AsLayout = remove_cvref_t<typename Traits::AsLayout>;
+    using BsLayout = remove_cvref_t<typename Traits::BsLayout>;
+    using ELayout  = remove_cvref_t<typename Traits::ELayout>;
+
+    using AElementWise = remove_cvref_t<AElementWise_>;
+    using BElementWise = remove_cvref_t<BElementWise_>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+    using ALayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+    using BLayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
 
     static constexpr bool TransposeC = Traits::TransposeC;
 
@@ -99,14 +110,14 @@ struct GemmPipelineProblemBase
 
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentC()
     {
-        if constexpr(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        if constexpr(std::is_same_v<ELayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t N1 = kBlockSize / get_warp_size();
             constexpr index_t N2 = std::min(BlockGemmShape::kN / N1, get_warp_size());
             constexpr index_t M0 = get_warp_size() / N2;
             constexpr index_t M1 = BlockGemmShape::kM / M0;
 
-            return std::min(M1, static_cast<index_t>(VectorLoadSize / sizeof(CDataType)));
+            return std::min(M1, static_cast<index_t>(VectorLoadSize / sizeof(EDataType)));
         }
         else
         {
@@ -115,7 +126,7 @@ struct GemmPipelineProblemBase
             constexpr index_t N0 = get_warp_size() / M2;
             constexpr index_t N1 = BlockGemmShape::kN / N0;
 
-            return std::min(N1, static_cast<index_t>(VectorLoadSize / sizeof(CDataType)));
+            return std::min(N1, static_cast<index_t>(VectorLoadSize / sizeof(EDataType)));
         }
     }
 
@@ -149,7 +160,7 @@ struct GemmPipelineProblemBase
         }
     }();
     static constexpr index_t VectorSizeC = []() {
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             return kPadN ? 1 : GetAlignmentC();
         }
@@ -161,44 +172,54 @@ struct GemmPipelineProblemBase
 };
 
 // Alias for GemmPipelineProblem
-template <typename ADataType_,
-          typename BDataType_,
-          typename CDataType_,
+template <typename AsDataType_,
+          typename BsDataType_,
+          typename EDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename ComputeDataType_ = ADataType_,
-          bool FixedVectorSize_     = false,
-          index_t VectorSizeA_      = 1,
-          index_t VectorSizeB_      = 1>
-using GemmPipelineProblem = GemmPipelineProblemBase<ADataType_,
-                                                    BDataType_,
-                                                    CDataType_,
+          typename AElementWise_ = ck_tile::element_wise::PassThrough,
+          typename BElementWise_ = ck_tile::element_wise::PassThrough,
+          typename ComputeDataType_ =
+              remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType_>>,
+          bool FixedVectorSize_ = false,
+          index_t VectorSizeA_  = 1,
+          index_t VectorSizeB_  = 1>
+using GemmPipelineProblem = GemmPipelineProblemBase<AsDataType_,
+                                                    BsDataType_,
+                                                    EDataType_,
                                                     BlockGemmShape_,
                                                     Traits_,
+                                                    AElementWise_,
+                                                    BElementWise_,
                                                     ComputeDataType_,
                                                     FixedVectorSize_,
                                                     VectorSizeA_,
                                                     VectorSizeB_>;
 
-template <typename ADataType_,
-          typename BDataType_,
-          typename CDataType_,
+template <typename AsDataType_,
+          typename BsDataType_,
+          typename EDataType_,
           typename BlockGemmShape_,
           typename Traits_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full,
-          typename ComputeDataType_        = ADataType_,
-          bool FixedVectorSize_            = false,
-          index_t VectorSizeA_             = 1,
-          index_t VectorSizeB_             = 1>
+          typename AElementWise_           = ck_tile::element_wise::PassThrough,
+          typename BElementWise_           = ck_tile::element_wise::PassThrough,
+          typename ComputeDataType_ =
+              remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType_>>,
+          bool FixedVectorSize_ = false,
+          index_t VectorSizeA_  = 1,
+          index_t VectorSizeB_  = 1>
 struct UniversalGemmPipelineProblem
 {
     using Traits = remove_cvref_t<Traits_>;
 
-    using ADataType       = remove_cvref_t<ADataType_>;
-    using BDataType       = remove_cvref_t<BDataType_>;
-    using CDataType       = remove_cvref_t<CDataType_>;
+    using AsDataType      = remove_cvref_t<AsDataType_>;
+    using BsDataType      = remove_cvref_t<BsDataType_>;
+    using EDataType       = remove_cvref_t<EDataType_>;
+    using AElementWise    = remove_cvref_t<AElementWise_>;
+    using BElementWise    = remove_cvref_t<BElementWise_>;
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     static constexpr bool FixedVectorSize = FixedVectorSize_;
@@ -207,9 +228,11 @@ struct UniversalGemmPipelineProblem
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    using ALayout = remove_cvref_t<typename Traits::ALayout>;
-    using BLayout = remove_cvref_t<typename Traits::BLayout>;
-    using CLayout = remove_cvref_t<typename Traits::CLayout>;
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
+    using AsLayout  = remove_cvref_t<typename Traits::AsLayout>;
+    using BsLayout  = remove_cvref_t<typename Traits::BsLayout>;
+    using ELayout   = remove_cvref_t<typename Traits::ELayout>;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 

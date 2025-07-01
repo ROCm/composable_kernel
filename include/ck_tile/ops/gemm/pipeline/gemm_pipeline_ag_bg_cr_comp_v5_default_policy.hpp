@@ -23,8 +23,8 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
         using AccDataType     = float;
         using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
-                                                typename Problem::BDataType,
+        using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
+                                                typename Problem::ComputeDataType,
                                                 AccDataType,
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),
@@ -32,7 +32,7 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
                                                 Problem::TransposeC>;
         using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
                                                                     typename Problem::BDataType,
-                                                                    typename Problem::CDataType,
+                                                                    typename Problem::EDataType,
                                                                     BlockWarps,
                                                                     WarpGemm>;
 
@@ -45,7 +45,7 @@ struct GemmPipelineAgBgCrCompV5DefaultPolicy
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
 
-        return integer_least_multiple(sizeof(typename Problem::CDataType) * MPerBlock * NPerBlock,
+        return integer_least_multiple(sizeof(typename Problem::EDataType) * MPerBlock * NPerBlock,
                                       16);
     }
 

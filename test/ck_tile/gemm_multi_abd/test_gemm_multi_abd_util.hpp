@@ -13,16 +13,29 @@
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
-struct ElementWiseAddAdd
+struct AddScale
 {
-    template <typename E, typename C, typename D0, typename D1>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    template <typename E, typename A>
+    CK_TILE_HOST_DEVICE constexpr void operator()(E& e, const A& a0, const A& a1) const
     {
-        const float x0_f = ck_tile::type_convert<float>(c) + ck_tile::type_convert<float>(d0) +
-                           ck_tile::type_convert<float>(d1);
-
-        e = ck_tile::type_convert<E>(x0_f);
+        const float x0_f = ck_tile::type_convert<float>(scale * (a0 + a1));
+        e                = ck_tile::type_convert<E>(x0_f);
     }
+
+    float scale = 1.0;
+};
+
+struct AlphaBetaAdd
+{
+    template <typename E, typename A>
+    CK_TILE_HOST_DEVICE constexpr void operator()(E& e, const A& a0, const A& a1) const
+    {
+        const float x0_f = ck_tile::type_convert<float>(alpha_ * a0 + beta_ * a1);
+        e                = ck_tile::type_convert<E>(x0_f);
+    };
+
+    float alpha_ = 0.2;
+    float beta_  = 0.1;
 };
 
 struct MultiplyMultiply
@@ -37,66 +50,86 @@ struct MultiplyMultiply
     }
 };
 
-template <typename ADataType,
-          typename BDataType,
+template <typename A0DataType,
+          typename B0DataType,
           typename AccDataType,
           typename EDataType,
-          typename DsDataType>
+          typename D0DataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
 {
+
     using ComputeTypeAB =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+        std::conditional_t<sizeof(A0DataType) < sizeof(B0DataType), A0DataType, B0DataType>;
 
     using ComputeType =
-        std::conditional_t<sizeof(ComputeTypeAB) < sizeof(DsDataType), ComputeTypeAB, DsDataType>;
-
+        std::conditional_t<sizeof(ComputeTypeAB) < sizeof(D0DataType), ComputeTypeAB, D0DataType>;
     // Calculate thresholds
     const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType, AccDataType>(
         ck_tile::integer_divide_ceil(K, kbatch));
+
     const auto atol = ck_tile::get_absolute_threshold<ComputeType, EDataType, AccDataType>(
         max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+
     // Calculate error due to split_k accumulation
     const auto rtol_split_k =
         ck_tile::get_relative_threshold<EDataType, EDataType, EDataType>(kbatch);
+
     const auto atol_split_k = ck_tile::get_absolute_threshold<EDataType, EDataType, EDataType>(
         max_accumulated_value, kbatch);
+
     // Use higher threshold
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
 template <typename Tuple>
-class TestCkTileGemmMultiD : public ::testing::Test
+class TestCkTileGemmMultiABD : public ::testing::Test
 {
     protected:
-    using ALayout         = std::tuple_element_t<0, Tuple>;
-    using BLayout         = std::tuple_element_t<1, Tuple>;
-    using D0Layout        = std::tuple_element_t<2, Tuple>;
-    using D1Layout        = std::tuple_element_t<3, Tuple>;
-    using ELayout         = std::tuple_element_t<4, Tuple>;
-    using ADataType       = std::tuple_element_t<5, Tuple>;
-    using BDataType       = std::tuple_element_t<6, Tuple>;
-    using D0DataType      = std::tuple_element_t<7, Tuple>;
-    using D1DataType      = std::tuple_element_t<8, Tuple>;
-    using AccDataType     = std::tuple_element_t<9, Tuple>;
-    using EDataType       = std::tuple_element_t<10, Tuple>;
-    using CDElementWiseFn = std::tuple_element_t<11, Tuple>;
-    using DsLayout        = ck_tile::tuple<D0Layout, D1Layout>;
-    using DsDataType      = ck_tile::tuple<D0DataType, D1DataType>;
+    using A0Layout        = std::tuple_element_t<0, Tuple>;
+    using A1Layout        = std::tuple_element_t<1, Tuple>;
+    using B0Layout        = std::tuple_element_t<2, Tuple>;
+    using B1Layout        = std::tuple_element_t<3, Tuple>;
+    using D0Layout        = std::tuple_element_t<4, Tuple>;
+    using D1Layout        = std::tuple_element_t<5, Tuple>;
+    using ELayout         = std::tuple_element_t<6, Tuple>;
+    using A0DataType      = std::tuple_element_t<7, Tuple>;
+    using A1DataType      = std::tuple_element_t<8, Tuple>;
+    using B0DataType      = std::tuple_element_t<9, Tuple>;
+    using B1DataType      = std::tuple_element_t<10, Tuple>;
+    using D0DataType      = std::tuple_element_t<11, Tuple>;
+    using D1DataType      = std::tuple_element_t<12, Tuple>;
+    using AccDataType     = std::tuple_element_t<13, Tuple>;
+    using EDataType       = std::tuple_element_t<14, Tuple>;
+    using AElementWiseFn  = std::tuple_element_t<15, Tuple>;
+    using BElementWiseFn  = std::tuple_element_t<16, Tuple>;
+    using CDElementWiseFn = std::tuple_element_t<17, Tuple>;
 
-    template <typename ADataType,
-              typename BDataType,
+    using AsLayout = ck_tile::tuple<A0Layout, A1Layout>;
+    using BsLayout = ck_tile::tuple<B0Layout, B1Layout>;
+    using DsLayout = ck_tile::tuple<D0Layout, D1Layout>;
+
+    using AsDataType = ck_tile::tuple<A0DataType, A1DataType>;
+    using BsDataType = ck_tile::tuple<B0DataType, B1DataType>;
+    using DsDataType = ck_tile::tuple<D0DataType, D1DataType>;
+
+    template <typename AsDataType,
+              typename BsDataType,
               typename DsDataType,
               typename AccDataType,
               typename EDataType,
-              typename ALayout,
-              typename BLayout,
+              typename AsLayout,
+              typename BsLayout,
               typename DsLayout,
               typename ELayout,
+              typename AElementWise   = ck_tile::element_wise::PassThrough,
+              typename BElementWise   = ck_tile::element_wise::PassThrough,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    void invoke_gemm_multi_d(const ck_tile::GemmHostArgs<1, 1, DsDataType::size()>& args,
-                             const ck_tile::stream_config& s)
+    void invoke_gemm_multi_abd(
+        const ck_tile::GemmHostArgs<AsDataType::size(), BsDataType::size(), DsDataType::size()>&
+            args,
+        const ck_tile::stream_config& s)
     {
         constexpr ck_tile::index_t M_Tile = 256;
         constexpr ck_tile::index_t N_Tile = 256;
@@ -126,20 +159,22 @@ class TestCkTileGemmMultiD : public ::testing::Test
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, ELayout>;
+        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, AsLayout, BsLayout, ELayout>;
+
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
-                                                                     ALayout,
-                                                                     BLayout,
+                                                                     AsLayout,
+                                                                     BsLayout,
                                                                      ELayout,
                                                                      TransposeC>;
         using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+            ck_tile::GemmPipelineProblem<AsDataType, BsDataType, AccDataType, GemmShape, Traits>;
 
         using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
@@ -159,19 +194,22 @@ class TestCkTileGemmMultiD : public ::testing::Test
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
             constexpr auto memory_operation = memory_operation_.value;
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                               BDataType,
+            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<AsDataType,
+                                                                               BsDataType,
                                                                                AccDataType,
                                                                                GemmShape,
                                                                                GemmUniversalTraits,
                                                                                scheduler,
                                                                                has_hot_loop_v,
-                                                                               tail_number_v>;
+                                                                               tail_number_v,
+                                                                               AElementWise,
+                                                                               BElementWise>;
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
+
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
+                ck_tile::CShuffleEpilogueProblem<AsDataType,
+                                                 BsDataType,
                                                  DsDataType,
                                                  AccDataType,
                                                  EDataType,
@@ -265,8 +303,10 @@ class TestCkTileGemmMultiD : public ::testing::Test
              const int N,
              const int K,
              const int k_batch,
-             int StrideA  = 0,
-             int StrideB  = 0,
+             int StrideA0 = 0,
+             int StrideA1 = 0,
+             int StrideB0 = 0,
+             int StrideB1 = 0,
              int StrideD0 = 0,
              int StrideD1 = 0,
              int StrideE  = 0)
@@ -305,93 +345,143 @@ class TestCkTileGemmMultiD : public ::testing::Test
                     return stride;
             };
 
-        StrideA  = f_get_default_stride(M, K, StrideA, ALayout{});
-        StrideB  = f_get_default_stride(K, N, StrideB, BLayout{});
+        StrideA0 = f_get_default_stride(M, N, StrideA0, A0Layout{});
+        StrideA1 = f_get_default_stride(M, N, StrideA1, A1Layout{});
+
+        StrideB0 = f_get_default_stride(K, N, StrideB0, B0Layout{});
+        StrideB1 = f_get_default_stride(K, N, StrideB1, B1Layout{});
+
         StrideD0 = f_get_default_stride(M, N, StrideD0, D0Layout{});
         StrideD1 = f_get_default_stride(M, N, StrideD1, D1Layout{});
-        StrideE  = f_get_default_stride(M, N, StrideE, ELayout{});
 
-        ck_tile::HostTensor<ADataType> a_m_k_tesnor(
-            f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
-        ck_tile::HostTensor<BDataType> b_k_n_tensors(
-            f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
+        StrideE = f_get_default_stride(M, N, StrideE, ELayout{});
+
+        ck_tile::HostTensor<A0DataType> a0_m_k_tesnor(
+            f_host_tensor_descriptor(M, K, StrideA0, A0Layout{}));
+        ck_tile::HostTensor<A1DataType> a1_m_k_tesnor(
+            f_host_tensor_descriptor(M, K, StrideA1, A1Layout{}));
+
+        ck_tile::HostTensor<B0DataType> b0_k_n_tensors(
+            f_host_tensor_descriptor(K, N, StrideB0, B0Layout{}));
+        ck_tile::HostTensor<B1DataType> b1_k_n_tensors(
+            f_host_tensor_descriptor(K, N, StrideB1, B1Layout{}));
+
         ck_tile::HostTensor<D0DataType> d0_m_n_tensors(
             f_host_tensor_descriptor(M, N, StrideD0, D0Layout{}));
         ck_tile::HostTensor<D1DataType> d1_m_n_tensors(
             f_host_tensor_descriptor(M, N, StrideD1, D1Layout{}));
+
         ck_tile::HostTensor<EDataType> e_m_n_device_result(
             f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
-        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k_tesnor);
-        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n_tensors);
+        ck_tile::FillUniformDistribution<A0DataType>{-1.f, 1.f}(a0_m_k_tesnor);
+        ck_tile::FillUniformDistribution<A0DataType>{-1.f, 1.f}(a1_m_k_tesnor);
+
+        ck_tile::FillUniformDistribution<B0DataType>{-1.f, 1.f}(b0_k_n_tensors);
+        ck_tile::FillUniformDistribution<B1DataType>{-1.f, 1.f}(b1_k_n_tensors);
+
         ck_tile::FillUniformDistribution<D0DataType>{-1.f, 1.f}(d0_m_n_tensors);
         ck_tile::FillUniformDistribution<D1DataType>{-1.f, 1.f}(d1_m_n_tensors);
 
-        ck_tile::DeviceMem a_m_k_dev_buf(a_m_k_tesnor.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem b_k_n_dev_buf(b_k_n_tensors.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem a0_m_k_dev_buf(a0_m_k_tesnor.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem a1_m_k_dev_buf(a1_m_k_tesnor.get_element_space_size_in_bytes());
+
+        ck_tile::DeviceMem b0_k_n_dev_buf(b0_k_n_tensors.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem b1_k_n_dev_buf(b1_k_n_tensors.get_element_space_size_in_bytes());
+
         ck_tile::DeviceMem d0_m_n_dev_buf(d0_m_n_tensors.get_element_space_size_in_bytes());
         ck_tile::DeviceMem d1_m_n_dev_buf(d1_m_n_tensors.get_element_space_size_in_bytes());
+
         ck_tile::DeviceMem e_m_n_dev_buf(e_m_n_device_result.get_element_space_size_in_bytes());
 
-        a_m_k_dev_buf.ToDevice(a_m_k_tesnor.mData.data());
-        b_k_n_dev_buf.ToDevice(b_k_n_tensors.mData.data());
+        a0_m_k_dev_buf.ToDevice(a0_m_k_tesnor.mData.data());
+        a1_m_k_dev_buf.ToDevice(a1_m_k_tesnor.mData.data());
+
+        b0_k_n_dev_buf.ToDevice(b0_k_n_tensors.mData.data());
+        b1_k_n_dev_buf.ToDevice(b1_k_n_tensors.mData.data());
+
         d0_m_n_dev_buf.ToDevice(d0_m_n_tensors.mData.data());
         d1_m_n_dev_buf.ToDevice(d1_m_n_tensors.mData.data());
 
         e_m_n_dev_buf.SetZero();
         e_m_n_device_result.SetZero();
 
+        std::array<const void*, DsDataType::size()> as_ptr_buf = {a0_m_k_dev_buf.GetDeviceBuffer(),
+                                                                  a1_m_k_dev_buf.GetDeviceBuffer()};
+
+        std::array<const void*, DsDataType::size()> bs_ptr_buf = {b0_k_n_dev_buf.GetDeviceBuffer(),
+                                                                  b1_k_n_dev_buf.GetDeviceBuffer()};
+
         std::array<const void*, DsDataType::size()> ds_ptr_buf = {d0_m_n_dev_buf.GetDeviceBuffer(),
                                                                   d1_m_n_dev_buf.GetDeviceBuffer()};
-        std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
 
-        ck_tile::GemmHostArgs<1, 1, DsDataType::size()> args({{a_m_k_dev_buf.GetDeviceBuffer()},
-                                                              {b_k_n_dev_buf.GetDeviceBuffer()},
-                                                              ds_ptr_buf,
-                                                              e_m_n_dev_buf.GetDeviceBuffer(),
-                                                              k_batch,
-                                                              M,
-                                                              N,
-                                                              K,
-                                                              {StrideA},
-                                                              {StrideB},
-                                                              stridesDs,
-                                                              StrideE});
+        std::array<ck_tile::index_t, AsDataType::size()> strideAs = {StrideA0, StrideA1};
+        std::array<ck_tile::index_t, BsDataType::size()> strideBs = {StrideB0, StrideB1};
+        std::array<ck_tile::index_t, DsDataType::size()> strideDs = {StrideD0, StrideD1};
 
-        invoke_gemm_multi_d<ck_tile::tuple<ADataType>,
-                            ck_tile::tuple<BDataType>,
-                            DsDataType,
-                            AccDataType,
-                            EDataType,
-                            ck_tile::tuple<ALayout>,
-                            ck_tile::tuple<BLayout>,
-                            DsLayout,
-                            ELayout,
-                            CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
+        ck_tile::GemmHostArgs<AsDataType::size(), BsDataType::size(), DsDataType::size()> args(
+            {as_ptr_buf,
+             bs_ptr_buf,
+             ds_ptr_buf,
+             e_m_n_dev_buf.GetDeviceBuffer(),
+             k_batch,
+             M,
+             N,
+             K,
+             strideAs,
+             strideBs,
+             strideDs,
+             StrideE});
+
+        invoke_gemm_multi_abd<AsDataType,
+                              BsDataType,
+                              DsDataType,
+                              AccDataType,
+                              EDataType,
+                              AsLayout,
+                              BsLayout,
+                              DsLayout,
+                              ELayout,
+                              AElementWiseFn,
+                              BElementWiseFn,
+                              CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
 
         std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
-                  << " StrideA =" << StrideA << " StrideB =" << StrideB << " StrideE =" << StrideE
+                  << " StrideA =" << StrideA0 << " StrideB =" << StrideB0 << " StrideE =" << StrideE
                   << " StrideD0 =" << StrideD0 << " StrideD1 =" << StrideD1 << std::endl;
 
         e_m_n_dev_buf.FromDevice(e_m_n_device_result.data());
+
         bool pass = true;
 
+        ck_tile::HostTensor<A0DataType> a_m_k_host_ref_element_result(
+            f_host_tensor_descriptor(M, K, StrideA0, A0Layout{}));
+        ck_tile::HostTensor<B0DataType> b_k_n_host_ref_element_result(
+            f_host_tensor_descriptor(K, N, StrideB0, B0Layout{}));
         ck_tile::HostTensor<EDataType> e_m_n_host_ref(
             f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+        a_m_k_host_ref_element_result.SetZero();
+        b_k_n_host_ref_element_result.SetZero();
         e_m_n_host_ref.SetZero();
 
-        ck_tile::reference_gemm_multiple_d<ADataType,
-                                           BDataType,
-                                           DsDataType,
-                                           AccDataType,
-                                           EDataType,
-                                           CDElementWiseFn>(
-            a_m_k_tesnor, b_k_n_tensors, {d0_m_n_tensors, d1_m_n_tensors}, e_m_n_host_ref);
+        ck_tile::reference_gemm_multiple_abd<AsDataType,
+                                             BsDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             EDataType,
+                                             AElementWiseFn,
+                                             BElementWiseFn,
+                                             CDElementWiseFn>({a0_m_k_tesnor, a1_m_k_tesnor},
+                                                              {b0_k_n_tensors, b1_k_n_tensors},
+                                                              {d0_m_n_tensors, d1_m_n_tensors},
+                                                              a_m_k_host_ref_element_result,
+                                                              b_k_n_host_ref_element_result,
+                                                              e_m_n_host_ref);
 
         const float max_accumulated_value =
             *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());
         const auto rtol_atol =
-            calculate_rtol_atol<ADataType, BDataType, AccDataType, EDataType, DsDataType>(
+            calculate_rtol_atol<A0DataType, B0DataType, AccDataType, EDataType, D0DataType>(
                 K, k_batch, max_accumulated_value);
         pass = ck_tile::check_err(e_m_n_device_result,
                                   e_m_n_host_ref,

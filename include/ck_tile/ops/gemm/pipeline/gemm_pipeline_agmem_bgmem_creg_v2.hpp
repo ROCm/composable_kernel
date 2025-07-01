@@ -15,10 +15,16 @@ namespace ck_tile {
 template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV2DefaultPolicy>
 struct GemmPipelineAGmemBGmemCRegV2
 {
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using AsDataType     = remove_cvref_t<typename Problem::AsDataType>;
+    using BsDataType     = remove_cvref_t<typename Problem::BsDataType>;
+    using EDataType      = remove_cvref_t<typename Problem::EDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
+
+    using AElementWise = remove_cvref_t<typename Problem::AElementWise>;
+    using BElementWise = remove_cvref_t<typename Problem::BElementWise>;
 
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
@@ -56,17 +62,27 @@ struct GemmPipelineAGmemBGmemCRegV2
                    BPackedSize;
     }
 
-    template <typename ADramBlockWindowTmp,
-              typename BDramBlockWindowTmp,
+    template <typename AsDramBlockWindowTmp,
+              typename BsDramBlockWindowTmp,
               typename AElementFunction,
               typename BElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+    CK_TILE_HOST_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                         const AElementFunction& a_element_func,
-                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                        const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                         const BElementFunction& b_element_func,
                                         index_t num_loop,
                                         void* p_smem) const
     {
+        static_assert(
+            AsDramBlockWindowTmp::size() == 1 && BsDramBlockWindowTmp::size() == 1,
+            "The A/B DRAM block window should have a size of 1 "
+            "Currently, GemmPipelineAgBgCrMem supports only a single A/B DRAM block window.");
+
+        using ADramBlockWindowTmp =
+            remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
+        using BDramBlockWindowTmp =
+            remove_cvref_t<std::tuple_element_t<number<0>{}, BsDramBlockWindowTmp>>;
+
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                 std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
@@ -99,9 +115,9 @@ struct GemmPipelineAGmemBGmemCRegV2
 
         // A DRAM tile window for load
         auto a_copy_dram_window =
-            make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
+            make_tile_window(a_dram_block_window_tmp[number<0>{}].get_bottom_tensor_view(),
                              make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                             a_dram_block_window_tmp.get_window_origin(),
+                             a_dram_block_window_tmp[number<0>{}].get_window_origin(),
                              Policy::template MakeADramTileDistribution<Problem>());
 
         // A LDS tile window for store
@@ -113,9 +129,9 @@ struct GemmPipelineAGmemBGmemCRegV2
 
         // B DRAM tile window for load
         auto b_copy_dram_window =
-            make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
+            make_tile_window(b_dram_block_window_tmp[number<0>{}].get_bottom_tensor_view(),
                              make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}),
-                             b_dram_block_window_tmp.get_window_origin(),
+                             b_dram_block_window_tmp[number<0>{}].get_window_origin(),
                              Policy::template MakeBDramTileDistribution<Problem>());
 
         // B LDS tile window for store
@@ -156,6 +172,11 @@ struct GemmPipelineAGmemBGmemCRegV2
         auto a_block_tile = load_tile(a_copy_dram_window);
         auto b_block_tile = load_tile(b_copy_dram_window);
 
+        using ABlockTile = decltype(a_block_tile);
+        using BBlockTile = decltype(b_block_tile);
+
+        ABlockTile a_global_load_tile;
+        BBlockTile b_global_load_tile;
         {
             // move to 1
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
@@ -163,16 +184,20 @@ struct GemmPipelineAGmemBGmemCRegV2
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+            // Initialize A, B
+            tile_elementwise_inout([](auto& c) { c = 0; }, a_global_load_tile);
+            tile_elementwise_inout([](auto& c) { c = 0; }, b_global_load_tile);
 
             // LDS write 0
-            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
-            store_tile(a_copy_lds_window, a_block_tile_tmp);
+            tile_elementwise_inout(a_element_func, a_global_load_tile, a_block_tile);
+
+            store_tile(a_copy_lds_window, a_global_load_tile);
             // global read 1
             a_block_tile = load_tile(a_copy_dram_window);
 
             // LDS write 0
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
+            tile_elementwise_inout(b_element_func, b_global_load_tile, b_block_tile);
+            store_tile(b_copy_lds_window, b_global_load_tile);
             // global read 1
             b_block_tile = load_tile(b_copy_dram_window);
         }
@@ -193,14 +218,14 @@ struct GemmPipelineAGmemBGmemCRegV2
             move_tile_window(b_copy_dram_window, {0, kKPerBlock});
 
             // LDS write i + 1
-            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
-            store_tile(a_copy_lds_window, a_block_tile_tmp);
+            tile_elementwise_inout(a_element_func, a_global_load_tile, a_block_tile);
+            store_tile(a_copy_lds_window, a_global_load_tile);
             // global read i + 2
             a_block_tile = load_tile(a_copy_dram_window);
 
             // LDS write i + 1
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
+            tile_elementwise_inout(b_element_func, b_global_load_tile, b_block_tile);
+            store_tile(b_copy_lds_window, b_global_load_tile);
             // global read i + 2
             b_block_tile = load_tile(b_copy_dram_window);
 
@@ -218,11 +243,11 @@ struct GemmPipelineAGmemBGmemCRegV2
             block_sync_lds();
 
             // LDS write num_loop - 1
-            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
-            store_tile(a_copy_lds_window, a_block_tile_tmp);
+            tile_elementwise_inout(a_element_func, a_global_load_tile, a_block_tile);
+            store_tile(a_copy_lds_window, a_global_load_tile);
 
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
+            tile_elementwise_inout(b_element_func, b_global_load_tile, b_block_tile);
+            store_tile(b_copy_lds_window, b_global_load_tile);
 
             block_sync_lds();
 
@@ -241,9 +266,9 @@ struct GemmPipelineAGmemBGmemCRegV2
     {
         return operator()(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            [](auto& e, const ADataType& a) { e = a; },
             b_dram_block_window_tmp,
-            [](const BDataType& b) { return b; },
+            [](auto& e, const BDataType& b) { e = b; },
             num_loop,
             p_smem);
     }

@@ -38,15 +38,23 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     using Base             = BaseGemmPipelineAgBgCrCompV5<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+    using AsDataType   = remove_cvref_t<typename Problem::AsDataType>;
+    using BsDataType   = remove_cvref_t<typename Problem::BsDataType>;
+    using EDataType    = remove_cvref_t<typename Problem::EDataType>;
+    using AElementWise = remove_cvref_t<typename Problem::AElementWise>;
+    using BElementWise = remove_cvref_t<typename Problem::BElementWise>;
+
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout = remove_cvref_t<typename Problem::CLayout>;
+    using AsLayout = remove_cvref_t<typename Problem::AsLayout>;
+    using BsLayout = remove_cvref_t<typename Problem::BsLayout>;
+    using ELayout  = remove_cvref_t<typename Problem::ELayout>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
+    using ALayout   = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+    using BLayout   = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
 
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
@@ -109,17 +117,22 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
         template <bool HasHotLoop,
                   TailNumber TailNum,
-                  typename ADramBlockWindowTmp,
+                  typename AsDramBlockWindowTmp,
                   typename AElementFunction,
-                  typename BDramBlockWindowTmp,
+                  typename BsDramBlockWindowTmp,
                   typename BElementFunction>
-        CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+        CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
-                                       const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                       const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
                                        void* __restrict__ p_smem_0) const
         {
+            using ADramBlockWindowTmp =
+                remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
+            using BDramBlockWindowTmp =
+                remove_cvref_t<std::tuple_element_t<number<0>{}, BsDramBlockWindowTmp>>;
+
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -197,21 +210,38 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             BGemmTile b_tile_0, b_tile_1;
 
             // Register tile for A and B.
-            using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
-            using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
+            using ABlockTileDistr =
+                decltype(a_copy_dram_window[number<0>{}].get_tile_distribution());
+            using BBlockTileDistr =
+                decltype(b_copy_dram_window[number<0>{}].get_tile_distribution());
             using ABlockTile =
                 decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
             using BBlockTile =
                 decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
-            ABlockTile a_global_load_tile;
-            BBlockTile b_global_load_tile;
+
+            auto a_block_tiles = generate_tuple(
+                [&]([[maybe_unused]] auto idx) {
+                    ABlockTile a_block_tile;
+                    return a_block_tile;
+                },
+                number<AsLayout::size()>{});
+
+            auto b_block_tiles = generate_tuple(
+                [&]([[maybe_unused]] auto idx) {
+                    BBlockTile b_block_tile;
+                    return b_block_tile;
+                },
+                number<BsLayout::size()>{});
+
+            ABlockTile a_global_load_tile_elementwise;
+            BBlockTile b_global_load_tile_elementwise;
 
             // Block GEMM
             auto block_gemm     = BlockGemm();
             auto c_block_tile_0 = block_gemm.MakeCBlockTile();
             auto c_block_tile_1 = block_gemm.MakeCBlockTile();
 
-            CDataType* __restrict__ p_c_lds = static_cast<CDataType*>(p_smem_0);
+            EDataType* __restrict__ p_c_lds = static_cast<EDataType*>(p_smem_0);
             auto c_lds_block_0 =
                 make_naive_tensor_view<address_space_enum::lds>(p_c_lds,
                                                                 make_tuple(MPerBlock, NPerBlock),
@@ -236,33 +266,49 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
             // define ping, pong steps here as lambda functions.
             auto MemoryOpsStep = [&](auto idx) {
                 // Memory read half here.
-                Base::GlobalPrefetch(
-                    a_global_load_tile, a_copy_dram_window, a_dram_tile_window_step);
-                Base::GlobalPrefetch(
-                    b_global_load_tile, b_copy_dram_window, b_dram_tile_window_step);
+                Base::GlobalPrefetch(a_block_tiles, a_copy_dram_window, a_dram_tile_window_step);
+                Base::GlobalPrefetch(a_block_tiles, b_copy_dram_window, b_dram_tile_window_step);
+
+                // Initialize A, B
+                tile_elementwise_inout([](auto& c) { c = 0; }, a_global_load_tile_elementwise);
+                tile_elementwise_inout([](auto& c) { c = 0; }, b_global_load_tile_elementwise);
+
+                tile_elementwise_inout_unpack(
+                    a_element_func,
+                    concat_tuple_of_reference(tie(a_global_load_tile_elementwise),
+                                              generate_tie(
+                                                  [&](auto i) -> auto& { return a_block_tiles[i]; },
+                                                  number<AsLayout::size()>{})));
+
+                tile_elementwise_inout_unpack(
+                    b_element_func,
+                    concat_tuple_of_reference(tie(b_global_load_tile_elementwise),
+                                              generate_tie(
+                                                  [&](auto i) -> auto& { return b_block_tiles[i]; },
+                                                  number<BsLayout::size()>{})));
 
                 if constexpr(is_a_col_major)
                 {
                     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                         Policy::template MakeShuffledARegTileDistribution<Problem>());
-                    transpose_tile2d(a_shuffle_tmp, a_global_load_tile);
-                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                    transpose_tile2d(a_shuffle_tmp, a_global_load_tile_elementwise);
+                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
                 }
                 else
                 {
-                    Base::LocalPrefill(a_copy_lds_window, a_global_load_tile, a_element_func);
+                    Base::LocalPrefill(a_copy_lds_window, a_global_load_tile_elementwise);
                 }
 
                 if constexpr(is_b_row_major)
                 {
                     auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                         Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                    transpose_tile2d(b_shuffle_tmp, b_global_load_tile);
-                    Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
+                    transpose_tile2d(b_shuffle_tmp, b_global_load_tile_elementwise);
+                    Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp);
                 }
                 else
                 {
-                    Base::LocalPrefill(b_copy_lds_window, b_global_load_tile, b_element_func);
+                    Base::LocalPrefill(b_copy_lds_window, b_global_load_tile_elementwise);
                 }
 
                 if(idx == 0)
@@ -368,9 +414,9 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            [](auto& e, const ADataType& a) { e = a; },
             b_dram_block_window_tmp,
-            [](const BDataType& b) { return b; },
+            [](auto& e, const BDataType& b) { e = b; },
             num_loop,
             p_smem_0);
     }

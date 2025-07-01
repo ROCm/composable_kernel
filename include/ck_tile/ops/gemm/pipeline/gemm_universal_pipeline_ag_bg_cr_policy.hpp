@@ -22,13 +22,14 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+        using AsDataType = remove_cvref_t<typename Problem::AsDataType>;
 
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t KPack     = GetSmemPackA<Problem>();
 
-        constexpr auto DataTypeSize = sizeof(ADataType);
+        constexpr auto DataTypeSize =
+            sizeof(remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>);
         constexpr auto MLdsLayer =
             (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
@@ -79,7 +80,7 @@ struct UniversalGemmBasePolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
         // using BLayout   = remove_cvref_t<typename Problem::BLayout>;
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using BsDataType = remove_cvref_t<typename Problem::BsDataType>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -87,9 +88,10 @@ struct UniversalGemmBasePolicy
 #if 1
         // if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
-            constexpr index_t KPack     = GetSmemPackB<Problem>();
-            constexpr auto BK0          = number<KPerBlock / KPack>{};
-            constexpr auto DataTypeSize = sizeof(BDataType);
+            constexpr index_t KPack = GetSmemPackB<Problem>();
+            constexpr auto BK0      = number<KPerBlock / KPack>{};
+            constexpr auto DataTypeSize =
+                sizeof(remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>);
             constexpr auto NLdsLayer =
                 (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
@@ -153,18 +155,18 @@ struct UniversalGemmBasePolicy
             constexpr auto K0PerThreadRead  = BK0 / KThreadRead;
 
             constexpr auto kfold =
-                (BK1 * N0 * sizeof(BDataType) > 128) ? 1 : 128 / (BK1 * N0 * sizeof(BDataType));
+                (BK1 * N0 * sizeof(BsDataType) > 128) ? 1 : 128 / (BK1 * N0 * sizeof(BsDataType));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
             // 1<=npair<=n0
-            constexpr auto npair = (BK1 * NPerXdl * sizeof(BDataType) > 128)
+            constexpr auto npair = (BK1 * NPerXdl * sizeof(BsDataType) > 128)
                                        ? 1
-                                       : ((128 / (BK1 * NPerXdl * sizeof(BDataType))) > N0
+                                       : ((128 / (BK1 * NPerXdl * sizeof(BsDataType))) > N0
                                               ? N0
-                                              : 128 / (BK1 * NPerXdl * sizeof(BDataType)));
+                                              : 128 / (BK1 * NPerXdl * sizeof(BsDataType)));
 
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},
@@ -314,10 +316,13 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA()
     {
-        using ALayout               = remove_cvref_t<typename Problem::ALayout>;
-        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
+        using AsLayout              = remove_cvref_t<typename Problem::AsLayout>;
+        using AsDataType            = remove_cvref_t<typename Problem::AsDataType>;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+
+        using ALayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
+        using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
 
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -332,10 +337,13 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB()
     {
-        using BLayout               = remove_cvref_t<typename Problem::BLayout>;
-        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
+        using BsLayout              = remove_cvref_t<typename Problem::BsLayout>;
+        using BsDataType            = remove_cvref_t<typename Problem::BsDataType>;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+
+        using BLayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
+        using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
 
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -366,19 +374,19 @@ struct UniversalGemmBasePolicy
         using WG        = typename BlockGemm::WarpGemm;
 
         constexpr bool TransposeC = Problem::TransposeC;
-        using CLayout             = typename Problem::CLayout;
-        using CWarpDstr           = typename WG::CWarpDstr;
+        using ELayout             = typename Problem::ELayout;
+        using EWarpDstr           = typename WG::CWarpDstr;
 
         // N is contiguous dimension
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             if constexpr(TransposeC)
             {
                 // In this case each thread has multiple consecutive elements in
                 // N dimension, however consecutive threads' elements have stride.
-                constexpr index_t NDimY = CWarpDstr::NDimY;
+                constexpr index_t NDimY = EWarpDstr::NDimY;
                 constexpr auto c_warp_y_lengths =
-                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
+                    EWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
                 static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
                               c_warp_y_lengths.get(number<NDimY - 1>{}));
                 return c_warp_y_lengths.get(number<NDimY - 1>{});
@@ -390,7 +398,7 @@ struct UniversalGemmBasePolicy
             }
         }
         // M is contiguous dimension
-        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
+        else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
         {
             if constexpr(TransposeC)
             {
@@ -401,9 +409,9 @@ struct UniversalGemmBasePolicy
             {
                 // In this case each thread has multiple consecutive elements in
                 // M dimension, however consecutive threads' elements have stride.
-                constexpr index_t NDimY = CWarpDstr::NDimY;
+                constexpr index_t NDimY = EWarpDstr::NDimY;
                 constexpr auto c_warp_y_lengths =
-                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
+                    EWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
                 static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
                               c_warp_y_lengths.get(number<NDimY - 1>{}));
                 return c_warp_y_lengths.get(number<NDimY - 1>{});
@@ -411,7 +419,7 @@ struct UniversalGemmBasePolicy
         }
         else
         {
-            static_assert(false, "Unsupported CLayout!");
+            static_assert(false, "Unsupported ELayout!");
         }
     }
 
@@ -424,8 +432,6 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
-        using ALayout = remove_cvref_t<typename Problem::ALayout>;
-
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -433,6 +439,8 @@ struct UniversalGemmBasePolicy
             Problem::FixedVectorSize ? Problem::VectorSizeA : GetVectorSizeA<Problem>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
+        using ALayout = remove_cvref_t<
+            std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::AsLayout>>>;
         // Tile: MPerBlock X KPerBlock
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -460,8 +468,6 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
     {
-        using BLayout = remove_cvref_t<typename Problem::BLayout>;
-
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -469,6 +475,8 @@ struct UniversalGemmBasePolicy
             Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
+        using BLayout = remove_cvref_t<
+            std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayout>>>;
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -496,7 +504,8 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledARegTileDistribution()
     {
-        using ALayout = remove_cvref_t<typename Problem::ALayout>;
+        using ALayout = remove_cvref_t<
+            std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::AsLayout>>>;
         static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
         constexpr index_t BlockSize     = Problem::kBlockSize;
         constexpr index_t MPerBlock     = Problem::BlockGemmShape::kM;
@@ -516,7 +525,8 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBRegTileDistribution()
     {
-        using BLayout = remove_cvref_t<typename Problem::BLayout>;
+        using BLayout = remove_cvref_t<
+            std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayout>>>;
         static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>);
         constexpr index_t BlockSize     = Problem::kBlockSize;
         constexpr index_t NPerBlock     = Problem::BlockGemmShape::kN;
@@ -552,18 +562,22 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
-        constexpr auto a_lds_desc     = MakeALdsBlockDescriptor<Problem>();
-        constexpr index_t smem_size_a = integer_least_multiple(
-            sizeof(typename Problem::ADataType) * a_lds_desc.get_element_space_size(), 16);
+        using ADataType =
+            remove_cvref_t<std::tuple_element_t<number<0>{}, typename Problem::AsDataType>>;
+        constexpr auto a_lds_desc = MakeALdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_a =
+            integer_least_multiple(sizeof(ADataType) * a_lds_desc.get_element_space_size(), 16);
         return smem_size_a;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
-        constexpr auto b_lds_desc     = MakeBLdsBlockDescriptor<Problem>();
-        constexpr index_t smem_size_b = integer_least_multiple(
-            sizeof(typename Problem::BDataType) * b_lds_desc.get_element_space_size(), 16);
+        using BDataType =
+            remove_cvref_t<std::tuple_element_t<number<0>{}, typename Problem::BsDataType>>;
+        constexpr auto b_lds_desc = MakeBLdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_b =
+            integer_least_multiple(sizeof(BDataType) * b_lds_desc.get_element_space_size(), 16);
         return smem_size_b;
     }
 
@@ -588,7 +602,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
         using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
                                                 typename Problem::ComputeDataType,
-                                                typename Problem::CDataType,
+                                                typename Problem::EDataType,
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),
                                                 WarpTile::at(I2),
@@ -597,7 +611,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                 Problem::UseStructuredSparsity>;
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
-                                                                      typename Problem::CDataType,
+                                                                      typename Problem::EDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;
         return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};

@@ -94,8 +94,11 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                                            ALayout,
                                                                            BLayout,
                                                                            CLayout>;
-    using GemmPipelineProblem =
-        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ck_tile::tuple<ADataType>,
+                                                             ck_tile::tuple<BDataType>,
+                                                             AccDataType,
+                                                             GemmShape,
+                                                             Traits>;
 
     float ave_time{0};
 
@@ -105,17 +108,18 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
         // We create the GEMM pipeline without specifying hotloop or tailnumber.
         // These are automatically run inside the kernel based on the given input data.
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler>;
+        using UniversalGemmProblem =
+            ck_tile::UniversalGemmPipelineProblem<ck_tile::tuple<ADataType>,
+                                                  ck_tile::tuple<BDataType>,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  scheduler>;
 
         using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
+            ck_tile::CShuffleEpilogueProblem<ck_tile::tuple<ADataType>,
+                                             ck_tile::tuple<BDataType>,
                                              ck_tile::tuple<>,
                                              AccDataType,
                                              CDataType,

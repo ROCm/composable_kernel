@@ -221,6 +221,14 @@ struct PassThrough
     }
 
     template <>
+    CK_TILE_HOST_DEVICE void
+    operator()<ck_tile::pk_int4_t, ck_tile::pk_int4_t>(ck_tile::pk_int4_t& y,
+                                                       const ck_tile::pk_int4_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
     CK_TILE_HOST_DEVICE void operator()<int32_t, int32_t>(int32_t& y, const int32_t& x) const
     {
         y = x;

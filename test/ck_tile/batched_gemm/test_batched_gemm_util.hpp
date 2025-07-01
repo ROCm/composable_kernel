@@ -62,17 +62,25 @@ class TestCkTileBatchedGemm : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+        using Traits              = ck_tile::TileGemmTraits<kPadM,
+                                               kPadN,
+                                               kPadK,
+                                               ck_tile::tuple<ALayout>,
+                                               ck_tile::tuple<BLayout>,
+                                               CLayout>;
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
-                                                                     ALayout,
-                                                                     BLayout,
+                                                                     ck_tile::tuple<ALayout>,
+                                                                     ck_tile::tuple<BLayout>,
                                                                      CLayout,
                                                                      TransposeC>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+        using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ck_tile::tuple<ADataType>,
+                                                                 ck_tile::tuple<BDataType>,
+                                                                 AccDataType,
+                                                                 GemmShape,
+                                                                 Traits>;
 
         using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
@@ -92,19 +100,20 @@ class TestCkTileBatchedGemm : public ::testing::Test
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
             constexpr auto memory_operation = memory_operation_.value;
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                               BDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               scheduler,
-                                                                               has_hot_loop_v,
-                                                                               tail_number_v>;
+            using UniversalGemmProblem =
+                ck_tile::UniversalGemmPipelineProblem<ck_tile::tuple<ADataType>,
+                                                      ck_tile::tuple<BDataType>,
+                                                      AccDataType,
+                                                      GemmShape,
+                                                      GemmUniversalTraits,
+                                                      scheduler,
+                                                      has_hot_loop_v,
+                                                      tail_number_v>;
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
+                ck_tile::CShuffleEpilogueProblem<ck_tile::tuple<ADataType>,
+                                                 ck_tile::tuple<BDataType>,
                                                  DsDataType,
                                                  AccDataType,
                                                  CDataType,
@@ -242,21 +251,22 @@ class TestCkTileBatchedGemm : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::BatchedGemmHostArgs args;
-        args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
-        args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
-        args.e_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
-        args.k_batch        = 1;
-        args.M              = M;
-        args.N              = N;
-        args.K              = K;
-        args.stride_A       = StrideA;
-        args.stride_B       = StrideB;
-        args.stride_E       = StrideC;
-        args.batch_stride_A = BatchStrideA;
-        args.batch_stride_B = BatchStrideB;
-        args.batch_stride_E = BatchStrideC;
-        args.batch_count    = BatchCount;
+        ck_tile::BatchedGemmHostArgs args = {
+            a_m_k_dev_buf.GetDeviceBuffer(),
+            b_k_n_dev_buf.GetDeviceBuffer(),
+            c_m_n_dev_buf.GetDeviceBuffer(),
+            1,
+            M,
+            N,
+            K,
+            StrideA,
+            StrideB,
+            StrideC,
+            BatchStrideA,
+            BatchStrideB,
+            BatchStrideC,
+            BatchCount,
+        };
 
         invoke_batched_gemm<ALayout, BLayout, CLayout>(args,
                                                        ck_tile::stream_config{nullptr, false});

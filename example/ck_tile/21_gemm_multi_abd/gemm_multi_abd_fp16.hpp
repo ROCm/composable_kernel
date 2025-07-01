@@ -33,12 +33,21 @@
 #error "unsupported CK_TILE_PIPELINE_DEFAULT value"
 #endif
 
-using ADataType   = ck_tile::half_t;
-using BDataType   = ck_tile::half_t;
-using D0DataType  = ck_tile::half_t;
-using D1DataType  = ck_tile::half_t;
-using EDataType   = ck_tile::half_t;
-using DsDataType  = ck_tile::tuple<D0DataType, D1DataType>;
+using A0DataType = ck_tile::half_t;
+using A1DataType = ck_tile::half_t;
+
+using B0DataType = ck_tile::half_t;
+using B1DataType = ck_tile::half_t;
+
+using D0DataType = ck_tile::half_t;
+using D1DataType = ck_tile::half_t;
+
+using EDataType = ck_tile::half_t;
+
+using AsDataType = ck_tile::tuple<A0DataType, A1DataType>;
+using BsDataType = ck_tile::tuple<B0DataType, B1DataType>;
+using DsDataType = ck_tile::tuple<D0DataType, D1DataType>;
+
 using AccDataType = float;
 
 auto create_args(int argc, char* argv[])
@@ -47,12 +56,12 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("m", "3840", "m dimension")
         .insert("n", "4096", "n dimension")
         .insert("k", "4096", "k dimension")
-        .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("b_layout", "C", "B tensor data layout - Col by default")
+        .insert("as_layout", "R", "As tensor data layout - Row by default")
+        .insert("bs_layout", "C", "Bs tensor data layout - Col by default")
         .insert("ds_layout", "R", "Ds tensor data layout - Row by default")
         .insert("e_layout", "R", "E tensor data layout - Row by default")
-        .insert("stride_a", "0", "Tensor A stride")
-        .insert("stride_b", "0", "Tensor B stride")
+        .insert("stride_as", "0", "Tensor A stride")
+        .insert("stride_bs", "0", "Tensor B stride")
         .insert("stride_ds", "0", "Tensor Ds stride")
         .insert("stride_e", "0", "Tensor E stride")
         .insert("v", "1", "0. No validation, 1. Validation on GPU")
@@ -63,17 +72,19 @@ auto create_args(int argc, char* argv[])
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
+using gemm_multi_abd_kargs =
+    ck_tile::GemmHostArgs<AsDataType::size(), BsDataType::size(), DsDataType::size()>;
 
-using gemm_multi_d_kargs = ck_tile::GemmHostArgs<1, 1, DsDataType::size()>;
-
-template <typename ADataType,
-          typename BDataType,
+template <typename AsDataType,
+          typename BsDataType,
           typename DsDataType,
           typename AccDataType,
-          typename EDataType,
-          typename ALayout,
-          typename BLayout,
+          typename CDataType,
+          typename AsLayout,
+          typename BsLayout,
           typename DsLayout,
           typename CLayout,
+          typename AElementWise,
+          typename BElementWise,
           typename CDEElementWise>
-float gemm_multi_d(const gemm_multi_d_kargs& kargs, const ck_tile::stream_config& s);
+float gemm_multi_abd(const gemm_multi_abd_kargs& kargs, const ck_tile::stream_config& s);

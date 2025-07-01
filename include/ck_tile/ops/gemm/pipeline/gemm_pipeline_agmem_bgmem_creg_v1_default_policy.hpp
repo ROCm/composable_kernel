@@ -402,7 +402,7 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
                                                 Problem::TransposeC>;
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
-                                                                      typename Problem::CDataType,
+                                                                      typename Problem::EDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;
 
