@@ -64,13 +64,13 @@ struct FlatmmKernel
     using BlockGemmShape =
         remove_cvref_t<typename FlatmmPipeline::BlockGemmShape>; // TileFlatmmShape
     using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout                            = remove_cvref_t<typename FlatmmPipeline::ALayout>;
-    using BLayout                            = remove_cvref_t<typename FlatmmPipeline::BLayout>;
-    using CLayout                            = remove_cvref_t<typename FlatmmPipeline::CLayout>;
+    using AsLayout                           = remove_cvref_t<typename FlatmmPipeline::AsLayout>;
+    using BsLayout                           = remove_cvref_t<typename FlatmmPipeline::BsLayout>;
+    using CLayout                            = remove_cvref_t<typename FlatmmPipeline::ELayout>;
     static constexpr index_t KernelBlockSize = FlatmmPipeline::BlockSize;
 
-    using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
-    using BDataType = remove_cvref_t<typename FlatmmPipeline::BDataType>;
+    using AsDataType = remove_cvref_t<typename FlatmmPipeline::AsDataType>;
+    using BsDataType = remove_cvref_t<typename FlatmmPipeline::BsDataType>;
     // Below type is actually accumulation data type - the output of block GEMM.
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
@@ -80,6 +80,11 @@ struct FlatmmKernel
     static constexpr auto idxM = I0;
     static constexpr auto idxN = I1;
     static constexpr auto idxK = I2;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<I0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<I0, BsDataType>>;
+    using ALayout   = remove_cvref_t<std::tuple_element_t<I0, AsLayout>>;
+    using BLayout   = remove_cvref_t<std::tuple_element_t<I0, BsLayout>>;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {

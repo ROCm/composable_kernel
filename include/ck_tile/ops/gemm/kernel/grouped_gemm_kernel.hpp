@@ -144,19 +144,18 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
             grid_size += grid_size_grp;
 
-            auto karg = GemmKernelArgs<>{
-                {type_convert<const ADataType*>(gemm_descs[i].as_ptr[number<0>{}])},
-                {type_convert<const BDataType*>(gemm_descs[i].bs_ptr[number<0>{}])},
-                {},
-                type_convert<EDataType*>(gemm_descs[i].e_ptr),
-                M,
-                N,
-                K,
-                {stride_a},
-                {stride_b},
-                {},
-                stride_e,
-                gemm_descs[i].k_batch};
+            auto karg = GemmKernelArgs<>{{type_convert<const ADataType*>(gemm_descs[i].as_ptr[number<0>{}])},
+                                         {type_convert<const BDataType*>(gemm_descs[i].bs_ptr[number<0>{}])},
+                                         {},
+                                         type_convert<EDataType*>(gemm_descs[i].e_ptr),
+                                         M,
+                                         N,
+                                         K,
+                                         {stride_a},
+                                         {stride_b},
+                                         {},
+                                         stride_e,
+                                         gemm_descs[i].k_batch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
@@ -199,10 +198,10 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
         const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, block_idx_z);
 
-        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.as_ptr[0]) +
-                                 splitk_batch_offset.as_k_split_offset[0];
-        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.bs_ptr[0]) +
-                                 splitk_batch_offset.bs_k_split_offset[0];
+        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.as_ptr[number<0>{}]) +
+                                 splitk_batch_offset.as_k_split_offset[number<0>{}];
+        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.bs_ptr[number<0>{}]) +
+                                 splitk_batch_offset.bs_k_split_offset[number<0>{}];
         EDataType* c_ptr = static_cast<EDataType*>(kargs.e_ptr);
 
         // allocate LDS

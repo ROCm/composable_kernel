@@ -12,14 +12,21 @@ namespace ck_tile {
 template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
 struct FlatmmPipelineAGmemBGmemCRegV1
 {
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using AsDataType     = remove_cvref_t<typename Problem::AsDataType>;
+    using BsDataType     = remove_cvref_t<typename Problem::BsDataType>;
+    using EDataType      = remove_cvref_t<typename Problem::EDataType>;
+    using AElementWise   = remove_cvref_t<typename Problem::AElementWise>;
+    using BElementWise   = remove_cvref_t<typename Problem::BElementWise>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
 
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout = remove_cvref_t<typename Problem::CLayout>;
+    using AsLayout = remove_cvref_t<typename Problem::AsLayout>;
+    using BsLayout = remove_cvref_t<typename Problem::BsLayout>;
+    using ELayout  = remove_cvref_t<typename Problem::ELayout>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
+    using ALayout   = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+    using BLayout   = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
 
     using BlockFlatmm =
         remove_cvref_t<decltype(PipelinePolicy::template GetBlockFlatmm<Problem>())>;
