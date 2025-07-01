@@ -45,6 +45,8 @@ template<bool TransposeC, bool KTransLdA, bool KTransLdB> struct WarpGemmDispatc
 template<> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 16, 16, 16, false> { using Type = WarpGemmMfmaF16F16F32M16N16K16; };
 template<> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 16, 16, 16, true> { using Type = WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution; };
 #endif
+//TODO: currently int8 in this location; need to move
+template<bool TransposeC, bool KTransLdA, bool KTransLdB> struct WarpGemmDispatcher<ck_tile::int8_t, ck_tile::int8_t, int32_t, 16, 16, 16, TransposeC, false, KTransLdA, KTransLdB> { using Type = WarpGemmWmma_i32_16x16x16_i8_i8_gfx11<KTransLdA, KTransLdB, TransposeC>;};
 
 // fp16 2:4 structural sparsity
 template<> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 32, 32, 16, false, false, true> { using Type = WarpGemmSmfmacF16F16F32M32N32K16; };
