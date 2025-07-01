@@ -255,7 +255,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
         else if(a_layout == "C" && b_layout == "C")
         {
             return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
+                argc, argv, Col{}, Col{}, Row{});
         }
         else
         {

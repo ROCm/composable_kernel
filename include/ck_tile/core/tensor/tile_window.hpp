@@ -368,7 +368,10 @@ struct tile_window_with_static_distribution
                     lds_coord.get_offset();
                 // write into bottom tensor
                 this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
-                    smem, bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
+                    smem,
+                    bottom_tensor_thread_coord,
+                    number<0>{},
+                    bool_constant<oob_conditional_check>{});
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))

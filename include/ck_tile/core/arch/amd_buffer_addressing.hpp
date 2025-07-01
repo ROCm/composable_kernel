@@ -1784,9 +1784,6 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
 #if defined(__gfx950__)
     static_assert(bytes == 4 || bytes == 12 || bytes == 16,
                   "wrong! only support in dword, dwordx3, dwordx4");
-#else
-    static_assert(bytes == 4, "wrong! not implemented vector size");
-#endif
     ignore = src_wave_addr_offset;
     ignore = src_immediate_addr_offset;
     if constexpr(oob_conditional_check)
@@ -1814,6 +1811,34 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
             0,
             static_cast<index_t>(coherence));
     }
+#else
+    static_assert(bytes == 4, "wrong! not implemented vector size");
+    if constexpr(oob_conditional_check)
+    {
+        index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
+        llvm_amdgcn_raw_buffer_load_lds(
+            src_wave_buffer_resource,
+            reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
+                reinterpret_cast<uintptr_t>(smem)),
+            bytes,
+            v_offset,
+            src_wave_addr_offset,
+            src_immediate_addr_offset,
+            static_cast<index_t>(coherence));
+    }
+    else
+    {
+        llvm_amdgcn_raw_buffer_load_lds(
+            src_wave_buffer_resource,
+            reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
+                reinterpret_cast<uintptr_t>(smem)),
+            bytes,
+            src_thread_addr_offset,
+            src_wave_addr_offset,
+            src_immediate_addr_offset,
+            static_cast<index_t>(coherence));
+    }
+#endif
 }
 
 template <index_t N,
