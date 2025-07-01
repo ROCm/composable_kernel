@@ -1197,7 +1197,7 @@ struct reverse_slice_sequence_impl<sequence<x>, sequence<m>, sequence<id>, Slice
 //
 // return tuple<slice_lengths, slice_nums, slice_index>, slice_index is at which index will start
 // have split slices (right -> left)
-//  or the first index that sliced length is different from the original length
+//  or the first index (right -> left) that sliced length is different from the original length
 // clang-format on
 template <typename Seq,
           index_t SliceSize,
