@@ -690,32 +690,22 @@ struct GemmKernel
         
             if (blockIdx.z == 0) {
                 workgroup_barrier cleared_barrier(kargs.cleared_c_tile_barrier);
-                // cleared_barrier.wait_eq(blockIdx.x, 0); // Wait for all workgroups to be ready
 
+                // c tile in global memory
                 auto& c_block_window = gemm_tile_windows.at(I2);
                 
+                // Create zero tensor with same distribution as C block tile
                 auto block_gemm = typename GemmPipeline::BlockGemm();
                 auto reference_tile = block_gemm.MakeCBlockTile();
                 using CDistribution = typename decltype(reference_tile)::StaticTileDistribution;
-                
-                // Create zero tensor with same distribution as C block tile
                 auto zero_tile = make_static_distributed_tensor<CDataType>(CDistribution{});
-        
                 tile_elementwise_inout([](auto& c) { c = 0; }, zero_tile);
         
                 // Store the correctly typed zero tile to global memory
                 store_tile(c_block_window, zero_tile);
 
                 // Signal that C tile has been zeroed
-
-                
-                // __atomic_store_n(&kargs.cleared_c_tile_barrier[blockIdx.x], 1, __ATOMIC_RELEASE);
-                
-                // printf("before set kargs.cleared_c_tile_barrier[%u] = %u\n", blockIdx.x, cleared_barrier.ld(blockIdx.x));
-                cleared_barrier.inc(blockIdx.x);
-                // printf("after set kargs.cleared_c_tile_barrier[%u] = %u\n", blockIdx.x, cleared_barrier.ld(blockIdx.x));
-                // atomic_add(&kargs.cleared_c_tile_barrier[blockIdx.x], static_cast<uint32_t>(1));
-                
+                cleared_barrier.inc(blockIdx.x);                
             }
         }
 
@@ -739,8 +729,6 @@ struct GemmKernel
             smem_ptr_0, 
             kargs.cleared_c_tile_barrier,   // Pass cleared barrier
             kargs.updated_batches_barrier); // Pass updated barrier
-            
-
     }
 
     /**

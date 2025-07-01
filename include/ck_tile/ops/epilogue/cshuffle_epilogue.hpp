@@ -190,16 +190,16 @@ struct CShuffleEpilogue
         workgroup_barrier cleared_barrier(cleared_c_tile_barrier);
         workgroup_barrier updated_barrier(updated_batches_barrier);
 
+        ////////////////////////////////////////////////////////////
         if constexpr(Problem::EnableZeroing)
         {
             // Wait for C tile to be zeroed before first access
             cleared_barrier.wait_lt(1, blockIdx.x);
         }
-        
+        ////////////////////////////////////////////////////////////
 
         static_for<0, num_access, 1>{}([&](auto iAccess) {
            
-            
             constexpr auto idx_y_start = SFC::get_index(iAccess);
 
             constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (kMPerXdl * kMWave)>{};
@@ -214,19 +214,13 @@ struct CShuffleEpilogue
            
             block_sync_lds();
 
-           
             store_tile(in_lds_window, c_warp_in_tensor_casted);
 
-           
             block_sync_lds();
 
            
             const auto c_out_tensor =
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
-
-            
-        
-        
         
             if constexpr(MemoryOperation == memory_operation_enum::set)
             {
@@ -245,9 +239,10 @@ struct CShuffleEpilogue
             }
         });
 
+        // Update barriers and reset if needed
         if constexpr(Problem::EnableZeroing)
         {
-            // After last access, increment completed batches counter
+            // After moving tile, increment completed batches counter
             updated_barrier.inc(blockIdx.x);  // Increment completion counter
             
             // Check if all k-batches completed and reset if needed
