@@ -71,7 +71,7 @@ struct UniversalGemmBasePolicy
 
             return a_lds_block_desc;
         }
-        else    // A is in ColumnMajor
+        else // A is in ColumnMajor
         {
             // kfold and mpair dimension is not always required.
             // more dimension in merge_transform increase the difficulty of generating immarg offset
@@ -93,7 +93,7 @@ struct UniversalGemmBasePolicy
             // Get the warp tile size
             using WarpTile         = typename Problem::BlockGemmShape::WarpTile;
             constexpr auto MPerXdl = number<WarpTile::at(I0)>{};
-            
+
             // How the data is read/written in threads
             constexpr auto KThreadWrite     = AK0;
             constexpr auto K0PerThreadWrite = AK0 / KThreadWrite;
@@ -101,20 +101,21 @@ struct UniversalGemmBasePolicy
             constexpr auto K0PerThreadRead  = AK0 / KThreadRead;
 
             constexpr auto LdsBanksWidth = 128;
-            constexpr auto kfold = (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth)
-                                       ? 1
-                                       : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
+            constexpr auto kfold         = (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth)
+                                               ? 1
+                                               : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
             // 1<=mpair<=n0
-            constexpr auto mpair = (AK1 * MPerXdl * sizeof(ADataType) > LdsBanksWidth)
-                                       ? 1
-                                       : ((LdsBanksWidth / (AK1 * MPerXdl * sizeof(ADataType))) > M0
-                                              ? M0
-                                              : LdsBanksWidth / (AK1 * MPerXdl * sizeof(ADataType)));
+            constexpr auto mpair =
+                (AK1 * MPerXdl * sizeof(ADataType) > LdsBanksWidth)
+                    ? 1
+                    : ((LdsBanksWidth / (AK1 * MPerXdl * sizeof(ADataType))) > M0
+                           ? M0
+                           : LdsBanksWidth / (AK1 * MPerXdl * sizeof(ADataType)));
 
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},
