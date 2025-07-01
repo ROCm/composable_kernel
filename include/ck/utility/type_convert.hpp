@@ -2102,17 +2102,15 @@ inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1
         float float_array[32];
     } in{x};
 
-    union
-    {
-        bf6x32_t bf6_vector;
-        bf6_t bf6_array[32];
-    } out{};
+    using array_type = uint8_t __attribute__((ext_vector_type(32)));
+    array_type uint8_array;
 
+    // collect the 6-bit values into an array
     ck::static_for<0, 32, 1>{}([&](auto i) {
-        out.bf6_array[i] = utils::sat_convert_to_type<bf6_t>(in.float_array[i] / scale);
+        uint8_array[static_cast<index_t>(i)] =
+            utils::sat_convert_to_type<bf6_t>(in.float_array[i] / scale);
     });
-
-    return out.bf6_vector; // XXX
+    return bf6x32_t{bf6x32_pk_t{uint8_array}};
 #endif
 }
 
