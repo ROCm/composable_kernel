@@ -1,6 +1,6 @@
 # Batched Transpose with CK Tile
 
-This example demonstrates batched tensor transpose using the CK Tile programming model. It supports common layout conversions such as NCHW <-> NHWC, which are essential for deep learning frameworks and hardware accelerators.
+This example demonstrates batched tensor transpose using the CK Tile programming model. It supports common layout conversions such as NCHW <-> NHWC, which are essential for deep learning frameworks and hardware accelerators.  Currently, it supports the batched transpose with NCHW to NHWC or NHWC to NCHW. So in this way from NCHW you could transpose to either NHWC or NWCH(two transposes). Now the transpose read with single data point. We would soon put it in vectorized transpose.
 
 ---
 
@@ -36,15 +36,31 @@ $$
 ## Build & Run
 
 ```bash
+# in the root of ck_tile
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh ../ <arch>
+# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
+sh ../script/cmake-ck-dev.sh  ../ <arch>
+# Make the transpose executable
 make tile_example_batched_transpose -j
-./bin/tile_example_batched_transpose -?
 ```
 
-Example:
+This will result in an executable `build/bin/tile_example_batched_transpose`
+
+### Arguments
+
 ```bash
-./bin/tile_example_batched_transpose -N=2 -C=16 -H=1 -W=16 -layout_in=NCHW -layout_out=NHWC
+args:
+          -N    input batch size (default:2)
+          -C    input channel size. (default:16)
+          -H    input height size. (default:1)
+          -W    input width size. (default:16)
+          -v    whether do CPU validation or not (default: 1)
+  -layout_in    input tensor data layout - NCHW by default
+ -layout_out    output tensor data layout - NHWC by default
+       -seed    seed to be used, -1 means random every time (default:-1)
+     -k_name    t to 1 will print kernel name (default:0)
+     -warmup    warmup iterations to run this kernel (default:50)
+     -repeat    number of iterations to run this kernel (default:100)
 ```
 
 ---

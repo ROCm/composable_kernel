@@ -30,15 +30,23 @@ where $\gamma$ is a learnable scale parameter.
 ## Build & Run
 
 ```bash
+# in the root of ck_tile
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh ../ <arch>
+sh ../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
 make tile_rmsnorm2d_fwd -j
-./bin/tile_rmsnorm2d_fwd -?
 ```
 
-Example:
+This will result in an executable `build/bin/tile_rmsnorm2d_fwd`
+
+### Arguments
+
 ```bash
-./bin/tile_rmsnorm2d_fwd -m=3328 -n=4096
+args:
+          -m    m dimension (default:3328)
+          -n    m dimension (default:4096)
+          -e    epsilon (default:1e-5)
+          -v    cpu validation or not (default:1)
+       -prec    precision (default:fp16)
 ```
 
 ---

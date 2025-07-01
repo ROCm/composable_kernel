@@ -1,6 +1,6 @@
 # Batched Transpose (Block Transpose) with CK Tile
 
-This example demonstrates a high-performance batched block transpose kernel using the CK Tile programming model, with a focus on architectures like gfx950. The kernel is optimized for tiled memory access and is suitable for layout conversions such as NCHW <-> NHWC in deep learning.
+This example demonstrates a high-performance batched block transpose kernel using the CK Tile programming model, with a focus on architectures like gfx950. The kernel is optimized for tiled memory access and is suitable for layout conversions such as NCHW <-> NHWC in deep learning. This transpose load has some constraints in input tile distribution.
 
 ---
 
@@ -37,15 +37,29 @@ $$
 ## Build & Run
 
 ```bash
+# in the root of ck_tile
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh ../ <arch>
+# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
+sh ../script/cmake-ck-dev.sh  ../ <arch>
+# Make the transpose executable
 make tile_example_transpose -j
-./bin/tile_example_transpose -?
 ```
 
-Example:
+This will result in an executable `build/bin/tile_example_transpose`
+
+### Arguments
+
 ```bash
-./bin/tile_example_transpose -N=2 -C=64 -H=1 -W=64 -layout_in=NCHW -layout_out=NHWC
+args:
+          -N    input batch size (default:2)
+          -C    input channel size. (default:64)
+          -H    input height size. (default:1)
+          -W    input width size. (default:64)
+          -v    whether do CPU validation or not (default: 1)
+  -layout_in    input tensor data layout - NCHW by default
+ -layout_out    output tensor data layout - NHWC by default
+       -seed    seed to be used, -1 means random every time (default:-1)
+     -k_name    t to 1 will print kernel name (default:0)
 ```
 
 ---

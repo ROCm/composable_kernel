@@ -1,6 +1,7 @@
 # Copy Kernel with CK Tile
 
-This example demonstrates a basic copy kernel using the CK Tile programming model. It is designed as a minimal platform for new CK Tile kernel developers to test and understand tile-based data movement and memory hierarchy.
+This example demonstrates a basic copy kernel using the CK Tile programming model. It is designed as a minimal platform for new CK Tile kernel developers to test and understand tile-based data movement and memory hierarchy. Sample functional code for a simple
+tile distribution for DRAM window and LDS window are provided and data is moved from DRAM to registers, registers to LDS, LDS to registers and finally data is moved to output DRAM window for a simple copy operation.
 
 ---
 
@@ -34,15 +35,27 @@ $$
 ## Build & Run
 
 ```bash
+# in the root of ck_tile
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh ../ <arch>
+# you can replace <arch> with the appropriate architecture 
+# (for example gfx90a or gfx942) or leave it blank
+sh ../script/cmake-ck-dev.sh  ../ <arch>
+# Make the copy kernel executable
 make test_copy -j
-./bin/test_copy_kernel -?
 ```
+This will result in an executable `build/bin/test_copy_kernel`
 
-Example:
+### Arguments
+
 ```bash
-./bin/test_copy_kernel -m=64 -n=8
+args:
+          -m        input matrix rows. (default 64)
+          -n        input matrix cols. (default 8)
+          -id       warp to use for computation. (default 0)
+          -v        validation flag to check device results. (default 1)
+          -prec     datatype precision to use. (default fp16)
+          -warmup   no. of warmup iterations. (default 50)
+          -repeat   no. of iterations for kernel execution time. (default 100)
 ```
 
 ---

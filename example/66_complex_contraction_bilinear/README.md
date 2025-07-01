@@ -73,12 +73,12 @@ make -j
 ```
 
 ### Run the Example
-```bash
-# Run the example with default settings
-./complex_contraction_bilinear_xdl
 
-# Run with verification, data initialization, and timing
-./complex_contraction_bilinear_xdl 1 2 1
+```bash
+#arg1: verification (0=no, 1=yes)
+#arg2: initialization (0=no init, 1=integer value, 2=decimal value)
+#arg3: time kernel (0=no, 1=yes)
+./bin/example_contraction_bilinear_xdl_fp32 1 1 1
 ```
 
 ## Applications
