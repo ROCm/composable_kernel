@@ -144,18 +144,19 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
 
             grid_size += grid_size_grp;
 
-            auto karg = GemmKernelArgs<>{{type_convert<const ADataType*>(gemm_descs[i].as_ptr[number<0>{}])},
-                                         {type_convert<const BDataType*>(gemm_descs[i].bs_ptr[number<0>{}])},
-                                         {},
-                                         type_convert<EDataType*>(gemm_descs[i].e_ptr),
-                                         M,
-                                         N,
-                                         K,
-                                         {stride_a},
-                                         {stride_b},
-                                         {},
-                                         stride_e,
-                                         gemm_descs[i].k_batch};
+            auto karg = GemmKernelArgs<>{
+                {type_convert<const ADataType*>(gemm_descs[i].as_ptr[number<0>{}])},
+                {type_convert<const BDataType*>(gemm_descs[i].bs_ptr[number<0>{}])},
+                {},
+                type_convert<EDataType*>(gemm_descs[i].e_ptr),
+                M,
+                N,
+                K,
+                {stride_a},
+                {stride_b},
+                {},
+                stride_e,
+                gemm_descs[i].k_batch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
