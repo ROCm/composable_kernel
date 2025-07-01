@@ -238,14 +238,14 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetKBPerLoad()
     {
         using TileShape = typename Problem::BlockGemmShape;
-        if constexpr(TileShape::WarpTile::at(TileShape::idxN) == 32)
+        if constexpr(TileShape::WarpTile::at(I1) == 32)
         {
-            return TileShape::WarpTile::at(TileShape::idxK) / 2;
+            return TileShape::WarpTile::at(I2) / 2;
         }
         else
         {
-            static_assert(TileShape::WarpTile::at(TileShape::idxN) == 16);
-            return TileShape::WarpTile::at(TileShape::idxK) / 4;
+            static_assert(TileShape::WarpTile::at(I1) == 16);
+            return TileShape::WarpTile::at(I2) / 4;
         }
     }
 
@@ -357,7 +357,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr index_t NBPerLoad   = 1;
         constexpr index_t NThdPerWave = 1;
-        constexpr index_t NWavePerBlk = TileShape::BlockWarps::at(TileShape::idxN); // N_Warp
+        constexpr index_t NWavePerBlk = TileShape::BlockWarps::at(number<1>{}); // N_Warp
         constexpr index_t NRepeat     = 1;
 
         constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp;
@@ -438,14 +438,14 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
                                                 WarpTile::at(I2),
                                                 Problem::TransposeC>;
 
-        using BlockFlatmmPolicy =
-            BlockFlatmmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
-                                                    // BlockGemmASmemBSmemCRegV1CustomPolicy<typename
-                                                    // Problem::ADataType,
-                                                    typename Problem::BDataType,
-                                                    typename Problem::CDataType,
-                                                    BlockWarps,
-                                                    WarpGemm>;
+        using BlockFlatmmPolicy = BlockFlatmmASmemBSmemCRegV1CustomPolicy<
+            typename Problem::ADataType,
+            // BlockGemmASmemBSmemCRegV1CustomPolicy<typename
+            // Problem::ADataType,
+            typename Problem::BDataType,
+            typename Problem::CDataType,
+            BlockWarps,
+            WarpGemm>;
         return BlockFlatmmASmemBSmemCRegV1<Problem, BlockFlatmmPolicy>{};
     }
 };

@@ -25,9 +25,9 @@ template <typename FlatmmConfig,
           typename ELayout,
           bool persistent,
           typename CDEElementWise>
-float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_config& s)
+float flatmm_calc(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s)
 {
-    using CodegenFlatmmShape = ck_tile::TileFlatmmShape<
+    using CodegenFlatmmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<FlatmmConfig::M_Tile, FlatmmConfig::N_Tile, FlatmmConfig::K_Tile>,
         ck_tile::sequence<FlatmmConfig::M_Warp, FlatmmConfig::N_Warp, FlatmmConfig::K_Warp>,
         ck_tile::sequence<FlatmmConfig::M_Warp_Tile,
@@ -96,9 +96,9 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                                                                              tail_number_v>;
 
         // using CodegenFlatmmPolicy = ck_tile::UniversalFlatmmPipelineAgBgCrPolicy;
-        using CodegenFlatmmPipeline =
-            ck_tile::FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>; //,
-                                                                             //CodegenFlatmmPolicy>;
+        using CodegenFlatmmPipeline = ck_tile::FlatmmPipelineAGmemBGmemCRegV1<
+            CodegenPipelineProblem>; //,
+                                     // CodegenFlatmmPolicy>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -123,7 +123,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
 
         // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
         // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
-        using Kernel = ck_tile::FlatmmKernel<TilePartitioner, CodegenFlatmmPipeline, GemmEpilogue>;
+        using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenFlatmmPipeline, GemmEpilogue>;
 
         auto kargs = Kernel::MakeKernelArgs(args);
 

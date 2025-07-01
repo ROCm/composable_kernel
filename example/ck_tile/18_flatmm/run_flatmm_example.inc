@@ -81,7 +81,7 @@ template <typename FlatmmConfig,
           typename ELayout,
           bool persistent,
           typename CDEElementWise>
-float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_config& s);
+float flatmm_calc(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s);
 
 template <typename FlatmmConfig,
           typename ADataType,
@@ -107,18 +107,19 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
                     int n_warmup,
                     int n_repeat)
 {
-    ck_tile::FlatmmHostArgs<> args = {a_dev_buf.GetDeviceBuffer(),
-                                      b_shuffle_dev_buf.GetDeviceBuffer(),
-                                      {},
-                                      c_dev_buf.GetDeviceBuffer(),
-                                      kbatch,
-                                      M,
-                                      N,
-                                      K,
-                                      stride_A,
-                                      stride_B,
-                                      {},
-                                      stride_C};
+    ck_tile::GemmHostArgs<> args = {a_dev_buf.GetDeviceBuffer(),
+                                    b_shuffle_dev_buf.GetDeviceBuffer(),
+                                    {},
+                                    c_dev_buf.GetDeviceBuffer(),
+                                    kbatch,
+                                    M,
+                                    N,
+                                    K,
+                                    stride_A,
+                                    stride_B,
+                                    {},
+                                    stride_C,
+                                    true}; // true for flatmm kernel
 
     float ave_time = flatmm_calc<FlatmmConfig,
                                  ADataType,
