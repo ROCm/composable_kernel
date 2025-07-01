@@ -8,7 +8,21 @@
 #include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
 
 namespace ck_tile {
+template <typename Problem>
+struct BaseFlatmmPipelineAGmemBGmemCRegV1
+{
+    static constexpr index_t PrefetchStages  = 2;
 
+    CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
+    {
+        return num_loop > PrefetchStages;
+    }
+
+    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    {
+        return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
+    }
+};
 template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
 struct FlatmmPipelineAGmemBGmemCRegV1
 {
