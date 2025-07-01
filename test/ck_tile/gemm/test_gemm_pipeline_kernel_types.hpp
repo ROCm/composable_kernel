@@ -27,56 +27,90 @@ using NonPersistent = std::false_type;
 
 // clang-format off
 using KernelTypesMem = ::testing::Types<
-    std::tuple<    Row,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         Mem>,
-    std::tuple<    Row,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Interwave,         Mem>,
-    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Interwave,         Mem>,
-    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Interwave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Interwave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         Mem>,
-    std::tuple<    Col,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         Mem>,
-    std::tuple<    Col,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Interwave,         Mem>,
-    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         Mem>,
-    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Interwave,         Mem>,
-    std::tuple<    Col,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         Mem>,
-    std::tuple<    Col,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Interwave,         Mem>,
-    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         Mem>,
-    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Interwave,         Mem>
+    //         ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType,              M_N_BlockSize,              K_BlockSize,              M_N_TileSize,                K_TileSize, Scheduler, PipelineType
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Interwave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Interwave,         Mem>,
+    std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Interwave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Interwave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Interwave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Interwave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Interwave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Interwave,         Mem>
+>;
+
+// TODO: F8 not ready on both GFX11/GFX12 yet. Will uncomment those F8 case when F8 implementation is ready
+using KernelTypesMemWmma = ::testing::Types<
+    std::tuple<    Row,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Interwave,         Mem>,
+    //std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Interwave,         Mem>,
+    //std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Row,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Interwave,         Mem>,
+    //std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Interwave,         Mem>,
+    //std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Col,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Interwave,         Mem>,
+    //std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         Mem>,
+    //std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Interwave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         Mem>,
+    std::tuple<    Col,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Interwave,         Mem>
+    //std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         Mem>,
+    //std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Interwave,         Mem>
 >;
 
 using KernelTypesCompV3 = ::testing::Types<
-    std::tuple<    Row,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3>,
-    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         CompV3>,
-    std::tuple<    Row,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3>,
-    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         CompV3>,
-    std::tuple<    Col,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3>,
-    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,         CompV3>,
-    std::tuple<    Col,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3>,
-    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3>
+    std::tuple<    Row,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    std::tuple<    Row,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    std::tuple<    Col,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    std::tuple<    Col,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3>
 >;
 
 using KernelTypesCompV3Wmma = ::testing::Types<
-    std::tuple<    Row,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<16>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3>,
-    // std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
-    std::tuple<    Row,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<16>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3>,
-    // std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
-    std::tuple<    Col,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<16>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3>,
-    // std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,             Intrawave,         CompV3>,
-    std::tuple<    Col,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<16>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3>
-    // std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,             Intrawave,        CompV3>
+    std::tuple<    Row,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    // std::tuple<    Row,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         CompV3>,
+    std::tuple<    Row,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    // std::tuple<    Row,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         CompV3>,
+    std::tuple<    Col,     Row,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV3>,
+    // std::tuple<    Col,     Row,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,         CompV3>,
+    std::tuple<    Col,     Col,     Row,       F16,      F16,        F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV3>
+    // std::tuple<    Col,     Col,     Row,       F8,       F8,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV3>
 >;
 
 using KernelTypesCompV4 = ::testing::Types<
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV4>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV4>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV4>,
-    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV4>
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<32>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV4>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<32>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV4>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<32>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV4>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<32>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV4>
 >;
 
+using KernelTypesCompV4Wmma = ::testing::Types<
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV4>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV4>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV4>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV4>
+>;
+
+
 using KernelTypesPersistent = ::testing::Types<
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3,    Persistent>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>,             Intrawave,        CompV3, NonPersistent>
+    //         ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType,              M_N_BlockSize,             K_BlockSize,               M_N_TileSize,                K_TileSize, Scheduler,  PipelineType,    Persistent
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3,    Persistent>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<256>,      ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>, Intrawave,        CompV3, NonPersistent>
+>;
+
+using KernelTypesPersistentWmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV3,    Persistent>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       ck_tile::number<64>,       ck_tile::number<32>,       ck_tile::number<16>,       ck_tile::number<16>, Intrawave,        CompV3, NonPersistent>
 >;
 
 // clang-format on

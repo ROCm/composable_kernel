@@ -74,28 +74,27 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using BDataType                    = std::tuple_element_t<4, Tuple>;
     using AccDataType                  = std::tuple_element_t<5, Tuple>;
     using CDataType                    = std::tuple_element_t<6, Tuple>;
-    static constexpr auto Scheduler    = std::tuple_element_t<10, Tuple>::value;
-    static constexpr auto PipelineType = std::tuple_element_t<11, Tuple>::value;
+    static constexpr auto Scheduler    = std::tuple_element_t<11, Tuple>::value;
+    static constexpr auto PipelineType = std::tuple_element_t<12, Tuple>::value;
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
     static constexpr bool Persistent =
-        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
+        ck_tile::tuple_element_or_default_t<Tuple, 13, std::false_type>::value;
     // TODO: expose tile size through test t-param ?
 
     template <bool PadM, bool PadN, bool PadK>
     void invoke_gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
                      const ck_tile::stream_config& s)
     {
-        // TODO: This should be parameterized in tests
-        constexpr ck_tile::index_t M_Warp_Tile = std::tuple_element_t<7, Tuple>{};
-        constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<8, Tuple>{};
-        constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<9, Tuple>{};
+        constexpr ck_tile::index_t M_Tile = std::tuple_element_t<7, Tuple>{};
+        constexpr ck_tile::index_t N_Tile = std::tuple_element_t<7, Tuple>{};
+        constexpr ck_tile::index_t K_Tile = std::tuple_element_t<8, Tuple>{};
 
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = (PipelineType == GemmPipelineType::CompV4) ? 32 : 64;
+        constexpr ck_tile::index_t M_Warp_Tile = std::tuple_element_t<9, Tuple>{};
+        constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<9, Tuple>{};
+        constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<10, Tuple>{};
 
         // TODO: Set IterPerWarp to 4 for now to avoid register overflow
         constexpr ck_tile::index_t IterPerWarp = 4;
