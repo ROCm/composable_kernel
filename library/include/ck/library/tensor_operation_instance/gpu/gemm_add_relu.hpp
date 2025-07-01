@@ -138,14 +138,14 @@ struct DeviceOperationInstanceFactory<
 
 #elif defined(CK_USE_WMMA)
         // For wmma ADataType must be same as BDatatype.
-        (CK_ENABLE_FP16) if constexpr(is_same_v<ADataType, half_t> &&
-                                      is_same_v<BDataType, half_t> &&
-                                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
+#if defined(CK_ENABLE_FP16)
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_relu_wmma_c_shuffle_f16_i8_f16_f16_mk_kn_mn_mn_instances(
+                add_device_gemm_add_relu_wmma_c_shuffle_f16_f16_f16_f16_mk_kn_mn_mn_instances(
                     op_ptrs);
             }
         }
@@ -159,7 +159,7 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_relu_wmma_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instances(
+                add_device_gemm_add_relu_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_instances(
                     op_ptrs);
             }
         }
