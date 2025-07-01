@@ -34,9 +34,9 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     const dim3 grids      = kernel::GridSize(a);
     constexpr dim3 blocks = kernel::BlockSize();
 
-    printf("Grid: %u %u %u\n", grids.x, grids.y, grids.z);
-    printf("Block: %u %u %u\n", blocks.x, blocks.y, blocks.z);
-    printf("kargs: kargs.batch %d kargs.height %d kargs.width %d kargs.dim_strid %d\n",
+    printf("Grid: x=%u y=%u z=%u\n", grids.x, grids.y, grids.z);
+    printf("Block: x=%u y=%u z=%u\n", blocks.x, blocks.y, blocks.z);
+    printf("kargs: kargs.batch=%d kargs.height=%d kargs.width=%d kargs.dim_stride=%d\n",
            kargs.batch,
            kargs.height,
            kargs.width,
