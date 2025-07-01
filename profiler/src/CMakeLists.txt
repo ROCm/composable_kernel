@@ -206,7 +206,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[1
   if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
     list(APPEND DEVICE_INSTANCES device_gemm_fastgelu_instance)
     list(APPEND DEVICE_INSTANCES device_gemm_add_add_fastgelu_instance)
-     list(APPEND DEVICE_INSTANCES device_gemm_add_add_relu_instance)
+     list(APPEND DEVICE_INSTANCES device_gemm_add_relu_instance)
   endif()
 endif()
 
