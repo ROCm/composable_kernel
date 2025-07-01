@@ -793,8 +793,8 @@ struct WmmaGemm
             "base type couple must be (half, float), (bhalf, float), (half, half), (bhalf, bhalf), "
             "((f8 or bf8, f8 or bf8), float), (int8, int32) or (int4, int32)!");
         static_for<0, KPack / wmma_instr.k_per_wmma, 1>{}([&](auto k) {
-            // Integer wmma operators need extra input flags to indicate if the input is singed or unsigned.
-            // At the moment CK supports only singed integer inputs, so these flags are hardcoded.
+            // Integer wmma operators need extra input flags to indicate if the input is signed or unsigned.
+            // At the moment CK supports only signed integer inputs, so these flags are hardcoded.
             if constexpr(!TransposeC)
             {
                 wmma_instr.template run<MPerWmma, NPerWmma>(p_a_wave[k], p_b_wave[k], p_c_thread);

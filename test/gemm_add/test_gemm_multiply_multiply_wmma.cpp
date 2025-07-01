@@ -33,19 +33,19 @@ class TestGemmMultiplyMultiply : public ::testing::Test
 
     constexpr static auto ProfileGemmMultiplyMultiplyImpl =
         ck::profiler::profile_gemm_multiply_multiply_impl<ADataType,
-                                                        BDataType,
-                                                        ADataType, // ComputeDataType
-                                                        AccDataType,
-                                                        D0DataType,
-                                                        D1DataType,
-                                                        EDataType,
-                                                        ALayout,
-                                                        BLayout,
-                                                        D0Layout,
-                                                        D1Layout,
-                                                        ELayout>;
+                                                          BDataType,
+                                                          AccDataType, // ComputeDataType for reference gemm
+                                                          AccDataType,
+                                                          D0DataType,
+                                                          D1DataType,
+                                                          EDataType,
+                                                          ALayout,
+                                                          BLayout,
+                                                          D0Layout,
+                                                          D1Layout,
+                                                          ELayout>;
 
-public:
+    public:
     void Run()
     {
         std::vector<std::vector<ck::index_t>> lengths = {
