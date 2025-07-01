@@ -13,17 +13,11 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
-#ifndef CK_USE_XDL
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp"
-#endif
 
-#ifndef CK_USE_MULTIPLE_D_WMMA
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle.hpp"
-#endif
 
-#ifndef CK_USE_WMMA_V3
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle_v3.hpp"
-#endif
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/utility/data_type.hpp"
@@ -47,6 +41,10 @@ using Add         = ck::tensor_operation::element_wise::Add;
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
+
+using Row_Tuple  = ck::Tuple<Row>;
+using F16_Tuple  = ck::Tuple<F16>;
+using BF16_Tuple = ck::Tuple<BF16>;
 
 struct ProblemSize final
 {

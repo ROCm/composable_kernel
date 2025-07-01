@@ -3,19 +3,6 @@
 
 #include "common.hpp"
 
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
-using F16 = ck::half_t;
-using F32 = float;
-
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
-
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-using F16_Tuple = ck::Tuple<F16>;
-
 using ADataType        = F16;
 using BDataType        = F16;
 using AccDataType      = F32;
@@ -23,8 +10,6 @@ using CShuffleDataType = F32;
 using DDataType        = F16;
 using DsDataType       = F16_Tuple;
 using EDataType        = F16;
-
-using Row_Tuple = ck::Tuple<Row>;
 
 using ALayout  = Row;
 using BLayout  = Row;
