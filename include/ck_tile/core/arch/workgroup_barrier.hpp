@@ -19,7 +19,11 @@ struct workgroup_barrier
 
     CK_TILE_DEVICE void set(uint32_t value, uint32_t offset = 0)
     {
-        __atomic_store_n(base_ptr + offset, value, __ATOMIC_RELEASE);
+        if(threadIdx.x == 0)  // Only thread 0 should set
+        {
+            base_ptr[offset] = value;  // Simple assignment, not atomic store
+        }
+        __builtin_amdgcn_s_barrier();
     }
 
     CK_TILE_DEVICE void wait_eq(uint32_t value, uint32_t offset = 0)
@@ -28,7 +32,8 @@ struct workgroup_barrier
         {
             while(ld(offset) != value) {}
         }
-        __syncthreads();
+        
+        __builtin_amdgcn_s_barrier();
     }
 
     CK_TILE_DEVICE void wait_lt(uint32_t value, uint32_t offset = 0)
@@ -37,7 +42,7 @@ struct workgroup_barrier
         {
             while(ld(offset) < value) {}
         }
-        __syncthreads();
+        __builtin_amdgcn_s_barrier();
     }
 
     CK_TILE_DEVICE void wait_set(uint32_t compare, uint32_t value, uint32_t offset = 0)
@@ -46,7 +51,7 @@ struct workgroup_barrier
         {
             while(atomicCAS(base_ptr + offset, compare, value) != compare) {}
         }
-        __syncthreads();
+        __builtin_amdgcn_s_barrier();
     }
 
     // enter critical zoon, assume buffer is zero when launch kernel
@@ -57,11 +62,12 @@ struct workgroup_barrier
 
     CK_TILE_DEVICE void inc(uint32_t offset = 0)
     {
-        __syncthreads();
+        
         if(threadIdx.x == 0)
         {
             atomicAdd(base_ptr + offset, 1);
         }
+        __builtin_amdgcn_s_barrier();
     }
 
     uint32_t* base_ptr;

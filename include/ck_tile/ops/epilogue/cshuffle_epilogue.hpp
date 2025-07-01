@@ -249,9 +249,11 @@ struct CShuffleEpilogue
             if(threadIdx.x == 0) {
                 uint32_t completed = updated_barrier.ld(blockIdx.x);
                 if(completed >= static_cast<uint32_t>(gridDim.z)) {
-                    // Reset barriers for next iteration
-                    cleared_barrier.set(blockIdx.x, 0);  // Reset cleared barrier
-                    updated_barrier.set(blockIdx.x, 0);  // Reset updated batches barrier
+            //         // Reset barriers for next iteration
+                    cleared_c_tile_barrier[blockIdx.x] = 0;
+                    updated_batches_barrier[blockIdx.x] = 0;
+                    // cleared_barrier.set(blockIdx.x, 0);  //  Reset cleared barrier
+                    // updated_barrier.set(blockIdx.x, 0);  // Reset updated batches barrier
                 }
             }
         }

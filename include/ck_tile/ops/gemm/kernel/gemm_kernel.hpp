@@ -678,19 +678,17 @@ struct GemmKernel
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
     {
+        
         const auto& gemm_tensor_views_tuple = MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
             a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
         
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
-
         
         // --- Per-tile zeroing for split-K ---
         if constexpr (UseZeroing) {
-        
             if (blockIdx.z == 0) {
-                workgroup_barrier cleared_barrier(kargs.cleared_c_tile_barrier);
-
+        
                 // c tile in global memory
                 auto& c_block_window = gemm_tile_windows.at(I2);
                 
@@ -699,13 +697,16 @@ struct GemmKernel
                 auto reference_tile = block_gemm.MakeCBlockTile();
                 using CDistribution = typename decltype(reference_tile)::StaticTileDistribution;
                 auto zero_tile = make_static_distributed_tensor<CDataType>(CDistribution{});
+
                 tile_elementwise_inout([](auto& c) { c = 0; }, zero_tile);
-        
+                
                 // Store the correctly typed zero tile to global memory
                 store_tile(c_block_window, zero_tile);
 
+                workgroup_barrier cleared_barrier(kargs.cleared_c_tile_barrier);
+        
                 // Signal that C tile has been zeroed
-                cleared_barrier.inc(blockIdx.x);                
+                cleared_barrier.inc(blockIdx.x);
             }
         }
 
@@ -719,7 +720,6 @@ struct GemmKernel
         const auto& c_block_tile = GemmPipeline{}.template operator()(
             a_block_window, b_block_window, num_loop, smem_ptr_0);
 
-
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
         
@@ -729,6 +729,7 @@ struct GemmKernel
             smem_ptr_0, 
             kargs.cleared_c_tile_barrier,   // Pass cleared barrier
             kargs.updated_batches_barrier); // Pass updated barrier
+
     }
 
     /**
