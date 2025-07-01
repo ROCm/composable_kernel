@@ -180,6 +180,7 @@ def getDockerImage(Map conf=[:]){
 def buildDocker(install_prefix){
     show_node_info()
     env.DOCKER_BUILDKIT=1
+
     checkout scm
     def image_name = getDockerImageName()
     def base_image_name = getBaseDockerImageName()
@@ -194,6 +195,12 @@ def buildDocker(install_prefix){
     echo "Build Args: ${dockerArgs}"
     try{
         if(params.BUILD_DOCKER){
+            sh '''
+            mkdir -p ~/.docker/cli-plugins/
+            curl -SL https://github.com/docker/buildx/releases/download/v0.25.0/buildx-v0.25.0.linux-amd64 -o ~/.docker/cli-plugins/docker-buildx
+            chmod +x ~/.docker/cli-plugins/docker-buildx
+            docker buildx version
+            '''
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
@@ -226,8 +233,9 @@ def cmake_build(Map conf=[:]){
     def prefixpath = conf.get("prefixpath","/opt/rocm")
     def setup_args = conf.get("setup_args","")
     // make sure all unit tests always run on develop branch
-    def runAllUnitTests = (env.BRANCH_NAME == "develop") ? true : params.RUN_ALL_UNIT_TESTS
     
+    def runAllUnitTests = (env.BRANCH_NAME == "develop") ? true : params.RUN_ALL_UNIT_TESTS
+
     if (prefixpath != "/usr/local"){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
     }
@@ -828,7 +836,7 @@ pipeline {
             description: 'Specify which ROCM version to use: 6.4.1 (default).')
         string(
             name: 'COMPILER_VERSION', 
-            defaultValue: '', 
+            defaultValue: 'amd-mainline', 
             description: 'Specify which version of compiler to use: release, amd-staging, amd-mainline, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT', 
