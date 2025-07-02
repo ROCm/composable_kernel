@@ -154,19 +154,21 @@ struct UniversalGemmBasePolicy
             constexpr auto KThreadRead      = 64 / NPerXdl;
             constexpr auto K0PerThreadRead  = BK0 / KThreadRead;
 
+            using BDataType =
+                remove_cvref_t<std::tuple_element_t<number<0>{}, typename Problem::BsDataType>>;
             constexpr auto kfold =
-                (BK1 * N0 * sizeof(BsDataType) > 128) ? 1 : 128 / (BK1 * N0 * sizeof(BsDataType));
+                (BK1 * N0 * sizeof(BDataType) > 128) ? 1 : 128 / (BK1 * N0 * sizeof(BDataType));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
             // 1<=npair<=n0
-            constexpr auto npair = (BK1 * NPerXdl * sizeof(BsDataType) > 128)
+            constexpr auto npair = (BK1 * NPerXdl * sizeof(BDataType) > 128)
                                        ? 1
-                                       : ((128 / (BK1 * NPerXdl * sizeof(BsDataType))) > N0
+                                       : ((128 / (BK1 * NPerXdl * sizeof(BDataType))) > N0
                                               ? N0
-                                              : 128 / (BK1 * NPerXdl * sizeof(BsDataType)));
+                                              : 128 / (BK1 * NPerXdl * sizeof(BDataType)));
 
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},

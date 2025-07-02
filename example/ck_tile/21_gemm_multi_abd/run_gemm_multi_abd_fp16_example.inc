@@ -72,8 +72,8 @@ float invoke_gemm_multi_abd(const std::array<const void*, AsDataType::size()>& a
 
     std::cout << "Run Gemm Multiple-ABD kernel with:\n";
     std::cout << "M =" << M << " N =" << N << " K =" << K << "\n";
-    // std::cout << "StrideA = " << StrideA << " StrideB = " << StrideB << " StrideE = " << StrideE
-    //          << "\n";
+    std::cout << "StrideA = " << StrideAs[0] << " StrideB = " << StrideBs[0]
+              << " StrideE = " << StrideE << "\n";
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << "\n";
 
