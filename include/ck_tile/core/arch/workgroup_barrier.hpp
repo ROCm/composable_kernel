@@ -19,11 +19,7 @@ struct workgroup_barrier
 
     CK_TILE_DEVICE void set(uint32_t value, uint32_t offset = 0)
     {
-        if(threadIdx.x == 0)  // Only thread 0 should set
-        {
-            base_ptr[offset] = value;  // Simple assignment, not atomic store
-        }
-        __builtin_amdgcn_s_barrier();
+        __atomic_store_n(base_ptr + offset, value, __ATOMIC_RELEASE);
     }
 
     CK_TILE_DEVICE void wait_eq(uint32_t value, uint32_t offset = 0)

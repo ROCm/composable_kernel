@@ -27,8 +27,7 @@ template <typename ADataType_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
           bool isCTransposed_,
-          memory_operation_enum MemoryOperation_,
-          bool Zeroing_ = false>
+          memory_operation_enum MemoryOperation_>
 struct CShuffleEpilogueProblem
 {
     using ADataType                                        = remove_cvref_t<ADataType_>;
@@ -46,7 +45,6 @@ struct CShuffleEpilogueProblem
     static constexpr index_t kKPerXdl                      = kKPerXdl_;
     static constexpr index_t isCTransposed                 = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
-    static constexpr bool EnableZeroing = Zeroing_;
 };
 
 template <typename Problem_, typename Policy_ = void>
@@ -74,6 +72,7 @@ struct CShuffleEpilogue
     static constexpr index_t kMPerIteration                = kMPerXdl * kMWave;
     static constexpr index_t kNPerIteration                = kNPerXdl * kNWave;
 
+    
     using WG = WarpGemmMfmaDispatcher<ADataType,
                                       BTypeToUse,
                                       AccDataType,
@@ -143,7 +142,7 @@ struct CShuffleEpilogue
     }
 
 
-    template <typename ODramWindow, typename OAccTile>
+    template <typename ODramWindow, typename OAccTile, bool UseZeroing = false>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window, 
                                 const OAccTile& o_acc_tile, 
                                 void* p_smem,
@@ -186,13 +185,12 @@ struct CShuffleEpilogue
         
         
         CWarpTensor c_warp_in_tensor;
-
-        workgroup_barrier cleared_barrier(cleared_c_tile_barrier);
-        workgroup_barrier updated_barrier(updated_batches_barrier);
-
+        
         ////////////////////////////////////////////////////////////
-        if constexpr(Problem::EnableZeroing)
+        if constexpr(UseZeroing)
         {
+            workgroup_barrier cleared_barrier(cleared_c_tile_barrier);
+        
             // Wait for C tile to be zeroed before first access
             cleared_barrier.wait_lt(1, blockIdx.x);
         }
@@ -240,8 +238,11 @@ struct CShuffleEpilogue
         });
 
         // Update barriers and reset if needed
-        if constexpr(Problem::EnableZeroing)
+        if constexpr(UseZeroing)
         {
+            workgroup_barrier cleared_barrier(cleared_c_tile_barrier);
+            workgroup_barrier updated_barrier(updated_batches_barrier);
+
             // After moving tile, increment completed batches counter
             updated_barrier.inc(blockIdx.x);  // Increment completion counter
             
@@ -249,11 +250,10 @@ struct CShuffleEpilogue
             if(threadIdx.x == 0) {
                 uint32_t completed = updated_barrier.ld(blockIdx.x);
                 if(completed >= static_cast<uint32_t>(gridDim.z)) {
-            //         // Reset barriers for next iteration
-                    cleared_c_tile_barrier[blockIdx.x] = 0;
-                    updated_batches_barrier[blockIdx.x] = 0;
-                    // cleared_barrier.set(blockIdx.x, 0);  //  Reset cleared barrier
-                    // updated_barrier.set(blockIdx.x, 0);  // Reset updated batches barrier
+                    // Reset barriers for next iteration
+                    
+                    cleared_c_tile_barrier[blockIdx.x] = 0;  // Reset cleared barrier
+                    updated_batches_barrier[blockIdx.x] = 0;  // Reset updated batches
                 }
             }
         }

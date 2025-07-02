@@ -154,7 +154,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                                                tail_number_v>;
 
             using GemmPipeline = GEMM_PIPELINE<UniversalGemmProblem>;
-            const bool Zeroing = true;
+            constexpr bool UseZeroing = true; //(args.k_batch > 1);
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
@@ -170,8 +170,8 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                                  GemmConfig::N_Warp_Tile,
                                                  GemmConfig::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
-                                                 memory_operation, Zeroing>>;
-            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+                                                 memory_operation>>;
+            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, UseZeroing>;
 
             auto [cleared_barrier, updated_barrier] = AllocateSplitKBarriers<TilePartitioner>(args);
             

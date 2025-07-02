@@ -147,7 +147,7 @@ struct GemmKernelArgs
 ///                             multiplication implementation. It is responsible for storing
 ///                             results calculated by @ref GemmPipeline_ "GemmPipeline" to
 ///                             the output C tensor in global memory.
-template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
+template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_, bool UseZeroing_ = false>
 struct GemmKernel
 {
     using TilePartitioner                    = remove_cvref_t<TilePartitioner_>;
@@ -173,8 +173,7 @@ struct GemmKernel
     };
     static constexpr bool PersistentKernel = has_persistent_kernel::value;
 
-    // Get zeroing status from epilogue problem:
-    static constexpr bool UseZeroing = EpiloguePipeline::Problem::EnableZeroing;
+    static constexpr bool UseZeroing = UseZeroing_;
     
     
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
@@ -687,8 +686,9 @@ struct GemmKernel
         
         // --- Per-tile zeroing for split-K ---
         if constexpr (UseZeroing) {
-            if (blockIdx.z == 0) {
-        
+            
+            if (blockIdx.z == 0 ) {
+                
                 // c tile in global memory
                 auto& c_block_window = gemm_tile_windows.at(I2);
                 
@@ -704,9 +704,10 @@ struct GemmKernel
                 store_tile(c_block_window, zero_tile);
 
                 workgroup_barrier cleared_barrier(kargs.cleared_c_tile_barrier);
-        
+
                 // Signal that C tile has been zeroed
                 cleared_barrier.inc(blockIdx.x);
+
             }
         }
 
@@ -723,10 +724,10 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
         
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile), UseZeroing>(
             c_block_window, 
             c_block_tile, 
-            smem_ptr_0, 
+            smem_ptr_0,
             kargs.cleared_c_tile_barrier,   // Pass cleared barrier
             kargs.updated_batches_barrier); // Pass updated barrier
 
@@ -811,8 +812,6 @@ struct GemmKernel
             smem_ptr_0,
             kargs.cleared_c_tile_barrier,   // Pass cleared barrier
             kargs.updated_batches_barrier); // Pass updated barrier);
-        
-    
     }
 
     // Non-persistent kernel entry point
