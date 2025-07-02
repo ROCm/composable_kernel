@@ -14,27 +14,13 @@
       "values": [
         "r"
       ]
-    },
-    "datatype_a": {
-      "values": [
-        "int8"
-      ]
-    },
-    "datatype_b": {
-      "values": [
-        "int8"
-      ]
-    },
-    "datatype_c": {
-      "values": [
-        "int32"  
-      ]
     }
   },
   "tile_config": {
     "tile_m": {
       "values": [
-        128
+        128,
+        256
       ]
     },
     "tile_n": {
@@ -49,12 +35,12 @@
     },
     "warp_m": {
       "values": [
-        2
+        4
       ]
     },
     "warp_n": {
       "values": [
-        2
+        1
       ]
     },
     "warp_k": {

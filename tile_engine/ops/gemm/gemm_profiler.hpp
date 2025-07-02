@@ -23,7 +23,6 @@ class GemmProfiler
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs<>&, const ck_tile::stream_config&)>>& callables)
-                       ck_tile::GemmHostArgs<>&, const ck_tile::stream_config&)>>& callables)
     {
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
@@ -173,7 +172,8 @@ class GemmProfiler
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool verified_correct =
             !setting_.verify_ ||
-            compare(gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
+            compare(
+                name, gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
 
         if(verified_correct)
         {
