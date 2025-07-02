@@ -132,11 +132,11 @@ template <typename PrecType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-int run_flatmm_example_with_layouts(int argc,
-                                    char* argv[],
-                                    const ALayout a_layout                  = ALayout{},
-                                    const BLayout b_layout                  = BLayout{},
-                                    [[maybe_unused]] const CLayout c_layout = CLayout{})
+bool run_flatmm_example_with_layouts(int argc,
+                                     char* argv[],
+                                     const ALayout a_layout                  = ALayout{},
+                                     const BLayout b_layout                  = BLayout{},
+                                     [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
 
     auto [result, arg_parser] = create_args(argc, argv);
@@ -455,7 +455,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
 }
 
 template <template <typename PreType> typename FlatmmConfig>
-int run_flatmm_example(int argc, char* argv[])
+bool run_flatmm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
@@ -541,7 +541,7 @@ bool run_test_case(int argc, char* argv[])
     return valid;
 }
 
-int run_test_cases(const std::string prec)
+bool run_test_cases(const std::string prec)
 {
     std::vector<std::string> test_case = generate_test_case(prec);
 
@@ -554,7 +554,7 @@ int run_test_cases(const std::string prec)
     const std::vector<int> n_values{128, 2048};
     const std::vector<int> k_values{128, 4096};
 
-    char* argv[num_args + 1];
+    char* argv[num_args];
 
     assert(num_args == test_case.size() && "invalid number of args in test case");
 
@@ -570,16 +570,12 @@ int run_test_cases(const std::string prec)
                 test_case[n_idx] = "-n=" + std::to_string(n);
                 test_case[k_idx] = "-k=" + std::to_string(k);
 
-                std::size_t idx;
-                for(idx = 0; idx < test_case.size(); ++idx)
+                for(std::size_t idx = 0; idx < test_case.size(); ++idx)
                 {
                     argv[idx] = test_case[idx].data();
                 }
-                argv[idx] = nullptr;
 
-                const int argc = test_case.size();
-
-                valid = valid && run_test_case(argc, argv);
+                valid = valid && run_test_case(num_args, argv);
 
                 if(!valid)
                     break;
