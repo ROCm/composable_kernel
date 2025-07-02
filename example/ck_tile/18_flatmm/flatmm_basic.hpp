@@ -38,7 +38,7 @@ struct FlatmmConfig32
     static constexpr int kBlockPerCu            = 2; // updated
     static constexpr int TileParitionerGroupNum = 8;
     static constexpr int TileParitionerM01      = 4;
-    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Default; // update
+    static constexpr auto Scheduler             = ck_tile::GemmPipelineScheduler::Default; // update
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool DoubleSmemBuffer          = false;
 };
