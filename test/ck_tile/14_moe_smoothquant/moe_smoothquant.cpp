@@ -54,7 +54,7 @@ void topid_unique_gen(
     }
 }
 
-auto create_args(int argc, char* argv[])
+auto create_args(int argc, char* argv[], int index = 0)
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("t", "3328", "tokens dimension")
@@ -69,7 +69,7 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter");
 
-    bool result = arg_parser.parse(argc, argv);
+    bool result = arg_parser.parse(argc, argv, index);
     return std::make_tuple(result, arg_parser);
 }
 
