@@ -168,7 +168,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
     static constexpr bool is_single_rate_mfma =
         (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
           lcm_AK1_BK1 <= 4) ||
-         (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8))
+         (is_same<ComputeTypeA, int8_t>::value && KPerBlock < 128) ||
+         (is_same<ComputeTypeA, f8_t>::value && KPerBlock < 128))
             ? true
             : false;
     static constexpr auto is_scale_mfma = false;
