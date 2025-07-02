@@ -17,5 +17,5 @@ if(GPU_TARGETS MATCHES "gfx9")
     target_compile_options(test_ck_tile_batched_transpose_bf16 PRIVATE ${EXAMPLE_BATCHED_TRANSPOSE_COMPILE_OPTIONS})
 
 else()
-    message(DEBUG "Skipping ck_tile_batched_transpose tests for current target")
+    message(DEBUG "Skipping ck_tile batched_transpose tests for current target")
 endif()

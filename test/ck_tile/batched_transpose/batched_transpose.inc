@@ -211,10 +211,10 @@ bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
     for(std::size_t test_idx = 0; test_idx < test_cases.size(); ++test_idx)
     {
         constexpr int num_args = 7;
-        char* argv[num_args + 1]; // plus one for nullptr
-        argv[num_args] = nullptr;
+        char* argv[num_args];
 
-        assert(test_case[idx].size() == num_args && "invalid number of arguments in test case");
+        assert(test_cases[test_idx].size() == num_args &&
+               "invalid number of arguments in test case");
 
         for(std::size_t idx = 0; idx < test_cases[test_idx].size(); ++idx)
         {
