@@ -146,9 +146,6 @@ struct BlockGemmARegBSmemCRegV2R1
             });
         });
 
-        // __builtin_amdgcn_sched_barrier(0);
-        // asm volatile("; load lds first");
-        // __builtin_amdgcn_sched_barrier(0);
         // hot loop:
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -184,7 +181,6 @@ struct BlockGemmARegBSmemCRegV2R1
             });
         });
 
-        asm volatile("; load lds first");
         __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
         static_for<0, KIterPerWarp, 1>{}([&](auto) {
             static_for<0, NIterPerWarp, 1>{}([&](auto) {
@@ -193,14 +189,6 @@ struct BlockGemmARegBSmemCRegV2R1
             });
         });
 
-        // __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-        // __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-        // __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-        // __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-        // __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-        // __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-        // __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
-        // __builtin_amdgcn_sched_group_barrier(0x008, 10, 0); // MFMA
     }
 
     template <index_t MPerBlock = BlockGemmShape::kM, index_t KPerBlock = BlockGemmShape::kK>
