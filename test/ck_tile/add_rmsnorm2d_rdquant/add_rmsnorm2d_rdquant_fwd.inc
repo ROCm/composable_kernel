@@ -319,7 +319,8 @@ int run_add_rmsnorm2d_rdquant_combinations(std::string const& data_type)
     char bufs[PARAM_COUNT][64];
     char* argv[PARAM_COUNT];
 
-    for (std::size_t i = 0; i < PARAM_COUNT; i++) {
+    for(std::size_t i = 0; i < PARAM_COUNT; i++)
+    {
         argv[i] = bufs[i];
     }
 
@@ -350,7 +351,6 @@ int run_add_rmsnorm2d_rdquant_combinations(std::string const& data_type)
         {"-m=1", "-n=10547"},
         {"-m=3", "-n=17134"},
     };
-
 
     bool result      = true;
     std::string pr_i = "-prec=" + data_type;

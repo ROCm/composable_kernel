@@ -3,7 +3,4 @@
 
 #include "add_rmsnorm2d_rdquant_fwd.inc"
 
-int main()
-{
-    return run_add_rmsnorm2d_rdquant_combinations("fp16");
-}
+int main() { return run_add_rmsnorm2d_rdquant_combinations("fp16"); }

@@ -580,8 +580,8 @@ int run_rmsnorm2d_fwd_combinations(std::string const& data_type)
         {"-m=3", "-n=8192"},
     };
 
-    bool result      = true;
-    int argc = 0;
+    bool result = true;
+    int argc    = 0;
     std::vector<int> argc_stack;
     std::string pr_i = "-prec_i=" + data_type;
     strncpy(bufs[argc++], "rmsnorm2d_fwd", 64);
@@ -617,4 +617,3 @@ int run_rmsnorm2d_fwd_combinations(std::string const& data_type)
     argc_stack.pop_back();
     return result ? 0 : -1;
 }
-

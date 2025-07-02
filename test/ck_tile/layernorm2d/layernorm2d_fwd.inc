@@ -495,8 +495,7 @@ int run_layernorm2d_fwd_combinations(std::string const& data_type)
     }
 
     std::vector<std::vector<std::string>> fquant = {
-        {},
-        {"-fquant=1", "-prec_o=int8"}, {"-fquant=1", "-prec_o=fp8"}};
+        {}, {"-fquant=1", "-prec_o=int8"}, {"-fquant=1", "-prec_o=fp8"}};
 
     std::vector<std::string> fadd = {"-fadd=0", "-fadd=1"};
 
@@ -528,8 +527,8 @@ int run_layernorm2d_fwd_combinations(std::string const& data_type)
         {"-m=1", "-n=10547"},
     };
 
-    bool result      = true;
-    int argc = 0;
+    bool result = true;
+    int argc    = 0;
     std::vector<int> argc_stack;
     std::string pr_i = "-prec_i=" + data_type;
     strncpy(bufs[argc++], "layernorm2d_fwd", 64);
