@@ -836,7 +836,7 @@ pipeline {
             description: 'Specify which ROCM version to use: 6.4.1 (default).')
         string(
             name: 'COMPILER_VERSION', 
-            defaultValue: 'amd-mainline', 
+            defaultValue: '', 
             description: 'Specify which version of compiler to use: release, amd-staging, amd-mainline, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT', 
