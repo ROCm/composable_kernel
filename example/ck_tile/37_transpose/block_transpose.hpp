@@ -54,8 +54,14 @@ struct TransposePipelineProblem
     static constexpr index_t kSecondSizePerXdl =
         TransposeTraits<Layout, kRowPerXdl_, kColPerXdl_>::kSecondDim;
 
-    static constexpr index_t kQuadrantLeadDim   = LaneGroupTransposeTraits<DataType>::kleadDim;
-    static constexpr index_t kQuadrantSecondDim = LaneGroupTransposeTraits<DataType>::ksecondDim;
+    static constexpr index_t LaneGroupSize = (kLeadSizePerXdl % 64 == 0)   ? 64
+                                             : (kLeadSizePerXdl % 32 == 0) ? 32
+                                             : (kLeadSizePerXdl % 16 == 0) ? 16
+                                                                           : 0;
+    static constexpr index_t kQuadrantLeadDim =
+        LaneGroupTransposeTraits<DataType, LaneGroupSize>::kleadDim;
+    static constexpr index_t kQuadrantSecondDim =
+        LaneGroupTransposeTraits<DataType, LaneGroupSize>::ksecondDim;
 
     static_assert(kLeadSizePerBlock % kLeadNumWarps == 0,
                   "block dim should be divided by warp dim!");
@@ -83,7 +89,7 @@ struct TransposePipelineProblem
     static constexpr index_t kQuadNumPerSecondDim = kSecondSizePerXdl / kQuadrantSecondDim;
 
     static constexpr index_t kIterationsInSecondDim =
-        kQuadNumPerLeadDim * kQuadNumPerSecondDim * 16 / get_warp_size();
+        kQuadNumPerLeadDim * kQuadNumPerSecondDim * LaneGroupSize / get_warp_size();
 };
 
 template <typename Problem_, typename Policy_ = TransposePolicy>

@@ -300,13 +300,22 @@ struct BlockUniversalGemmAsBsCr
         ALdsTile a_warp_tile_;
         BLdsTile b_warp_tile_;
 
-        template <typename ASmemBlockWindow, typename BSmemBlockWindow>
+        template <typename ASmemBlockWindow,
+                  typename BSmemBlockWindow,
+                  bool ALoadTranspose = false,
+                  bool BLoadTranspose = false>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                          const BSmemBlockWindow& b_block_window)
+                                          const BSmemBlockWindow& b_block_window,
+                                          bool_constant<ALoadTranspose> = {},
+                                          bool_constant<BLoadTranspose> = {})
         {
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
                 load_interleaved_pk_type(a_warp_tile_, a_block_window);
+            }
+            else if constexpr(ALoadTranspose)
+            {
+                a_warp_tile_ = load_tile_transpose(a_block_window);
             }
             else
             {
@@ -315,6 +324,10 @@ struct BlockUniversalGemmAsBsCr
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
                 load_interleaved_pk_type(b_warp_tile_, b_block_window);
+            }
+            else if constexpr(BLoadTranspose)
+            {
+                b_warp_tile_ = load_tile_transpose(b_block_window);
             }
             else
             {
@@ -543,11 +556,16 @@ struct BlockUniversalGemmAsBsCr
         return c_block_tensor;
     }
 
-    template <typename ASmemBlockWindow, typename BSmemBlockWindow>
+    template <typename ASmemBlockWindow,
+              typename BSmemBlockWindow,
+              bool ALoadTranspose = false,
+              bool BLoadTranspose = false>
     CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
-                                      const BSmemBlockWindow& b_block_window)
+                                      const BSmemBlockWindow& b_block_window,
+                                      bool_constant<ALoadTranspose> a_load_tr = {},
+                                      bool_constant<BLoadTranspose> b_load_tr = {})
     {
-        block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window);
+        block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window, a_load_tr, b_load_tr);
     }
 
     // C += A * B

@@ -199,6 +199,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                                       stride_C};
 
     float ave_time;
+#if 0
     if(persistent)
     {
         ave_time = gemm<GemmConfig,
@@ -216,6 +217,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
             args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
     }
     else
+#endif
     {
         ave_time = gemm<GemmConfig,
                         ADataType,

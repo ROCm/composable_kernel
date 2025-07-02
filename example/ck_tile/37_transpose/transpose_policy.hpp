@@ -48,8 +48,8 @@ struct TransposePolicy
         constexpr auto input_dstr = MakeLdsLoadTileDistribution<Problem>();
 
         using OutTileDstrEncode =
-            typename OutputTileDistributionTraits<remove_cvref_t<decltype(input_dstr)>,
-                                                  typename Problem::DataType>::OutDstrEncode;
+            typename OutputTileDistributionTraits<typename decltype(input_dstr)::DstrEncode,
+                                                  typename Problem::DataType>::TransposedDstrEncode;
         constexpr auto block_dstr = make_static_tile_distribution(OutTileDstrEncode{});
 
         return block_dstr;
@@ -108,14 +108,16 @@ struct TransposePolicy
         return lds_block_desc;
     }
 
-    template <typename Problem>
+    template <typename Problem, index_t LaneGroupSize = Problem::LaneGroupSize>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
         using DataType = typename Problem::DataType;
 
         // Extract base dimensions from the traits
-        constexpr index_t kBaseLeadDim   = LaneGroupTransposeTraits<DataType>::kleadDim;
-        constexpr index_t kBaseSecondDim = LaneGroupTransposeTraits<DataType>::ksecondDim;
+        constexpr index_t kBaseLeadDim =
+            LaneGroupTransposeTraits<DataType, LaneGroupSize>::kleadDim;
+        constexpr index_t kBaseSecondDim =
+            LaneGroupTransposeTraits<DataType, LaneGroupSize>::ksecondDim;
 
         // Calculate block-level dimensions
         constexpr index_t kLead              = Problem::kLeadSizePerXdl;
@@ -132,6 +134,7 @@ struct TransposePolicy
         constexpr index_t kSecondDimStrSub     = kSecondRepetitions / kSecondDimIterations;
 
         constexpr auto xdllevel_dstr_encoding = make_transposed_distr_encode<DataType,
+                                                                             LaneGroupSize,
                                                                              kSecondDimStrSub,
                                                                              kSecondDimIterations,
                                                                              kLeadRepetitions,
