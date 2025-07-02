@@ -67,11 +67,11 @@ float batched_transpose(batched_transpose_trait t,
 {
     if(t.type == "fp16")
     {
-        return batched_transpose_dispatch<ck_tile::fp16_t, 32, 16, 32, 16>(a, s);
+        return batched_transpose_dispatch<ck_tile::fp16_t, 64, 64, 64, 64>(a, s);
     }
     else if(t.type == "fp8")
     {
-        return batched_transpose_dispatch<ck_tile::fp8_t, 64, 16, 64, 16>(a, s);
+        return batched_transpose_dispatch<ck_tile::fp8_t, 64, 64, 64, 64>(a, s);
     }
 
     return -1;
