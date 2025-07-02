@@ -612,6 +612,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 image_covered_strides &= conv_filter_strides[d] <= b_g_k_c_xs_lengths[d + I3];
             }
             bwd_needs_zero_out = k_batch_ > 1 || !image_covered_dilation || !image_covered_strides;
+            // Temporary workaround untill prove/fix above conditions.
+            bwd_needs_zero_out = true;
             e_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
                     e_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
