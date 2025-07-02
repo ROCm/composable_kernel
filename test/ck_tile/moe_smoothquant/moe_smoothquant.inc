@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 #include "ck_tile/host.hpp"
 #include "moe_smoothquant.hpp"
 #include <cstring>
@@ -295,25 +298,12 @@ bool run_test_case(int argc, char* argv[])
     return r;
 }
 
-void print_args(int argc, char* argv[])
-{
-    std::cout << "{ ";
-
-    for(int i = 0; i < argc; ++i)
-    {
-        std::cout << argv[i] << ", ";
-    }
-
-    std::cout << "}\n";
-}
-
 template <typename InputType, typename OutputType>
 bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
 {
     bool valid             = true;
     constexpr int num_args = 5;
-    char* argv[num_args + 1];
-    argv[num_args] = nullptr;
+    char* argv[num_args];
 
     for(std::size_t test_idx = 0; test_idx < test_cases.size(); ++test_idx)
     {
@@ -324,23 +314,12 @@ bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
         {
             argv[arg_idx] = test_cases[test_idx][arg_idx].data();
         }
-        print_args(num_args, argv);
 
         valid = valid && run_test_case<InputType, OutputType>(num_args, argv);
 
         if(!valid)
-        {
-            std::cout << "invalid\n";
             break;
-        }
     }
 
     return valid;
-}
-
-int main()
-{
-    std::vector<std::vector<std::string>> test_cases = generate_test_cases("fp16", "fp8");
-
-    return !run_test_cases<ck_tile::half_t, ck_tile::fp8_t>(test_cases);
 }
