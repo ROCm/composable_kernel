@@ -196,7 +196,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                                       stride_A,
                                                       stride_B,
                                                       {},
-                                                      stride_C};
+                                                      stride_C,
+                                                      GemmConfig::Preshuffle};
 
     float ave_time;
     if(persistent)
@@ -299,7 +300,8 @@ int run_gemm_example_with_layouts(int argc,
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
     bool persistent              = arg_parser.get_int("persistent");
-    bool preshuffle              = GemmConfig::Preshuffle;
+
+    const bool preshuffle = GemmConfig::Preshuffle;
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -338,10 +340,10 @@ int run_gemm_example_with_layouts(int argc,
         ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
     }
 
-    if(preshuffle)
-    {
-        persistent = false; // Preshuffle is not supported with persistent mode
-    }
+    // if(preshuffle)
+    // {
+    //     persistent = false; // Preshuffle is not supported with persistent mode
+    // }
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());

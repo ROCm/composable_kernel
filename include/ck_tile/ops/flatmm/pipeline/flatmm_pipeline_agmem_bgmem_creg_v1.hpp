@@ -88,6 +88,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     using WarpTile             = remove_cvref_t<typename BlockGemmShape::WarpTile>;
     // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+    static constexpr index_t Preshuffle    = Problem::Preshuffle;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {

@@ -59,7 +59,8 @@ float flatmm_calc(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_con
                                          FlatmmConfig::TransposeC,            // false
                                          FlatmmConfig::UseStructuredSparsity, // false
                                          persistent, // TODO: set persistent to be false
-                                         FlatmmConfig::NumWaveGroups>; // 1
+                                         FlatmmConfig::NumWaveGroups,
+                                         true>; // 1
 
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenFlatmmShape, Traits>;

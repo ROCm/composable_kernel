@@ -219,6 +219,7 @@ struct UniversalGemmPipelineProblem
 
     static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
     static constexpr auto Scheduler        = Scheduler_;
+    static constexpr index_t Preshuffle    = Traits::Preshuffle;
 
     static constexpr index_t VectorSizeA = VectorSizeA_;
     static constexpr index_t VectorSizeB = VectorSizeB_;
