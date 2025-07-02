@@ -195,7 +195,6 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                            ck_tile::memory_operation_enum::set>{});
         }
-#if 0
         else
         {
             Run(has_hot_loop_,
@@ -203,7 +202,6 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                            ck_tile::memory_operation_enum::atomic_add>{});
         }
-#endif
     };
 
     BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
@@ -282,7 +280,6 @@ int run_gemm_example(int argc, char* argv[])
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
             a_layout, b_layout, argc, argv);
     }
-#if 0
     else if(data_type == "bf16")
     {
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, ck_tile::bf16_t>(
@@ -324,7 +321,6 @@ int run_gemm_example(int argc, char* argv[])
             throw std::runtime_error("Unsupported pipeline for this operation !!!");
         }
     }
-#endif
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");

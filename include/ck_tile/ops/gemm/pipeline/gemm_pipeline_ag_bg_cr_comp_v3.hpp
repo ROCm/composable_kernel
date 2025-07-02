@@ -66,7 +66,6 @@ struct BaseGemmPipelineAgBgCrCompV3
         }
         else
         {
-#if 0
             if(tail_number == TailNumber::Odd)
             {
                 return run_func(bool_constant<false>{},
@@ -77,7 +76,6 @@ struct BaseGemmPipelineAgBgCrCompV3
                 return run_func(bool_constant<false>{},
                                 integral_constant<TailNumber, TailNumber::Even>{});
             }
-#endif
         }
 #if defined(__HIP_DEVICE_COMPILE__)
         // This path should be unreachable in device code if tail_number is valid.
