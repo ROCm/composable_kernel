@@ -131,6 +131,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
         static constexpr bool StructuredSparsity = false;
+        static constexpr bool NumWaveGroup = 1;
+        static constexpr index_t Preshuffle = false;
         using GemmUniversalTraits                = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
@@ -140,7 +142,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      CLayout,
                                                                      TransposeC,
                                                                      StructuredSparsity,
-                                                                     Persistent>;
+                                                                     Persistent,
+                                                                     NumWaveGroup,
+                                                                     Preshuffle>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;

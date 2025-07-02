@@ -94,7 +94,8 @@ float invoke_gemm(int n_warmup,
                                                          arg.stride_B,
                                                          {},
                                                          arg.stride_E,
-                                                         arg.k_batch});
+                                                         arg.k_batch,
+                                                         false});
         }
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,

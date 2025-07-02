@@ -356,7 +356,8 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                         StrideA,
                                                         StrideB,
                                                         stridesDs,
-                                                        StrideE});
+                                                        StrideE,
+                                                        false});
 
         invoke_gemm_multi_d<ADataType,
                             BDataType,

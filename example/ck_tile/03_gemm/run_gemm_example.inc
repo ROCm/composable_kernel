@@ -464,6 +464,9 @@ int run_gemm_example_with_layouts(int argc,
             // Restore input for B for gpu reference
             b_k_n_dev_buf.ToDevice(b_k_n.data());
         }
+        if constexpr(GemmConfig::Preshuffle){
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
 
         // memory on host to store gpu reference result
         ck_tile::HostTensor<CDataType> c_m_n_gpu_ref(
