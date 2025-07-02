@@ -10,8 +10,8 @@ template <typename ts_type,
           ck_tile::index_t warp_y>
 float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
-    uint32_t dim_block_h = (a.height + block_x - 1) / block_x;
-    uint32_t dim_block_w = (a.width + block_y - 1) / block_y;
+    uint32_t dim_block_h = (a.height + block_y - 1) / block_y;
+    uint32_t dim_block_w = (a.width + block_x - 1) / block_x;
     uint32_t dim_stride  = a.height * a.width;
 
     a.dim_stride  = dim_stride;
@@ -25,10 +25,10 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
                                                          64,                                       // blocksize
                                                          1,                                        // row warps
                                                          1,                                        // col warps
-                                                         block_x,                                  // row per block
-                                                         block_y,                                  // col per block
-                                                         warp_x,                                   // row per xdl
-                                                         warp_y>;                                  // col per xdl
+                                                         block_y,                                  // row per block
+                                                         block_x,                                  // col per block
+                                                         warp_y,                                   // row per xdl
+                                                         warp_x>;                                  // col per xdl
     using ts_pipeline = ck_tile::BlockTranspose<ts_problem>;
 
     using kernel = ck_tile::BatchedTransposeKernel<ts_pipeline>;
