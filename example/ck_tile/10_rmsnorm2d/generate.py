@@ -530,16 +530,18 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 4,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  4,  64, 2,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  4,  64, 1,  True,  False, False,   False,   0,    0)],
-                        '640' : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  5,  4,  64, 2,  True,  False, False,   False,   0,    0),
+                        '640' : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  2, 128, 8,  True,  False, False,   False,   0,    0),
+                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  5,  4,  64, 2,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  5,  4, 128, 1,  True,  False, False,   False,   0,    0)],
-                        '768' : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  4,  64, 4,  True,  False, False,   False,   0,    0),
+                        '768' : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  2, 128, 8,  True,  False, False,   False,   0,    0),
+                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  4,  64, 4,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  4,  64, 2,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1, 12,  4,  64, 1,  True,  False, False,   False,   0,    0)],
-                        '1024' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  2,  64, 8,  True,  False, False,   False,   0,    0),
+                        '1024' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  2, 128, 8,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  2,  64, 4,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  2,  64, 2,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 1,  True,  False, False,   False,   0,    0)],
-                        '1536' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  4,  64, 8,  True,  False, False,   False,   0,    0),
+                        '1536' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  1, 256, 8,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  2, 128, 4,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 2,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1, 256, 1,  True,  False, False,   False,   0,    0)],
@@ -547,7 +549,7 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1, 256, 4,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 2,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  1, 256, 1,  True,  False, False,   False,   0,    0)],
-                        '3072' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 128, 8,  True,  False, False,   False,   0,    0),
+                        '3072' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1, 256, 8,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 4,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1, 256, 2,  True,  False, False,   False,   0,    0),
                                   h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1,1024, 1,  True,  False, False,   False,   0,    0)],
@@ -570,7 +572,7 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
         total_blob = list()
         for hs_key in h_trait_dict:
             hs = h_trait_dict[hs_key]
-            current_n = hs[0].F_Repeat_N * hs[0].F_ThreadPerBlock_N * hs[0].F_Vector_N
+            current_n = hs_key
             for dtype, scale_type, fused_add, fused_quant, save_unquant in itertools.product(dtype_list, scale_list, fused_add_list, fused_sweep_list, bool_list):
                 prec_i, prec_o = dtype.split(',')
                 scale_sm, scale_y = scale_type.split(',')

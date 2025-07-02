@@ -218,6 +218,7 @@ struct BlockReduce2dCrossWarpSync
     CK_TILE_DEVICE void
     operator()(YDistributedTensor_& y_tensor, void* smem, const ReduceFunc& reduce_func)
     {
+#if 0
         using DataType = typename YDistributedTensor_::DataType;
 
         constexpr index_t thread_buf_size = YDistributedTensor_::get_thread_buffer_size();
@@ -241,7 +242,7 @@ struct BlockReduce2dCrossWarpSync
             });
         }
         block_sync_lds();
-#if 0
+
         // load from smem. here we let everythread to do compute :)
         index_t local_warp_id = warp_id / num_reduce_warps;
         index_t local_smem_os = local_warp_id * num_reduce_warps;
@@ -270,33 +271,64 @@ struct BlockReduce2dCrossWarpSync
             y_tensor.get_thread_buffer()(i_0) = v_local;
         });
 #else
+        // WORKAROUND: Mimic tree reduction
+        using DataType                    = typename YDistributedTensor_::DataType;
+        constexpr index_t thread_buf_size = YDistributedTensor_::get_thread_buffer_size();
+
+        DataType* smem_ptr    = reinterpret_cast<DataType*>(smem);
+        const index_t lane_id = get_lane_id();
+        const index_t warp_id = get_warp_id();
+
+        constexpr index_t num_warps        = BlockShape::BlockSize / get_warp_size();
+        constexpr index_t num_reduce_warps = GetReduceWarps<YDistributedTensor_>();
+
+        if constexpr(num_reduce_warps == 1)
+            return;
+
+        // Each warp's lane 0 writes its partial results to shared memory
+        const index_t smem_offset = warp_id;
+        if(lane_id == 0)
+        {
+            static_for<0, thread_buf_size, 1>{}([&](auto i) {
+                // Store the i-th element of this warp's thread_buffer into SMEM
+                smem_ptr[smem_offset + i * num_warps] = y_tensor.get_thread_buffer()[i];
+            });
+        }
+        block_sync_lds();
+
         if(warp_id == 0)
         {
             static_for<0, thread_buf_size, 1>{}([&](auto i) {
-                DataType v = 0;
+                DataType v;
                 if(lane_id < num_reduce_warps)
                 {
                     v = smem_ptr[lane_id + i * num_warps];
                 }
-
+                else
+                {
+                    v = 0;
+                }
+                // Perform warp-wide reduction using shuffle operations
                 for(index_t offset = 1; offset < num_reduce_warps; offset <<= 1)
                 {
-                    DataType o = warp_shuffle_down(v, offset);
-                    if(lane_id + offset < num_reduce_warps)
+                    // Each lane obtains the value from lane (lane_id + offset) of warp 0
+                    const index_t src_lane = lane_id + offset;
+                    DataType o             = warp_shuffle_down(v, offset);
+                    if(src_lane < num_reduce_warps)
                     {
                         v = reduce_func(v, o);
                     }
                 }
-                // Lane 0 now has the final reduced value for element i
+
                 if(lane_id == 0)
                 {
                     smem_ptr[i * num_warps] = v;
                 }
             });
         }
-        block_sync_lds(); // ensure final result is written
+        block_sync_lds();
 
-        // Broadcast to all threads
+        // Broadcast the final result to all threads
         static_for<0, thread_buf_size, 1>{}(
             [&](auto i) { y_tensor.get_thread_buffer()(i) = smem_ptr[i * num_warps]; });
 #endif
