@@ -29,8 +29,8 @@ LAYOUT_MAP = {
 
 DEFAULT_EPILOGUE = """
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-                                ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
-                                                                      BDataType,
+                                ck_tile::DefaultGemm2DEpilogueProblem<ck_tile::tuple<ADataType>,
+                                                                      ck_tile::tuple<BDataType>,
                                                                       AccDataType,
                                                                       CDataType,
                                                                       CLayout,
@@ -46,8 +46,8 @@ DEFAULT_EPILOGUE = """
 
 CSHUFFLE_EPILOGUE = """
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                             BDataType,
+                            ck_tile::CShuffleEpilogueProblem<ck_tile::tuple<ADataType>,
+                                                             ck_tile::tuple<BDataType>,
                                                              ck_tile::tuple<>,
                                                              AccDataType,
                                                              CDataType,

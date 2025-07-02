@@ -90,16 +90,16 @@ class GemmProfiler
         c_m_n_dev_result.SetZero();
 
         ck_tile::GemmHostArgs<> gemm_args = {
-            a_m_k_dev_buf.GetDeviceBuffer(),
-            b_k_n_dev_buf.GetDeviceBuffer(),
+            {a_m_k_dev_buf.GetDeviceBuffer()},
+            {b_k_n_dev_buf.GetDeviceBuffer()},
             {}, // ds_ptr
             c_m_n_dev_buf.GetDeviceBuffer(),
             gemm_problem.split_k_,
             gemm_problem.m_,
             gemm_problem.n_,
             gemm_problem.k_,
-            gemm_problem.stride_a_,
-            gemm_problem.stride_b_,
+            {gemm_problem.stride_a_},
+            {gemm_problem.stride_b_},
             {}, // stride_Ds
             gemm_problem.stride_c_,
         };

@@ -257,14 +257,14 @@ struct GemmKernel {{
                                                       TileParitionerM01>;
 
         using Traits  =
-            ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+            ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ck_tile::tuple<ALayout>, ck_tile::tuple<BLayout>, CLayout>;
 
         using GemmUniversalTraits =
             ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                             ALayout, BLayout, CLayout, TransposeC, structured_sparsity>;
+                                             ck_tile::tuple<ALayout>, ck_tile::tuple<BLayout>, CLayout, TransposeC, structured_sparsity>;
 
         using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+            ck_tile::GemmPipelineProblem<ck_tile::tuple<ADataType>, ck_tile::tuple<BDataType>, AccDataType, GemmShape, Traits>;
 
         using BaseGemmPipeline = {PIPELINE_MAP[pipeline][0]}<GemmPipelineProblem>;
 
@@ -283,8 +283,8 @@ struct GemmKernel {{
             constexpr auto memory_operation = memory_operation_.value;
 
             using UniversalGemmProblem =
-                ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                      BDataType,
+                ck_tile::UniversalGemmPipelineProblem<ck_tile::tuple<ADataType>,
+                                                      ck_tile::tuple<BDataType>,
                                                       AccDataType,
                                                       GemmShape,
                                                       GemmUniversalTraits,
@@ -327,15 +327,15 @@ struct GemmKernel {{
                 }};
 
                 ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-                    args.M, args.K, args.stride_A, is_row_major(ALayout{{}})));
+                    args.M, args.K, args.stride_As[0], is_row_major(ALayout{{}})));
                 ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-                    args.K, args.N, args.stride_B, is_row_major(BLayout{{}})));
+                    args.K, args.N, args.stride_Bs[0], is_row_major(BLayout{{}})));
 
                 auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
                 auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
 
                 ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                    kargs.a_ptr, kargs.b_ptr, stream.rotating_count_, size_a_buffer, size_b_buffer);
+                    kargs.as_ptr[0], kargs.bs_ptr[0], stream.rotating_count_, size_a_buffer, size_b_buffer);
                 rotating_mem.Print();
 
                 auto run_flush_cache = [&]() {{
