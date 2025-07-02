@@ -130,10 +130,10 @@ class TestCkTileGemmPipeline : public ::testing::Test
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-        static constexpr bool StructuredSparsity = false;
-        static constexpr bool NumWaveGroup       = 1;
-        static constexpr index_t Preshuffle      = false;
-        using GemmUniversalTraits                = ck_tile::TileGemmUniversalTraits<kPadM,
+        static constexpr bool StructuredSparsity     = false;
+        static constexpr bool NumWaveGroup           = 1;
+        static constexpr ck_tile::index_t Preshuffle = false;
+        using GemmUniversalTraits                    = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
