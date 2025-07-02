@@ -104,6 +104,9 @@ template<> struct WarpGemmDispatcher<ck_tile::bf8_t, ck_tile::fp8_t, float, 32, 
 template<> struct WarpGemmDispatcher<ck_tile::bf8_t, ck_tile::bf8_t, float, 32, 32,  64, false> { using Type = WarpGemmMfma_f32_32x32x64_bf8_bf8; };
 
 template<bool TransposeC, bool KTransLdA, bool KTransLdB> struct WarpGemmDispatcher<ck_tile::fp8_t, ck_tile::fp8_t, float, 16, 16,  16, TransposeC, false, KTransLdA, KTransLdB> { using Type =WarpGemmWmma_f32_16x16x16_f8_f8_gfx12<KTransLdA, KTransLdB, TransposeC>; };
+template<bool TransposeC, bool KTransLdA, bool KTransLdB> struct WarpGemmDispatcher<ck_tile::bf8_t, ck_tile::bf8_t, float, 16, 16,  16, TransposeC, false, KTransLdA, KTransLdB> { using Type =WarpGemmWmma_f32_16x16x16_bf8_bf8_gfx12<KTransLdA, KTransLdB, TransposeC>; };
+template<bool TransposeC, bool KTransLdA, bool KTransLdB> struct WarpGemmDispatcher<ck_tile::fp8_t, ck_tile::bf8_t, float, 16, 16,  16, TransposeC, false, KTransLdA, KTransLdB> { using Type =WarpGemmWmma_f32_16x16x16_f8_bf8_gfx12<KTransLdA, KTransLdB, TransposeC>; };
+template<bool TransposeC, bool KTransLdA, bool KTransLdB> struct WarpGemmDispatcher<ck_tile::bf8_t, ck_tile::fp8_t, float, 16, 16,  16, TransposeC, false, KTransLdA, KTransLdB> { using Type =WarpGemmWmma_f32_16x16x16_bf8_f8_gfx12<KTransLdA, KTransLdB, TransposeC>; };
 
 // int8
 // ADataType, BDataType, AccDataType, MPerWave, NPerWave, KPerWave, TransposeC, SwizzleA, UseStructuredSparsity

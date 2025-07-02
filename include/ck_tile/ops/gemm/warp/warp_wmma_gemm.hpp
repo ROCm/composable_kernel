@@ -41,4 +41,25 @@ using WarpGemmWmma_f32_16x16x16_f8_f8_gfx12 =
                                        kTransLdB,
                                        kTransC>>;
 
+template <bool kTransLdA = false, bool kTransLdB = false, bool kTransC = false>
+using WarpGemmWmma_f32_16x16x16_bf8_bf8_gfx12 =
+    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_bf8_gfx12,
+                                       kTransLdA,
+                                       kTransLdB,
+                                       kTransC>>;
+
+template <bool kTransLdA = false, bool kTransLdB = false, bool kTransC = false>
+using WarpGemmWmma_f32_16x16x16_f8_bf8_gfx12 =
+    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_bf8_gfx12,
+                                       kTransLdA,
+                                       kTransLdB,
+                                       kTransC>>;
+
+template <bool kTransLdA = false, bool kTransLdB = false, bool kTransC = false>
+using WarpGemmWmma_f32_16x16x16_bf8_f8_gfx12 =
+    WarpGemmImpl<WarpGemmAtrributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_f8_gfx12,
+                                       kTransLdA,
+                                       kTransLdB,
+                                       kTransC>>;
+
 } // namespace ck_tile

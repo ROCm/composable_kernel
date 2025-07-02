@@ -103,4 +103,13 @@ using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf16_bf16_gfx12 =
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_f8_gfx12 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, fp8_t, fp8_t, float, 16, 16, 16>>;
 
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_bf8_gfx12 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, bf8_t, bf8_t, float, 16, 16, 16>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_bf8_gfx12 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, fp8_t, bf8_t, float, 16, 16, 16>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_f8_gfx12 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, bf8_t, fp8_t, float, 16, 16, 16>>;
+
 } // namespace ck_tile
