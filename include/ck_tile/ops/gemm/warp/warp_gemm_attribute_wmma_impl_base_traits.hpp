@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#pragma once
+namespace ck_tile {
 template <typename Arch, typename ADType, typename BDType, typename CDType>
 struct WmmaTraitsBase;
 
@@ -91,3 +93,4 @@ struct WmmaTraitsBase<gfx12_t, ADType, BDType, CDType>
     using kCYs2RHsTransMajor  = sequence<2, 2>;
     using kCYs2RHsTransMinor  = sequence<0, 2>;
 };
+} // namespace ck_tile

@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#pragma once
+
+#include "warp_gemm_attribute_wmma_impl_base_traits.hpp"
+namespace ck_tile {
 // fp16 specialization - GFX11
 template <>
 struct WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16>
@@ -40,3 +44,4 @@ struct WmmaTraits<gfx12_t, fp16_t, fp16_t, float, 16, 16, 16>
 #endif
     }
 };
+} // namespace ck_tile
