@@ -45,6 +45,14 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
                                    divisor,
                                    FlatmmConfig::K_Warp_Tile / divisor});
     std::copy(t.begin(), t.end(), t_view.begin());
+    // n_ = 256, k_ = 128, divisor = 4, t_view size_1 = 16, t_view_size_2 = 16, t_view_size_3 = 4,
+    // t_view_size_4 = 4, t_view_size_5 = 8 printf("n_ = %d, k_ = %d, divisor = %d, t_view size_1 =
+    // %d, t_view_size_2 = %d, t_view_size_3 = %d, t_view_size_4 = %d, t_view_size_5 = %d,\n",
+    //        n_,
+    //        k_,
+    //        divisor,
+    //        n_ / FlatmmConfig::N_Warp_Tile, FlatmmConfig::N_Warp_Tile, k_ /
+    //        FlatmmConfig::K_Warp_Tile, divisor, FlatmmConfig::K_Warp_Tile / divisor);
     return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
 }
 
@@ -224,6 +232,8 @@ int run_flatmm_example_with_layouts(int argc,
 
     // do pre-shuffle
     ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<FlatmmConfig>(b_origin_host);
+    // printf("Shuffled B matrix size: %zu\n", b_shuffle_host.get_element_space_size_in_bytes());
+    // //65536
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
 

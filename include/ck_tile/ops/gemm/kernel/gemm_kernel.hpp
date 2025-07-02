@@ -494,6 +494,9 @@ struct GemmKernel
                         const SplitKBatchOffset& splitk_batch_offset)
     {
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
+        // printf("splitk_batch_offset.splitted_k: %d, GetVectorSizeA(): %d\n", //128, 8
+        //        splitk_batch_offset.splitted_k, GemmPipeline::GetVectorSizeA());
+
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {

@@ -77,15 +77,13 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t kLdsAlignmentInBytes = 16;
     static constexpr index_t NumWaveGroups        = Problem::NumWaveGroups;
 
-    static constexpr auto I0   = number<0>();
-    static constexpr auto I1   = number<1>();
-    static constexpr auto I2   = number<2>();
-    static constexpr auto idxM = I0;
-    static constexpr auto idxN = I1;
-    static constexpr auto idxK = I2;
-    using BlockTile            = remove_cvref_t<typename BlockGemmShape::BlockTile>;
-    using BlockWarps           = remove_cvref_t<typename BlockGemmShape::BlockWarps>;
-    using WarpTile             = remove_cvref_t<typename BlockGemmShape::WarpTile>;
+    static constexpr auto I0 = number<0>();
+    static constexpr auto I1 = number<1>();
+    static constexpr auto I2 = number<2>();
+
+    using BlockTile  = remove_cvref_t<typename BlockGemmShape::BlockTile>;
+    using BlockWarps = remove_cvref_t<typename BlockGemmShape::BlockWarps>;
+    using WarpTile   = remove_cvref_t<typename BlockGemmShape::WarpTile>;
     // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr index_t Preshuffle    = Problem::Preshuffle;
@@ -195,14 +193,30 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                                         index_t num_loop,
                                         void* p_smem) const
     {
-        static_assert(
-            std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
-            "wrong!");
+        // static_assert(
+        //     std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
+        //     "wrong!");
 
-        static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}],
-                      "wrong!");
-        static_assert(kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
-                      "wrong!");
+        // static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}],
+        //               "wrong!");
+        // static_assert(kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+        //               "wrong!");
+
+        static_assert(
+            std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
+                std::is_same_v<BDataType, remove_cvref_t<typename BFlatBlockWindowTmp::DataType>>,
+            "A/B Dram block window should have the same data type as appropriate "
+            "([A|B]DataType) defined in Problem definition!");
+
+        constexpr bool is_a_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+        // constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+
+        static_assert(is_a_col_major
+                          ? (kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                             kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1])
+                          : (kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0] &&
+                             kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1]),
+                      "A block window has incorrect lengths for defined ALayout!");
 
         constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 

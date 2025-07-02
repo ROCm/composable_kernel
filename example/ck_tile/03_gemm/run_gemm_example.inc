@@ -265,6 +265,14 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
                                    divisor,
                                    GemmConfig::K_Warp_Tile / divisor});
     std::copy(t.begin(), t.end(), t_view.begin());
+    // n_ = 256, k_ = 128, divisor = 4, t_view size_1 = 16, t_view_size_2 = 16, t_view_size_3 = 4,
+    // t_view_size_4 = 4, t_view_size_5 = 8, printf("n_ = %d, k_ = %d, divisor = %d, t_view size_1 =
+    // %d, t_view_size_2 = %d, t_view_size_3 = %d, t_view_size_4 = %d, t_view_size_5 = %d,\n",
+    //        n_,
+    //        k_,
+    //        divisor,
+    //        n_ / GemmConfig::N_Warp_Tile, GemmConfig::N_Warp_Tile, k_ / GemmConfig::K_Warp_Tile,
+    //        divisor, GemmConfig::K_Warp_Tile / divisor);
     return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
 }
 
@@ -337,6 +345,7 @@ int run_gemm_example_with_layouts(int argc,
 
     if(!preshuffle && GemmConfig::UseStructuredSparsity)
     {
+        printf("Structured sparsity is not supported with preshuffle.\n");
         ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
     }
 
@@ -353,37 +362,46 @@ int run_gemm_example_with_layouts(int argc,
 
     if(preshuffle)
     {
+        // printf("Shuffling B matrix for device implementation.\n");
         ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n);
+        // printf("Shuffled B matrix size: %zu\n",
+        // b_shuffle_host.get_element_space_size_in_bytes()); //65536 printf("host B matrix size:
+        // %zu\n", b_k_n.get_element_space_size_in_bytes()); //65536
         // shuffled buffer B for device implementation
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
     }
-    if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
-    {
-        // Permute vector pk_i4x4 data for device implementation
-        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-        if constexpr(GemmConfig::PermuteB)
-        {
-            permute_tensor_b<GemmConfig,
-                             decltype(b_k_n_dev),
-                             ADataType,
-                             BDataType,
-                             AccDataType,
-                             CDataType,
-                             ALayout,
-                             BLayout,
-                             CLayout>(b_k_n_dev);
-        }
-        permute_vectors_i4x4_b(b_k_n_dev);
-        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-    }
     else
     {
-        if constexpr(GemmConfig::PermuteB)
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
-            std::cout << "Permute for this DataType is not implemented." << std::endl;
-            return false;
+            // printf("Permuting B matrix for device implementation.\n");
+            // Permute vector pk_i4x4 data for device implementation
+            ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+            if constexpr(GemmConfig::PermuteB)
+            {
+                permute_tensor_b<GemmConfig,
+                                 decltype(b_k_n_dev),
+                                 ADataType,
+                                 BDataType,
+                                 AccDataType,
+                                 CDataType,
+                                 ALayout,
+                                 BLayout,
+                                 CLayout>(b_k_n_dev);
+            }
+            permute_vectors_i4x4_b(b_k_n_dev);
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
         }
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
+        else
+        {
+            // printf("No permute for B matrix for device implementation.\n");
+            if constexpr(GemmConfig::PermuteB)
+            {
+                std::cout << "Permute for this DataType is not implemented." << std::endl;
+                return false;
+            }
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
     }
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());
