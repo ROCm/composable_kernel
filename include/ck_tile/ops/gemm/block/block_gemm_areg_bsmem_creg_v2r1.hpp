@@ -188,7 +188,6 @@ struct BlockGemmARegBSmemCRegV2R1
                 __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
             });
         });
-
     }
 
     template <index_t MPerBlock = BlockGemmShape::kM, index_t KPerBlock = BlockGemmShape::kK>
