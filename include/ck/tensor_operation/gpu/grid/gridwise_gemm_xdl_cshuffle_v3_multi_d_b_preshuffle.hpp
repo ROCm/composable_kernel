@@ -33,12 +33,12 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle(typename GridwiseGemm::Argument karg)
 {
-#if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
@@ -65,12 +65,12 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Even>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_multi_d_b_preshuffle_2lds(typename GridwiseGemm::Argument karg)
 {
-#if (!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -174,11 +174,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             : false;
     static constexpr auto is_scale_mfma = false;
     static constexpr auto mfma          = MfmaSelector<ComputeTypeA,
-                                                       MPerXdl,
-                                                       NPerXdl,
-                                                       ComputeTypeA,
-                                                       is_single_rate_mfma,
-                                                       is_scale_mfma>{};
+                                              MPerXdl,
+                                              NPerXdl,
+                                              ComputeTypeA,
+                                              is_single_rate_mfma,
+                                              is_scale_mfma>{};
     static constexpr index_t KPack      = math::max(lcm_AK1_BK1, mfma.selected_mfma.k_per_blk);
     static constexpr index_t KGroup     = []() {
         if constexpr(is_same_v<remove_cvref_t<BDataType>, f8_t>)
@@ -1414,16 +1414,18 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_desc_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_buf_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_buf),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_buf[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_buf[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin = container_concat(
@@ -1853,16 +1855,18 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_desc_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_buf_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_buf),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_buf[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_buf[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin = container_concat(
