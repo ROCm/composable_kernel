@@ -180,15 +180,14 @@ using GemmPipelineProblem = GemmPipelineProblemBase<ADataType_,
                                                     VectorSizeA_,
                                                     VectorSizeB_>;
 
-
 template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full,
-          typename ComputeDataType_        = ADataType_>
+          bool HasHotLoop_          = true,
+          TailNumber TailNum_       = TailNumber::Full,
+          typename ComputeDataType_ = ADataType_>
 struct FlatmmPipelineProblem
 {
     using Traits = remove_cvref_t<Traits_>;
@@ -320,8 +319,8 @@ struct FlatmmPipelineProblem
         {
             return kPadM ? 1 : GetAlignmentC();
         }
-    }();               
-};                              
+    }();
+};
 
 template <typename ADataType_,
           typename BDataType_,

@@ -462,10 +462,11 @@ struct FlatmmKernel
         constexpr auto empty_ds_dram_windows = ck_tile::make_tuple();
 
         // Call with empty D tensors
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), 
-                                               decltype(c_block_tile),
-                                               decltype(empty_ds_dram_windows)>(
-            c_block_window, c_block_tile, empty_ds_dram_windows, smem_ptr_ping);
+        EpiloguePipeline{}
+            .template operator()<decltype(c_block_window),
+                                 decltype(c_block_tile),
+                                 decltype(empty_ds_dram_windows)>(
+                c_block_window, c_block_tile, empty_ds_dram_windows, smem_ptr_ping);
     }
 
     CK_TILE_DEVICE void operator()(FlatmmKernelArgs kargs) const
@@ -490,7 +491,15 @@ struct FlatmmKernel
                        EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                        is_any_of<CDataType, fp16_t, bf16_t>::value))
         {
-            RunFlatmm(a_ptr, b_flat_ptr, c_ptr, smem_ptr_ping, smem_ptr_pong, kargs, splitk_batch_offset, i_m, i_n);
+            RunFlatmm(a_ptr,
+                      b_flat_ptr,
+                      c_ptr,
+                      smem_ptr_ping,
+                      smem_ptr_pong,
+                      kargs,
+                      splitk_batch_offset,
+                      i_m,
+                      i_n);
         }
     }
 };

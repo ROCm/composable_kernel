@@ -26,7 +26,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
         using namespace ck_tile;
-#if (defined(USING_MFMA_16x16x32_F8) || defined(USING_MFMA_16x16x128_F8))
+#if(defined(USING_MFMA_16x16x32_F8) || defined(USING_MFMA_16x16x128_F8))
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
         /*reduce transform layers,compare with old ck*/
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
@@ -178,8 +178,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
             return a_lds_block_desc;
         }
     }
-    
-    
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
@@ -197,7 +196,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetK1()
+    CK_TILE_HOST_DEVICE static constexpr auto GetKBPerLoad()
     {
         using TileShape = typename Problem::BlockGemmShape;
         if constexpr(TileShape::WarpTile::at(TileShape::idxN) == 32)
@@ -306,31 +305,31 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramDistribution()
     {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        //using ALayout   = remove_cvref_t<typename Problem::ALayout>;
+        // using ALayout   = remove_cvref_t<typename Problem::ALayout>;
 
         constexpr index_t BlockSize = Problem::kBlockSize;
 
         // constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-            constexpr index_t K1 = 16 / sizeof(ADataType);
-            constexpr index_t K0 = KPerBlock / K1;
-            constexpr index_t M2 = get_warp_size() / K0;
-            constexpr index_t M1 = BlockSize / get_warp_size();
-            static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
-            static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
-            // constexpr index_t M0 = MPerBlock / (M2 * M1);
-            // static_assert(M0 * M1 * M2 == MPerBlock,
-            //                 "Incorrect M0, M2, M1 configuration! "
-            //                 "M0, M1, M2 must cover whole MPerBlock!");
+        constexpr index_t K1 = 16 / sizeof(ADataType);
+        constexpr index_t K0 = KPerBlock / K1;
+        constexpr index_t M2 = get_warp_size() / K0;
+        constexpr index_t M1 = BlockSize / get_warp_size();
+        static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
+        static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
+        // constexpr index_t M0 = MPerBlock / (M2 * M1);
+        // static_assert(M0 * M1 * M2 == MPerBlock,
+        //                 "Incorrect M0, M2, M1 configuration! "
+        //                 "M0, M1, M2 must cover whole MPerBlock!");
 
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                            tuple<sequence<M1, M2>, sequence<K0, K1>>,
-                                            tuple<sequence<1>, sequence<1, 2>>,
-                                            tuple<sequence<0>, sequence<1, 0>>,
-                                            sequence<2>,
-                                            sequence<1>>{});
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<M1, M2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<0>, sequence<1, 0>>,
+                                       sequence<2>,
+                                       sequence<1>>{});
     }
 
     template <typename Problem>
@@ -342,8 +341,8 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t WaveSize  = get_warp_size();
         constexpr index_t WaveNum   = BlockSize / WaveSize;
 
-        constexpr index_t KBPerLoad = GetK1<Problem>(); // dwordx4 load B elem cnt
-        constexpr index_t KThdPerWave = WaveSize;        // threads cnt in K dim
+        constexpr index_t KBPerLoad   = GetKBPerLoad<Problem>(); // dwordx4 load B elem cnt
+        constexpr index_t KThdPerWave = WaveSize;                // threads cnt in K dim
         constexpr index_t KWavePerBlk = 1;
         constexpr index_t KRepeat     = 1;
 
