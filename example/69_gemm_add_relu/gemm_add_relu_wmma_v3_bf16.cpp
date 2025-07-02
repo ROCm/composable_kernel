@@ -38,7 +38,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Wmma_
     F32,
     PassThrough,
     PassThrough,
-    Add,
+    AddRelu,
     GemmSpec,
     128,
     128,
