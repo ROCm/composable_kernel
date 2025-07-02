@@ -12,9 +12,27 @@ repos:
         verbose: false
         language: script
         types: [c++]
-    - id: remove-exec-bit
-      name: Remove executable bit from non-executable files
-      entry: script/remove_exec_bit.sh
-      language: script
-      types_or: [c++, text]
-      verbose: true
+    -   id: remove-exec-bit
+        name: Remove executable bit from non-executable files
+        entry: script/remove_exec_bit.sh
+        language: script
+        types_or: [c++, text]
+        verbose: true
+    -   id: ruff-check
+        name: Ruff Linter
+        entry: ruff check --fix
+        language: python
+        types: [python]
+        additional_dependencies: [ruff]
+    -   id: ruff-format
+        name: Ruff Formatter
+        entry: ruff format
+        language: python
+        types: [python]
+        additional_dependencies: [ruff]
+    -   id: run-remod-if-ck-tile-changed
+        name: Run remod.py if ck_tile files changed
+        entry: script/remod_for_ck_tile.sh
+        language: script
+        always_run: true
+        pass_filenames: false
