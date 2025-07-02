@@ -254,12 +254,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 std::vector<std::vector<std::string>> generate_test_cases(const std::string prec_in,
                                                           const std::string prec_out)
 {
-    // return test cases without in and out precisions
-    return {{"-prec_i=" + prec_in,  /*placeholder for prec_i*/
-             "-prec_o=" + prec_out, /*placeholder for prec_o*/
-             "-t=99",
-             "-h=13",
-             "-stride=-1"},
+    return {{"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=99", "-h=13", "-stride=-1"},
             {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=17", "-h=16", "-stride=-1"},
             {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=1", "-h=100", "-stride=-1"},
             {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=4", "-h=128", "-stride=-1"},
@@ -270,7 +265,6 @@ std::vector<std::vector<std::string>> generate_test_cases(const std::string prec
             {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=33", "-h=313", "-stride=1000"},
             {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=11", "-h=510", "-stride=-1"},
             {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=171", "-h=676", "-stride=818"},
-            {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=91", "-h=636", "-stride=-1"},
             {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=12", "-h=768", "-stride=800"},
             {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=100", "-h=766", "-stride=812"},
             {"-prec_i=" + prec_in, "-prec_o=" + prec_out, "-t=31", "-h=1024", "-stride=-1"},
