@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -223,18 +223,15 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
 
         StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true> out_value_buf;
 
-        // if constexpr(NumDTensor > 0)
-        {
-            static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
-                const auto c_ds_buf_refs = concat_tuple_of_reference(
-                    tie(accu_value_buf[I]),
-                    generate_tie(
-                        [&](auto Id) -> const auto& { return ds_thread_buf[Id][I]; },
-                        Number<NumDTensor>{}));
+        static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
+            const auto c_ds_buf_refs = concat_tuple_of_reference(
+                tie(accu_value_buf[I]),
+                generate_tie(
+                    [&](auto Id) -> const auto& { return ds_thread_buf[Id][I]; },
+                    Number<NumDTensor>{}));
 
-                unpack2(out_elementwise_op, tie(out_value_buf(I)), c_ds_buf_refs);
-            });
-        }
+            unpack2(out_elementwise_op, tie(out_value_buf(I)), c_ds_buf_refs);
+        });
 
         auto threadwise_dst_store = ThreadwiseTensorSliceTransfer_v1r3<OutDataType,
                                                                        OutDataType,

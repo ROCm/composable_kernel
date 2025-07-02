@@ -388,56 +388,53 @@ struct GemmKernel
         }
 
         bool DTesnorIsValid = {true};
-        if constexpr(NumDTensor > 0)
-        {
-            static_for<0, NumDTensor, 1>{}([&](auto index) {
-                using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
-                if(std::is_same_v<DiLayout, ELayout> == false)
+        static_for<0, NumDTensor, 1>{}([&](auto index) {
+            using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
+            if(std::is_same_v<DiLayout, ELayout> == false)
+            {
+                DTesnorIsValid = false;
+            }
+            if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+            {
+                if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
                 {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("Can't support N for tensor D that is not a multiple of "
+                                      "NPerBlock without padding!");
+                    }
                     DTesnorIsValid = false;
                 }
-                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+                if(kargs.N % EpiloguePipeline::GetVectorSizeD(index) != 0)
                 {
-                    if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
-                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                        {
-                            CK_TILE_ERROR("Can't support N for tensor D that is not a multiple of "
-                                          "NPerBlock without padding!");
-                        }
-                        DTesnorIsValid = false;
+                        CK_TILE_ERROR("N is not a multiple of vector load size for D tensor!");
                     }
-                    if(kargs.N % EpiloguePipeline::GetVectorSizeD(index) != 0)
-                    {
-                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                        {
-                            CK_TILE_ERROR("N is not a multiple of vector load size for D tensor!");
-                        }
-                        DTesnorIsValid = false;
-                    }
+                    DTesnorIsValid = false;
                 }
-                else
+            }
+            else
+            {
+                if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
                 {
-                    if(kargs.M % TilePartitioner::MPerBlock != 0 && GemmPipeline::kPadM == false)
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
-                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                        {
-                            CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
-                                          "MPerBlock without padding!");
-                        }
-                        DTesnorIsValid = false;
+                        CK_TILE_ERROR("Can't support M for tensor D that is not a multiple of "
+                                      "MPerBlock without padding!");
                     }
-                    if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
-                    {
-                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                        {
-                            CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
-                        }
-                        DTesnorIsValid = false;
-                    }
+                    DTesnorIsValid = false;
                 }
-            });
-        }
+                if(kargs.M % EpiloguePipeline::GetVectorSizeD(index) != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("M is not a multiple of vector load size for D tensor!");
+                    }
+                    DTesnorIsValid = false;
+                }
+            }
+        });
 
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
@@ -577,38 +574,30 @@ struct GemmKernel
         }();
 
         const auto& ds_tensor_view = [&]() {
-            if constexpr(NumDTensor > 0)
-            {
-                return generate_tuple(
-                    [&](auto i) {
-                        using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
-                        using DDataType_ =
-                            remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
-                        if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
-                        {
-                            return make_naive_tensor_view<address_space_enum::global>(
-                                static_cast<const DDataType_*>(ds_ptr[i]),
-                                make_tuple(kargs.M, kargs.N),
-                                make_tuple(kargs.stride_Ds[i], 1),
-                                number<EpiloguePipeline::GetVectorSizeD(i)>{},
-                                number<1>{});
-                        }
-                        else
-                        {
-                            return make_naive_tensor_view<address_space_enum::global>(
-                                static_cast<const DDataType_*>(ds_ptr[i]),
-                                make_tuple(kargs.N, kargs.M),
-                                make_tuple(kargs.stride_Ds[i], 1),
-                                number<EpiloguePipeline::GetVectorSizeD(i)>{},
-                                number<1>{});
-                        }
-                    },
-                    number<NumDTensor>{});
-            }
-            else
-            {
-                return ck_tile::tuple<>();
-            }
+            return generate_tuple(
+                [&](auto i) {
+                    using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                    using DDataType_ = remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
+                    if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+                    {
+                        return make_naive_tensor_view<address_space_enum::global>(
+                            static_cast<const DDataType_*>(ds_ptr[i]),
+                            make_tuple(kargs.M, kargs.N),
+                            make_tuple(kargs.stride_Ds[i], 1),
+                            number<EpiloguePipeline::GetVectorSizeD(i)>{},
+                            number<1>{});
+                    }
+                    else
+                    {
+                        return make_naive_tensor_view<address_space_enum::global>(
+                            static_cast<const DDataType_*>(ds_ptr[i]),
+                            make_tuple(kargs.N, kargs.M),
+                            make_tuple(kargs.stride_Ds[i], 1),
+                            number<EpiloguePipeline::GetVectorSizeD(i)>{},
+                            number<1>{});
+                    }
+                },
+                number<NumDTensor>{});
         }();
 
         // TODO: enable vector write for C in ColMajor
