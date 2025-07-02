@@ -46,11 +46,11 @@ struct BatchedTransposeKernel
     using Kargs = BatchedTransposeKargs;
     using Hargs = BatchedTransposeHostArgs;
 
-    CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
+    CK_TILE_HOST static constexpr auto GridSize(const Hargs& host_args)
     {
-        size_t grid_size_x = h.dim_block_h;
-        size_t grid_size_y = h.dim_block_w;
-        size_t grid_size_z = h.batch;
+        size_t grid_size_x = (host_args.height + host_args.dim_block_h - 1) / host_args.dim_block_h;
+        size_t grid_size_y = (host_args.width + host_args.dim_block_w - 1) / host_args.dim_block_w;
+        size_t grid_size_z = host_args.batch;
         return dim3(grid_size_x, grid_size_y, grid_size_z);
     }
 

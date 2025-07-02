@@ -190,8 +190,10 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     std::cout << "Run Batched Transpose kernel with N=" << N << ", C=" << C << ", H=" << H
               << ", W=" << W << ", layout_in=" << layout_in << ", layout_out=" << layout_out
-              << " : " << std::endl << ms << " ms (" << ave_time << " ave_time) " << std::endl << tflops << " TFlops"
-              << std::endl << gb_per_sec << " GB/s " << std::endl;
+              << " : " << std::endl
+              << ms << " ms (" << ave_time << " ave_time) " << std::endl
+              << tflops << " TFlops" << std::endl
+              << gb_per_sec << " GB/s " << std::endl;
 
     printf("[%s]N:%d, C:%d, H:%d, W:%d, layout_in:%s, %f\n",
            prec.c_str(),

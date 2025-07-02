@@ -10,25 +10,27 @@ template <typename ts_type,
           ck_tile::index_t warp_y>
 float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
-    uint32_t dim_block_h = (a.height + block_y - 1) / block_y;
-    uint32_t dim_block_w = (a.width + block_x - 1) / block_x;
-    uint32_t dim_stride  = a.height * a.width;
+    uint32_t dim_stride = a.height * a.width;
 
     a.dim_stride  = dim_stride;
-    a.dim_block_h = dim_block_h;
-    a.dim_block_w = dim_block_w;
+    a.dim_block_h = block_y;
+    a.dim_block_w = block_x;
 
-    printf("batched_transpose_kargs: {dim_stride=%u dim_block_h=%u dim_block_w=%u}\n", dim_stride, dim_block_h, dim_block_w);
+    printf("batched_transpose_kargs: {dim_stride=%d dim_block_h=%d dim_block_w=%d}\n",
+           a.dim_stride,
+           a.dim_block_h,
+           a.dim_block_w);
 
-    using ts_problem  = ck_tile::TransposePipelineProblem<ts_type,                                 // dtype
-                                                         ck_tile::tensor_layout::gemm::RowMajor,   // layout
-                                                         64,                                       // blocksize
-                                                         1,                                        // row warps
-                                                         1,                                        // col warps
-                                                         block_y,                                  // row per block
-                                                         block_x,                                  // col per block
-                                                         warp_y,                                   // row per xdl
-                                                         warp_x>;                                  // col per xdl
+    using ts_problem =
+        ck_tile::TransposePipelineProblem<ts_type,                                // dtype
+                                          ck_tile::tensor_layout::gemm::RowMajor, // layout
+                                          64,                                     // blocksize
+                                          1,                                      // row warps
+                                          1,                                      // col warps
+                                          block_y,                                // row per block
+                                          block_x,                                // col per block
+                                          warp_y,                                 // row per xdl
+                                          warp_x>;                                // col per xdl
     using ts_pipeline = ck_tile::BlockTranspose<ts_problem>;
 
     using kernel = ck_tile::BatchedTransposeKernel<ts_pipeline>;
@@ -40,13 +42,14 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 
     printf("Grid: x=%u y=%u z=%u\n", grids.x, grids.y, grids.z);
     printf("Block: x=%u y=%u z=%u\n", blocks.x, blocks.y, blocks.z);
-    printf("Host args: batch=%d, height=%d, width=%d, dim_stride=%d, dim_block_h=%d, dim_block_w=%d\n",
-           a.batch,
-           a.height,
-           a.width,
-           a.dim_stride,
-           a.dim_block_h,
-           a.dim_block_w);
+    printf(
+        "Host args: batch=%d, height=%d, width=%d, dim_stride=%d, dim_block_h=%d, dim_block_w=%d\n",
+        a.batch,
+        a.height,
+        a.width,
+        a.dim_stride,
+        a.dim_block_h,
+        a.dim_block_w);
     printf("kargs: kargs.batch=%d kargs.height=%d kargs.width=%d kargs.dim_stride=%d\n",
            kargs.batch,
            kargs.height,
