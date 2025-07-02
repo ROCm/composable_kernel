@@ -11,6 +11,6 @@ class TestCkTileGemmPipelineMem : public TestCkTileGemmPipeline<T>
 
 TYPED_TEST_SUITE(TestCkTileGemmPipelineMem, KernelTypesMem);
 
-#include "test_gemm_pipeline_ut_cases.inc"
+#include "test_gemm_pipeline_ut_cases_col_major.inc"
 
 #undef TEST_SUITE_NAME
