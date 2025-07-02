@@ -48,8 +48,8 @@ struct BatchedTransposeKernel
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
     {
-        size_t grid_size_x = h.dim_block_w;
-        size_t grid_size_y = h.dim_block_h;
+        size_t grid_size_x = h.dim_block_h;
+        size_t grid_size_y = h.dim_block_w;
         size_t grid_size_z = h.batch;
         return dim3(grid_size_x, grid_size_y, grid_size_z);
     }
@@ -87,8 +87,8 @@ struct BatchedTransposeKernel
                                    sequence<false, false>{});
         }();
 
-        const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.y * kMPerBlock);
-        const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.x * kNPerBlock);
+        const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
+        const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
