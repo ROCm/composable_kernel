@@ -1178,6 +1178,15 @@ struct reverse_slice_sequence_impl<sequence<x>, sequence<m>, sequence<id>, Slice
 // clang-format off
 // input a sequence(with optional mask), and the SliceSize : size per slice
 // output the sequence each slice, and number of slices
+// the length count for slice size is from right to left(reverse slice)
+// or we can say, find the greatest common divider(gcd) from right to left, for the slice length
+//
+// e.g. <2, 8, 4>, slice length = 16
+//  step-1: we take the right most <*, *, 4>, remaining 16/4=4
+//  step-2: we only need 4 out of 8, of the midden dim, hence <*, 4, 4>
+//  step-3: since nonthing remain, so the first dim we only need 1, hence<1, 4, 4>
+//  => we got <1, 4, 4> as length for each slice
+//  => total number of slice = <2, 8, 4> / <1, 4, 4> = <2, 2, 1>
 //
 // e.g. <2, 1, 4, 2>, 8     -> lengths:<1, 1, 4, 2>    , nums: <2, 1, 1, 1>    : 2 slices  , slice_idx: 0
 //      <4, 2, 4, 1, 2>, 4  -> lengths:<1, 1, 2, 1, 2> , nums: <4, 2, 2, 1, 1> : 16 slices , slice_idx: 2

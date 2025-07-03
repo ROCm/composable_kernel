@@ -357,6 +357,19 @@ struct tile_distribution_encoding
             return all_ps_2_rhss;
         }
 
+        CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_y_to_rh()
+        {
+            constexpr auto all_ys_2_rhss = transform_sequences(
+                [](auto major, auto minor) constexpr {
+                    constexpr auto rh_dim_prefix_sum = get_rh_dim_lengths_prefix_sum();
+                    return rh_dim_prefix_sum.at(major) + minor;
+                },
+                Ys2RHsMajor{},
+                Ys2RHsMinor{});
+
+            return all_ys_2_rhss;
+        }
+
         CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_y_to_h()
         {
             constexpr auto all_ys_2_rhss = transform_sequences(

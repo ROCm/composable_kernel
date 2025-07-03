@@ -619,6 +619,7 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
     // decltype(src_y_maps){}.ppp();
 
     // decltype(src_y_info){}.yyy();
+    // decltype(src_y_prefix_sum){}.iii();
 
     constexpr auto sliced_hlen_yidx_ylen = [&]() constexpr
     {
@@ -640,6 +641,7 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
                 // update y_slice_lengths
                 constexpr auto uniformed_h_index = sliced_h_index + number<src_h_prefix_sum[id]>{};
                 constexpr auto found_y_index     = container_find(src_y_dims, uniformed_h_index);
+                constexpr auto y_to_h_dim_end    = src_y_prefix_sum[id + 1];
 
                 // decltype(uniformed_h_index){}.ggg();
 
@@ -656,7 +658,7 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
                         pick_sequence_elements_by_mask(sliced_h_lens, y_to_h_masks[id]);
                     constexpr auto sliced_y_to_h_dims = sliced_y_to_h_lens.size();
                     static_for<0, sliced_y_to_h_dims, 1>{}([&](auto i) {
-                        y_slice_lengths(src_y_maps[found_y_index - i]) =
+                        y_slice_lengths(src_y_maps[y_to_h_dim_end - 1 - i]) =
                             sliced_y_to_h_lens[sliced_y_to_h_dims - 1 - i];
                     });
                 }
@@ -669,15 +671,24 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
                     constexpr auto y_to_h_len =
                         pick_sequence_elements_by_mask(h_len, y_to_h_masks[id]);
                     constexpr auto y_to_h_dims = y_to_h_len.size();
-                    constexpr auto h_trans     = make_merge_transform_v3_division_mod(y_to_h_len);
-                    auto h_origin_             = make_zero_multi_index<h_trans.NDimLow>();
-                    constexpr auto y_begin_    = x_slice_begins[id] / p_len_over_h[id];
+                    // decltype(y_to_h_len){}.zzz();
+                    // if constexpr (found_y_index == 0)
+                    //    decltype(sequence<found_y_index, y_to_h_dims>{}){}.zzz2();
+                    constexpr auto h_trans  = make_merge_transform_v3_division_mod(y_to_h_len);
+                    auto h_origin_          = make_zero_multi_index<h_trans.NDimLow>();
+                    constexpr auto y_begin_ = x_slice_begins[id] / p_len_over_h[id];
                     h_trans.calculate_lower_index(h_origin_, sequence<y_begin_.value>{});
 
                     auto y_origin_ = make_zero_multi_index<Encoding::NDimY>();
                     // constexpr current_found_y_index = found_y_index - src_h_prefix_sum[id];
+
                     static_for<0, y_to_h_dims, 1>{}([&](auto i) {
-                        y_origin_(found_y_index - i) = h_origin_[y_to_h_dims - 1 - i];
+                        // static_assert(found_y_index >= (y_to_h_dims - 1));
+                        // if constexpr (found_y_index  == 0)
+                        //    static_assert(i == 0 && y_to_h_dims == 1);
+                        // decltype(sequence<found_y_index, y_to_h_dims, i>{}){}.zzz2();
+
+                        y_origin_(y_to_h_dim_end - 1 - i) = h_origin_[y_to_h_dims - 1 - i];
                     });
                     return y_origin_;
                 }();
