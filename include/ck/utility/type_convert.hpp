@@ -2358,6 +2358,32 @@ inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t 
     return out.float_vector;
 #endif
 }
+
+template <>
+inline __host__ __device__ float16_t type_convert<float16_t, bf6x16_t>(bf6x16_t x)
+{
+    union
+    {
+        bf6x16_t v16x2[2];
+        bf6x32_t v32;
+    } in{{x, x}};
+
+    union
+    {
+        float16_t v16x2[2];
+        float32_t v32;
+    } out{};
+
+    out.v32 = type_convert<float32_t>(in.v32);
+    return out.v16x2[0];
+}
+
+template <>
+inline __host__ __device__ float16_t type_convert<float16_t, bf6x16_pk_t>(bf6x16_pk_t x)
+{
+    return type_convert<float16_t>(static_cast<bf6x16_t>(x));
+}
+
 #endif
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename Y, typename X, size_t NumElems>
