@@ -132,7 +132,4 @@ void test_slice_distribution_from_x()
 }
 
 // clang-format on
-int main()
-{
-    test_slice_distribution_from_x();
-}
+int main() { test_slice_distribution_from_x(); }
