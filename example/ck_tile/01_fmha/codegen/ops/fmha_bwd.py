@@ -375,7 +375,7 @@ class FmhaBwdDQDKDVKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size.
-def get_dq_dk_dv_tiles(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]:
+def get_dq_dk_dv_tiles_gfx9(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]:
     if (dtype == 'fp16' or dtype == 'bf16') and tr_load == 'f':
         return [
             FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
@@ -390,6 +390,18 @@ def get_dq_dk_dv_tiles(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]
                 FmhaBwdDQDKDVTileSize( 16, 192, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                 # FmhaBwdDQDKDVTileSize( 16, 32, 128, 16, 128, 16, 32, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 1, 16),
                 FmhaBwdDQDKDVTileSize( 16,  16, 128, 16, 128, 16, 16, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 16),
+        ]
+    else:
+        return []
+
+def get_dq_dk_dv_tiles_gfx12(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]:
+    if (dtype == 'fp16' or dtype == 'bf16') and tr_load == 'f':
+        return [
+            #                     bm0, bn0, bk0, bk1, bk2, bk3, bk4, bhdq, bhdv,
+            FmhaBwdDQDKDVTileSize( 32,  64,  32,  32,  32,  32,  64,   32,   32,  1, 4, 1,  4, 1, 1,  2, 2, 1,  16, 16, 16,  16, 16, 16),
+            FmhaBwdDQDKDVTileSize( 32,  64,  64,  32,  64,  32,  32,   64,   64,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16),
+            FmhaBwdDQDKDVTileSize( 16,  64,  64,  16,  64,  16,  32,  128,  128,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16),
+            FmhaBwdDQDKDVTileSize( 16,  64,  64,  16,  64,  16,  32,  256,  256,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16),
         ]
     else:
         return []
@@ -784,6 +796,11 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
     filter_dot_do_o = filters[0]
     filter_convert_dq = filters[1]
     filter_dq_dk_dv = filters[2]
+
+    # TODO: Pass architecture as an argument?
+    use_gfx12 = True
+
+    get_dq_dk_dv_tiles = get_dq_dk_dv_tiles_gfx12 if use_gfx12 else get_dq_dk_dv_tiles_gfx9
 
     # use dict as ordered set
     gen_dot_do_o: Dict[FmhaBwdOGradDotOKernel, Literal[True]] = {}
