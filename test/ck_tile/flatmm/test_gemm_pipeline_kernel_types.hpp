@@ -13,14 +13,13 @@ using F16 = ck_tile::half_t;
 using F32 = float;
 using F8  = ck_tile::fp8_t;
 
-using Row       = ck_tile::tensor_layout::gemm::RowMajor;
-using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
+using Row = ck_tile::tensor_layout::gemm::RowMajor;
+using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-using Default   = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
+using Default = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
                                            ck_tile::GemmPipelineScheduler::Default>;
 
 using Flatmm = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Flatmm>;
-
 
 // clang-format off
 
