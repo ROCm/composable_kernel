@@ -333,16 +333,12 @@ bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
 
         assert(max_num_args >= num_args && "Invalid number of arguments in test case");
 
-        char* argv[max_num_args + 1];
-        argv[max_num_args] = nullptr;
+        char* argv[max_num_args];
 
-        int arg_idx;
-
-        for(arg_idx = 0; arg_idx < num_args; ++arg_idx)
+        for(int arg_idx = 0; arg_idx < num_args; ++arg_idx)
         {
             argv[arg_idx] = test_cases[test_idx][arg_idx].data();
         }
-        argv[arg_idx] = nullptr;
 
         try
         {

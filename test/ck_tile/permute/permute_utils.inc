@@ -374,8 +374,7 @@ bool run_test_cases(std::vector<std::vector<std::string>>& test_cases)
 {
     bool valid             = true;
     constexpr int num_args = 6;
-    char* argv[num_args + 1];
-    argv[num_args] = nullptr;
+    char* argv[num_args];
 
     for(std::size_t test_idx = 0; test_idx < test_cases.size(); ++test_idx)
     {
