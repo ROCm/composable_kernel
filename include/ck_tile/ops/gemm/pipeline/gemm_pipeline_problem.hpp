@@ -58,7 +58,7 @@ struct GemmPipelineProblemBase
                       Scheduler);
         // clang-format on
     }
-    // This seems to be of no use
+
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentA()
     {
         constexpr index_t PackedSize =
@@ -219,7 +219,7 @@ struct UniversalGemmPipelineProblem
 
     static constexpr bool DoubleSmemBuffer = Traits::DoubleSmemBuffer;
     static constexpr auto Scheduler        = Scheduler_;
-    static constexpr index_t Preshuffle    = Traits::Preshuffle;
+    static constexpr bool Preshuffle       = Traits::Preshuffle;
 
     static constexpr index_t VectorSizeA = VectorSizeA_;
     static constexpr index_t VectorSizeB = VectorSizeB_;

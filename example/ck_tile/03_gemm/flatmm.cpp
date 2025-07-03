@@ -220,10 +220,10 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     auto [result, arg_parser] = create_args(argc, argv);
     bool preshuffle           = GemmConfig::Preshuffle;
 
-    if(preshuffle && std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
-    {
-        throw std::runtime_error("Preshuffle is not supported for this int4 datatype!");
-    }
+    // if(preshuffle && std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    // {
+    //     throw std::runtime_error("Preshuffle is not supported for this int4 datatype!");
+    // }
 
     if(preshuffle && a_layout != "R" && b_layout != "C")
     {
@@ -231,50 +231,14 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
             "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
     }
 
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    if(a_layout == "R" && b_layout == "C")
     {
-        if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices when "
-                                     "BPrecType is ck_tile::pk_int4_t!");
-        }
+        return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
+            argc, argv, Row{}, Col{}, Row{});
     }
     else
     {
-        if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices!");
-        }
+        throw std::runtime_error("Unsupported memory layout for the input matrices!");
     }
 }
 
@@ -313,28 +277,6 @@ int run_gemm_example(int argc, char* argv[])
                                           ck_tile::bf8_t,
                                           ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "int8")
-    {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::int8_t>,
-                                          ck_tile::int8_t,
-                                          ck_tile::int8_t,
-                                          ck_tile::int32_t>(a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "pk_int4_t")
-    {
-        // TODO: Add support for bhalf_t ADataType
-        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>,
-                                              ck_tile::half_t,
-                                              ck_tile::pk_int4_t,
-                                              ck_tile::half_t>(a_layout, b_layout, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported pipeline for this operation !!!");
-        }
-    }
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
@@ -345,7 +287,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigComputeV3>(argc, argv);
+        return !run_gemm_example<GemmConfigPreshufle_1>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {

@@ -1,5 +1,6 @@
 add_executable(tile_example_gemm_basic EXCLUDE_FROM_ALL gemm_basic.cpp)
 add_executable(tile_example_gemm_universal EXCLUDE_FROM_ALL universal_gemm.cpp)
+add_executable(tile_example_gemm_flatmm EXCLUDE_FROM_ALL flatmm.cpp)
 set(EXAMPLE_GEMM_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
   list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)

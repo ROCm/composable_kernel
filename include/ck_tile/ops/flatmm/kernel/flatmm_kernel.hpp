@@ -64,27 +64,6 @@ struct FlatmmHostArgs
     };
 
     index_t k_batch;
-    // CK_TILE_HOST FlatmmHostArgs(const void* a_ptr_,
-    //                             const void* b_ptr_,
-    //                             void* c_ptr_,
-    //                             index_t k_batch_,
-    //                             index_t M_,
-    //                             index_t N_,
-    //                             index_t K_,
-    //                             index_t stride_A_,
-    //                             index_t stride_B_,
-    //                             index_t stride_C_)
-    //     : a_ptr(a_ptr_),
-    //       b_shuffle_ptr(b_shuffle_ptr_),
-    //       c_ptr(c_ptr_),
-    //       k_batch(k_batch_)
-    // {
-    // }
-
-    // const void* a_ptr;
-    // const void* b_shuffle_ptr;
-    // void* c_ptr;
-    // index_t k_batch;
 };
 
 template <index_t NumDTensor = 0>
@@ -367,9 +346,6 @@ struct FlatmmKernel
                         const KernelArgs& kargs,
                         const SplitKBatchOffset& splitk_batch_offset)
     {
-        printf("splitk_batch_offset.splitted_k: %d, GetVectorSizeA(): %d\n",
-               splitk_batch_offset.splitted_k,
-               FlatmmPipeline::GetVectorSizeA());
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {

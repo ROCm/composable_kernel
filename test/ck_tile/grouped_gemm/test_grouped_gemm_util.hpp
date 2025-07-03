@@ -462,8 +462,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                                              arg.stride_B,
                                                              {},
                                                              arg.stride_E,
-                                                             arg.k_batch,
-                                                             false});
+                                                             arg.k_batch});
             }
             const auto stream = ck_tile::stream_config{nullptr, false, 1};
             ck_tile::hip_check_error(

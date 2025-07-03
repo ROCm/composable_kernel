@@ -149,8 +149,7 @@ struct GroupedGemmKernel : public GemmKernel<TilePartitioner_, GemmPipeline_, Ep
                                          stride_b,
                                          {},
                                          stride_e,
-                                         gemm_descs[i].k_batch,
-                                         false};
+                                         gemm_descs[i].k_batch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }

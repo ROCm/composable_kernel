@@ -87,6 +87,18 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix)
     this->Run(M, N, K);
 }
 
+TYPED_TEST(TEST_SUITE_NAME, GemmPreshuffle)
+{
+    constexpr int M           = 2048;
+    constexpr int N           = 4096;
+    constexpr int K           = 5120;
+    constexpr bool PadM       = false;
+    constexpr bool PadN       = false;
+    constexpr bool PadK       = false;
+    constexpr bool Preshuffle = true;
+    this->Run<PadM, PadN, padK, Preshuffle>(M, N, K);
+}
+
 TYPED_TEST(TEST_SUITE_NAME, NotSupportedArgument)
 {
     constexpr int M = 512;

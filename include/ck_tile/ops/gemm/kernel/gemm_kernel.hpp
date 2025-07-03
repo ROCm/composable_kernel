@@ -40,8 +40,7 @@ struct GemmHostArgs
                               index_t stride_A_,
                               index_t stride_B_,
                               const std::array<index_t, NumDTensor>& stride_Ds_,
-                              index_t stride_E_,
-                              bool preshuffle_flatmm_ = false)
+                              index_t stride_E_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           ds_ptr(ds_ptr_),
@@ -53,8 +52,7 @@ struct GemmHostArgs
           stride_B(stride_B_),
           stride_Ds(stride_Ds_),
           stride_E(stride_E_),
-          k_batch(k_batch_),
-          preshuffle_flatmm(preshuffle_flatmm_)
+          k_batch(k_batch_)
     {
     }
 
@@ -79,7 +77,6 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
-    bool preshuffle_flatmm = false; ///< Flag to indicate if its flatmm operator.
 };
 
 /// @brief The GEMM kernel device arguments.
@@ -113,7 +110,6 @@ struct GemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
-    index_t preshuffle_flatmm; ///< Flag to indicate if its flatmm operator.
 };
 
 /// @brief The GEMM kernel template.
@@ -243,8 +239,7 @@ struct GemmKernel
                           hostArgs.stride_B,
                           hostArgs.stride_Ds,
                           hostArgs.stride_E,
-                          hostArgs.k_batch,
-                          hostArgs.preshuffle_flatmm};
+                          hostArgs.k_batch};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -494,8 +489,6 @@ struct GemmKernel
                         const SplitKBatchOffset& splitk_batch_offset)
     {
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
-        // printf("splitk_batch_offset.splitted_k: %d, GetVectorSizeA(): %d\n", //128, 8
-        //        splitk_batch_offset.splitted_k, GemmPipeline::GetVectorSizeA());
 
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -640,7 +633,7 @@ struct GemmKernel
                     number<1>{});
             }
         }();
-        if(kargs.preshuffle_flatmm)
+        if constexpr(GemmPipeline::Preshuffle)
         {
             // For flatmm, we need to use the flat B tensor view
             return make_tuple(a_tensor_view, b_flat_tensor_view, ds_tensor_view, e_tensor_view);
