@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -85,19 +85,6 @@ struct BlockGemmARegBSmemCRegV2R1
             b_block_window_tmp.get_window_origin() + multi_index<2>{iNWarp * WG::kN, 0},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-#if 0 // FIXME: using array will cause register spill
-        array<array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows{
-            {b_warp_window_tmp}};
-
-        for(index_t nIter = 0; nIter < NIterPerWarp; nIter++)
-        {
-            for(index_t kIter = 0; kIter < KIterPerWarp; kIter++)
-            {
-                move_tile_window(b_warp_windows(nIter)(kIter),
-                                 {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
-            }
-        }
-#else
         statically_indexed_array<
             statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
             NIterPerWarp>
@@ -111,7 +98,6 @@ struct BlockGemmARegBSmemCRegV2R1
                                  {nIter * NPerBlockPerIter, kIter * KPerBlockPerIter});
             });
         });
-#endif
 
         // check C-block-distribution
         static_assert(
@@ -150,8 +136,7 @@ struct BlockGemmARegBSmemCRegV2R1
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                 // read B warp tensor from B Block window
-                const auto b_warp_tensor =
-                    b_warp_tensors(nIter)(kIter); // load_tile(b_warp_windows(nIter)(kIter)); //
+                const auto b_warp_tensor = b_warp_tensors(nIter)(kIter);
 
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor

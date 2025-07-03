@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,7 +10,9 @@
 
 namespace ck_tile {
 
-// This pipeline is qkv all located in LDS
+// TODO: This class is a variant of the existing BlockFmhaFwdSplitKVPipelineQRKSVS pipeline.
+//       Refactoring to extract shared logic is recommended as future work.
+
 template <typename Problem_, typename Policy_ = BlockFmhaFwdPagedKVPipelineQRKSVSDefaultPolicy>
 struct BlockFmhaFwdPagedKVPipelineQRKSVS
 {

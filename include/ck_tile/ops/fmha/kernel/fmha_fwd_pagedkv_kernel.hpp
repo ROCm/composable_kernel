@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -21,6 +21,8 @@
 
 namespace ck_tile {
 
+// TODO: This class is a variant of the existing FmhaFwdSplitKVKernel pipeline.
+//       Refactoring to extract shared logic is recommended as future work.
 template <typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdPagedKVKernel
 {

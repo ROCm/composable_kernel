@@ -100,18 +100,17 @@ struct BlockFmhaFwdPagedKVPipelineProblem
     static constexpr bool kIsGroupMode = kIsGroupMode_;
 
     // attributes from traits
-    static constexpr bool kPadSeqLenQ                = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK                = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ               = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV               = Traits::kPadHeadDimV;
-    static constexpr bool kHasLogitsSoftCap          = Traits::kHasLogitsSoftCap;
-    static constexpr bool kSkipMinSeqlenQ            = Traits::kSkipMinSeqlenQ;
-    static constexpr auto BiasEnum                   = Traits::BiasEnum;
-    static constexpr bool kStoreLSE                  = Traits::kStoreLSE;
-    static constexpr bool kDoFp8StaticQuant          = Traits::kDoFp8StaticQuant;
-    static constexpr bool kIsPagedKV                 = Traits::kIsPagedKV;
-    static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
-    static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
+    static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = Traits::kHasLogitsSoftCap;
+    static constexpr bool kSkipMinSeqlenQ   = Traits::kSkipMinSeqlenQ;
+    static constexpr auto BiasEnum          = Traits::BiasEnum;
+    static constexpr bool kStoreLSE         = Traits::kStoreLSE;
+    static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
+    static constexpr bool kIsPagedKV        = Traits::kIsPagedKV;
+    static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
 };
 
 template <typename QDataType_,
