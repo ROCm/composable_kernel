@@ -33,10 +33,10 @@ using ck::type_convert;
 
 struct ExecutionConfig final
 {
-    int do_verification = 1;    // (0=no, 1=CPU)
-    int init_method     = 0;    // (0=constant values, 1=integer values, 2=decimal values)
-    bool time_kernel    = true; // (0=no, 1=yes)
-    int verbosity       = 1;    // (0=no info, 1=verbose info)
+    int do_verification = 1;     // (0=no, 1=CPU)
+    int init_method     = 0;     // (0=constant values, 1=integer values, 2=decimal values)
+    bool time_kernel    = false; // (0=no, 1=yes)
+    int verbosity       = 1;     // (0=no info, 1=verbose info)
     int warm_up         = 10;
     int repeat          = 10;
 };
@@ -325,11 +325,33 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
-
+#if 0
         ck::utils::FillConstant<ADataType>{a_data_element(0.5f)}(a_m_k);
+#else
+        ck::utils::FillConstant<ADataType>{a_data_element(0.0f)}(a_m_k);
+        for(ck::index_t j = 0; j < K; j += ck::packed_size_v<ADataType>)
+        {
+            a_m_k(0, j) = a_data_element(0.5f);
+            // a_m_k(1, j) = a_data_element(0.5f);
+        }
+
+        // a_m_k(0, 0) = a_data_element(0.5f);
+        // a_m_k(1, 0) = a_data_element(0.25f);
+
+#endif
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(a_m_k_scale);
 
+#if 0
         ck::utils::FillConstant<BDataType>{b_data_element(2.0f)}(*b_k_n);
+#else
+        ck::utils::FillConstant<BDataType>{b_data_element(0.0f)}(*b_k_n);
+        for(ck::index_t i = 0; i < K; i += ck::packed_size_v<BDataType>)
+        {
+            (*b_k_n)(i, 0) = b_data_element(2.0f);
+            //(*b_k_n)(i, 1) = b_data_element(2.0f);
+        }
+        //  (*b_k_n)(0, 1) = b_data_element(4.0f);
+#endif
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
 
         if(config.verbosity > 0)
@@ -360,6 +382,105 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         b_k_n_scale.GenerateTensorDistr(float_distr{powf(2.0f, -125.0f), 1.0f});
         break;
 
+    case 13: // Initializations for development and debugging
+        ck::utils::FillConstant<ADataType>{a_data_element(0.0f)}(a_m_k);
+        for(ck::index_t j = 0; j < K; j += ck::packed_size_v<ADataType>)
+        {
+            a_m_k(0, j) = a_data_element(1.0f);
+            // a_m_k(16, j) = a_data_element(1.0f);
+        }
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<BDataType>{b_data_element(0.0f)}(*b_k_n);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+
+        {
+
+#if 0
+            std::set<int> col_ids = {16};
+#else
+            std::set<int> col_ids = {0, 10, 42, 80, 103, 120, 150, 170, 180, 190, 200, 230, 245};
+#endif
+            for(auto col_id : col_ids)
+            {
+#if 1
+                b_k_n_scale(0, col_id)     = ck::type_convert<XDataType>(8.0f);
+                b_k_n_scale(0, col_id + 1) = ck::type_convert<XDataType>(16.0f);
+                b_k_n_scale(1, col_id)     = ck::type_convert<XDataType>(4.0f / 1);
+                b_k_n_scale(5, col_id)     = ck::type_convert<XDataType>(1.0f / 2);
+                b_k_n_scale(10, col_id)    = ck::type_convert<XDataType>(1.0f / 4);
+                b_k_n_scale(13, col_id)    = ck::type_convert<XDataType>(1.0f / 8);
+                b_k_n_scale(K / ScaleBlockSize - 1, col_id) =
+                    ck::type_convert<XDataType>(1.0f / 64);
+#elif 0
+                b_k_n_scale(0, col_id)     = ck::type_convert<XDataType>(4.0f);
+                b_k_n_scale(0, col_id + 1) = ck::type_convert<XDataType>(16.0f);
+                b_k_n_scale(1, col_id)     = ck::type_convert<XDataType>(2.0f / 1);
+                b_k_n_scale(5, col_id)     = ck::type_convert<XDataType>(1.0f / 2);
+                b_k_n_scale(10, col_id)    = ck::type_convert<XDataType>(1.0f / 4);
+                b_k_n_scale(13, col_id)    = ck::type_convert<XDataType>(1.0f / 8);
+                b_k_n_scale(K / ScaleBlockSize - 1, col_id) =
+                    ck::type_convert<XDataType>(1.0f / 64);
+#endif
+                if constexpr(ck::packed_size_v<BDataType> == 16)
+                {
+                    (*b_k_n)(K - 1, col_id).pack(b_data_element(-1.0f).unpack(15), 15);
+
+                    for(int i = 0; i < K; i += 7)
+                    {
+                        auto coeff = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
+                        (*b_k_n)(i, col_id).pack(b_data_element(coeff / 100.0f * i).unpack(0),
+                                                 i % ck::packed_size_v<BDataType>);
+                    }
+                }
+            }
+        }
+
+        break;
+
+    case 14: // Initializations for development and debugging
+        ck::utils::FillConstant<ADataType>{a_data_element(0.0f)}(a_m_k);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+        ck::utils::FillConstant<BDataType>{b_data_element(0.0f)}(*b_k_n);
+        for(ck::index_t j = 0; j < K; j += ck::packed_size_v<BDataType>)
+        {
+            (*b_k_n)(j, 0) = b_data_element(1.0f);
+        }
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(b_k_n_scale);
+
+        {
+
+#if 0
+            std::set<int> row_ids = {0};
+#else
+            std::set<int> row_ids = {0, 10, 42, 80, 103, 120, 150, 170, 180, 190, 200, 230, 245};
+#endif
+            for(auto row_id : row_ids)
+            {
+
+#if 1
+                a_m_k_scale(row_id, 0)     = ck::type_convert<XDataType>(4.0f);
+                a_m_k_scale(row_id + 1, 0) = ck::type_convert<XDataType>(16.0f);
+                a_m_k_scale(row_id, 1)     = ck::type_convert<XDataType>(2.0f / 1);
+                a_m_k_scale(row_id, 5)     = ck::type_convert<XDataType>(1.0f / 2);
+                a_m_k_scale(row_id, 10)    = ck::type_convert<XDataType>(1.0f / 4);
+                a_m_k_scale(row_id, 13)    = ck::type_convert<XDataType>(1.0f / 8);
+                a_m_k_scale(row_id, K / ScaleBlockSize - 1) =
+                    ck::type_convert<XDataType>(1.0f / 64);
+#endif
+                if constexpr(ck::packed_size_v<ADataType> == 16)
+                {
+                    a_m_k(row_id, K - 1).pack(a_data_element(-1.0f).unpack(15), 15);
+
+                    for(int i = 0; i < K; i += 7)
+                    {
+                        auto coeff = ((i / 7) % 2 == 0) ? 1.0f : -1.0f;
+                        a_m_k(row_id, i).pack(a_data_element(coeff / 100.0f * i).unpack(0),
+                                              i % ck::packed_size_v<ADataType>);
+                    }
+                }
+            }
+        }
+        break;
     default:
         if(config.verbosity > 0)
         {
@@ -776,14 +897,8 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         if(config.init_method == 0)
         {
 
-#if 1
+#if 0 // print a_m_k, b_k_n, a_m_k_scale, b_k_n_scale
             std::cout << "Submatrix of a_m_k (16x32):" << std::endl;
-
-            // std::cout << "a_m_k(0,0) in hex: 0x" << std::hex << std::setfill('0')
-            //           << *reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) << " "
-            //           << *(reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) + 1) << " "
-            //           << *(reinterpret_cast<const uint32_t*>(&(a_m_k(0, 0))) + 2) << std::dec
-            //           << std::endl;
             for(int i = 0; i < 16; ++i)
             {
                 for(int j = 0; j < 32; ++j)

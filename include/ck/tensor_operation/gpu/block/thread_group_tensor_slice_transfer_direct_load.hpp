@@ -224,7 +224,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin);
 
 #if 0
-        if(blockIdx.x == 0 && threadIdx.x < 64)
+        if(blockIdx.x == 0 && threadIdx.x < 640)
         {
             printf("DirectCopyToLds CNSTRTR threadId %d -- src_offset: %ld, dst_offset: %ld\n",
                    static_cast<int>(threadIdx.x),
@@ -236,7 +236,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
-#if 0
+#if 1
         if(blockIdx.x == 0 && threadIdx.x < 64)
         {
             printf("DirectCopyToLds SetSrcSliceOrigin threadIdx.x: %d, src_slice_origin_idx = {%d, "
@@ -309,22 +309,15 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
         constexpr auto dst_access_lengths = thread_slice_lengths;
 
-        // CK_PRINT<decltype(dst_access_lengths)>(); // ck::Sequence<1, 8, 1>
-
         const auto dst_forward_steps  = generate_steps(dst_desc, 1);
         const auto dst_backward_steps = generate_steps(dst_desc, -1);
         const auto src_forward_steps  = generate_steps(src_desc, 1);
         const auto src_backward_steps = generate_steps(src_desc, -1);
-        // Tuple<ck::TensorCoordinateStep<1, 3, ck::Sequence<0>>, ck::TensorCoordinateStep<1, 3,
-        // ck::Sequence<0>>, ck::TensorCoordinateStep<1, 3, ck::Sequence<0>>>
-        //    CK_PRINT<decltype(dst_forward_steps)>();
 
-        // Tuple<ck::TensorCoordinateStep<6, 3, ck::Sequence<0, 0, 0, 0, 0, 0>>,
-        // ck::TensorCoordinateStep<6, 3, ck::Sequence<0, 0, 0, 0, 0, 0>>,
-        // ck::TensorCoordinateStep<6, 3, ck::Sequence<0, 0, 0, 0, 0, 0>>>
+        //    CK_PRINT<decltype(dst_forward_steps)>();
         //  CK_PRINT<decltype(src_forward_steps)>();
 
-#if 0
+#if 1
         if(blockIdx.x == 0 && threadIdx.x < 1)
         {
             printf("DirectCopyToLds threadId %d -- src_buf.p_data_ = %p, dst_buf.p_data_ = %p\n",
@@ -333,6 +326,39 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                    static_cast<const void*>(dst_buf.p_data_));
         }
 #endif
+#if 0
+        if(blockIdx.x == 0 && threadIdx.x < 640 &&
+           dst_buf.p_data_ == reinterpret_cast<const void*>(0x1000000000000))
+        {
+            const auto src_offset = src_coord_.GetOffset();
+            const auto dst_offset = dst_coord_.GetOffset();
+            const auto lds_offset =
+                dst_offset + ScalarPerVector * (ThreadGroup::GetThreadId() % 64);
+
+            if constexpr(packed_size_v<SrcData> == 16)
+            {
+
+                printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                       "src_buf.p_data_[src_offset] = 0x%08x %08x %08x, dst_offset: %d\n",
+                       static_cast<int>(threadIdx.x),
+                       static_cast<long>(src_offset),
+                       src_buf.p_data_[src_offset].data_[0],
+                       src_buf.p_data_[src_offset].data_[1],
+                       src_buf.p_data_[src_offset].data_[2],
+                       lds_offset);
+            }
+            else if constexpr(packed_size_v<SrcData> == 1 || packed_size_v<SrcData> == 2)
+            {
+                printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                       "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d\n",
+                       static_cast<int>(threadIdx.x),
+                       static_cast<long>(src_offset),
+                       src_buf.p_data_[src_offset].data,
+                       lds_offset);
+            }
+        }
+#endif
+        // debug::CK_PRINT<decltype(dst_access_lengths)>(); // ck::Sequence<2, 4, 1>
 
         // Loop over the destination block and copy data.
         static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
@@ -343,61 +369,49 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
 
-#if 0
-            if(blockIdx.x == 0 && threadIdx.x < 64)
-            {
-                if constexpr(is_same_v<
-                                 SrcBuffer,
-                                 ck::DynamicBuffer<ck::AddressSpaceEnum::Global,
-                                                   const ck::f6_pk_t<_BitInt(6), 16>,
-                                                   long,
-                                                   true,
-                                                   ck::AmdBufferCoherenceEnum::DefaultCoherence>>)
-                {
-                    printf("DirectCopyToLds -- threadId: %d, src_offset: %ld, dst_offset: %ld\n",
-                           static_cast<int>(threadIdx.x),
-                           static_cast<long>(src_offset),
-                           static_cast<long>(dst_offset));
-                }
-            }
-#endif
-
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, is_src_valid);
 
-#if 0
-            if(blockIdx.x == 0 && threadIdx.x < 640 &&
-               dst_buf.p_data_ == reinterpret_cast<const void*>(0x1000000000000))
+#if 1
+            if constexpr(ordered_dst_access_idx[Number<0>{}] == 0 &&
+                         ordered_dst_access_idx[Number<1>{}] == 0 &&
+                         ordered_dst_access_idx[Number<2>{}] == 0)
             {
-                const auto lds_offset =
-                    dst_offset + ScalarPerVector * (ThreadGroup::GetThreadId() % 64);
-
-                if constexpr(packed_size_v<SrcData> == 16)
+                if(blockIdx.x == 0 && threadIdx.x < 64 &&
+                   (dst_buf.p_data_ == reinterpret_cast<const void*>(0x1000000000000) ||
+                    dst_buf.p_data_ == reinterpret_cast<const void*>(0x1000000010000)))
                 {
+                    // block_sync_lds();
+                    const auto lds_offset =
+                        dst_offset + ScalarPerVector * (ThreadGroup::GetThreadId() % 64);
 
-                    printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
-                           "src_buf.p_data_[src_offset] = 0x%08x %08x %08x, dst_offset: %d, "
-                           "dst_buf.p_data_[dst_offset] = 0x%08x %08x %08x\n",
-                           static_cast<int>(threadIdx.x),
-                           static_cast<long>(src_offset),
-                           src_buf.p_data_[src_offset].data_[0],
-                           src_buf.p_data_[src_offset].data_[1],
-                           src_buf.p_data_[src_offset].data_[2],
-                           lds_offset,
-                           dst_buf.p_data_[lds_offset].data_[0],
-                           dst_buf.p_data_[lds_offset].data_[1],
-                           dst_buf.p_data_[lds_offset].data_[2]);
-                }
-                else if constexpr(packed_size_v<SrcData> == 1 || packed_size_v<SrcData> == 2)
-                {
-                    printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
-                           "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
-                           "dst_buf.p_data_[dst_offset] = 0x%02x\n",
-                           static_cast<int>(threadIdx.x),
-                           static_cast<long>(src_offset),
-                           src_buf.p_data_[src_offset].data,
-                           lds_offset,
-                           dst_buf.p_data_[lds_offset].data);
+                    if constexpr(packed_size_v<SrcData> == 16)
+                    {
+
+                        printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                               "src_buf.p_data_[src_offset] = 0x%08x %08x %08x, dst_offset: %d, "
+                               "dst_buf.p_data_[dst_offset] = 0x%08x %08x %08x\n",
+                               static_cast<int>(threadIdx.x),
+                               static_cast<long>(src_offset),
+                               src_buf.p_data_[src_offset].data_[0],
+                               src_buf.p_data_[src_offset].data_[1],
+                               src_buf.p_data_[src_offset].data_[2],
+                               lds_offset,
+                               dst_buf.p_data_[lds_offset].data_[0],
+                               dst_buf.p_data_[lds_offset].data_[1],
+                               dst_buf.p_data_[lds_offset].data_[2]);
+                    }
+                    else if constexpr(packed_size_v<SrcData> == 1 || packed_size_v<SrcData> == 2)
+                    {
+                        printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                               "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
+                               "dst_buf.p_data_[dst_offset] = 0x%02x\n",
+                               static_cast<int>(threadIdx.x),
+                               static_cast<long>(src_offset),
+                               src_buf.p_data_[src_offset].data,
+                               lds_offset,
+                               dst_buf.p_data_[lds_offset].data);
+                    }
                 }
             }
 #endif
