@@ -1207,6 +1207,11 @@ constexpr auto reverse_slice_sequence(Seq,
                                       Mask = typename uniform_sequence_gen<Seq::size(), 1>::type{})
 {
     static_assert(Seq::size() == Mask::size());
+    static_assert(SliceSize != 0, "slice size zero is invalid");
+    static_assert(container_reduce(pick_sequence_elements_by_mask(Seq{}, Mask{}), multiplies{}, 1) %
+                          SliceSize ==
+                      0,
+                  "slice size can't evenly divide input sizes");
     using sliced_type =
         impl::reverse_slice_sequence_impl<Seq,
                                           Mask,

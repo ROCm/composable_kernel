@@ -671,7 +671,8 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
                     constexpr auto y_to_h_dims = y_to_h_len.size();
                     constexpr auto h_trans     = make_merge_transform_v3_division_mod(y_to_h_len);
                     auto h_origin_             = make_zero_multi_index<h_trans.NDimLow>();
-                    h_trans.calculate_lower_index(h_origin_, sequence<x_slice_begins[id].value>{});
+                    constexpr auto y_begin_    = x_slice_begins[id] / p_len_over_h[id];
+                    h_trans.calculate_lower_index(h_origin_, sequence<y_begin_.value>{});
 
                     auto y_origin_ = make_zero_multi_index<Encoding::NDimY>();
                     // constexpr current_found_y_index = found_y_index - src_h_prefix_sum[id];
