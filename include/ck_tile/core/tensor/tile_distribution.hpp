@@ -610,7 +610,7 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
 #endif
 
     constexpr auto src_h_prefix_sum = Encoding::detail::get_h_dim_lengths_prefix_sum();
-    constexpr auto src_y_info       = Encoding::detail::get_sorted_y_info();
+    constexpr auto src_y_info       = Encoding::detail::get_sorted_y_to_h_info();
     constexpr auto src_y_dims       = src_y_info[number<0>{}];
     constexpr auto src_y_maps       = src_y_info[number<1>{}];
     constexpr auto src_y_prefix_sum = src_y_info[number<2>{}];

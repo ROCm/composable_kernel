@@ -328,16 +328,6 @@ struct tile_distribution_encoding
             return rh_dim_prefix_sum;
         }
 
-        // return the h_dim length (sequence<> with length NDimX)that only counts the P dim
-        CK_TILE_HOST_DEVICE static constexpr auto get_h_dim_lengths_with_p()
-        {
-            // <0, len_d0, len_d0+len_d1, ...>
-            // e.g. seq<3, 5> --> seq<0, 3, 8>
-            constexpr auto h_dim_prefix_sum = prefix_sum_sequence(get_uniformed_h_dim_lengths());
-
-            return h_dim_prefix_sum;
-        }
-
         CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_p_to_h()
         {
             // tuple<seq<xx..>, seq<yy..>> -> seq<xx..yy..>
@@ -372,10 +362,11 @@ struct tile_distribution_encoding
 
         CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_y_to_h()
         {
+            // TODO: Y can't point to R
             constexpr auto all_ys_2_rhss = transform_sequences(
                 [](auto major, auto minor) constexpr {
                     constexpr auto rh_dim_prefix_sum = get_rh_dim_lengths_prefix_sum();
-                    return rh_dim_prefix_sum.at(major) + minor;
+                    return rh_dim_prefix_sum.at(major) + minor - NDimR;
                 },
                 Ys2RHsMajor{},
                 Ys2RHsMinor{});
@@ -424,7 +415,8 @@ struct tile_distribution_encoding
             return make_tuple(sorted_dims, sorted_maps, sorted_prefix_sum);
         }
 
-        CK_TILE_HOST_DEVICE static constexpr auto get_sorted_y_info()
+        // Note here y_to_h does not count R dim!
+        CK_TILE_HOST_DEVICE static constexpr auto get_sorted_y_to_h_info()
         {
             return get_sorted_info(get_uniformed_idx_y_to_h(), get_h_dim_lengths_prefix_sum());
         }
