@@ -10,6 +10,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/flatmm.hpp"
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -34,39 +35,20 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 
 enum struct GemmPipelineType
 {
-    Mem,
-    CompV3,
-    CompV4
+    Flatmm
 };
 
 template <GemmPipelineType PT, typename Problem>
 struct GemmPipelineTypeSelector;
 
-template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::Mem, Problem>
-{
-    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
-    using pipeline      = ck_tile::GemmPipelineAgBgCrMem<Problem>;
-
-    static constexpr auto GetName() { return "GemmPipelineAgBgCrMem"; }
-};
 
 template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::CompV3, Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::Flatmm, Problem>
 {
-    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<Problem>;
-    using pipeline      = ck_tile::GemmPipelineAgBgCrCompV3<Problem>;
+    using base_pipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<Problem>;
+    using pipeline      = ck_tile::FlatmmPipelineAGmemBGmemCRegV1<Problem>;
 
-    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV3"; }
-};
-
-template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
-{
-    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<Problem>;
-    using pipeline      = ck_tile::GemmPipelineAgBgCrCompV4<Problem>;
-
-    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV4"; }
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrFlatmm"; }
 };
 
 template <typename Tuple>
@@ -112,7 +94,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool kPadK      = PadK;
         constexpr bool preshuffle = Preshuffle;
 
-        constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
+        constexpr bool DoubleSmemBuffer = false;
 
         // TODO: For now - but this should also be a test parameter
         constexpr bool TransposeC = false;
