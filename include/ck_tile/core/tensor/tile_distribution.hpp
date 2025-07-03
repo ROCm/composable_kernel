@@ -583,20 +583,22 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
 
     constexpr auto x_slice_ends_ = generate_sequence_v2(
         [&](auto i) {
-            // if constexpr (x_slice_ends[i] == -1) {
-            //    // -1 means till the end
-            //    constexpr index_t x_length_ =
-            //        container_reduce(typename Encoding::HsLengthss{}[i], multiplies{}, 1);
-            //    return x_length_;
-            //}
-            // else {
-            return x_slice_ends[i];
-            //}
+            if constexpr(x_slice_ends[i] == -1)
+            {
+                // -1 means till the end
+                constexpr auto x_length_ =
+                    container_reduce(typename Encoding::HsLengthss{}[i], multiplies{}, number<1>{});
+                return x_length_;
+            }
+            else
+            {
+                return x_slice_ends[i];
+            }
         },
         number<x_slice_ends.size()>{});
 
     constexpr auto x_slice_lengths = x_slice_ends_ - x_slice_begins;
-#if 1
+
     constexpr auto x_slice_lengths_without_p = generate_sequence_v2(
         [&](auto i) constexpr {
             constexpr auto len_ = x_slice_lengths[i];
@@ -606,20 +608,11 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
         },
         number<x_slice_lengths.size()>{});
 
-    // decltype(x_slice_lengths_without_p){}.mmm();
-#endif
-
     constexpr auto src_h_prefix_sum = Encoding::detail::get_h_dim_lengths_prefix_sum();
     constexpr auto src_y_info       = Encoding::detail::get_sorted_y_to_h_info();
     constexpr auto src_y_dims       = src_y_info[number<0>{}];
     constexpr auto src_y_maps       = src_y_info[number<1>{}];
     constexpr auto src_y_prefix_sum = src_y_info[number<2>{}];
-
-    // decltype(src_y_dims){}.vvv();
-    // decltype(src_y_maps){}.ppp();
-
-    // decltype(src_y_info){}.yyy();
-    // decltype(src_y_prefix_sum){}.iii();
 
     constexpr auto sliced_hlen_yidx_ylen = [&]() constexpr
     {
@@ -643,13 +636,6 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
                 constexpr auto found_y_index     = container_find(src_y_dims, uniformed_h_index);
                 constexpr auto y_to_h_dim_end    = src_y_prefix_sum[id + 1];
 
-                // decltype(uniformed_h_index){}.ggg();
-
-                // decltype(number<found_y_index>{}){}.foo();
-                // decltype(number<src_y_dims.size()>{}){}.zoo();
-                // decltype(y_to_h_masks[id]){}.ttt();
-                // decltype(sliced_h){}.zzz();
-
                 static_assert(found_y_index >= 0 && found_y_index < src_y_dims.size(),
                               "not sliced at y dim, please check");
 
@@ -671,23 +657,15 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
                     constexpr auto y_to_h_len =
                         pick_sequence_elements_by_mask(h_len, y_to_h_masks[id]);
                     constexpr auto y_to_h_dims = y_to_h_len.size();
-                    // decltype(y_to_h_len){}.zzz();
-                    // if constexpr (found_y_index == 0)
-                    //    decltype(sequence<found_y_index, y_to_h_dims>{}){}.zzz2();
+
                     constexpr auto h_trans  = make_merge_transform_v3_division_mod(y_to_h_len);
                     auto h_origin_          = make_zero_multi_index<h_trans.NDimLow>();
                     constexpr auto y_begin_ = x_slice_begins[id] / p_len_over_h[id];
                     h_trans.calculate_lower_index(h_origin_, sequence<y_begin_.value>{});
 
                     auto y_origin_ = make_zero_multi_index<Encoding::NDimY>();
-                    // constexpr current_found_y_index = found_y_index - src_h_prefix_sum[id];
 
                     static_for<0, y_to_h_dims, 1>{}([&](auto i) {
-                        // static_assert(found_y_index >= (y_to_h_dims - 1));
-                        // if constexpr (found_y_index  == 0)
-                        //    static_assert(i == 0 && y_to_h_dims == 1);
-                        // decltype(sequence<found_y_index, y_to_h_dims, i>{}){}.zzz2();
-
                         y_origin_(y_to_h_dim_end - 1 - i) = h_origin_[y_to_h_dims - 1 - i];
                     });
                     return y_origin_;

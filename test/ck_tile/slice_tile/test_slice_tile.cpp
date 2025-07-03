@@ -4,17 +4,6 @@
 #include "ck_tile/core.hpp"
 #include <type_traits>
 
-#if 0
-void test_reverse_slice_sequence()
-{
-    constexpr auto r = ck_tile::reverse_slice_sequence(ck_tile::sequence<2, 2, 1, 4, 4>{},
-                                                       ck_tile::number<2>{},
-                                                       ck_tile::sequence<1, 0, 1, 0, 1>{});
-
-    decltype(r){}.qqq();
-}
-#endif
-
 // clang-format off
 template<typename SliceStart_ = ck_tile::sequence<0, 0>,
         typename SliceEnd_ = ck_tile::sequence<64, 16>,
@@ -128,11 +117,10 @@ void test_slice_distribution_from_x()
 {
     using namespace ck_tile;
 
-    test_slice_distribution_from_x_case_0(sequence< 0,  0>{}, sequence<64, 16>{}, sequence<0, 0, 0, 0>{});
-
-    test_slice_distribution_from_x_case_0(sequence< 0, 16>{}, sequence<64, 32>{}, sequence<0, 0, 0, 2>{});
-    test_slice_distribution_from_x_case_0(sequence< 0, 32>{}, sequence<64, 48>{}, sequence<0, 1, 0, 0>{});
-    test_slice_distribution_from_x_case_0(sequence< 0, 48>{}, sequence<64, 64>{}, sequence<0, 1, 0, 2>{});
+    test_slice_distribution_from_x_case_0(sequence< 0,  0>{}, sequence<-1, 16>{}, sequence<0, 0, 0, 0>{});
+    test_slice_distribution_from_x_case_0(sequence< 0, 16>{}, sequence<-1, 32>{}, sequence<0, 0, 0, 2>{});
+    test_slice_distribution_from_x_case_0(sequence< 0, 32>{}, sequence<-1, 48>{}, sequence<0, 1, 0, 0>{});
+    test_slice_distribution_from_x_case_0(sequence< 0, 48>{}, sequence<-1, 64>{}, sequence<0, 1, 0, 2>{});
 
     test_slice_distribution_from_x_case_1(sequence< 0,  0>{}, sequence<16, 16>{}, sequence<0, 0, 0, 0, 0>{});
     test_slice_distribution_from_x_case_1(sequence<16, 16>{}, sequence<32, 32>{}, sequence<1, 0, 0, 0, 2>{});
@@ -146,6 +134,5 @@ void test_slice_distribution_from_x()
 // clang-format on
 int main()
 {
-    // test_reverse_slice_sequence();
     test_slice_distribution_from_x();
 }
