@@ -10,11 +10,27 @@ namespace instance {
 
 #if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
 
-using GemmF8F8BF16InstanceVector = std::vector<std::unique_ptr<
-    DeviceGemmV2BPreshuffle<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&;
+using GemmF8F8BF16InstanceVector =
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        BF16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>&;
 
-using GemmF8F8F16InstanceVector = std::vector<std::unique_ptr<
-    DeviceGemmV2BPreshuffle<Row, Col, Row, F8, F8, F16, PassThrough, PassThrough, PassThrough>>>&;
+using GemmF8F8F16InstanceVector =
+    std::vector<std::unique_ptr<DeviceGemmV2BPreshuffle<Row,
+                                                        Col,
+                                                        Row,
+                                                        F8,
+                                                        F8,
+                                                        F16,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        PassThrough>>>&;
 
 void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma32x32_mn_instances(
     GemmF8F8BF16InstanceVector& instances);
@@ -32,7 +48,7 @@ void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma_mn_p3_instances
     GemmF8F8BF16InstanceVector& instances);
 
 void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma_mn_p4_instances(
-    GemmF8F8BF16InstanceVector& instances);
+        GemmF8F8BF16InstanceVector& instances);
 void add_device_gemm_xdl_universal_preshuffle_f8_f8_bf16_mk_mfma_mn_p5_instances(
     GemmF8F8BF16InstanceVector& instances);
 
@@ -68,7 +84,7 @@ void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_compute_defau
     GemmF8F8F16InstanceVector& instances);
 
 void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p1_default_instances(
-    GemmF8F8F16InstanceVector& instances);
+        GemmF8F8F16InstanceVector& instances);
 void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p2_default_instances(
     GemmF8F8F16InstanceVector& instances);
 void add_device_gemm_universal_preshuffle_xdl_f8_f8_f16_mk_mfma_mn_p3_default_instances(
