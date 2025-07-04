@@ -39,6 +39,9 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_streamk_v3)
 add_example_executable(example_gemm_xdl_bf16_v3 gemm_xdl_bf16_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16_v3)
 
+add_example_executable(example_gemm_tmp_fp16_v3 gemm_tmp_fp16_v3.cpp)
+target_compile_options(example_gemm_tmp_fp16_v3 PRIVATE -save-temps=obj -Wno-gnu-line-marker)
+
 set(GEMM_OPTIONS)
 list(APPEND GEMM_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllvm --slp-threshold=-16")
 example_compile_options(example_gemm_xdl_fp8_v3 PRIVATE ${GEMM_OPTIONS})

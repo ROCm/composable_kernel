@@ -41,7 +41,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t WaveSize = 32;
+    static constexpr index_t WaveSize = get_warp_size();
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWmma);

@@ -59,7 +59,7 @@ struct GridwiseSparseEmbeddingsForwardLayernorm
     static constexpr auto I1          = Number<1>{};
     static constexpr auto I2          = Number<2>{};
     static constexpr auto I3          = Number<3>{};
-    static constexpr index_t WaveSize = 64;
+    static constexpr index_t WaveSize = get_warp_size();
 
     static_assert(BlockSize == RowClusterSize * DimClusterSize,
                   "Invalid cluster distribution within block");

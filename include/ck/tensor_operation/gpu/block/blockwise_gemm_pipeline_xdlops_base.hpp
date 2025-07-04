@@ -41,7 +41,7 @@ struct BlockwiseGemmXdlops_pipeline_base
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     // Hardcode to 64, as HIP-provided "WarpSize" would return 32 on RDNA GPUs.
-    static constexpr index_t WaveSize = 64;
+    static constexpr index_t __device__ WaveSize = get_warp_size();
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);

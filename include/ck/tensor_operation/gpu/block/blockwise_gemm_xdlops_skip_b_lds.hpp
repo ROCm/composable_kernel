@@ -30,7 +30,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    static constexpr index_t WaveSize = 64;
+    static constexpr index_t WaveSize = get_warp_size();
 
     static constexpr index_t KPerBlock = K0PerBlock * KPack;
 

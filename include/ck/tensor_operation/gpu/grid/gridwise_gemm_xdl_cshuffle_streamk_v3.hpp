@@ -98,7 +98,7 @@ template <typename ALayout,
           index_t MPerXdl,
           index_t NPerXdl,
           index_t MXdlPerWave,
-          index_t NXdlPerWave,
+          index_t NXdlPerWave__,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -160,6 +160,13 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                is_scale_mfma>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+    static constexpr index_t NXdlPerWave = []() {
+        constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave = BlockSize / get_warp_size() / MWave;
+        static_assert(BlockSize % (get_warp_size() * MWave) == 0);
+        return NPerBlock / NWave / NPerXdl;
+    }();
+
     __host__ static auto CalculateMPadded(index_t M)
     {
         return math::integer_least_multiple(M, MPerBlock);

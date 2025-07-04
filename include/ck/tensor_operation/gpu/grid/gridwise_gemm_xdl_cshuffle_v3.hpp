@@ -35,7 +35,7 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__) || defined(__gfx12__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
@@ -63,7 +63,7 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__) || defined(__gfx12__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -123,7 +123,7 @@ __global__ void
 /// @tparam MPerXdl     M size of matrix-fused-multiply-add instruction.
 /// @tparam NPerXdl     N size of matrix-fused-multiply-add instruction.
 /// @tparam MXdlPerWave The number of iterations in the M dimension over output tile per wavefront.
-/// @tparam NXdlPerWave The number of iterations in the N dimension over output tile per wavefront.
+/// @tparam NXdlPerWave__ The number of iterations in the N dimension over output tile per wavefront.
 /// @tparam ABlockTransferThreadClusterLengths_AK0_M_AK1 Spatial thread distribution over the input
 ///                                                      data. Can be interpreted as the answer
 ///                                                      to the question, "How many threads can be
@@ -209,7 +209,7 @@ template <typename ALayout,
           index_t MPerXdl,
           index_t NPerXdl,
           index_t MXdlPerWave,
-          index_t NXdlPerWave,
+          index_t NXdlPerWave__,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -275,6 +275,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                is_scale_mfma>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+    static constexpr index_t NXdlPerWave = []() {
+        constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave = BlockSize / get_warp_size() / MWave;
+        static_assert(BlockSize % (get_warp_size() * MWave) == 0);
+        static_assert(NPerBlock / NWave / NPerXdl > 0);
+        return NPerBlock / NWave / NPerXdl;
+    }();
 
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)

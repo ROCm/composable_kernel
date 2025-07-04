@@ -848,7 +848,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             // kfold and mpair dimension is not always required.
             // more dimension in merge_transform increase the difficulty of generating immarg offset
             // for compiler.
-            constexpr auto WaveSize = 64;
+            constexpr auto WaveSize = get_warp_size();
             constexpr auto M0       = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
             constexpr auto M1       = MPerBlock / M0;
 
@@ -962,7 +962,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         }
         else // RowMajor B
         {
-            constexpr auto WaveSize = 64;
+            constexpr auto WaveSize = get_warp_size();
             constexpr auto N0       = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I1);
             constexpr auto N1       = NPerBlock / N0;
 

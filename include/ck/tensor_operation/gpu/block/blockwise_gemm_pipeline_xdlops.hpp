@@ -32,7 +32,7 @@ template <index_t BlockSize,
           index_t KPerXDL>
 struct BlockwiseGemmXdlops_pipeline_hotloop_inst
 {
-    static constexpr index_t WaveSize = 64;
+    static constexpr index_t WaveSize = get_warp_size();
     static constexpr index_t WaveNumM = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t WaveNumN = NPerBlock / (NRepeat * NPerXDL);
 

@@ -99,7 +99,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
-    static constexpr auto WaveSize = 64;
+    static constexpr auto WaveSize = get_warp_size();
     // K1 should be Number<...>
     // Gemm0
     static constexpr auto A0K1 = Number<A0K1Value>{};
