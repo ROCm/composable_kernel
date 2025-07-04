@@ -82,30 +82,29 @@ struct f6_pk_t
 
     using type = f6_pk_t<BitType, packed_size>;
 
-    __attribute__((host)) __attribute__((device)) constexpr f6_pk_t() {}
-    __attribute__((host)) __attribute__((device)) constexpr f6_pk_t(const storage_type& init)
-        : data_{init}
+    __host__ __device__ constexpr f6_pk_t() {}
+    __host__ __device__ constexpr f6_pk_t(const storage_type& init) : data_{init}
     {
         // TODO: consider removing initialization similar to vector_type<T, 256>
     }
 
     // Initialize from a vector type with the same size as packed_size
     template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == packed_size>>
-    __attribute__((host)) __attribute__((device)) f6_pk_t(const T& v)
+    __host__ __device__ f6_pk_t(const T& v)
     {
         static_for<0, packed_size, 1>{}(
             [&](auto i) { pack(v[static_cast<index_t>(i)], static_cast<index_t>(i)); });
     }
 
     // Broadcast single initialization value to all packed elements
-    __attribute__((host)) __attribute__((device)) f6_pk_t(const int8_t v)
+    __host__ __device__ f6_pk_t(const int8_t v)
         : f6_pk_t(static_cast<int8_t __attribute__((ext_vector_type(packed_size)))>(v))
     {
         // TODO: consider removing initialization similar to vector_type<T, 256>
     }
 
     template <typename T>
-    __attribute__((host)) __attribute__((device)) void pack(const T x, const index_t i)
+    __host__ __device__ void pack(const T x, const index_t i)
     {
         static_assert(is_integral<T>::value || is_same_v<T, BitType>,
                       "T must be an integral type.");
@@ -130,8 +129,7 @@ struct f6_pk_t
         }
     }
 
-    __attribute__((host)) __attribute__((device)) static inline BitType unpack(const type& pk,
-                                                                               const index_t i)
+    __host__ __device__ static inline BitType unpack(const type& pk, const index_t i)
     {
         const int bit_pos    = i * num_bits_elem;
         const int arr_idx    = bit_pos / num_bits_vec_elem;
@@ -147,14 +145,10 @@ struct f6_pk_t
         return static_cast<BitType>(bits & 0x3F);
     }
 
-    __attribute__((host)) __attribute__((device)) inline BitType unpack(const index_t i) const
-    {
-        return unpack(*this, i);
-    }
+    __host__ __device__ inline BitType unpack(const index_t i) const { return unpack(*this, i); }
 
     // Compare operator
-    __attribute__((host)) __attribute__((device)) friend bool operator==(const f6_pk_t& lhs,
-                                                                         const f6_pk_t& rhs)
+    __host__ __device__ friend bool operator==(const f6_pk_t& lhs, const f6_pk_t& rhs)
     {
 #pragma unroll
         for(index_t i = 0; i < vector_size; ++i)
@@ -165,8 +159,7 @@ struct f6_pk_t
         return true;
     }
 
-    __attribute__((host)) __attribute__((device)) friend bool operator!=(const f6_pk_t& lhs,
-                                                                         const f6_pk_t& rhs)
+    __host__ __device__ friend bool operator!=(const f6_pk_t& lhs, const f6_pk_t& rhs)
     {
         return !(lhs == rhs);
     }
