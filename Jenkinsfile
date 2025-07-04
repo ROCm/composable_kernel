@@ -345,8 +345,19 @@ def cmake_build(Map conf=[:]){
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
-        build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
+        def cmake_flags = params.NINJA_BUILD_TRACE ? "-O3 -ftime-trace" : "-O3"
+        if (params.NINJA_BUILD_TRACE) {
+            echo "running ninja build trace"
+        }
+        setup_cmd = conf.get(
+            "setup_cmd",
+            """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" ${cmake_flags} " .. """
+        )
+        build_cmd = conf.get(
+            "build_cmd",
+            "${build_envs} ninja -j${nt} ${config_targets}"
+        )
+        
         cmd = conf.get("cmd", """
             ${setup_cmd}
             ${build_cmd}
