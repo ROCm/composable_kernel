@@ -270,8 +270,11 @@ struct tile_distribution_encoding
         // note: this function only count the p dim length along h, not r
         CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_p_dim_lengths_over_h()
         {
-            // e.g. tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>> --> seq<3, 5>
-            // tuple<seq<xx..>, seq<yy..>> -> seq<xx..yy..>
+            // e.g. tuple<seq<1, 4, 32>, seq<1, 2, 8, 4, 4>>
+            //                Y  P  Y        Y  P  Y  P  Y
+            //                   |              |     |
+            //                   v              v     v
+            // return :      seq<4,             2  *  4> => seq<4, 8>
             constexpr auto uniformed_ps_to_rhss_major_ =
                 unpack([](auto... xs_) { return merge_sequences(xs_...); }, ps_to_rhss_major_);
             constexpr auto uniformed_ps_to_rhss_minor_ =
