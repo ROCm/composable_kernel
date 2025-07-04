@@ -135,7 +135,18 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         const auto waveId_m = wave_idx[I0];
 
         const auto xdlops_a_idx = xdlops_gemm.CalculateAThreadOriginDataIndex();
-
+#if 1
+        if(blockIdx.x == 0 && threadIdx.x == 4)
+        {
+            printf("CalculateAThreadOriginDataIndex -- threadIdx = %u, waveId_m = %d, "
+                   "xdlops_a_idx[I1] "
+                   "= %d, KThreadChunk * xdlops_a_idx[I0] = %d\n",
+                   threadIdx.x,
+                   waveId_m,
+                   xdlops_a_idx[I1],
+                   KThreadChunk * xdlops_a_idx[I0]);
+        }
+#endif
         return make_tuple(0, waveId_m, 0, xdlops_a_idx[I1], KThreadChunk * xdlops_a_idx[I0]);
     }
 

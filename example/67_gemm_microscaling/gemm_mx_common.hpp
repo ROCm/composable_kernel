@@ -34,7 +34,7 @@ using ck::type_convert;
 struct ExecutionConfig final
 {
     int do_verification = 1;     // (0=no, 1=CPU)
-    int init_method     = 0;     // (0=constant values, 1=integer values, 2=decimal values)
+    int init_method     = 14;    // (0=constant values, 1=integer values, 2=decimal values)
     bool time_kernel    = false; // (0=no, 1=yes)
     int verbosity       = 1;     // (0=no info, 1=verbose info)
     int warm_up         = 10;
@@ -449,15 +449,15 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
 
         {
 
-#if 0
-            std::set<int> row_ids = {0};
+#if 1
+            std::set<int> row_ids = {0, 4};
 #else
             std::set<int> row_ids = {0, 10, 42, 80, 103, 120, 150, 170, 180, 190, 200, 230, 245};
 #endif
             for(auto row_id : row_ids)
             {
 
-#if 1
+#if 0
                 a_m_k_scale(row_id, 0)     = ck::type_convert<XDataType>(4.0f);
                 a_m_k_scale(row_id + 1, 0) = ck::type_convert<XDataType>(16.0f);
                 a_m_k_scale(row_id, 1)     = ck::type_convert<XDataType>(2.0f / 1);
@@ -1324,7 +1324,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         else if(config.init_method == 14)
         {
 #if 1
-#if 1 // print a_m_k
+#if 0 // print a_m_k
             std::cout << "Submatrix of a_m_k (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {
@@ -1396,7 +1396,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
             if(K < 600)
             {
                 std::cout << std::endl;
-                const auto row = 150;
+                const auto row = 4;
 
                 std::cout << "a_m_k(" << row << ",:):";
                 for(int i = 0; i < K; ++i)
@@ -1436,7 +1436,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
                 std::cout << std::endl;
             }
 
-#if 1 // print a_m_k_scale
+#if 0 // print a_m_k_scale
             std::cout << "Submatrix of a_m_k_scale (16x16):" << std::endl;
             for(int i = 0; i < 16; ++i)
             {

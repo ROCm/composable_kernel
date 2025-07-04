@@ -373,13 +373,13 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                 dst_buf, src_offset, dst_offset, is_src_valid);
 
 #if 1
-            if constexpr(ordered_dst_access_idx[Number<0>{}] == 0 &&
-                         ordered_dst_access_idx[Number<1>{}] == 0 &&
-                         ordered_dst_access_idx[Number<2>{}] == 0)
+            // if constexpr(ordered_dst_access_idx[Number<0>{}] == 0 &&
+            //              ordered_dst_access_idx[Number<1>{}] == 0 &&
+            //              ordered_dst_access_idx[Number<2>{}] == 0)
             {
-                if(blockIdx.x == 0 && threadIdx.x < 64 &&
+                if(blockIdx.x == 0 && threadIdx.x < 640 &&
                    (dst_buf.p_data_ == reinterpret_cast<const void*>(0x1000000000000) ||
-                    dst_buf.p_data_ == reinterpret_cast<const void*>(0x1000000010000)))
+                    dst_buf.p_data_ == reinterpret_cast<const void*>(0x1000000000000)))
                 {
                     // block_sync_lds();
                     const auto lds_offset =
@@ -403,14 +403,14 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                     }
                     else if constexpr(packed_size_v<SrcData> == 1 || packed_size_v<SrcData> == 2)
                     {
-                        printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
-                               "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
-                               "dst_buf.p_data_[dst_offset] = 0x%02x\n",
-                               static_cast<int>(threadIdx.x),
-                               static_cast<long>(src_offset),
-                               src_buf.p_data_[src_offset].data,
-                               lds_offset,
-                               dst_buf.p_data_[lds_offset].data);
+                        // printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                        //        "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
+                        //        "dst_buf.p_data_[dst_offset] = 0x%02x\n",
+                        //        static_cast<int>(threadIdx.x),
+                        //        static_cast<long>(src_offset),
+                        //        src_buf.p_data_[src_offset].data,
+                        //        lds_offset,
+                        //        dst_buf.p_data_[lds_offset].data);
                     }
                 }
             }
