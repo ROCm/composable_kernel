@@ -47,6 +47,11 @@ struct tile_distribution_encoding
     static constexpr auto ys_to_rhs_major_  = Ys2RHsMajor{};
     static constexpr auto ys_to_rhs_minor_  = Ys2RHsMinor{};
 
+#if !CK_TILE_ENC_SUPPORT_Y_TO_R
+    static_assert(container_find(ys_to_rhs_major_, 0) == NDimY,
+                  "do not support Y dim pointed to R dim");
+#endif
+
     // redundant but useful info
     // TODO: really bad code, should be over-hauled
     struct detail
