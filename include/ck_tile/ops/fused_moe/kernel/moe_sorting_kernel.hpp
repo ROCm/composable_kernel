@@ -1295,6 +1295,7 @@ CK_TILE_HOST index_t moe_sorting_mp_get_workspace_size(int tokens_, int num_expe
 CK_TILE_HOST index_t moe_sorting_get_workspace_size(int tokens_, int num_experts_, int topk_)
 {
 #if 1
+    // return 0;
     if(moe_sorting_is_oneshot(tokens_, num_experts_))
     {
         return 0;
@@ -1479,6 +1480,7 @@ struct MoeSortingMultiPhaseKernel_P1
     struct Kargs
     {
         const void* p_local_expert_mask; // [expert]
+        const void* p_local_tokens;      // [1], if not nullptr, use this as actual tokens
         void* p_expert_mesh;             // [expert, tokens]
         void* p_expert_cumsum;
         index_t mesh_stride; // mesh_stride for p_expert_mesh
@@ -1488,6 +1490,7 @@ struct MoeSortingMultiPhaseKernel_P1
     {
         Kargs k;
         k.p_local_expert_mask = h.p_local_expert_mask;
+        k.p_local_tokens      = h.p_local_tokens;
         k.p_expert_mesh       = h.p_ws;
         k.p_expert_cumsum     = reinterpret_cast<void*>(
             reinterpret_cast<char*>(h.p_ws) +
@@ -1524,7 +1527,18 @@ struct MoeSortingMultiPhaseKernel_P1
 
         auto f_sum = [](auto x_, auto y_) { return x_ + y_; };
 
-        int loops = (kargs.mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        int loops = [&]() {
+            if constexpr(Problem::LocalToken)
+            {
+                const auto tokens = reinterpret_cast<const index_t*>(kargs.p_local_tokens)[0];
+                const auto local_mesh_stride = impl::moe_sorting_mp_mesh_stride(tokens);
+                return (local_mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            }
+            else
+            {
+                return (kargs.mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            }
+        }();
 
         if constexpr(Problem::LocalExpertMasking)
         {
@@ -2478,7 +2492,20 @@ struct MoeSortingMultiPhaseKernel_P23
             constexpr index_t index_pack = Problem::SubTokenTile;              // always packed
             using r_t                    = ext_vector_t<MeshType, index_pack>; // always use int32x4
             using d_t                    = ext_vector_t<index_t, index_pack>;
-            int loops       = (kargs.mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            int loops                    = [&]() {
+                if constexpr(Problem::LocalToken)
+                {
+                    // const auto tokens = reinterpret_cast<const
+                    // index_t*>(kargs.p_local_tokens)[0];
+                    const auto local_mesh_stride = impl::moe_sorting_mp_mesh_stride(tokens);
+                    return (local_mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                }
+                else
+                {
+                    return (kargs.mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                }
+            }();
+
             int prev_cumsum = 0;
 
             for(int i = 0; i < loops; i++)
