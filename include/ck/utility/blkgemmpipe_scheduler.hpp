@@ -75,7 +75,6 @@ template <index_t BlockSize,
           bool IsF4F6 = false>
 struct BlockwiseGemmXdlops_pipeline_hotloop_inst
 {
-    static constexpr index_t WaveSize = get_warp_size();
     static constexpr index_t WaveNumM = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t WaveNumN = NPerBlock / (NRepeat * NPerXDL);
 
@@ -97,9 +96,15 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t B_LDS_Read_Inst_Num =
         WaveNumM * NPerBlock * KPerBlock / (BlockSize * BLDSReadWidth);
 
-    static constexpr index_t C_MFMA_Inst_Num =
-        MPerBlock * NPerBlock * KPerBlock / (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
-
+    static constexpr index_t __device__ C_MFMA_Inst_Num()
+    {
+        return MPerBlock * NPerBlock * KPerBlock / (BlockSize / get_warp_size()) / (MPerXDL * NPerXDL * KPerXDL);
+    }
+    static  index_t __host__ C_MFMA_Inst_Num()
+    {
+        return MPerBlock * NPerBlock * KPerBlock / (BlockSize / get_warp_size()) / (MPerXDL * NPerXDL * KPerXDL);
+    }
+    
     static constexpr index_t C_MFMA_SpeedUp = IsF4F6 ? 2 : 1;
 
     static constexpr index_t C_MFMA_Inst_Cycle = []() {
@@ -113,11 +118,11 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
         }
     }();
 
-    static constexpr auto Print()
+    static auto Print()
     {
         printf(" Blk/Wave Size: %d, %d, M/N/K PerBlk: %d, %d, %d, M/N/K PerXdl: %d, %d, %d\n",
                BlockSize,
-               WaveSize,
+               get_warp_size(),
                MPerBlock,
                NPerBlock,
                KPerBlock,
@@ -135,7 +140,7 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
                B_LDS_Write_Inst_Num,
                A_LDS_Read_Inst_Num,
                B_LDS_Read_Inst_Num,
-               C_MFMA_Inst_Num,
+               C_MFMA_Inst_Num(),
                C_MFMA_Inst_Cycle,
                A_LDS_Read_Width,
                B_LDS_Read_Width,
