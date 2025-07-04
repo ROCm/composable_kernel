@@ -24,7 +24,9 @@
  * (2) number of warps per thread block,
  * (3) number of iterations to cover the entire Y axis.
 
- * Side note, still not sure what 'raked' is supposed to mean.
+ * The raked here represents how data is partitioned across different processing granularity.
+ * It represents howe we are going to access the data in thread, warp, or blocked in contiguous
+ region.
  * From below, the qualifier for 'raked' is the part of warp/thread hierarchy
  * in the split of Y tile dimension where the iteration happens,
  * meaning, the iteration can be logically inserted as a tile dimension in 3 ways,
@@ -56,6 +58,13 @@
  * Y2 is the number of rows accessed by a warp in a single iteration, `Y2 * X1 == WarpSize`
 
  * In all cases, the tuple <Y0, Y1, Y2> defines the Y-axis access pattern.
+
+ * *Selection*
+ * When we are selecting, Thread-raked is used in element-wise operation because it is the
+ * Thread-major memory order.
+ * Warp-raked is used in matrix multiplication because the vectorization is in warp level.
+ * Block-raked is used mostly for the reduction process, where will reduce the block in global
+ * atomic level.
  *
  */
 
