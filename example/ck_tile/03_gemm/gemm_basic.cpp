@@ -20,12 +20,6 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     if constexpr(Persistent)
         std::cout << "WARNING: Ignoring persistent kernel option for basic gemm." << std::endl;
-    // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadM = false;
-    constexpr bool kPadN = false;
-    constexpr bool kPadK = false;
-
-    constexpr int kBlockPerCu = 1;
 
     // This part comes from the Codegen
     constexpr ck_tile::index_t M_Tile = 256;
@@ -47,8 +41,12 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-    using CodegenGemmTraits =
-        ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
+    using CodegenGemmTraits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
+                                                      GemmConfig::kPadN,
+                                                      GemmConfig::kPadK,
+                                                      ALayout,
+                                                      BLayout,
+                                                      CLayout>;
 
     using CodegenPipelineProblem = ck_tile::
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
@@ -102,8 +100,10 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                       << std::endl;
         }
 
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        float ave_time =
+            ck_tile::launch_kernel(s,
+                                   ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
+                                       Kernel{}, grids, blocks, 0, kargs));
 
         return ave_time;
     };
