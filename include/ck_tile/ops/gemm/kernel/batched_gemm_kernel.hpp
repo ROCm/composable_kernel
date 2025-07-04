@@ -22,12 +22,14 @@ struct BatchedGemmHostArgs : public ck_tile::GemmHostArgs
                                      ck_tile::index_t stride_A_,
                                      ck_tile::index_t stride_B_,
                                      ck_tile::index_t stride_C_,
+                                     bool skip_a_lds_,
+                                     bool skip_b_lds_,
                                      ck_tile::index_t batch_stride_A_,
                                      ck_tile::index_t batch_stride_B_,
                                      ck_tile::index_t batch_stride_C_,
                                      ck_tile::index_t batch_count_)
         : GemmHostArgs(
-              a_ptr_, b_ptr_, c_ptr_, k_batch_, M_, N_, K_, stride_A_, stride_B_, stride_C_),
+              a_ptr_, b_ptr_, c_ptr_, k_batch_, M_, N_, K_, stride_A_, stride_B_, stride_C_, skip_a_lds_, skip_b_lds_),
           batch_stride_A(batch_stride_A_),
           batch_stride_B(batch_stride_B_),
           batch_stride_C(batch_stride_C_),

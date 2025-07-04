@@ -53,12 +53,16 @@ struct GemmHostArgs : public GemmProblem
                               index_t K_,
                               index_t stride_A_,
                               index_t stride_B_,
-                              index_t stride_C_)
+                              index_t stride_C_,
+                              bool skip_a_lds_,
+                              bool skip_b_lds_)
         : GemmProblem(M_, N_, K_, stride_A_, stride_B_, stride_C_),
           a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           c_ptr(c_ptr_),
-          k_batch(k_batch_)
+          k_batch(k_batch_),
+          skip_a_lds(skip_a_lds_),
+          skip_b_lds(skip_b_lds_)
     {
     }
 
@@ -66,6 +70,8 @@ struct GemmHostArgs : public GemmProblem
     const void* b_ptr;
     void* c_ptr;
     index_t k_batch;
+    bool skip_a_lds;
+    bool skip_b_lds;
 };
 
 /// @brief The GEMM kernel device arguments.
@@ -93,6 +99,10 @@ struct GemmKernelArgs
     ///        (in memory) of C tensor.
     index_t stride_C;
     index_t k_batch;
+    /// @brief Flag to skip loading A tensor tile into LDS.
+    bool skip_a_lds;
+    /// @brief Flag to skip loading B tensor tile into LDS.
+    bool skip_b_lds;
 };
 
 /// @brief The GEMM kernel template.
@@ -176,7 +186,10 @@ struct GemmKernel
                               hostArgs.stride_A,
                               hostArgs.stride_B,
                               hostArgs.stride_C,
-                              hostArgs.k_batch};
+                              hostArgs.k_batch,
+                              hostArgs.skip_a_lds,
+                              hostArgs.skip_b_lds
+                            };
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
