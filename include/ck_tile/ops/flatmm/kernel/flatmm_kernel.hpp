@@ -462,9 +462,9 @@ struct FlatmmKernel
             c_block_window, c_block_tile, smem_ptr_ping);
     }
 
-    CK_TILE_DEVICE void operator()(FlatmmKernelArgs kargs) const
+    CK_TILE_DEVICE void operator()(FlatmmKernelArgs kargs, int partition_idx = blockIdx.x) const
     {
-        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
+        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(partition_idx);
         const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
@@ -484,7 +484,15 @@ struct FlatmmKernel
                        EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                        is_any_of<CDataType, fp16_t, bf16_t>::value))
         {
-            RunFlatmm(a_ptr, b_flat_ptr, c_ptr, smem_ptr_ping, smem_ptr_pong, kargs, splitk_batch_offset, i_m, i_n);
+            RunFlatmm(a_ptr,
+                      b_flat_ptr,
+                      c_ptr,
+                      smem_ptr_ping,
+                      smem_ptr_pong,
+                      kargs,
+                      splitk_batch_offset,
+                      i_m,
+                      i_n);
         }
     }
 };
