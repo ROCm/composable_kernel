@@ -1348,8 +1348,8 @@ struct intrin_mfma_f32_32x32x16f8f8<32, 32>
 #if defined(__gfx94__)
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(
-                bit_cast<long>(reg_a),
-                bit_cast<long>(reg_b),
+                bit_cast<int64_t>(reg_a),
+                bit_cast<int64_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 0,
                 0,
@@ -1379,8 +1379,8 @@ struct intrin_mfma_f32_16x16x32f8f8<16, 16>
     {
 #if defined(__gfx94__)
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8(
-            bit_cast<long>(reg_a),
-            bit_cast<long>(reg_b),
+            bit_cast<int64_t>(reg_a),
+            bit_cast<int64_t>(reg_b),
             reg_c.template AsType<float4_t>()[Number<0>{}],
             0,
             0,
@@ -1411,8 +1411,8 @@ struct intrin_mfma_f32_32x32x16bf8bf8<32, 32>
 #if defined(__gfx94__)
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8(
-                bit_cast<long>(reg_a),
-                bit_cast<long>(reg_b),
+                bit_cast<int64_t>(reg_a),
+                bit_cast<int64_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 0,
                 0,
@@ -1442,8 +1442,8 @@ struct intrin_mfma_f32_16x16x32bf8bf8<16, 16>
     {
 #if defined(__gfx94__)
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8(
-            bit_cast<long>(reg_a),
-            bit_cast<long>(reg_b),
+            bit_cast<int64_t>(reg_a),
+            bit_cast<int64_t>(reg_b),
             reg_c.template AsType<float4_t>()[Number<0>{}],
             0,
             0,
@@ -1474,8 +1474,8 @@ struct intrin_mfma_f32_32x32x16f8bf8<32, 32>
 #if defined(__gfx94__)
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8(
-                bit_cast<long>(reg_a),
-                bit_cast<long>(reg_b),
+                bit_cast<int64_t>(reg_a),
+                bit_cast<int64_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 0,
                 0,
@@ -1505,8 +1505,8 @@ struct intrin_mfma_f32_16x16x32f8bf8<16, 16>
     {
 #if defined(__gfx94__)
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8(
-            bit_cast<long>(reg_a),
-            bit_cast<long>(reg_b),
+            bit_cast<int64_t>(reg_a),
+            bit_cast<int64_t>(reg_b),
             reg_c.template AsType<float4_t>()[Number<0>{}],
             0,
             0,
@@ -1537,8 +1537,8 @@ struct intrin_mfma_f32_32x32x16bf8f8<32, 32>
 #if defined(__gfx94__)
         reg_c.template AsType<float16_t>()(Number<0>{}) =
             __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(
-                bit_cast<long>(reg_a),
-                bit_cast<long>(reg_b),
+                bit_cast<int64_t>(reg_a),
+                bit_cast<int64_t>(reg_b),
                 reg_c.template AsType<float16_t>()[Number<0>{}],
                 0,
                 0,
@@ -1568,8 +1568,8 @@ struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
     {
 #if defined(__gfx94__)
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8(
-            bit_cast<long>(reg_a),
-            bit_cast<long>(reg_b),
+            bit_cast<int64_t>(reg_a),
+            bit_cast<int64_t>(reg_b),
             reg_c.template AsType<float4_t>()[Number<0>{}],
             0,
             0,
