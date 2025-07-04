@@ -287,9 +287,7 @@ bool run_test_case(int argc, char* argv[])
     if(!result)
         return false;
 
-    bool r = run<InputType, OutputType>(arg_parser);
-
-    return r;
+    return run<InputType, OutputType>(arg_parser);
 }
 
 template <typename InputType, typename OutputType>
