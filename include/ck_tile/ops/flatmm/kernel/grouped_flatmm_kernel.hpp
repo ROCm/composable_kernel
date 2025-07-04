@@ -53,16 +53,6 @@ struct GroupedFlatmmHostArgs
     index_t k_batch;
 };
 
-namespace persist {
-
-template <int MaxThreadPerBlock, typename Kernel, typename... Args>
-__launch_bounds__(MaxThreadPerBlock) __global__ void persist_kernel(Args... args)
-{
-    Kernel{}(args...);
-}
-
-} // namespace persist
-
 template <typename TilePartitioner_, typename FlatmmPipeline_, typename EpiloguePipeline_>
 struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, EpiloguePipeline_>
 {
@@ -108,8 +98,8 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
         const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
 
         // print maxActiveBlocksPerCU and persistent_block_size
-        std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
-                  << ", persistent_block_size: " << persistent_block_size << std::endl;
+        // std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
+        //           << ", persistent_block_size: " << persistent_block_size << std::endl;
 
         assert(kernelArgs.k_batch == 1);
         return dim3(persistent_block_size, 1, kernelArgs.k_batch);
