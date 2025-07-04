@@ -110,13 +110,11 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 
     if(args.k_batch == 1)
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::set>{});
+        return Run(MemoryOpSet{});
     }
     else
     {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::atomic_add>{});
+        return Run(MemoryOpAtomicAdd{});
     }
 }
 
