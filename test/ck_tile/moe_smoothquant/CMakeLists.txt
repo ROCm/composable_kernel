@@ -2,8 +2,6 @@
 if(GPU_TARGETS MATCHES "gfx9")
     function (add_moe_smoothquant_test TARGET_NAME MAIN_SRC)
         message(DEBUG "adding ${TARGET_NAME}")
-        # not using add_example_executable() to add target, since we don't want this to have
-        # to be included in "make all/install/check"
         add_test_executable(${TARGET_NAME} ${MAIN_SRC})
         target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
