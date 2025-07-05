@@ -22,7 +22,7 @@ Examples can be run individually as well. For example:
 
     ./bin/example_gemm_xdl_fp16 1 1 1
 
-For instructions on how to run individual examples and tests, see their README files in the |example|_ and |test|_ GitHub folders.
+For instructions on how to run individual examples and tests, see their README files in the |example|_ and |test|_ folders.
 
 To run smoke tests, use ``make smoke``.
 
@@ -31,10 +31,10 @@ To run regression tests, use ``make regression``.
 In general, tests that run for under thirty seconds are included in the smoke tests and tests that run for over thirty seconds are included in the regression tests. 
 
 .. |example| replace:: ``example``
-.. _example: https://github.com/ROCm/composable_kernel/tree/develop/example
+.. _example: ../../../../example
 
 .. |client_example| replace:: ``client_example``
-.. _client_example: https://github.com/ROCm/composable_kernel/tree/develop/client_example
+.. _client_example: ../../../../client_example
 
 .. |test| replace:: ``test``
-.. _test: https://github.com/ROCm/composable_kernel/tree/develop/test
+.. _test: ../../../../test

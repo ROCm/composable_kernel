@@ -1,11 +1,65 @@
 [Back to the main page](../../README.md)
-# Composable Kernel wrapper GEMM tutorial
 
-This tutorial demonstrates how to implement matrix multiplication using Composable Kernel (CK) wrapper. We present the base version of GEMM without most of the available optimizations; however, it's worth noting that CK has kernels with different optimizations.
+# Composable Kernel Wrapper GEMM Tutorial
 
-To implement these optimizations, you can use the CK wrapper or directly use available instances in CK. You can also refer to the [optimized GEMM example](https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_optimized_gemm.cpp), that uses CK wrapper based on the [`gridwise_gemm_xdlops_v2r3`](https://github.com/ROCm/composable_kernel/blob/develop/include/ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp) implementation.
+This tutorial demonstrates how to implement matrix multiplication (GEMM) using the Composable Kernel (CK) wrapper. The examples show both basic and optimized GEMM implementations, as well as how to use the wrapper for tensor transformations such as im2col.
 
-The kernel definition should look similar to:
+---
+
+## How to Run
+
+### Build and Execute
+```bash
+cd composable_kernel/client_example/25_wrapper
+mkdir build && cd build
+cmake -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc ..
+make -j
+
+# Example run (basic GEMM)
+./wrapper_basic_gemm
+
+# Example run (optimized GEMM)
+./wrapper_optimized_gemm
+
+# Example run (im2col transformation)
+./wrapper_img2col
+
+# Example run (tensor transform using wrapper)
+./tensor_transform_using_wrapper
+```
+
+---
+
+## Source Code Structure
+
+### Directory Layout
+```
+client_example/25_wrapper/
+├── wrapper_basic_gemm.cpp         # Basic GEMM using CK wrapper
+├── wrapper_optimized_gemm.cpp     # Optimized GEMM using CK wrapper
+├── wrapper_img2col.cpp            # im2col transformation using CK wrapper
+├── tensor_transform_using_wrapper.cpp # General tensor transform example
+├── CMakeLists.txt                 # Build configuration for the example
+├── README.md                      # This tutorial and reference
+```
+
+### Key Functions
+
+- **main()** (in each `.cpp`):  
+  Sets up input tensors, configures wrapper parameters, launches the kernel, and verifies the result.
+- **CK wrapper API usage**:  
+  Demonstrates how to create layouts, tensors, and launch GEMM or tensor transforms using the wrapper.
+
+---
+
+## Additional Details
+
+## Overview
+
+The CK wrapper provides a flexible interface for launching GEMM kernels and tensor operations. This tutorial presents:
+- A base GEMM implementation (minimal optimizations)
+- An optimized GEMM using [`gridwise_gemm_xdlops_v2r3`] (../../include/ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp)
+- Examples of tensor transformations (e.g., im2col)
 
 ```cpp
 template <typename DataType,
@@ -168,5 +222,13 @@ The end result from `c_vgpr_reg` is stored in the `C` local partition (tensor pe
     ck::wrapper::copy(c_vgpr_reg, c_global_local_partition);
 ```
 
-If you want to dive deep into the details, you can find the entire example
-[here](https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_basic_gemm.cpp).
+---
+
+## Related Examples
+
+- [01_gemm](../01_gemm/README.md): Basic GEMM client example
+- [22_im2col_col2im](../22_im2col_col2im/README.md): im2col/col2im transformations
+- [25_gemm_bias_e_permute](../../example/25_gemm_bias_e_permute/README.md): GEMM with bias and permutation in the main example directory
+
+---
+[Back to Client Examples](../README.md)

@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
-#include <iomanip>
-#include <vector>
 #include <iostream>
+#include <iomanip>
 
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/utility/data_type.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_mx.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/library/tensor_operation_instance/gpu/gemm_mx.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx.hpp"
 
 using F16 = ck::half_t;
 using F32 = float;

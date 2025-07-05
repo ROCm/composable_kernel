@@ -8,3 +8,5 @@
 #arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE
 ./bin/example_gemm_bias_relu_xdl_fp16 1 1 1 3840 4096 4096 4096 4096 4096
 ```
+
+[Develop fused INT8 kernels for SmoothQuant models] (https://rocm.blogs.amd.com/software-tools-optimization/ck-int8-gemm-sq/README.html)

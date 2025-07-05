@@ -65,7 +65,7 @@ After running ``make install``, the Composable Kernel files will be saved to the
 * Header files: ``/opt/rocm/include/ck/`` and ``/opt/rocm/include/ck_tile/``
 * Examples, tests, and ckProfiler: ``/opt/rocm/bin/``
 
-For information about ckProfiler, see `the ckProfiler readme file <https://github.com/ROCm/composable_kernel/blob/develop/profiler/README.md>`_.
+For information about ckProfiler, see `the ckProfiler readme file <../profiler/README.md>`_.
 
 For information about running the examples and tests, see :doc:`Composable Kernel examples and tests <../tutorial/Composable-Kernel-examples>`.
 
