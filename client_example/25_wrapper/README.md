@@ -227,7 +227,7 @@ The end result from `c_vgpr_reg` is stored in the `C` local partition (tensor pe
 ## Related Examples
 
 - [01_gemm](../01_gemm/README.md): Basic GEMM client example
-- [22_im2col_col2im](../22_im2col_col2im/README.md): im2col/col2im transformations
+- [27_im2col_col2im](../27_im2col_col2im/README.md): im2col/col2im transformations
 - [25_gemm_bias_e_permute](../../example/25_gemm_bias_e_permute/README.md): GEMM with bias and permutation in the main example directory
 
 ---

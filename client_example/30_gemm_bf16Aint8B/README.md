@@ -23,7 +23,9 @@ This client example demonstrates **GEMM with mixed-precision input types (bf16 f
 ### Prerequisites
 ```bash
 cd composable_kernel/build
-make -j install
+cmake -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -D DTYPES="bf16;int8" ..
+make -j
+make install
 ```
 
 ### Build and Execute
