@@ -172,7 +172,7 @@ using WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution =
 #if defined(__gfx950__)
 using WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution =
     WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution<
-        WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16<WGAttrCtlEnum::Default_>>>;
+        WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K32<WGAttrCtlEnum::Default_>>>;
 #else
 using WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution =
     WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
@@ -281,5 +281,20 @@ using WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution =
         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, fp8_t, WGAttrCtlEnum::Default_>,
         2,
         swizzle_factor>>;
+
+// int8
+using WarpGemmMfma_i32_32x32x16_i8_i8 = WarpGemmImpl<
+    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_i32_32x32x16_i8<WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmMfma_i32_32x32x16_i8_i8_CTransposed =
+    WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution<
+        WarpGemmAttributeMfmaImpl_i32_32x32x16_i8<WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmMfma_i32_16x16x32_i8_i8 = WarpGemmImpl<
+    WarpGemmAtrributeMfma<WarpGemmAttributeMfmaImpl_i32_16x16x32_i8<WGAttrCtlEnum::Default_>>>;
+
+using WarpGemmMfma_i32_16x16x32_i8_i8_CTransposed =
+    WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution<
+        WarpGemmAttributeMfmaImpl_i32_16x16x32_i8<WGAttrCtlEnum::Default_>>>;
 
 } // namespace ck_tile

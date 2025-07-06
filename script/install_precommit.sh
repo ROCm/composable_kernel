@@ -1,5 +1,4 @@
 #!/bin/bash
-
 run_and_check() {
     "$@"
     status=$?
@@ -13,8 +12,12 @@ run_and_check() {
 echo "I: Installing tools required for pre-commit checks..."
 run_and_check apt install clang-format-12
 
-echo "I: Installing pre-commit itself..."
-run_and_check pip3 install pre-commit
+echo "I: Creating and activating virtual environment for pre-commit..."
+python3 -m venv "$(dirname "$0")/../.venv"
+source "$(dirname "$0")/../.venv/bin/activate"
+
+echo "I: Installing pre-commit in virtual environment..."
+run_and_check pip install pre-commit
 run_and_check pre-commit install
 
 echo "I: Installation successful."
