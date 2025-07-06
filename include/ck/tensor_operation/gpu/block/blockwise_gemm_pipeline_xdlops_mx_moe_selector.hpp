@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_mx_moe_v3.hpp"
-#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_preshuffle_mx_moe_gufusion_v3.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_mx_moe_v3.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_mx_moe_gufusion_v3.hpp"
 
 namespace ck {
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
@@ -33,7 +33,7 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t NRepeat,
           index_t KPack,
           bool GUFusion = false>
-constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
+constexpr auto BlockGemmMXPipeline_Selector()
 {
 
     // Hardware MX GEMM pipeline
@@ -52,7 +52,7 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
     {
         if constexpr(GUFusion)
         {
-            return BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
+            return BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<
                 BlkGemmPipeSche,
                 ThreadBlockSize,
                 ScaleBlockSize,
@@ -77,28 +77,27 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
         }
         else
         {
-            return BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<
-                BlkGemmPipeSche,
-                ThreadBlockSize,
-                ScaleBlockSize,
-                ADataType,
-                AScaleDataType,
-                BDataType,
-                BScaleDataType,
-                ATileDesc,
-                BTileDesc,
-                AMmaTileDesc,
-                BMmaTileDesc,
-                ABlockTransferSrcScalarPerVector,
-                BBlockTransferSrcScalarPerVector,
-                MPerBlock,
-                NPerBlock,
-                KPerBlock,
-                MPerXDL,
-                NPerXDL,
-                MRepeat,
-                NRepeat,
-                KPack>{};
+            return BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v3<BlkGemmPipeSche,
+                                                              ThreadBlockSize,
+                                                              ScaleBlockSize,
+                                                              ADataType,
+                                                              AScaleDataType,
+                                                              BDataType,
+                                                              BScaleDataType,
+                                                              ATileDesc,
+                                                              BTileDesc,
+                                                              AMmaTileDesc,
+                                                              BMmaTileDesc,
+                                                              ABlockTransferSrcScalarPerVector,
+                                                              BBlockTransferSrcScalarPerVector,
+                                                              MPerBlock,
+                                                              NPerBlock,
+                                                              KPerBlock,
+                                                              MPerXDL,
+                                                              NPerXDL,
+                                                              MRepeat,
+                                                              NRepeat,
+                                                              KPack>{};
         }
     }
     else
