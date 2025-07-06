@@ -216,16 +216,180 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
                              Policy::template MakeSLdsBlockDescriptor<Problem>().get_lengths(),
                              {0, 0},
                              Policy::template MakeSRegTileDistribution<Problem>());
+        // s_write_lds_window, s_read_lds_window = CK_PRINT<
+        //     ck_tile::tile_window_with_static_lengths<
+        //         ck_tile::tensor_view<
+        //             ck_tile::buffer_view<ck_tile::address_space_enum::lds,
+        //                                  float,
+        //                                  ck_tile::constant<1084L>,
+        //                                  true,
+        //                                  ck_tile::amd_buffer_coherence_enum::coherence_default>,
+        //             const ck_tile::tensor_descriptor<
+        //                 ck_tile::tuple<
+        //                     ck_tile::embed<ck_tile::tuple<ck_tile::constant<16>,
+        //                                                   ck_tile::constant<16>,
+        //                                                   ck_tile::constant<4>>,
+        //                                    ck_tile::tuple<ck_tile::constant<68>,
+        //                                                   ck_tile::constant<4>,
+        //                                                   ck_tile::constant<1>>>,
+        //                     ck_tile::pass_through<ck_tile::constant<16>>,
+        //                     ck_tile::merge_v2_magic_division<
+        //                         ck_tile::tuple<ck_tile::constant<16>, ck_tile::constant<4>>>>,
+        //                 ck_tile::tuple<ck_tile::sequence<0>,
+        //                                ck_tile::sequence<2>,
+        //                                ck_tile::sequence<1, 3>>,
+        //                 ck_tile::tuple<ck_tile::sequence<1, 2, 3>,
+        //                                ck_tile::sequence<4>,
+        //                                ck_tile::sequence<5>>,
+        //                 ck_tile::sequence<4, 5>,
+        //                 ck_tile::constant<1084L>,
+        //                 ck_tile::sequence<-1, -1, -1, 4, -1, -1>,
+        //                 ck_tile::sequence<-1, -1, -1, 1, -1, -1>>&>,
+        //         ck_tile::tuple<ck_tile::constant<16>, ck_tile::constant<64>>>,
+        //     ck_tile::tile_window_with_static_distribution<
+        //         ck_tile::tensor_view<
+        //             ck_tile::buffer_view<ck_tile::address_space_enum::lds,
+        //                                  float,
+        //                                  ck_tile::constant<1084L>,
+        //                                  true,
+        //                                  ck_tile::amd_buffer_coherence_enum::coherence_default>,
+        //             const ck_tile::tensor_descriptor<
+        //                 ck_tile::tuple<
+        //                     ck_tile::embed<ck_tile::tuple<ck_tile::constant<16>,
+        //                                                   ck_tile::constant<16>,
+        //                                                   ck_tile::constant<4>>,
+        //                                    ck_tile::tuple<ck_tile::constant<68>,
+        //                                                   ck_tile::constant<4>,
+        //                                                   ck_tile::constant<1>>>,
+        //                     ck_tile::pass_through<ck_tile::constant<16>>,
+        //                     ck_tile::merge_v2_magic_division<
+        //                         ck_tile::tuple<ck_tile::constant<16>, ck_tile::constant<4>>>>,
+        //                 ck_tile::tuple<ck_tile::sequence<0>,
+        //                                ck_tile::sequence<2>,
+        //                                ck_tile::sequence<1, 3>>,
+        //                 ck_tile::tuple<ck_tile::sequence<1, 2, 3>,
+        //                                ck_tile::sequence<4>,
+        //                                ck_tile::sequence<5>>,
+        //                 ck_tile::sequence<4, 5>,
+        //                 ck_tile::constant<1084L>,
+        //                 ck_tile::sequence<-1, -1, -1, 4, -1, -1>,
+        //                 ck_tile::sequence<-1, -1, -1, 1, -1, -1>>&>,
+        //         ck_tile::tuple<ck_tile::constant<16>, ck_tile::constant<64>>,
+        //         ck_tile::tile_distribution<
+        //             ck_tile::tensor_adaptor<
+        //                 ck_tile::tuple<
+        //                     ck_tile::replicate<ck_tile::tuple<ck_tile::constant<4>>>,
+        //                     ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+        //                                                     ck_tile::constant<1>,
+        //                                                     ck_tile::constant<16>>,
+        //                                      false>,
+        //                     ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+        //                                                     ck_tile::constant<4>,
+        //                                                     ck_tile::constant<4>,
+        //                                                     ck_tile::constant<4>>,
+        //                                      false>,
+        //                     ck_tile::merge_v2_magic_division<
+        //                         ck_tile::tuple<ck_tile::constant<1>, ck_tile::constant<4>>>,
+        //                     ck_tile::merge_v2_magic_division<
+        //                         ck_tile::tuple<ck_tile::constant<4>, ck_tile::constant<16>>>>,
+        //                 ck_tile::tuple<ck_tile::sequence<>,
+        //                                ck_tile::sequence<0>,
+        //                                ck_tile::sequence<1>,
+        //                                ck_tile::sequence<4, 2>,
+        //                                ck_tile::sequence<8, 5>>,
+        //                 ck_tile::tuple<ck_tile::sequence<2>,
+        //                                ck_tile::sequence<3, 4, 5>,
+        //                                ck_tile::sequence<6, 7, 8, 9>,
+        //                                ck_tile::sequence<10>,
+        //                                ck_tile::sequence<11>>,
+        //                 ck_tile::sequence<0, 1>,
+        //                 ck_tile::sequence<10, 11, 3, 6, 7, 9>>,
+        //             ck_tile::tensor_descriptor<
+        //                 ck_tile::tuple<ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+        //                                                                ck_tile::constant<1>,
+        //                                                                ck_tile::constant<4>,
+        //                                                                ck_tile::constant<4>>,
+        //                                                 false>>,
+        //                 ck_tile::tuple<ck_tile::sequence<0>>,
+        //                 ck_tile::tuple<ck_tile::sequence<1, 2, 3, 4>>,
+        //                 ck_tile::sequence<1, 2, 3, 4>,
+        //                 ck_tile::constant<16>,
+        //                 ck_tile::sequence<-1, -1, -1, -1, -1>,
+        //                 ck_tile::sequence<-1, -1, -1, -1, -1>>,
+        //             ck_tile::tile_distribution_encoding<
+        //                 ck_tile::sequence<4>,
+        //                 ck_tile::tuple<ck_tile::sequence<1, 1, 16>, ck_tile::sequence<1, 4, 4,
+        //                 4>>, ck_tile::tuple<ck_tile::sequence<1, 0>, ck_tile::sequence<2, 1>>,
+        //                 ck_tile::tuple<ck_tile::sequence<1, 0>, ck_tile::sequence<2, 2>>, // M1,
+        //                 R0, K2, M2: 1, 4, 4, 16 ck_tile::sequence<1, 2, 2, 2>,
+        //                 ck_tile::sequence<0, 0, 1, 3>>,  // M0, K0, K1, K3: 1, 1, 4, 4
+        //             ck_tile::detail::tile_distribution_detail<
+        //                 ck_tile::tuple<ck_tile::sequence<2>,
+        //                                ck_tile::sequence<3, 4, 5>,
+        //                                ck_tile::sequence<6, 7, 8, 9>>>>,
+        //         1>>
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemmPreshuffled<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
+        // CK_PRINT<const ck_tile::BlockGemmARegBSmemCRegV2<ck_tile::BlockGemmProblem<unsigned
+        // short, unsigned short, float, 256, ck_tile::TileGemmShape<ck_tile::sequence<16, 128, 64>,
+        // ck_tile::sequence<1, 4, 1>, ck_tile::sequence<16, 16, 16>>>,
+        // ck_tile::BlockGemmARegBSmemCRegV2CustomPolicy<unsigned short, unsigned short, float,
+        // ck_tile::sequence<1, 4, 1>,
+        // ck_tile::WarpGemmImpl<ck_tile::WarpGemmAtrributeMfmaTransposedCDistribution<ck_tile::WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16<ck_tile::WGAttrCtlEnum::Default_>>>>>>
 
         auto q_dram_window =
             make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                              q_dram_block_window_tmp.get_window_lengths(),
                              q_dram_block_window_tmp.get_window_origin(),
                              Policy::template MakeQDramTileDistribution<Problem>());
+
+        // QDramdist = CK_PRINT<ck_tile::tile_distribution<
+        //     ck_tile::tensor_adaptor<
+        //         ck_tile::tuple<
+        //             ck_tile::replicate<ck_tile::tuple<ck_tile::constant<1>>>,
+        //             ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+        //                                             ck_tile::constant<4>,
+        //                                             ck_tile::constant<4>>,
+        //                              false>,
+        //             ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<16>, ck_tile::constant<8>>,
+        //                              false>,
+        //             ck_tile::merge_v2_magic_division<ck_tile::tuple<ck_tile::constant<4>>>,
+        //             ck_tile::merge_v2_magic_division<
+        //                 ck_tile::tuple<ck_tile::constant<4>, ck_tile::constant<16>>>>,
+        //         ck_tile::tuple<ck_tile::sequence<>,
+        //                        ck_tile::sequence<0>,
+        //                        ck_tile::sequence<1>,
+        //                        ck_tile::sequence<4>,
+        //                        ck_tile::sequence<5, 6>>,
+        //         ck_tile::tuple<ck_tile::sequence<2>,
+        //                        ck_tile::sequence<3, 4, 5>,
+        //                        ck_tile::sequence<6, 7>,
+        //                        ck_tile::sequence<8>,
+        //                        ck_tile::sequence<9>>,
+        //         ck_tile::sequence<0, 1>,
+        //         ck_tile::sequence<8, 9, 3, 7>>,
+        //     ck_tile::tensor_descriptor<
+        //         ck_tile::tuple<
+        //             ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>, ck_tile::constant<8>>,
+        //                              false>>,
+        //         ck_tile::tuple<ck_tile::sequence<0>>,
+        //         ck_tile::tuple<ck_tile::sequence<1, 2>>,
+        //         ck_tile::sequence<1, 2>,
+        //         ck_tile::constant<8>,
+        //         ck_tile::sequence<-1, -1, -1>,
+        //         ck_tile::sequence<-1, -1, -1>>,
+        //     ck_tile::tile_distribution_encoding<
+        //         ck_tile::sequence<1>,
+        //         ck_tile::tuple<ck_tile::sequence<1, 4, 4>, ck_tile::sequence<16, 8>>,
+        //         ck_tile::tuple<ck_tile::sequence<1>, ck_tile::sequence<1, 2>>,
+        //         ck_tile::tuple<ck_tile::sequence<1>, ck_tile::sequence<2, 0>>,
+        //         ck_tile::sequence<1, 2>,
+        //         ck_tile::sequence<0, 1>>,
+        //     ck_tile::detail::tile_distribution_detail<ck_tile::tuple<ck_tile::sequence<2>,
+        //                                                              ck_tile::sequence<3, 4, 5>,
+        //                                                              ck_tile::sequence<6, 7>>>>>
 
         // load Q here, will store Q into LDS to maximize throughput
         auto origin_q = load_tile(q_dram_window);
@@ -320,6 +484,105 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
             q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         store_tile(q_lds_window_for_store, origin_q);
+
+        // MakeQLdsBlockDescriptor = CK_PRINT<ck_tile::tensor_descriptor<
+        //     ck_tile::tuple<
+        //         ck_tile::embed<
+        //             ck_tile::
+        //                 tuple<ck_tile::constant<16>, ck_tile::constant<16>, ck_tile::constant<8>>,
+        //             ck_tile::
+        //                 tuple<ck_tile::constant<136>, ck_tile::constant<8>, ck_tile::constant<1>>>,
+        //         ck_tile::pass_through<ck_tile::constant<16>>,
+        //         ck_tile::merge_v2_magic_division<
+        //             ck_tile::tuple<ck_tile::constant<16>, ck_tile::constant<8>>>>,
+        //     ck_tile::tuple<ck_tile::sequence<0>, ck_tile::sequence<2>, ck_tile::sequence<1, 3>>,
+        //     ck_tile::tuple<ck_tile::sequence<1, 2, 3>, ck_tile::sequence<4>, ck_tile::sequence<5>>,
+        //     ck_tile::sequence<4, 5>,
+        //     ck_tile::constant<2168L>,
+        //     ck_tile::sequence<-1, -1, -1, 8, -1, -1>,
+        //     ck_tile::sequence<-1, -1, -1, 1, -1, -1>>>
+        
+        // q_lds_window_for_store = CK_PRINT<ck_tile::tile_window_with_static_lengths<
+        //     ck_tile::tensor_view<
+        //         ck_tile::buffer_view<ck_tile::address_space_enum::lds,
+        //                              unsigned short,
+        //                              ck_tile::constant<2168L>,
+        //                              true,
+        //                              ck_tile::amd_buffer_coherence_enum::coherence_default>,
+        //         const ck_tile::tensor_descriptor<
+        //             ck_tile::tuple<
+        //                 ck_tile::embed<ck_tile::tuple<ck_tile::constant<16>,
+        //                                               ck_tile::constant<16>,
+        //                                               ck_tile::constant<8>>,
+        //                                ck_tile::tuple<ck_tile::constant<136>,
+        //                                               ck_tile::constant<8>,
+        //                                               ck_tile::constant<1>>>,
+        //                 ck_tile::pass_through<ck_tile::constant<16>>,
+        //                 ck_tile::merge_v2_magic_division<
+        //                     ck_tile::tuple<ck_tile::constant<16>, ck_tile::constant<8>>>>,
+        //             ck_tile::
+        //                 tuple<ck_tile::sequence<0>, ck_tile::sequence<2>, ck_tile::sequence<1,
+        //                 3>>,
+        //             ck_tile::tuple<ck_tile::sequence<1, 2, 3>,
+        //                            ck_tile::sequence<4>,
+        //                            ck_tile::sequence<5>>,
+        //             ck_tile::sequence<4, 5>,
+        //             ck_tile::constant<2168L>,
+        //             ck_tile::sequence<-1, -1, -1, 8, -1, -1>,
+        //             ck_tile::sequence<-1, -1, -1, 1, -1, -1>>&>,
+        //     ck_tile::tuple<ck_tile::constant<16>, ck_tile::constant<128>>>>
+
+        // origin_q = CK_PRINT<ck_tile::static_distributed_tensor<
+        //     unsigned short,
+        //     ck_tile::tile_distribution<
+        //         ck_tile::tensor_adaptor<
+        //             ck_tile::tuple<
+        //                 ck_tile::replicate<ck_tile::tuple<ck_tile::constant<1>>>,
+        //                 ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+        //                                                 ck_tile::constant<4>,
+        //                                                 ck_tile::constant<4>>,
+        //                                  false>,
+        //                 ck_tile::unmerge<
+        //                     ck_tile::tuple<ck_tile::constant<16>, ck_tile::constant<8>>,
+        //                     false>,
+        //                 ck_tile::merge_v2_magic_division<ck_tile::tuple<ck_tile::constant<4>>>,
+        //                 ck_tile::merge_v2_magic_division<
+        //                     ck_tile::tuple<ck_tile::constant<4>, ck_tile::constant<16>>>>,
+        //             ck_tile::tuple<ck_tile::sequence<>,
+        //                            ck_tile::sequence<0>,
+        //                            ck_tile::sequence<1>,
+        //                            ck_tile::sequence<4>,
+        //                            ck_tile::sequence<5, 6>>,
+        //             ck_tile::tuple<ck_tile::sequence<2>,
+        //                            ck_tile::sequence<3, 4, 5>,
+        //                            ck_tile::sequence<6, 7>,
+        //                            ck_tile::sequence<8>,
+        //                            ck_tile::sequence<9>>,
+        //             ck_tile::sequence<0, 1>,
+        //             ck_tile::sequence<8, 9, 3, 7>>,
+        //         ck_tile::tensor_descriptor<
+        //             ck_tile::tuple<
+        //                 ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+        //                 ck_tile::constant<8>>,
+        //                                  false>>,
+        //             ck_tile::tuple<ck_tile::sequence<0>>,
+        //             ck_tile::tuple<ck_tile::sequence<1, 2>>,
+        //             ck_tile::sequence<1, 2>,
+        //             ck_tile::constant<8>,
+        //             ck_tile::sequence<-1, -1, -1>,
+        //             ck_tile::sequence<-1, -1, -1>>,
+        //         ck_tile::tile_distribution_encoding<
+        //             ck_tile::sequence<1>,
+        //             ck_tile::tuple<ck_tile::sequence<1, 4, 4>, ck_tile::sequence<16, 8>>,
+        //             ck_tile::tuple<ck_tile::sequence<1>, ck_tile::sequence<1, 2>>,
+        //             ck_tile::tuple<ck_tile::sequence<1>, ck_tile::sequence<2, 0>>,
+        //             ck_tile::sequence<1, 2>,
+        //             ck_tile::sequence<0, 1>>,
+        //         ck_tile::detail::tile_distribution_detail<
+        //             ck_tile::tuple<ck_tile::sequence<2>,
+        //                            ck_tile::sequence<3, 4, 5>,
+        //                            ck_tile::sequence<6, 7>>>>>>
+
         __builtin_amdgcn_sched_barrier(0);
 
         // load Q from LDS
@@ -343,21 +606,72 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
         static_assert(1 <= k1_loops);
 
         auto k_dram_window = [&] {
-            auto k_dist               = Policy::template MakeKDramTileDistributionPreshuffled<Problem>();
-            auto k_coord              = k_dist.calculate_index();
-            using KDstrEncode         = typename decltype(k_dist)::DstrEncode;
+            auto k_dist = Policy::template MakeKDramTileDistributionPreshuffled<Problem>();
+            // using k_dist = CK_PRINT<ck_tile::tile_distribution<
+            //          ck_tile::tensor_adaptor<
+            //              ck_tile::tuple<
+            //                  ck_tile::replicate<ck_tile::tuple<ck_tile::constant<1>>>,
+            //                  ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+            //                                                  ck_tile::constant<4>,
+            //                                                  ck_tile::constant<16>>,
+            //                                   false>,
+            //                  ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<4>,
+            //                                                  ck_tile::constant<4>,
+            //                                                  ck_tile::constant<8>>,
+            //                                   false>,
+            //                  ck_tile::merge_v2_magic_division<ck_tile::tuple<ck_tile::constant<4>>>,
+            //                  ck_tile::merge_v2_magic_division<
+            //                      ck_tile::tuple<ck_tile::constant<4>, ck_tile::constant<16>>>>,
+            //              ck_tile::tuple<ck_tile::sequence<>,
+            //                             ck_tile::sequence<0>,
+            //                             ck_tile::sequence<1>,
+            //                             ck_tile::sequence<4>,
+            //                             ck_tile::sequence<7, 5>>,
+            //              ck_tile::tuple<ck_tile::sequence<2>,
+            //                             ck_tile::sequence<3, 4, 5>,
+            //                             ck_tile::sequence<6, 7, 8>,
+            //                             ck_tile::sequence<9>,
+            //                             ck_tile::sequence<10>>,
+            //              ck_tile::sequence<0, 1>,
+            //              ck_tile::sequence<9, 10, 3, 6, 8>>,
+            //          ck_tile::tensor_descriptor<
+            //              ck_tile::tuple<ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+            //                                                             ck_tile::constant<4>,
+            //                                                             ck_tile::constant<8>>,
+            //                                              false>>,
+            //              ck_tile::tuple<ck_tile::sequence<0>>,
+            //              ck_tile::tuple<ck_tile::sequence<1, 2, 3>>,
+            //              ck_tile::sequence<1, 2, 3>,
+            //              ck_tile::constant<32>,
+            //              ck_tile::sequence<-1, -1, -1, -1>,
+            //              ck_tile::sequence<-1, -1, -1, -1>>,
+            //          ck_tile::tile_distribution_encoding<
+            //              ck_tile::sequence<1>,
+            //              ck_tile::tuple<ck_tile::sequence<1, 4, 16>, ck_tile::sequence<4, 4, 8>>,
+            //              ck_tile::tuple<ck_tile::sequence<1>, ck_tile::sequence<2, 1>>,
+            //              ck_tile::tuple<ck_tile::sequence<1>, ck_tile::sequence<1, 2>>,
+            //              ck_tile::sequence<1, 2, 2>,
+            //              ck_tile::sequence<0, 0, 2>>,
+            //          ck_tile::detail::tile_distribution_detail<
+            //              ck_tile::tuple<ck_tile::sequence<2>,
+            //                             ck_tile::sequence<3, 4, 5>,
+            //                             ck_tile::sequence<6, 7, 8>>>>>;
+
+            auto k_coord      = k_dist.calculate_index();
+            using KDstrEncode = typename decltype(k_dist)::DstrEncode;
             // constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I1];
             constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
             statically_indexed_array<index_t, NRepeat> k_offsets;
             static_for<0, NRepeat, 1>{}([&](auto n0) {
-                k_offsets[n0] = kv_page_indices[k_coord[0] + kN0 / NRepeat * n0.value] / 16 * stride_k;
+                k_offsets[n0] =
+                    kv_page_indices[k_coord[0] + kN0 / NRepeat * n0.value] / 16 * stride_k;
             });
 
             return make_tile_scatter_gather_debug(k_dram_block_window.get_bottom_tensor_view(),
-                                            k_dram_block_window.get_window_lengths(),
-                                            k_dram_block_window.get_window_origin(),
-                                            k_dist,
-                                            k_offsets); // K DRAM tile window for
+                                                  k_dram_block_window.get_window_lengths(),
+                                                  k_dram_block_window.get_window_origin(),
+                                                  k_dist,
+                                                  k_offsets); // K DRAM tile window for
         }();
 
         // load the first tile of the first iteration and store to LDS
@@ -379,7 +693,8 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
             //     sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
             //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
             //         if(blockIdx.x==0)
-            //             printf("bid %d tid %d %f\n", blockIdx.x, threadIdx.x, type_convert<float>(k_block_tile(i_j_idx)));
+            //             printf("bid %d tid %d %f\n", blockIdx.x, threadIdx.x,
+            //             type_convert<float>(k_block_tile(i_j_idx)));
             //     });
             // });
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -409,14 +724,15 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
                     // store_tile(
                     //     k_lds_window,
                     //     tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
-                    k_block_tile = load_tile(k_dram_window);                // global read i + 2
+                    k_block_tile = load_tile(k_dram_window); // global read i + 2
                 });
-                
+
                 // sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
                 //     sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
                 //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
                 //         if(blockIdx.x==0)
-                //             printf("bid %d tid %d %f\n", blockIdx.x, threadIdx.x, type_convert<float>(k_block_tile(i_j_idx)));
+                //             printf("bid %d tid %d %f\n", blockIdx.x, threadIdx.x,
+                //             type_convert<float>(k_block_tile(i_j_idx)));
                 //     });
                 // });
             }
@@ -488,8 +804,7 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) {
-                     x = x * scale_s; }, s_acc);
+                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
 #else
                 if constexpr(kHasLogitsSoftCap)
                 {
@@ -545,22 +860,23 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
                 move_tile_window(k_dram_block_window, {kN0, 0});
 
                 k_dram_window = [&] {
-                    auto k_dist       = Policy::template MakeKDramTileDistributionPreshuffled<Problem>();
-                    auto k_coord      = k_dist.calculate_index();
-                    using KDstrEncode = typename decltype(k_dist)::DstrEncode;
+                    auto k_dist  = Policy::template MakeKDramTileDistributionPreshuffled<Problem>();
+                    auto k_coord = k_dist.calculate_index();
+                    using KDstrEncode         = typename decltype(k_dist)::DstrEncode;
                     constexpr index_t NRepeat = KDstrEncode::hs_lengthss_[I0][I0];
                     statically_indexed_array<index_t, NRepeat> k_offsets;
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         k_offsets[n0] =
-                            (kv_page_indices + kN0)[k_coord[0] + kN0 / NRepeat * n0.value]  / 16 *
+                            (kv_page_indices + kN0)[k_coord[0] + kN0 / NRepeat * n0.value] / 16 *
                             stride_k;
                     });
 
-                    return make_tile_scatter_gather_debug(k_dram_block_window.get_bottom_tensor_view(),
-                                                    k_dram_block_window.get_window_lengths(),
-                                                    k_dram_block_window.get_window_origin(),
-                                                    k_dist,
-                                                    k_offsets); // K DRAM tile window for
+                    return make_tile_scatter_gather_debug(
+                        k_dram_block_window.get_bottom_tensor_view(),
+                        k_dram_block_window.get_window_lengths(),
+                        k_dram_block_window.get_window_origin(),
+                        k_dist,
+                        k_offsets); // K DRAM tile window for
                 }();
 
                 // laod the first tile of the first iteration and store to LDS
@@ -572,9 +888,125 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVS
             const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
 
             // shuffle through LDS so that the tile layout is consistent with required by Gemm1
+
+            // s = CK_PRINT<const ck_tile::static_distributed_tensor<
+            //     float,
+            //     ck_tile::tile_distribution<
+            //         ck_tile::tensor_adaptor<
+            //             ck_tile::tuple<
+            //                 ck_tile::replicate<ck_tile::tuple<>>,
+            //                 ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+            //                                                 ck_tile::constant<1>,
+            //                                                 ck_tile::constant<16>>,
+            //                                  false>,
+            //                 ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+            //                                                 ck_tile::constant<4>,
+            //                                                 ck_tile::constant<1>,
+            //                                                 ck_tile::constant<4>,
+            //                                                 ck_tile::constant<4>>,
+            //                                  false>,
+            //                 ck_tile::merge_v2_magic_division<
+            //                     ck_tile::tuple<ck_tile::constant<1>, ck_tile::constant<4>>>,
+            //                 ck_tile::merge_v2_magic_division<
+            //                     ck_tile::tuple<ck_tile::constant<4>, ck_tile::constant<16>>>>,
+            //             ck_tile::tuple<ck_tile::sequence<>,
+            //                            ck_tile::sequence<0>,
+            //                            ck_tile::sequence<1>,
+            //                            ck_tile::sequence<3, 6>,
+            //                            ck_tile::sequence<8, 4>>,
+            //             ck_tile::tuple<ck_tile::sequence<>,
+            //                            ck_tile::sequence<2, 3, 4>,
+            //                            ck_tile::sequence<5, 6, 7, 8, 9>,
+            //                            ck_tile::sequence<10>,
+            //                            ck_tile::sequence<11>>,
+            //             ck_tile::sequence<0, 1>,
+            //             ck_tile::sequence<10, 11, 2, 5, 7, 9>>,
+            //         ck_tile::tensor_descriptor<
+            //             ck_tile::tuple<ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+            //                                                            ck_tile::constant<1>,
+            //                                                            ck_tile::constant<1>,
+            //                                                            ck_tile::constant<4>>,
+            //                                             false>>,
+            //             ck_tile::tuple<ck_tile::sequence<0>>,
+            //             ck_tile::tuple<ck_tile::sequence<1, 2, 3, 4>>,
+            //             ck_tile::sequence<1, 2, 3, 4>,
+            //             ck_tile::constant<4>,
+            //             ck_tile::sequence<-1, -1, -1, -1, -1>,
+            //             ck_tile::sequence<-1, -1, -1, -1, -1>>,
+            //         ck_tile::tile_distribution_encoding<
+            //             ck_tile::sequence<>,
+            //             ck_tile::tuple<ck_tile::sequence<1, 1, 16>,
+            //                            ck_tile::sequence<1, 4, 1, 4, 4>>,
+            //             ck_tile::tuple<ck_tile::sequence<1, 2>, ck_tile::sequence<2, 1>>,
+            //             ck_tile::tuple<ck_tile::sequence<1, 1>, ck_tile::sequence<3, 2>>, // M1,
+            //             K1, K3, M2: 1, 4, 4, 16 ck_tile::sequence<1, 2, 2, 2>,
+            //             ck_tile::sequence<0, 0, 2, 4>>,  // M0, K0, K2, K4: 1, 1, 1, 4
+            //         ck_tile::detail::tile_distribution_detail<
+            //             ck_tile::tuple<ck_tile::sequence<>,
+            //                            ck_tile::sequence<2, 3, 4>,
+            //                            ck_tile::sequence<5, 6, 7, 8, 9>>>>>>
+
             store_tile(s_write_lds_window, s);
             block_sync_lds();
             auto s_new = load_tile(s_read_lds_window);
+            // static_assert(s_new.thread_buf_.size() == s.thread_buf_.size(), "wrong size"); // 16,
+            // 4
+
+            // s_new = CK_PRINT<ck_tile::static_distributed_tensor<
+            //     float,
+            //     ck_tile::tile_distribution<
+            //         ck_tile::tensor_adaptor<
+            //             ck_tile::tuple<
+            //                 ck_tile::replicate<ck_tile::tuple<ck_tile::constant<4>>>,
+            //                 ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+            //                                                 ck_tile::constant<1>,
+            //                                                 ck_tile::constant<16>>,
+            //                                  false>,
+            //                 ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+            //                                                 ck_tile::constant<4>,
+            //                                                 ck_tile::constant<4>,
+            //                                                 ck_tile::constant<4>>,
+            //                                  false>,
+            //                 ck_tile::merge_v2_magic_division<
+            //                     ck_tile::tuple<ck_tile::constant<1>, ck_tile::constant<4>>>,
+            //                 ck_tile::merge_v2_magic_division<
+            //                     ck_tile::tuple<ck_tile::constant<4>, ck_tile::constant<16>>>>,
+            //             ck_tile::tuple<ck_tile::sequence<>,
+            //                            ck_tile::sequence<0>,
+            //                            ck_tile::sequence<1>,
+            //                            ck_tile::sequence<4, 2>,
+            //                            ck_tile::sequence<8, 5>>,
+            //             ck_tile::tuple<ck_tile::sequence<2>,
+            //                            ck_tile::sequence<3, 4, 5>,
+            //                            ck_tile::sequence<6, 7, 8, 9>,
+            //                            ck_tile::sequence<10>,
+            //                            ck_tile::sequence<11>>,
+            //             ck_tile::sequence<0, 1>,
+            //             ck_tile::sequence<10, 11, 3, 6, 7, 9>>,
+            //         ck_tile::tensor_descriptor<
+            //             ck_tile::tuple<ck_tile::unmerge<ck_tile::tuple<ck_tile::constant<1>,
+            //                                                            ck_tile::constant<1>,
+            //                                                            ck_tile::constant<4>,
+            //                                                            ck_tile::constant<4>>,
+            //                                             false>>,
+            //             ck_tile::tuple<ck_tile::sequence<0>>,
+            //             ck_tile::tuple<ck_tile::sequence<1, 2, 3, 4>>,
+            //             ck_tile::sequence<1, 2, 3, 4>,
+            //             ck_tile::constant<16>,
+            //             ck_tile::sequence<-1, -1, -1, -1, -1>,
+            //             ck_tile::sequence<-1, -1, -1, -1, -1>>,
+            //         ck_tile::tile_distribution_encoding<
+            //             ck_tile::sequence<4>,
+            //             ck_tile::tuple<ck_tile::sequence<1, 1, 16>,
+            //                            ck_tile::sequence<1, 4, 4, 4>>,
+            //             ck_tile::tuple<ck_tile::sequence<1, 0>, ck_tile::sequence<2, 1>>,
+            //             ck_tile::tuple<ck_tile::sequence<1, 0>, ck_tile::sequence<2, 2>>, // M1,
+            //             R0, K2, M2: 1, 4, 4, 16 ck_tile::sequence<1, 2, 2, 2>,
+            //             ck_tile::sequence<0, 0, 1, 3>>, // M0, K0, K1, K3: 1, 1, 4, 4
+            //         ck_tile::detail::tile_distribution_detail<
+            //             ck_tile::tuple<ck_tile::sequence<2>,
+            //                            ck_tile::sequence<3, 4, 5>,
+            //                            ck_tile::sequence<6, 7, 8, 9>>>>>>
 
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
                 s_new,

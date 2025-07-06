@@ -59,7 +59,8 @@ struct BlockGemmARegBRegCRegV2
 
         const index_t iNWarp = get_warp_id() % NWarp;
         // if(threadIdx.x%64==0)
-        // printf("tid %d %d %d %d %d KIterPerWarp %d\n",threadIdx.x, MPerBlock, NPerBlock, NIterPerWarp, iNWarp, KIterPerWarp);
+        // printf("tid %d %d %d %d %d KIterPerWarp %d\n",threadIdx.x, MPerBlock, NPerBlock,
+        // NIterPerWarp, iNWarp, KIterPerWarp);
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
             tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
@@ -100,7 +101,7 @@ struct BlockGemmARegBRegCRegV2
             to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        auto b_block_len = to_sequence(b_block_tensor.get_lengths());
+        auto b_block_len                    = to_sequence(b_block_tensor.get_lengths());
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
         constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
@@ -108,11 +109,10 @@ struct BlockGemmARegBRegCRegV2
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                 // read B warp tensor from B Block window
-                BWarpTensor b_warp_tensor;// = load_tile(b_warp_windows(nIter)(kIter));
+                BWarpTensor b_warp_tensor; // = load_tile(b_warp_windows(nIter)(kIter));
 
                 b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
-                    sequence<nIter, number<kIter.value>{}, number<0>{}>{},
-                    sequence<1, 1, 8>{});
+                    sequence<nIter, number<kIter.value>{}, number<0>{}>{}, sequence<1, 1, 8>{});
 
                 // constexpr auto span_2d = BWarpTensor::get_distributed_spans();
                 // sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
@@ -120,22 +120,30 @@ struct BlockGemmARegBRegCRegV2
                 //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
                 //         if(blockIdx.x==0)
                 // if(threadIdx.x==0)
-                //     printf("get_thread_buffer_size %d\n", b_warp_tensor.get_thread_buffer_size());
-                    
+                //     printf("get_thread_buffer_size %d\n",
+                //     b_warp_tensor.get_thread_buffer_size());
+
                 // if(threadIdx.x==0)
-                //     printf("get_thread_buffer_size %d\n", b_warp_tensor.get_thread_buffer_size());
+                //     printf("get_thread_buffer_size %d\n",
+                //     b_warp_tensor.get_thread_buffer_size());
                 // auto &xx = b_warp_tensor.get_thread_buffer();
-                // printf("bid %d tid %d b %f %f %f %f\n", blockIdx.x, threadIdx.x, type_convert<float>(xx[number<0>{}]), type_convert<float>(xx[number<2>{}]), type_convert<float>(xx[number<4>{}]), type_convert<float>(xx[number<6>{}]));
+                // printf("bid %d tid %d b %f %f %f %f\n", blockIdx.x, threadIdx.x,
+                // type_convert<float>(xx[number<0>{}]), type_convert<float>(xx[number<2>{}]),
+                // type_convert<float>(xx[number<4>{}]), type_convert<float>(xx[number<6>{}]));
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor
                     AWarpTensor a_warp_tensor;
                     // if(threadIdx.x==0)
-                    //     printf("a get_thread_buffer_size %d\n", b_warp_tensor.get_thread_buffer_size());
+                    //     printf("a get_thread_buffer_size %d\n",
+                    //     b_warp_tensor.get_thread_buffer_size());
                     a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
                     // auto &xx1 = a_warp_tensor.get_thread_buffer();
-                    // printf("bid %d tid %d a %f %f %f %f\n", blockIdx.x, threadIdx.x, type_convert<float>(xx1[number<0>{}]), type_convert<float>(xx1[number<2>{}]), type_convert<float>(xx1[number<4>{}]), type_convert<float>(xx1[number<6>{}]));
+                    // printf("bid %d tid %d a %f %f %f %f\n", blockIdx.x, threadIdx.x,
+                    // type_convert<float>(xx1[number<0>{}]), type_convert<float>(xx1[number<2>{}]),
+                    // type_convert<float>(xx1[number<4>{}]),
+                    // type_convert<float>(xx1[number<6>{}]));
 
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
@@ -157,7 +165,6 @@ struct BlockGemmARegBRegCRegV2
             });
         });
     }
-
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
@@ -182,6 +189,22 @@ struct BlockGemmARegBRegCRegV2
             tuple<sequence<1, 1>>,
             sequence<1, 2>,
             sequence<0, 0>>{};
+
+        // outer, warp_dist =
+        //            CK_PRINT<ck_tile::tile_distribution_encoding<
+        //                         ck_tile::sequence<>,
+        //                         ck_tile::tuple<ck_tile::sequence<16>, ck_tile::sequence<1, 4, 4>>,
+        //                         ck_tile::tuple<ck_tile::sequence<2, 1>>,
+        //                         ck_tile::tuple<ck_tile::sequence<1, 0>>,
+        //                         ck_tile::sequence<2, 2>,
+        //                         ck_tile::sequence<0, 2>>,
+        //                     ck_tile::tile_distribution_encoding<
+        //                         ck_tile::sequence<>,
+        //                         ck_tile::tuple<ck_tile::sequence<1, 1>, ck_tile::sequence<1, 4>>,
+        //                         ck_tile::tuple<ck_tile::sequence<1, 2>>,
+        //                         ck_tile::tuple<ck_tile::sequence<1, 1>>,
+        //                         ck_tile::sequence<1, 2>,
+        //                         ck_tile::sequence<0, 0>>>
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
@@ -215,7 +238,7 @@ struct BlockGemmARegBRegCRegV2
 
         return make_static_tile_distribution(a_block_dstr_encode);
     }
-    
+
     // C = A * B
     template <typename ABlockTensorTmp, typename BBlockTensorTmp>
     CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,

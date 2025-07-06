@@ -129,7 +129,7 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVSDefaultPolicy
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kNPack     = GetSmemNPackS<Problem>();
+        constexpr index_t kNPack     = GetSmemNPackS<Problem>();  // 4
 
         constexpr auto s_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock / kNPack>{}, number<kMPerBlock>{}, number<kNPack>{}),

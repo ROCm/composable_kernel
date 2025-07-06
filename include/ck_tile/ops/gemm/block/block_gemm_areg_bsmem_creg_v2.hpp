@@ -77,6 +77,7 @@ struct BlockGemmARegBSmemCRegV2
             MakeABlockTileDistribution());
 
         a_block_tensor.get_thread_buffer() = a_block_tensor_tmp.get_thread_buffer();
+        // ck_tile::thread_buffer<unsigned short, 16>
 
         // construct B-warp-window
         auto b_warp_window_tmp = make_tile_window(
@@ -132,6 +133,7 @@ struct BlockGemmARegBSmemCRegV2
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+        // const ck_tile::sequence<0>
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
         // hot loop:
@@ -190,8 +192,33 @@ struct BlockGemmARegBSmemCRegV2
                                        sequence<1, 2>,
                                        sequence<0, 0>>{};
 
+        // outer = CK_PRINT<const ck_tile::tile_distribution_encoding<
+        //     ck_tile::sequence<4>,
+        //     ck_tile::tuple<ck_tile::sequence<1, 1>, ck_tile::sequence<4>>,
+        //     ck_tile::tuple<ck_tile::sequence<1, 0>>,
+        //     ck_tile::tuple<ck_tile::sequence<1, 0>>,
+        //     ck_tile::sequence<1, 2>,
+        //     ck_tile::sequence<0, 0>>>
+
+        // warp_dstr_encode = CK_PRINT<ck_tile::tile_distribution_encoding<
+        //     ck_tile::sequence<>,
+        //     ck_tile::tuple<ck_tile::sequence<16>, ck_tile::sequence<4, 4>>,
+        //     ck_tile::tuple<ck_tile::sequence<2, 1>>,
+        //     ck_tile::tuple<ck_tile::sequence<0, 0>>,
+        //     ck_tile::sequence<2>,
+        //     ck_tile::sequence<1>>>
+
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});
+
+        // a_block_dstr_encode = CK_PRINT<const ck_tile::tile_distribution_encoding<
+        //     ck_tile::sequence<4>,
+        //     ck_tile::tuple<ck_tile::sequence<1, 1, 16>, 
+        //                    ck_tile::sequence<4, 4, 4>>,
+        //     ck_tile::tuple<ck_tile::sequence<1, 0>, ck_tile::sequence<2, 1>>,
+        //     ck_tile::tuple<ck_tile::sequence<1, 0>, ck_tile::sequence<1, 2>>, // M1, R0, K1, M2: 1, 4, 4, 16
+        //     ck_tile::sequence<1, 2, 2>,
+        //     ck_tile::sequence<0, 0, 2>>>  // M0, K0, K2: 1, 4, 4
 
         return make_static_tile_distribution(a_block_dstr_encode);
     }
@@ -219,6 +246,22 @@ struct BlockGemmARegBSmemCRegV2
             tuple<sequence<1, 1>>,
             sequence<1, 2>,
             sequence<0, 0>>{};
+
+        // outer, warp_dist =
+        //            CK_PRINT<ck_tile::tile_distribution_encoding<
+        //                         ck_tile::sequence<>,
+        //                         ck_tile::tuple<ck_tile::sequence<16>, ck_tile::sequence<1, 4, 4>>,
+        //                         ck_tile::tuple<ck_tile::sequence<2, 1>>,
+        //                         ck_tile::tuple<ck_tile::sequence<1, 0>>,
+        //                         ck_tile::sequence<2, 2>,
+        //                         ck_tile::sequence<0, 2>>,
+        //                     ck_tile::tile_distribution_encoding<
+        //                         ck_tile::sequence<>,
+        //                         ck_tile::tuple<ck_tile::sequence<1, 1>, ck_tile::sequence<2, 4>>,
+        //                         ck_tile::tuple<ck_tile::sequence<1, 2>>,
+        //                         ck_tile::tuple<ck_tile::sequence<1, 1>>,
+        //                         ck_tile::sequence<1, 2>,
+        //                         ck_tile::sequence<0, 0>>>
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
