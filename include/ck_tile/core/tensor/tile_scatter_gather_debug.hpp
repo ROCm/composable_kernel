@@ -205,7 +205,7 @@ struct tile_scatter_gather_debug
             auto bottom_tensor_thread_coord  = bottom_tensor_thread_coord_tmp;
 
             constexpr auto idx_diff_ys =
-                SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
+                SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{}); // NumAccessPerCoord = 4
 
             constexpr auto idx_diff_ps_ys = container_concat(
                 generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}), idx_diff_ys);
@@ -338,14 +338,14 @@ struct tile_scatter_gather_debug
                 constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
                 const auto page_offset      = page_idx_[idx_gather];
                 // read from bottom tensor
-                auto idxx = bottom_tensor_thread_coord.get_index();
+                auto idxx = bottom_tensor_thread_coord.get_index();   // 16 * 128
                 const vector_t vec_value =
                     get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
                         bottom_tensor_thread_coord,
                         page_offset,
                         bool_constant<oob_conditional_check>{});
-                // printf("bid %d tid %d coord_offset:%d %d %d,   page_offset:%d v %f\n", blockIdx.x, threadIdx.x,
-                // bottom_tensor_thread_coord.get_offset(), idxx(I0), idxx(I1), page_offset, type_convert<float>(vec_value.template get_as<DataType>()[0]), type_convert<float>(vec_value.template get_as<DataType>()[4])); 
+                // printf("bid %d tid %d coord_offset:%d %d %d,   page_offset:%d v %f %f \n", blockIdx.x, threadIdx.x,
+                // bottom_tensor_thread_coord.get_offset(), idxx(I0), idxx(I1), page_offset, type_convert<float>(vec_value.template get_as<DataType>()[0]), type_convert<float>(vec_value.template get_as<DataType>()[0]), type_convert<float>(vec_value.template get_as<DataType>()[4])); 
 #if 1
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
@@ -354,9 +354,9 @@ struct tile_scatter_gather_debug
                             return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
                                                             : idx_ys_start[jj];
                         },
-                        number<NDimY>{});
+                        number<NDimY>{});  // idx_ys = tuple<ck_tile::constant<0>, ck_tile::constant<2>, ck_tile::constant<4>>
 
-                    constexpr index_t d =
+                        constexpr index_t d =
                         tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
                         Traits::PackedSize;
 

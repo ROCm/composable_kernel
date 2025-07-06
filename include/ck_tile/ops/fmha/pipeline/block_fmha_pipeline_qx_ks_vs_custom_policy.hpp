@@ -152,7 +152,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
         constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QDataType);
 
         // this should align with MakeQDramTileDistribution()
-        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
+        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;  // 16 * 128 / 256 = 8
         static_assert(0 < ElemPerThread);
         return min(ElemPerThread, MaxVectorSize);
     }
@@ -729,16 +729,16 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t K1 = min(MaxVectorSize, ElemPerThread); //8
             constexpr index_t K0 = kKPerBlock / K1; // 8
             constexpr index_t N2 = get_warp_size() / K0; // 8
-            constexpr index_t N1 = kBlockSize / get_warp_size();
-            constexpr index_t N0 = kNPerBlock / (N2 * N1);
+            constexpr index_t N1 = kBlockSize / get_warp_size(); // 4
+            constexpr index_t N0 = kNPerBlock / (N2 * N1);  // 4
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1>>, // 4, 4, 8, 8, 8
                                            tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<1>, sequence<2, 0>>,
+                                           tuple<sequence<1>, sequence<2, 0>>, // N1, N2, K0: 4, 8, 8
                                            sequence<1, 2>,
-                                           sequence<0, 1>>{});
+                                           sequence<0, 1>>{}); // N0, K1： 4，8
         }
         else
         {
@@ -778,32 +778,32 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;  // 128
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;  // 64
 
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t N1 = GetAlignmentV<Problem>();
-            constexpr index_t N0 = kNPerBlock / N1; // P
+            constexpr index_t N1 = GetAlignmentV<Problem>(); // 8
+            constexpr index_t N0 = kNPerBlock / N1; // 16
 
-            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize; // 32
             static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
-            constexpr index_t K3     = total_pixels / N1;
-            constexpr index_t kKPack = GetSmemKPackV<Problem>();
+            constexpr index_t K3     = total_pixels / N1;  // 4
+            constexpr index_t kKPack = GetSmemKPackV<Problem>();  // 8
             static_assert(kKPack % K3 == 0);
-            constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
+            constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave // 2
             if constexpr(get_warp_size() % (K2 * N0) == 0)
             {
-                constexpr index_t K1 = get_warp_size() / (K2 * N0);
-                constexpr index_t K0 = kBlockSize / get_warp_size();
+                constexpr index_t K1 = get_warp_size() / (K2 * N0); // 2
+                constexpr index_t K0 = kBlockSize / get_warp_size(); // 4
                 static_assert(kKPerBlock == K0 * K1 * K2 * K3);
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<1>,
-                                               tuple<sequence<N0, N1>, sequence<K0, K1, K2, K3>>,
+                                               tuple<sequence<N0, N1>, sequence<K0, K1, K2, K3>>, // 16, 8, 4, 2, 2, 4
                                                tuple<sequence<2>, sequence<2, 1, 2>>,
-                                               tuple<sequence<0>, sequence<1, 0, 2>>,
+                                               tuple<sequence<0>, sequence<1, 0, 2>>, // K0, K1, N0, K2: 4, 2, 16, 2
                                                sequence<2, 1>,
-                                               sequence<3, 1>>{});
+                                               sequence<3, 1>>{}); // K3, N1: 4, 8
             }
             else
             {

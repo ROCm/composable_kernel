@@ -478,16 +478,32 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
 
     CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
     {
+        // static constexpr index_t kM = 16;
+        // static constexpr index_t kN = 16;
+        // static constexpr index_t kK = 16;
+        // static constexpr index_t kAMBlock = 1;
+        // static constexpr index_t kBNBlock = 1;
+        
+        // static constexpr index_t kAMLane     = 16;
+        // static constexpr index_t kBNLane     = 16;
+        // static constexpr index_t kABKLane    = 4;
+        // static constexpr index_t kABKPerLane = 4;
+
+        // static constexpr index_t kCMLane     = 4;
+        // static constexpr index_t kCNLane     = 16;
+        // static constexpr index_t kCM0PerLane = 1;
+        // static constexpr index_t kCM1PerLane = 4;
+
         if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
         {
             return tile_distribution_encoding<
                 sequence<>,
-                tuple<sequence<Impl::kBNLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<Impl::kBNLane>,  // 32/16  warp shape N
+                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,  // 2/4, 8   instruction data layout
                 tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
+                tuple<sequence<0, 0>>,   // 4， 16
                 sequence<2>,
-                sequence<1>>{};
+                sequence<1>>{};  // 8
         }
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {

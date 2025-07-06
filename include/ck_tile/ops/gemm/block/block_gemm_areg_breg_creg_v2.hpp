@@ -44,15 +44,16 @@ struct BlockGemmARegBRegCRegV2
                       "wrong!");
 
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        // const const tuple<ck_tile::WarpGemmImpl<ck_tile::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<ck_tile::WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16<ck_tile::WGAttrCtlEnum::Default_>, 2>>, int, int>
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
-        constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
+        constexpr index_t MWarp = config.template at<1>();  // 1
+        constexpr index_t NWarp = config.template at<2>();  // 4
 
         constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
         constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
-        constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+        constexpr index_t KIterPerWarp = KPerBlock / WG::kK;   // WG::kM, kN, kK: 16, 16, 32
 
         constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
         constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
@@ -60,13 +61,18 @@ struct BlockGemmARegBRegCRegV2
         const index_t iNWarp = get_warp_id() % NWarp;
         // if(threadIdx.x%64==0)
         // printf("tid %d %d %d %d %d KIterPerWarp %d\n",threadIdx.x, MPerBlock, NPerBlock, NIterPerWarp, iNWarp, KIterPerWarp);
+        
+        // tid 0   16 64 1 0 KIterPerWarp 4
+        // tid 64  16 64 1 1 KIterPerWarp 4
+        // tid 128 16 64 1 2 KIterPerWarp 4
+        // tid 192 16 64 1 3 KIterPerWarp 4
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
             tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
             tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
+            tuple<sequence<1, 1>>,  // MWarp, NWarp 1, 4
             sequence<1, 2>,
-            sequence<0, 0>>{};
+            sequence<0, 0>>{};      // MIterPerWarp, NIterPerWarp, 1, 1
 
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
@@ -123,9 +129,10 @@ struct BlockGemmARegBRegCRegV2
                 //     printf("get_thread_buffer_size %d\n", b_warp_tensor.get_thread_buffer_size());
                     
                 // if(threadIdx.x==0)
-                //     printf("get_thread_buffer_size %d\n", b_warp_tensor.get_thread_buffer_size());
+                //     printf("b get_thread_buffer_size %d\n", b_warp_tensor.get_thread_buffer_size());
                 // auto &xx = b_warp_tensor.get_thread_buffer();
                 // printf("bid %d tid %d b %f %f %f %f\n", blockIdx.x, threadIdx.x, type_convert<float>(xx[number<0>{}]), type_convert<float>(xx[number<2>{}]), type_convert<float>(xx[number<4>{}]), type_convert<float>(xx[number<6>{}]));
+
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor
                     AWarpTensor a_warp_tensor;
@@ -196,19 +203,19 @@ struct BlockGemmARegBRegCRegV2
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
-        constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
+        constexpr index_t MWarp = config.template at<1>(); // 1
+        constexpr index_t NWarp = config.template at<2>(); // 4
 
-        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
-        constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM); // 1
+        constexpr index_t KIterPerWarp = KPerBlock / WG::kK; // 4
 
         constexpr auto a_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<NWarp>,
-                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+            tile_distribution_encoding<sequence<NWarp>, // 4
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>, // 1, 1, 4
                                        tuple<sequence<1, 0>>,
-                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,  // MWarp, NWarp 1, 4
                                        sequence<1, 2>,
-                                       sequence<0, 0>>{};
+                                       sequence<0, 0>>{};  // MIterPerWarp, KIterPerWarp 1, 4
 
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             a_block_outer_dstr_encoding, typename WG::AWarpDstrEncoding{});

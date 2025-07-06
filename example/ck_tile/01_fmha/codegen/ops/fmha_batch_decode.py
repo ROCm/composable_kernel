@@ -106,6 +106,10 @@ static void run(const ck_tile::stream_config& s, fmha_batch_decode_args a)
     auto [kargs, grids] = fmha_batch_decode_create_kargs_and_grids<k_>(a);
     constexpr dim3 blocks             = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    printf("run into fmha_batch_decode_bf16_nlogits_nbias_nmask_lse_nsquant_pagedkv\\n");
+    printf("blocks: %d, %d, %d\\n", blocks.x, blocks.y, blocks.z);
+    printf("grids: %d, %d, %d\\n", grids.x, grids.y, grids.z);
+    printf("kBlockPerCu: %d\\n", kBlockPerCu);
     ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
 }}
 }};

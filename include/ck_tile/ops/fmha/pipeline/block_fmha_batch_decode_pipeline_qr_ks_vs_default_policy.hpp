@@ -8,6 +8,7 @@
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v3.hpp"
 
 namespace ck_tile {
 
@@ -59,20 +60,20 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVSDefaultPolicy
         static_assert(0 < ElemPerThread);
         constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
 
-        constexpr index_t KPerThread     = kMaxVecLoad;
-        constexpr index_t KThreads       = kKPerBlock / KPerThread;
-        constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
-        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
-        constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+        constexpr index_t KPerThread     = kMaxVecLoad; // 8
+        constexpr index_t KThreads       = kKPerBlock / KPerThread;   // 16
+        constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;  // 4
+        constexpr index_t NumWarps       = kBlockSize / get_warp_size(); // 4
+        constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps); // 1
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
-                                       tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
-                                             sequence<KThreads, KPerThread>>,
+                                       tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>, // 1, 4, 4
+                                             sequence<KThreads, KPerThread>>, // 16, 8
                                        tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       tuple<sequence<1>, sequence<2, 0>>, // NumWarps, MThreadPerWarp, KThreads 4, 4, 16
                                        sequence<1, 2>,
-                                       sequence<0, 1>>{});
+                                       sequence<0, 1>>{});  // MPerThread, KPerThread 1, 8 
     }
 
     // template <typename Problem>
@@ -227,26 +228,58 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVSDefaultPolicy
             using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
             constexpr index_t kBlockSize = Problem::kBlockSize;
-            constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+            constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;  // 64
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;  // 128
 
             constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
-            constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+            constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize; // 32
 
-            constexpr index_t K2 = min(MaxVectorSize, ElemPerThread); //8
+            constexpr index_t K2 = min(MaxVectorSize, ElemPerThread); // 8
             constexpr index_t K1 = 4;
-            constexpr index_t K0 = kKPerBlock / K1 / K2; // 2
-            constexpr index_t N2 = 16; // 8
-            constexpr index_t N1 = kBlockSize / get_warp_size();
-            constexpr index_t N0 = kNPerBlock / (N2 * N1);
+            constexpr index_t K0 = kKPerBlock / K1 / K2; // 4
+            constexpr index_t N2 = 16; 
+            constexpr index_t N1 = kBlockSize / get_warp_size(); // 4
+            constexpr index_t N0 = kNPerBlock / (N2 * N1); // 1
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1, K2>>,
+                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1, K2>>, // 1, 4, 16, 4, 4, 8
                                            tuple<sequence<1>, sequence<2, 1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,  // N1, K1, N2 : 4, 4, 16
                                            sequence<1, 2, 2>,
-                                           sequence<0, 0, 2>>{});
+                                           sequence<0, 0, 2>>{}); // N0, K0, K2 : 1, 4, 8
+    }
+     template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeVDramTileDistributionPreshuffled()
+    {
+        using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
+        using VDataType = remove_cvref_t<typename Problem::VDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;  // 128
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;  // 64
+
+        static_assert(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>, "wrong");
+
+        constexpr index_t N2 = 16;
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize; // 32
+        constexpr index_t MaxVectorSize = 16 / sizeof(VDataType); 
+        constexpr index_t K3 = min(MaxVectorSize, total_pixels); // 8
+        constexpr index_t K1 = 2;
+        constexpr index_t K2 = 2;
+        constexpr index_t K0 = kKPerBlock / K1 / K2 / K3; // 2
+        constexpr index_t N0 = kBlockSize / get_warp_size(); // 4
+        constexpr index_t N1 = kNPerBlock / (N2 * N0); // 2
+
+        static_assert(kKPerBlock == K0 * K1 * K2 * K3);
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                        tuple<sequence<N0, N1, N2>, sequence<K0, K1, K2, K3>>, // 4, 2, 16, 2, 2, 2, 8
+                                        tuple<sequence<1>, sequence<2, 2, 1>>,
+                                        tuple<sequence<0>, sequence<1, 2, 2>>, // N0, K1, K2, N2 : 4, 2, 2, 16
+                                        sequence<2, 1, 2>,
+                                        sequence<0, 1, 3>>{}); // K0, N1, K3 : 2, 2, 8
+
     }
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQRegTileDistribution()
@@ -319,6 +352,67 @@ struct BlockFmhaBatchDecodeWithPagedKVCachePipelineQRKSVSDefaultPolicy
                                                  decltype(warp_gemm)>;
         static_assert(1 < Problem::kNumGemm0Warps);
         return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemmPreshuffled()
+    {
+        using GemmProblem =
+            BlockGemmProblem<typename Problem::PDataType,
+                             typename Problem::VDataType,
+                             typename Problem::OaccDataType,
+                             Problem::kNumGemm1Warps * get_warp_size(),
+                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                    Problem::BlockFmhaShape::kN1,
+                                                    Problem::BlockFmhaShape::kK1>,
+                                           typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
+
+        constexpr auto warp_gemm = []() {
+            constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{});
+            static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
+
+            if constexpr(std::is_same_v<typename Problem::PDataType, half_t> &&
+                         std::is_same_v<typename Problem::VDataType, half_t> &&
+                         std::is_same_v<typename Problem::OaccDataType, float>)
+            {
+                if constexpr(WarpGemmM == 32)
+                    return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
+                else if constexpr(WarpGemmM == 16)
+                    return WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution{};
+                else // WarpGemmM == 4
+                    return WarpGemmMfmaF16F16F32M4N64K16{};
+            }
+            else if constexpr(std::is_same_v<typename Problem::PDataType, bf16_t> &&
+                              std::is_same_v<typename Problem::VDataType, bf16_t> &&
+                              std::is_same_v<typename Problem::OaccDataType, float>)
+            {
+                if constexpr(WarpGemmM == 32)
+                    return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
+                else if constexpr(WarpGemmM == 16)
+                    return WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution{};
+                else // WarpGemmM == 4
+                    return WarpGemmMfmaBf16Bf16F32M4N64K16{};
+            }
+            else if constexpr(std::is_same_v<typename Problem::PDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::VDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::OaccDataType, float>)
+            {
+                static_assert(WarpGemmM == 32);
+
+                // TODO: hard coded here. Otherwise, it may incorrect result
+                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
+            } // TODO - bf8_t
+        }();
+
+        using BlockGemmPolicy =
+            BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::PDataType,
+                                                 typename Problem::VDataType,
+                                                 typename Problem::OaccDataType,
+                                                 typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                                 decltype(warp_gemm)>;
+        static_assert(1 < Problem::kNumGemm1Warps);
+        return BlockGemmARegBRegCRegV3<GemmProblem, BlockGemmPolicy>{};
     }
 };
 
