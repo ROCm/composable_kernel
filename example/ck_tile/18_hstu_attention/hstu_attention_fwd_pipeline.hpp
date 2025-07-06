@@ -274,8 +274,6 @@ struct HstuAttentionFwdPipelineQRKSVS
             }
         };
 
-        const auto num_loops = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
-
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -351,8 +349,6 @@ struct HstuAttentionFwdPipelineQRKSVS
         q_tile = tile_elementwise_in(q_element_func, q_tile);
 
         auto seqlen_k_curr = seqlen_k_start;
-
-        index_t i_loop = 0;
 
         // ensure all q_reg_tiles[] have been loaded from LDS, so the LDS can be reused by k_tile
         __builtin_amdgcn_s_barrier();
@@ -481,7 +477,7 @@ struct HstuAttentionFwdPipelineQRKSVS
                     };
                 }
             });
-        } while(i_loop++ < num_loops);
+        } while(seqlen_k_curr < seqlen_k_end);
 
         tile_elementwise_inout(
             [&](auto& x) {
