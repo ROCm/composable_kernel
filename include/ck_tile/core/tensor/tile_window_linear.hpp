@@ -557,31 +557,34 @@ struct tile_window_linear
         using LdsDataType   = typename LdsTileWindow::DataType;
         using vector_t      = typename traits::vector_t;
 
-        // currently we only support everything is non linear dim
-        // actually it's not performant if we have linear dim(e.g. fast changing)
-        static_assert(NumAccess_NonLinear == NumAccess);
+        static_assert(NumAccess_NonLinear == NumAccess, "Unsupported configuration");
         static_assert(Base::BottomTensorView::buffer_view::get_address_space() ==
-                      address_space_enum::global);
+                          address_space_enum::global,
+                      "Requires global memory");
 
-        // loop over thread tensor space [y0, y1, ...]
+        // Precompute invariant values outside the lambda
+        const auto window_origin       = lds_tile.get_window_origin();
+        const auto& bottom_tensor_view = lds_tile.get_bottom_tensor_view();
+        const auto& tensor_descriptor  = bottom_tensor_view.get_tensor_descriptor();
+        auto smem_base_ptr             = bottom_tensor_view.get_buffer_view().p_data_;
+
         auto issue = [&](auto i_access_) {
-            constexpr auto IAccess          = number<i_access_>{};
-            constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
+            constexpr auto IAccess       = number<i_access_>{};
+            constexpr auto non_linear_id = number<AccessMap_NonLinear{}[IAccess]>{};
+
+            // Use precomputed values
             auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
             auto window_adaptor_coord       = cached_window_adaptor_coords_[non_linear_id];
             auto bottom_tensor_flag         = cached_flags_[IAccess];
 
             auto lds_bottom_tensor_thread_idx =
-                lds_tile.get_window_origin() + window_adaptor_coord.get_bottom_index();
-
+                window_origin + window_adaptor_coord.get_bottom_index();
             const auto lds_coord =
-                make_tensor_coordinate(lds_tile.get_bottom_tensor_view().get_tensor_descriptor(),
-                                       lds_bottom_tensor_thread_idx);
-            CK_TILE_LDS_ADDR LdsDataType* smem =
-                lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_ +
-                lds_coord.get_offset();
+                make_tensor_coordinate(tensor_descriptor, lds_bottom_tensor_thread_idx);
 
-            // read from bottom tensor
+            CK_TILE_LDS_ADDR LdsDataType* smem = smem_base_ptr + lds_coord.get_offset();
+
+            // Read from bottom tensor
             this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
                 smem,
                 bottom_tensor_thread_coord,
@@ -589,6 +592,7 @@ struct tile_window_linear
                 bottom_tensor_flag,
                 bool_constant<oob_conditional_check>{});
         };
+
         WINDOW_DISPATCH_ISSUE();
     }
 

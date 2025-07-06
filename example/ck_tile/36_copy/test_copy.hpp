@@ -159,7 +159,16 @@ struct TileCopy
 
             if(my_id == warp_id)
             {
-                if constexpr(AsyncCopy == false)
+                if constexpr(AsyncCopy)
+                {
+                    async_load_tile(x_block_lds_window_no_dist, x_block_window);
+
+                    load_tile(dram_tile, x_block_lds_window);
+
+                    // store from registers to DRAM
+                    store_tile(y_block_window, dram_tile);
+                }
+                else
                 {
                     // load from DRAM to registers
                     load_tile(dram_tile, x_block_window);
@@ -168,15 +177,6 @@ struct TileCopy
                     store_tile(x_block_lds_window_no_dist, dram_tile);
 
                     // read from lds to registers
-                    load_tile(dram_tile, x_block_lds_window);
-
-                    // store from registers to DRAM
-                    store_tile(y_block_window, dram_tile);
-                }
-                else
-                {
-                    async_load_tile(x_block_lds_window_no_dist, x_block_window);
-
                     load_tile(dram_tile, x_block_lds_window);
 
                     // store from registers to DRAM

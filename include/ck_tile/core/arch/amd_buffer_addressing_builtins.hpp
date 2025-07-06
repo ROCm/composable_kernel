@@ -14,6 +14,8 @@
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 
+using as3_uint32_ptr = uint32_t __attribute__((address_space(3)))*;
+
 namespace ck_tile {
 
 // 128 bit SGPRs to supply buffer resource in buffer instructions
@@ -1138,7 +1140,7 @@ llvm_amdgcn_raw_buffer_atomic_max_fp64(double vdata,
 // Direct loads from global to LDS.
 CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
-                                __attribute__((address_space(3))) uint32_t* lds_ptr,
+                                as3_uint32_ptr lds_ptr,
                                 index_t size,
                                 index_t voffset,
                                 index_t soffset,
@@ -1560,8 +1562,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
         index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
         llvm_amdgcn_raw_buffer_load_lds(
             src_wave_buffer_resource,
-            reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
-                reinterpret_cast<uintptr_t>(smem)),
+            reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(smem)),
             bytes,
             v_offset,
             0,
@@ -1572,8 +1573,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     {
         llvm_amdgcn_raw_buffer_load_lds(
             src_wave_buffer_resource,
-            reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
-                reinterpret_cast<uintptr_t>(smem)),
+            reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(smem)),
             bytes,
             src_thread_addr_offset,
             0,
@@ -1587,8 +1587,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
         index_t v_offset = flag ? src_thread_addr_offset : src_wave_buffer_resource[2];
         llvm_amdgcn_raw_buffer_load_lds(
             src_wave_buffer_resource,
-            reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
-                reinterpret_cast<uintptr_t>(smem)),
+            reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(smem)),
             bytes,
             v_offset,
             src_wave_addr_offset,
@@ -1599,8 +1598,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     {
         llvm_amdgcn_raw_buffer_load_lds(
             src_wave_buffer_resource,
-            reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
-                reinterpret_cast<uintptr_t>(smem)),
+            reinterpret_cast<as3_uint32_ptr t*>(reinterpret_cast<uintptr_t>(smem)),
             bytes,
             src_thread_addr_offset,
             src_wave_addr_offset,
@@ -2581,9 +2579,8 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
                  : "memory");
 #else
     // LDS pointer must be attributed with the LDS address space.
-    __attribute__((address_space(3))) uint32_t* lds_ptr =
-        reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
-            reinterpret_cast<uintptr_t>(lds_base_ptr + lds_offset));
+    as3_uint32_ptr lds_ptr =
+        reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(lds_base_ptr + lds_offset));
 
     llvm_amdgcn_raw_buffer_load_lds(
         src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0, 0, 0);

@@ -349,34 +349,41 @@ struct tile_window_with_static_distribution
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
-        // loop over thread tensor space [y0, y1, ...]
+        // Precompute invariant values outside loops
+        const auto window_origin       = lds_tile.get_window_origin();
+        const auto& bottom_tensor_view = lds_tile.get_bottom_tensor_view();
+        const auto& tensor_descriptor  = bottom_tensor_view.get_tensor_descriptor();
+        auto smem_base_ptr             = bottom_tensor_view.get_buffer_view().p_data_;
+
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
             static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
                 constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
-                auto lds_bottom_tensor_thread_idx =
-                    lds_tile.get_window_origin() + window_adaptor_thread_coord.get_bottom_index();
 
-                const auto lds_coord = make_tensor_coordinate(
-                    lds_tile.get_bottom_tensor_view().get_tensor_descriptor(),
-                    lds_bottom_tensor_thread_idx);
-                CK_TILE_LDS_ADDR LdsDataType* smem =
-                    lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_ +
-                    lds_coord.get_offset();
-                // write into bottom tensor
+                // Use precomputed window origin
+                auto lds_bottom_tensor_thread_idx =
+                    window_origin + window_adaptor_thread_coord.get_bottom_index();
+
+                // Use precomputed tensor descriptor
+                const auto lds_coord =
+                    make_tensor_coordinate(tensor_descriptor, lds_bottom_tensor_thread_idx);
+
+                // Calculate SMEM address using base pointer
+                CK_TILE_LDS_ADDR LdsDataType* smem = smem_base_ptr + lds_coord.get_offset();
+
+                // Write into bottom tensor
                 this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
                     smem,
                     bottom_tensor_thread_coord,
                     number<0>{},
                     bool_constant<oob_conditional_check>{});
 
-                // move thread coordinate
+                // Move thread coordinate if not last access
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
                 {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
-
+                    constexpr auto idx_diff_ys    = SFC_Ys::get_forward_step(iAccess);
                     constexpr auto idx_diff_ps_ys = container_concat(
                         generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
                         idx_diff_ys);
