@@ -14,7 +14,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for GKCYX layout for grouped convolution backward data (NGCHW/GKCYX/NGKHW).
 * Added support for Stream-K version of mixed fp8/bf16 GEMM
 * Added support for Multiple D GEMM
-* Added GEMM pipeline for microscaling (MX) FP8/FP4 data types
+* Added GEMM pipeline for microscaling (MX) FP8/FP6/FP4 data types
 * Added support for FP16 2:4 structured sparsity to universal GEMM.
 * Added support for Split K for grouped convolution backward data.
 * Added logit soft-capping support for fMHA forward kernels.
