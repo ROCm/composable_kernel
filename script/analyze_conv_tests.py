@@ -626,7 +626,7 @@ def main():
         best_occupancy_split_k_values = df[14][valid_mask]
         # 15 - rank
         # 16 - strategy
-        #17 - total number of candidate ops.
+        # 17 - total number of candidate ops.
 
     suffix = f"_{args.label}" if args.label else ""
 

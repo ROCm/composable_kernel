@@ -71,4 +71,5 @@ __pycache__/
 
 test_data/*
 script/*.csv
+script/*.txt
 script/**/*.png

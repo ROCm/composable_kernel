@@ -102,6 +102,7 @@ def process_miopen_driver(args, unknown):
               ' convbfp16).')
         exit(1)
 
+
 def parse_ktn_command(csv_file, no_verification=False, fwd_only=False, bwd_data_only=False, bwd_weight_only=False):
   if not os.path.isfile(csv_file):
       print(f"Error: The specified CSV file '{csv_file}' does not exist.", file=sys.stderr)
@@ -111,18 +112,23 @@ def parse_ktn_command(csv_file, no_verification=False, fwd_only=False, bwd_data_
 
   # Remove the KTN commands where column 'Group Size' has value 1
   df = df[df['Group Size'] != 1]
+
+  assert (df['Group Size'] == 1).sum() == 0, "Filtering failed!"
+  assert (df['Group Size'] != 1).sum() > 0, "Filtering failed!"
+  print("Unique Group Size values:", df['Group Size'].unique())
+  print("Data types:", df.dtypes)
   
   commands = []
   parser = get_parser()
   for i, cmd in enumerate(df['Command']):
-    cmd = cmd.strip()
+    cmd = cmd.split()
     args, _ = parser.parse_known_args(cmd)
 
     init_const_args(args)
-    process_miopen_driver(args, cmd.split()[0])
+    process_miopen_driver(args, cmd[0])
     
     if no_verification:
-        args.verify = 0
+      args.verify = 0
     else:
       args.verify = 1         
 
@@ -168,9 +174,9 @@ def main():
     })
 
     if not args.full_set:
-        # The hardest cases are at the beginning of the Fremont CSV file.
-        commands_fremont_df = commands_fremont_df.sample(n=min(n_fremont_shapes, len(commands_fremont_df)))
-        commands_ktn_df = commands_ktn_df.sample(n=min(n_ktn_shapes, len(commands_ktn_df)), random_state=seed)
+      # The hardest cases are at the beginning of the Fremont CSV file.
+      commands_fremont_df = commands_fremont_df.sample(n=min(n_fremont_shapes, len(commands_fremont_df)))
+      commands_ktn_df = commands_ktn_df.sample(n=min(n_ktn_shapes, len(commands_ktn_df)), random_state=seed)
 
     # Combine the two DataFrames
     commands_df = pd.concat([commands_fremont_df, commands_ktn_df], ignore_index=True)
@@ -180,6 +186,7 @@ def main():
     output_file = os.path.join(args.output_path, "ck_profiler_commands.csv")
     with open(output_file, "w") as f:
         csv_writer = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        csv_writer.writerow(['profiler', 'op', 'datatype', 'layout', 'verify', 'init', 'log', 'time', 'Ndims', 'G', 'N', 'K', 'C', 'Y', 'X', 'Hi', 'Wi', 'Sy', 'Sx', 'Dy', 'Dx', 'LeftPy', 'LeftPx', 'RightPy', 'RightPx', 'SplitK'])
         for command in commands_df['Command']:
             csv_writer.writerow(command)        
     print(f"Commands saved to {output_file}")
