@@ -10,7 +10,7 @@ namespace ck_tile {
 struct BatchedTransposePolicy
 {
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeInputDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeInputDistribution()
     {
         constexpr index_t BlockSize   = Problem::kBlockSize;
         constexpr index_t MPerBlock   = Problem::kMPerBlock;
@@ -26,7 +26,7 @@ struct BatchedTransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeOutputDistribution()
     {
         constexpr index_t BlockSize   = Problem::kBlockSize;
         constexpr index_t MPerBlock   = Problem::kMPerBlock;

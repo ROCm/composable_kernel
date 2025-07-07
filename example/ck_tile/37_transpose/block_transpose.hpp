@@ -101,7 +101,7 @@ struct BlockTranspose
 
     static constexpr index_t GetVectorSize() { return Policy::template GetVectorSize<Problem>(); }
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    CK_TILE_DEVICE static constexpr index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
     }
