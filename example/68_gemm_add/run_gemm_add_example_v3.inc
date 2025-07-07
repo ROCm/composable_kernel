@@ -129,10 +129,10 @@ bool run_gemm_add(const ProblemSize& problem_size, const ExecutionConfig& config
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result) ? 0 : 1;
+        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
     }
 
-    return 0;
+    return true;
 }
 
 bool run_gemm_add_example(int argc, char* argv[])
@@ -140,5 +140,5 @@ bool run_gemm_add_example(int argc, char* argv[])
     ProblemSize problem_size;
     ExecutionConfig config;
 
-    return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm_add(problem_size, config);
+    return parse_cmd_args(argc, argv, problem_size, config) && run_gemm_add(problem_size, config);
 }
