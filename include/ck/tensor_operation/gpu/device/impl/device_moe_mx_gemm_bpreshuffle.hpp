@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_moe_mx_gemm.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_moe_mx_gemm_bpreshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
@@ -75,79 +75,79 @@ template <typename ALayout,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = ADataType,
           typename ComputeTypeB                       = BDataType>
-struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
-                                                           BLayout,
-                                                           DsLayout,
-                                                           CLayout,
-                                                           ADataType,
-                                                           AScaleDataType,
-                                                           BDataType,
-                                                           BScaleDataType,
-                                                           DsDataType,
-                                                           CDataType,
-                                                           ScaleBlockSize,
-                                                           AElementwiseOperation,
-                                                           BElementwiseOperation,
-                                                           CElementwiseOperation>
+struct DeviceMoeGemmMXBPreShuffle : public DeviceMoEGemmMXBPreShuffle<ALayout,
+                                                                      BLayout,
+                                                                      DsLayout,
+                                                                      CLayout,
+                                                                      ADataType,
+                                                                      AScaleDataType,
+                                                                      BDataType,
+                                                                      BScaleDataType,
+                                                                      DsDataType,
+                                                                      CDataType,
+                                                                      ScaleBlockSize,
+                                                                      AElementwiseOperation,
+                                                                      BElementwiseOperation,
+                                                                      CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
-    using GridwiseGemm =
-        GridwiseMoeGemmMX<ALayout,
-                          BLayout,
-                          DsLayout,
-                          CLayout,
-                          ADataType,
-                          AScaleDataType,
-                          BDataType,
-                          BScaleDataType,
-                          GemmAccDataType,
-                          CShuffleDataType,
-                          DsDataType,
-                          CDataType,
-                          AElementwiseOperation,
-                          BElementwiseOperation,
-                          CElementwiseOperation,
-                          GemmSpec,
-                          ScaleBlockSize,
-                          BlockSize,
-                          MPerBlock,
-                          NPerBlock,
-                          KPerBlock,
-                          AK1,
-                          BK1,
-                          MPerXDL,
-                          NPerXDL,
-                          MXdlPerWave,
-                          NXdlPerWave,
-                          ABlockTransferThreadClusterLengths_AK0_M_AK1,
-                          ABlockTransferThreadClusterArrangeOrder,
-                          ABlockTransferSrcAccessOrder,
-                          ABlockTransferSrcVectorDim,
-                          ABlockTransferSrcScalarPerVector,
-                          ABlockTransferDstScalarPerVector_AK1,
-                          false,
-                          ABlockLdsExtraM,
-                          BBlockTransferThreadClusterLengths_BK0_N_BK1,
-                          BBlockTransferThreadClusterArrangeOrder,
-                          BBlockTransferSrcAccessOrder,
-                          BBlockTransferSrcVectorDim,
-                          BBlockTransferSrcScalarPerVector,
-                          BBlockTransferDstScalarPerVector_BK1,
-                          false,
-                          BBlockLdsExtraN,
-                          CShuffleMXdlPerWavePerShuffle,
-                          CShuffleNXdlPerWavePerShuffle,
-                          CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                          CDEShuffleBlockTransferScalarPerVectors,
-                          BlkGemmPipeSched,
-                          BlkGemmPipelineVer,
-                          ActivationOP,
-                          NSwizzle,
-                          IsInputGemm,
-                          MulRoutedWeight,
-                          IndexType,
-                          ComputeTypeA,
-                          ComputeTypeB>;
+    using GridwiseGemm                  = GridwiseMoeGemmMX_BPreshuffle<
+        ALayout,
+        BLayout,
+        DsLayout,
+        CLayout,
+        ADataType,
+        AScaleDataType,
+        BDataType,
+        BScaleDataType,
+        GemmAccDataType,
+        CShuffleDataType,
+        DsDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GemmSpec,
+        ScaleBlockSize,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
+        false,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
+        false,
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CDEShuffleBlockTransferScalarPerVectors,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ActivationOP,
+        NSwizzle,
+        IsInputGemm,
+        MulRoutedWeight,
+        IndexType,
+        ComputeTypeA,
+        ComputeTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -262,12 +262,26 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                 // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
-                                                               true,
-                                                               MemoryDataOp,
-                                                               minimum_occupancy,
-                                                               TailNumber::Full>;
-                    RunKernel(kernel);
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
+                                                                  true,
+                                                                  MemoryDataOp,
+                                                                  minimum_occupancy,
+                                                                  TailNumber::Odd>;
+                            RunKernel(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
+                                                                  true,
+                                                                  MemoryDataOp,
+                                                                  minimum_occupancy,
+                                                                  TailNumber::Even>;
+                            RunKernel(kernel);
+                        }
+                    }
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
@@ -297,15 +311,26 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
             }
             else
             {
-                // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
-                                                               false,
-                                                               MemoryDataOp,
-                                                               minimum_occupancy,
-                                                               TailNumber::Full>;
-                    RunKernel(kernel);
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
+                                                              false,
+                                                              MemoryDataOp,
+                                                              minimum_occupancy,
+                                                              TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
+                                                              false,
+                                                              MemoryDataOp,
+                                                              minimum_occupancy,
+                                                              TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
