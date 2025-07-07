@@ -553,8 +553,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 const auto& c_grid_desc_m_n   = descs_initial[I2];
                 const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
 
-                // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
-                // Hence, the grid is just size of the tile map.
+                // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups, i.e.,
+                // the max occupancy refers to how may simultaneous kernels processing Conv_G_ iGEMMs can simultaneously run on a single CU. 
+                // Hence, the grid is just size of the tile map, i.e., we should not include Conv_G_ to the grid size.
                 const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
                 std::tie(m_dim_size_, n_dim_size_, k_dim_size_) = 
                     get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
@@ -617,6 +618,13 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
             block_2_ctile_map_ =
                 GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
+
+            if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                const auto K0_num = a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
+                const auto num_loops_in_gemm_pipeline = K0_num / K0PerBlock;
+                std::cout << "[SPLIT-K AUTODEDUCE] Number of loops to process all K0 elements: " << num_loops_in_gemm_pipeline << std::endl;
+            }
 
             // A/B/C Batch Stride
             compute_ptr_offset_of_batch_.BatchStrideA_ = a_g_n_k_wos_strides_transposed[0];

@@ -204,6 +204,23 @@ struct PerfResults
     }
 };
 
+void write_perf_results_to_file()
+{
+    const auto& results_file = ck::EnvGetString(CK_ENV(CK_PROFILER_OUTPUT_FILE));
+
+    if (results_file.empty())
+    {
+        return;
+    }
+
+    std::ofstream file(results_file, std::ios::out | std::ios::app);
+    if(file.is_open())
+    {
+        // Write empty results.
+        file << std::endl;
+    }
+}
+
 void write_perf_results_to_file(const PerfResults& perf_results_global, 
                                 const std::vector<PerfResults>& perf_results_list)
 {
@@ -353,8 +370,6 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-    // using SplitKStrategy = ck::tensor_operation::device::SplitKStrategy;
-    // using ParamsSplitK = ck::tensor_operation::device::ParamsSplitK;
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
@@ -480,9 +495,17 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     bool profile_all = true;
     if(split_k != "all")
     {
-        const auto split_k_val = std::stoi(split_k);
-        fixed_split_k_list = {split_k_val};
-        best_occupancy_list = {};
+        if (split_k == "best_occupancy" || split_k == "-1")
+        {
+            fixed_split_k_list = {};
+            best_occupancy_list = {SplitKStrategy::BestOccupancy};
+        }
+        else 
+        {
+            const auto split_k_val = std::stoi(split_k);
+            fixed_split_k_list = {split_k_val};
+            best_occupancy_list = {};
+        }
         profile_all = false;
     }
 
@@ -578,8 +601,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
                 auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-                constexpr int n_warm_up = 25;
-                constexpr int n_repeat = 100;
+                constexpr int n_warm_up = 10;
+                constexpr int n_repeat = 50;
                 StreamConfig config{nullptr, time_kernel};
                 config.cold_niters_ = n_warm_up;
                 config.nrepeat_ = n_repeat;
@@ -693,6 +716,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     else 
     {
         std::cerr << "No supported/enabled ops found for this problem." << std::endl;
+
+        if (profile_all)
+        {
+            write_perf_results_to_file();
+        }
     }
     
     return all_pass;
