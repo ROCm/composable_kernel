@@ -57,7 +57,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     4,                // MXdlPerWave
     4,                // NXdlPerWave
 #if 0
-    S<8, 32, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
+    S<8, 32, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
 #else
     S<16, 16, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
 #endif
@@ -68,7 +68,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     1,          // ABlockTransferDstScalarPerVector_AK1
     true,       // ABlockLdsExtraM
 #if 0
-    S<8, 32, 1>,    // BBlockTransferThreadClusterLengths_BK0_N_BK1
+    S<8, 32, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
 #else
     S<16, 16, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
 #endif

@@ -71,3 +71,4 @@ __pycache__/
 
 .cache/
 
+example/67_gemm_microscaling/*.log

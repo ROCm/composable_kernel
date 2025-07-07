@@ -236,7 +236,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
-#if 1
+#if 0
         if(blockIdx.x == 0 && threadIdx.x < 64)
         {
             printf("DirectCopyToLds SetSrcSliceOrigin threadIdx.x: %d, src_slice_origin_idx = {%d, "
@@ -372,7 +372,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, is_src_valid);
 
-#if 1
+#if 0
             // if constexpr(ordered_dst_access_idx[Number<0>{}] == 0 &&
             //              ordered_dst_access_idx[Number<1>{}] == 0 &&
             //              ordered_dst_access_idx[Number<2>{}] == 0)
@@ -403,14 +403,14 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                     }
                     else if constexpr(packed_size_v<SrcData> == 1 || packed_size_v<SrcData> == 2)
                     {
-                        // printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
-                        //        "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
-                        //        "dst_buf.p_data_[dst_offset] = 0x%02x\n",
-                        //        static_cast<int>(threadIdx.x),
-                        //        static_cast<long>(src_offset),
-                        //        src_buf.p_data_[src_offset].data,
-                        //        lds_offset,
-                        //        dst_buf.p_data_[lds_offset].data);
+                        printf("DirectCopyToLds Run threadId %d -- src_offset: %ld, "
+                               "src_buf.p_data_[src_offset] = 0x%02x, dst_offset: %d, "
+                               "dst_buf.p_data_[dst_offset] = 0x%02x\n",
+                               static_cast<int>(threadIdx.x),
+                               static_cast<long>(src_offset),
+                               src_buf.p_data_[src_offset].data,
+                               lds_offset,
+                               dst_buf.p_data_[lds_offset].data);
                     }
                 }
             }

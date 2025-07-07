@@ -419,6 +419,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
+        static_assert(KRepeat / KXdlPack > 0, "KRepeat must be greater than KXdlPack!");
+
         // Prefetch a_scales
         static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
             static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
@@ -481,7 +483,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         __builtin_amdgcn_s_waitcnt(3952);
         block_sync_lds();
 
-#if 1
+#if 0
         if(blockIdx.x == 0)
         {
             if constexpr(APackedSize == 16)
@@ -500,17 +502,9 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             }
             else if constexpr(APackedSize == 1 || APackedSize == 2)
             {
-                if(threadIdx.x == 0)
-                {
-                    auto a_grid0  = a_grid_buf[0];
-                    auto a_block0 = a_block_bufs(I0)[0];
-
-                    printf("BlockwiseGEMMPipeline Tail 0 threadId %d -- a_grid0 = 0x%02x, "
-                           "a_block_bufs(I0)[0] = 0x%02x\n",
-                           static_cast<int>(threadIdx.x),
-                           a_grid0.data,
-                           a_block0.data);
-                }
+                printf("BlockwiseGEMMPipeline -- a_block_bufs(I0)[%d] = 0x%02x\n",
+                       static_cast<int>(threadIdx.x),
+                       a_block_bufs(I0)[threadIdx.x].data);
             }
         }
 #endif
@@ -566,7 +560,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                            a_thread_buf);
 
 #if 0 // print a_thread_buf
-                        if constexpr(static_cast<int>(k) == 1)
+      //  if constexpr(static_cast<int>(k) == 1)
                         {
                             if(blockIdx.x == 0 && threadIdx.x == 4)
                             {
@@ -2251,16 +2245,18 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                         });
 #endif
 
-#if 1 // disable all output
+#if 0 // disable all output
       // if((!is_B_zero || !is_A_zero) && blockIdx.x == 0 &&
-      //    (threadIdx.x == 0 || threadIdx.x == 1))
-                                    if(blockIdx.x == 0 && threadIdx.x == 4)
+      //    (threadIdx.x == 0 || threadIdx.x == 4))
+      // if(blockIdx.x == 0 && threadIdx.x == 4)
+                                    if(!is_B_zero || !is_A_zero)
                                     {
                                         // First MWaves * MPerXDL rows and NWaves * NPerXDL
                                         // columns
-                                        if constexpr(m0 == 0 && n0 == 0 && (k0 == 0 || k0 == 0) &&
-                                                     (inxdl == 0 || inxdl == 0) &&
-                                                     (imxdl == 0 || imxdl == 0))
+                                        // if constexpr(m0 == 0 && n0 == 0 && (k0 == 0 || k0 == 0)
+                                        // &&
+                                        //              (inxdl == 0 || inxdl == 0) &&
+                                        //              (imxdl == 0 || imxdl == 0))
                                         {
 // print out a_thread_vec
 #if 1
@@ -2656,7 +2652,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                             }
 #endif
 // print out b_thread_vec
-#if 0
+#if 1
                                             if constexpr(BPackedSize == 16)
                                             {
                                                 auto fx16_1 = type_convert<float16_t>(
@@ -3473,14 +3469,16 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
 #if 0 // disable all output
       // if((!is_B_zero || !is_A_zero) && blockIdx.x == 0 &&
-      //    (threadIdx.x == 0 || threadIdx.x == 1))
-                                    if(blockIdx.x == 0 && threadIdx.x == 4)
+      //    (threadIdx.x == 0 || threadIdx.x == 4))
+      // if(blockIdx.x == 0 && threadIdx.x == 4)
+                                    if(!is_B_zero || !is_A_zero)
                                     {
                                         // First MWaves * MPerXDL rows and NWaves * NPerXDL
                                         // columns
-                                        if constexpr(m0 == 0 && n0 == 0 && (k0 == 0 || k0 == 0) &&
-                                                     (inxdl == 0 || inxdl == 0) &&
-                                                     (imxdl == 0 || imxdl == 0))
+                                        // if constexpr(m0 == 0 && n0 == 0 && (k0 == 0 || k0 == 0)
+                                        // &&
+                                        //              (inxdl == 0 || inxdl == 0) &&
+                                        //              (imxdl == 0 || imxdl == 0))
                                         {
 // print out a_thread_vec
 #if 1
@@ -3876,7 +3874,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                             }
 #endif
 // print out b_thread_vec
-#if 0
+#if 1
                                             if constexpr(BPackedSize == 16)
                                             {
                                                 auto fx16_1 = type_convert<float16_t>(
