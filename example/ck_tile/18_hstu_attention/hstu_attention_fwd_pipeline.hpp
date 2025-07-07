@@ -414,6 +414,8 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                 pcomp_tile = cast_tile<CompDataType>(sacc_tile);
 
+                tile_elementwise_inout(f_silu, pcomp_tile);
+
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                 {
                     auto v_shuffle_tmp = make_static_distributed_tensor<QKVDataType>(
@@ -435,10 +437,6 @@ struct HstuAttentionFwdPipelineQRKSVS
                     store_tile(v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}],
                                tile_elementwise_in(v_element_func, v_tile)); // store the prefetch
                 };
-
-                __builtin_amdgcn_sched_barrier(0);
-
-                tile_elementwise_inout(f_silu, pcomp_tile);
 
                 if constexpr(kHasDropout)
                 {
