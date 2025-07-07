@@ -263,3 +263,9 @@
 #ifndef CK_TILE_WA_ISSUE_2028
 #define CK_TILE_WA_ISSUE_2028 0
 #endif
+
+// Y pointed to R, we don't see a valuable use case.
+// Will enforce encoding to check Y not pointed to R if set to zero
+#ifndef CK_TILE_ENC_SUPPORT_Y_TO_R
+#define CK_TILE_ENC_SUPPORT_Y_TO_R 0
+#endif
