@@ -8,6 +8,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_wmma_selector.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_wmma.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
@@ -113,14 +114,18 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     static constexpr auto WmmaK  = 16;
     static constexpr auto WmmaL  = 16;
 
+    static constexpr auto KPack =
+        math::integer_least_multiple(math::integer_least_multiple(AK1Value, BK1Value), WmmaK);
+
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe =
-        remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,
-                                                              NumGemmKPrefetchStage,
-                                                              LoopSched,
-                                                              AEnableLds,
-                                                              B0EnableLds>())>;
+    // TODO: Loop scheduler??
+    // using GridwiseGemmPipe =
+    //     remove_cvref_t<decltype(GridwiseGemmPipeline_Selector<PipelineVer,
+    //                                                           NumGemmKPrefetchStage,
+    //                                                           LoopSched,
+    //                                                           AEnableLds,
+    //                                                           B0EnableLds>())>;
 
     __host__ __device__ static constexpr auto MakeABlockDescriptor()
     {
@@ -503,6 +508,35 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         return math::max(gemm0_bytes_end, gemm1_bytes_end, acc0_bytes_end, c_block_bytes_end);
     }
 
+    // Blockwise gemm pipeline for gemm0, this replaces the old GridwiseGemmPipe +
+    // BlockwiseGemmWMMA. The latter had two enableLDS bools and a transposeC bool which we don't
+    // have anymore (now effectively true, true, false).
+    using BlockwiseGemmPipe =
+        remove_cvref_t<decltype(BlockGemmPipeline_Selector<
+                                BlockGemmPipelineVersion::v1, // BlkGemmPipelineVer, TODO: param
+                                BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched, TODO:
+                                                                       // param
+                                BlockSize,
+                                ADataType,
+                                B0DataType,
+                                // TODO: Check if these compute types should always be
+                                //  equal to data type.
+                                ADataType,  // ComputeTypeA
+                                B0DataType, // ComputeTypeB
+                                Acc0DataType,
+                                decltype(MakeAWaveDescriptor(MakeABlockDescriptor())),
+                                decltype(MakeB0WaveDescriptor(MakeB0BlockDescriptor())),
+                                ABlockTransferSrcScalarPerVector,
+                                B0BlockTransferSrcScalarPerVector,
+                                MPerBlock,
+                                LPerBlock,
+                                KPerBlock,
+                                MPerWmma,
+                                LPerWmma,
+                                MRepeat,
+                                LRepeat,
+                                KPack>())>;
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc& a_grid_desc,
@@ -590,13 +624,14 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             return false;
         }
 
+        // TODO: I think any k loop size is supported in new backend
         // check gemm0 gridwise gemm pipeline
-        const auto num_gemm0_k_loop = K / KPerBlock;
-        if(!GridwiseGemmPipe::IsSupported(num_gemm0_k_loop))
-        {
-            printf("GridwiseOp: outer loop unsupport\n");
-            return false;
-        }
+        // const auto num_gemm0_k_loop = K / KPerBlock;
+        // if(!GridwiseGemmPipe::IsSupported(num_gemm0_k_loop))
+        // {
+        //     printf("GridwiseOp: outer loop unsupport\n");
+        //     return false;
+        // }
 
         // check gemm1 gridwise gemm pipeline
         if(!(LPerBlock % LTilePerBlock == 0))
@@ -607,12 +642,13 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             return false;
         }
 
-        const auto num_gemm1_k_inner_loop = LPerBlock / LTilePerBlock;
-        if(!GridwiseGemmPipe::IsSupported(num_gemm1_k_inner_loop))
-        {
-            printf("GridwiseOp: inner loop unsupport\n");
-            return false;
-        }
+        // TODO: I think any k loop size is supported in new backend
+        // const auto num_gemm1_k_inner_loop = LPerBlock / LTilePerBlock;
+        // if(!GridwiseGemmPipe::IsSupported(num_gemm1_k_inner_loop))
+        // {
+        //     printf("GridwiseOp: inner loop unsupport\n");
+        //     return false;
+        // }
 
         if(!block_2_ctile_map.CheckValidity(c_grid_desc_m_n))
         {
@@ -627,8 +663,16 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     {
         const index_t num_loop = math::integer_divide_ceil(K, KPerBlock);
 
-        return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
+        return BlockwiseGemmPipe::BlockHasHotloop(num_loop);
+        // return GridwiseGemmPipe::CalculateHasMainLoop(num_loop);
     }
+
+    // __host__ static constexpr TailNumber CalculateKBlockLoopTailNum(index_t K)
+    // {
+    //     const index_t num_loop = K / KPerBlock;
+
+    //     return BlockwiseGemmPipe::BlockLoopTailNum(num_loop);
+    // }
 
     __host__ __device__ static constexpr auto
     MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const CGridDesc_M_N& c_grid_desc_m_n)
@@ -746,7 +790,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 /*******************************************************************************/
 
 /*******************************************************************************/
-// BlockLevel, A/B Matrix ThreadMapping in LDS, As Destinaion of BlockWise_Copy
+// BlockLevel, A/B Matrix ThreadMapping in LDS, As Destination of BlockWise_Copy
         constexpr auto a_block_desc  = MakeABlockDescriptor();
         constexpr auto b0_block_desc = MakeB0BlockDescriptor();
 
@@ -918,33 +962,44 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 
 /*******************************************************************************/
         // Gemm0
-        constexpr auto KPack = math::integer_least_multiple(math::integer_least_multiple(AK1Value,BK1Value), WmmaK);
+        //constexpr auto KPack = math::integer_least_multiple(math::integer_least_multiple(AK1Value,BK1Value), WmmaK);
 
-        auto blockwise_gemm0 = BlockwiseGemmWMMA<
-            BlockSize,
-            ADataType,
-            B0DataType,
-            Acc0DataType,
-            decltype(MakeAWaveDescriptor(a_block_desc)),
-            decltype(MakeB0WaveDescriptor(b0_block_desc)),
-            MPerBlock,
-            LPerBlock,
-            KPerBlock,
-            MPerWmma,
-            LPerWmma,
-            MRepeat,
-            LRepeat,
-            KPack,
-            AEnableLds,
-            B0EnableLds,
-            true>{}; // C' = B' x A'
-            
+        // auto blockwise_gemm0 = BlockwiseGemmWMMA<
+        //     BlockSize,
+        //     ADataType,
+        //     B0DataType,
+        //     Acc0DataType,
+        //     decltype(MakeAWaveDescriptor(a_block_desc)),
+        //     decltype(MakeB0WaveDescriptor(b0_block_desc)),
+        //     MPerBlock,
+        //     LPerBlock,
+        //     KPerBlock,
+        //     MPerWmma,
+        //     LPerWmma,
+        //     MRepeat,
+        //     LRepeat,
+        //     KPack,
+        //     AEnableLds,
+        //     B0EnableLds,
+        //     true>{}; // C' = B' x A'
 
         // Prepare Register for A*B0 matrix
-        auto acc0_thread_buf = blockwise_gemm0.GetCThreadBuffer();
+        // auto acc0_thread_buf = blockwise_gemm0.GetCThreadBuffer();
 
-        constexpr auto acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs =
-            blockwise_gemm0.GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs();
+        // constexpr auto acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs =
+        //     blockwise_gemm0.GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs();
+
+        // constexpr auto acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs =
+        //     blockwise_gemm0.GetCThreadDescriptor_MRepeat_MWave_MThreadPerSubGroup_NRepeat_NWave_NSubGroup_NAccVgprs();
+
+        // Blockwise GEMM0 pipeline
+        static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
+        auto blockwise_gemm0_pipeline = BlockwiseGemmPipe{};
+        auto acc0_thread_buf          = blockwise_gemm0_pipeline.GetCThreadBuffer();
+
+        // TODO: Not sure why we were able to just replace the CThreadDescriptor with the untransposed layour but it seems to work.
+        constexpr auto acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs = 
+            blockwise_gemm0_pipeline.GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
         
         constexpr auto mrepeat            = acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.GetLength(I0);
         constexpr auto mwave              = acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs.GetLength(I1);
@@ -1162,23 +1217,39 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         index_t gemm1_l_block_outer_index = 0;
         // Outer loop, along GEMM_L
         // Inner loop, along GEMM_K
-        do{
+        do {
             // gemm0 start, A-B swaped
-            GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc,
-                                                              a_block_desc,
-                                                              a_blockwise_copy,
-                                                              a_grid_buf,
-                                                              a_block_buf,
-                                                              a_block_slice_copy_step,
-                                                              b0_grid_desc,
-                                                              b0_block_desc,
-                                                              b0_blockwise_copy,
-                                                              b0_grid_buf,
-                                                              b0_block_buf,
-                                                              b0_block_slice_copy_step,
-                                                              blockwise_gemm0,
-                                                              acc0_thread_buf,
-                                                              KBlockMainLoop);
+            // GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc,
+            //                                                   a_block_desc,
+            //                                                   a_blockwise_copy,
+            //                                                   a_grid_buf,
+            //                                                   a_block_buf,
+            //                                                   a_block_slice_copy_step,
+            //                                                   b0_grid_desc,
+            //                                                   b0_block_desc,
+            //                                                   b0_blockwise_copy,
+            //                                                   b0_grid_buf,
+            //                                                   b0_block_buf,
+            //                                                   b0_block_slice_copy_step,
+            //                                                   blockwise_gemm0,
+            //                                                   acc0_thread_buf,
+            //                                                   KBlockMainLoop);
+            
+            blockwise_gemm0_pipeline.template Run<HasMainKBlockLoop, TailNumber::Full>(a_grid_desc, 
+                                                                                       a_block_desc, 
+                                                                                       a_blockwise_copy, 
+                                                                                       a_grid_buf,
+                                                                                       a_block_buf, 
+                                                                                       a_block_slice_copy_step,
+                                                                                       b0_grid_desc,
+                                                                                       b0_block_desc,
+                                                                                       b0_blockwise_copy,
+                                                                                       b0_grid_buf,
+                                                                                       b0_block_buf,
+                                                                                       b0_block_slice_copy_step,
+                                                                                       acc0_thread_buf,
+                                                                                       KBlockMainLoop);
+
             static_for<0, acc0_thread_buf.Size(), 1>{}(
                     [&](auto i) { acc_element_op(acc0_thread_buf(i), acc0_thread_buf[i]); });
 
