@@ -24,34 +24,37 @@ void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_instance
                                                                 AddClamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_instances<2,
-                                                                             NHWGC,
-                                                                             GKYXC,
-                                                                             Tuple<NHWGK>,
-                                                                             NHWGK,
-                                                                             ConvFwdDefault,
-                                                                             Tuple<F16>,
-                                                                             AddClamp>{});
+                                   device_grouped_conv_fwd_xdl_16bt_instances<F16,
+                                                                              2,
+                                                                              NHWGC,
+                                                                              GKYXC,
+                                                                              Tuple<NHWGK>,
+                                                                              NHWGK,
+                                                                              ConvFwdDefault,
+                                                                              Tuple<F16>,
+                                                                              AddClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_instances<2,
-                                                                             NHWGC,
-                                                                             GKYXC,
-                                                                             Tuple<NHWGK>,
-                                                                             NHWGK,
-                                                                             ConvFwd1x1P0,
-                                                                             Tuple<F16>,
-                                                                             AddClamp>{});
+                                   device_grouped_conv_fwd_xdl_16bt_instances<F16,
+                                                                              2,
+                                                                              NHWGC,
+                                                                              GKYXC,
+                                                                              Tuple<NHWGK>,
+                                                                              NHWGK,
+                                                                              ConvFwd1x1P0,
+                                                                              Tuple<F16>,
+                                                                              AddClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_f16_instances<2,
-                                                                             NHWGC,
-                                                                             GKYXC,
-                                                                             Tuple<NHWGK>,
-                                                                             NHWGK,
-                                                                             ConvFwd1x1S1P0,
-                                                                             Tuple<F16>,
-                                                                             AddClamp>{});
+                                   device_grouped_conv_fwd_xdl_16bt_instances<F16,
+                                                                              2,
+                                                                              NHWGC,
+                                                                              GKYXC,
+                                                                              Tuple<NHWGK>,
+                                                                              NHWGK,
+                                                                              ConvFwd1x1S1P0,
+                                                                              Tuple<F16>,
+                                                                              AddClamp>{});
 }
 
 } // namespace instance

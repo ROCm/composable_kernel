@@ -2,15 +2,14 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_comp_instance.hpp"
-#include "ck/host_utility/device_prop.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
-void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_V3_instances(
+void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
@@ -25,7 +24,8 @@ void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_V3
                                                                 AddClamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_comp_instances<2,
+                                   device_grouped_conv_fwd_xdl_16bt_comp_instances<BF16,
+                                                                                   2,
                                                                                    NHWGC,
                                                                                    GKYXC,
                                                                                    Tuple<NHWGK>,
@@ -35,7 +35,8 @@ void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_V3
                                                                                    AddClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_comp_instances<2,
+                                   device_grouped_conv_fwd_xdl_16bt_comp_instances<BF16,
+                                                                                   2,
                                                                                    NHWGC,
                                                                                    GKYXC,
                                                                                    Tuple<NHWGK>,
@@ -45,7 +46,8 @@ void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_V3
                                                                                    AddClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_comp_instances<2,
+                                   device_grouped_conv_fwd_xdl_16bt_comp_instances<BF16,
+                                                                                   2,
                                                                                    NHWGC,
                                                                                    GKYXC,
                                                                                    Tuple<NHWGK>,

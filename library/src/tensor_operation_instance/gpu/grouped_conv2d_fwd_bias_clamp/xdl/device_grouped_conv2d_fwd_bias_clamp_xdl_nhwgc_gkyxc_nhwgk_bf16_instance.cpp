@@ -24,7 +24,8 @@ void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_instanc
                                                                 AddClamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
+                                   device_grouped_conv_fwd_xdl_16bt_instances<BF16,
+                                                                              2,
                                                                               NHWGC,
                                                                               GKYXC,
                                                                               Tuple<NHWGK>,
@@ -34,7 +35,8 @@ void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_instanc
                                                                               AddClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
+                                   device_grouped_conv_fwd_xdl_16bt_instances<BF16,
+                                                                              2,
                                                                               NHWGC,
                                                                               GKYXC,
                                                                               Tuple<NHWGK>,
@@ -44,7 +46,8 @@ void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_instanc
                                                                               AddClamp>{});
 
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_instances<2,
+                                   device_grouped_conv_fwd_xdl_16bt_instances<BF16,
+                                                                              2,
                                                                               NHWGC,
                                                                               GKYXC,
                                                                               Tuple<NHWGK>,

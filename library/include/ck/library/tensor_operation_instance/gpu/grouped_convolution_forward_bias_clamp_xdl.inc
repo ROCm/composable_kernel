@@ -24,6 +24,76 @@ void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_instanc
                                                                 PassThrough,
                                                                 AddClamp>>>& instances);
 
+void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_interwave_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
+
+void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
+
+void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_interwave_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
+
+void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
+
+void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_interwave_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Tuple<NHWGK>,
+                                                                NHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Tuple<BF16>,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
+
 void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_16x16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
@@ -66,7 +136,7 @@ void add_device_grouped_conv2d_fwd_bias_clamp_xdl_merged_groups_nhwgc_gkyxc_nhwg
                                                                 PassThrough,
                                                                 AddClamp>>>& instances);
 
-void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_instances(
+void add_device_grouped_conv2d_fwd_bias_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_V3_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,

@@ -1912,7 +1912,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             << CDEBlockTransferScalarPerVector_NPerBlock << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
             << CShuffleNXdlPerWavePerShuffle << ", "
-            << NumGroupsToMerge
+            << NumGroupsToMerge << ","
+            << LoopSched << ", "
+            << PipelineVersion::v1 
             << ">";
         // clang-format on
 

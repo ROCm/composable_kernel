@@ -211,8 +211,10 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            float avg_time = invoker_ptr->Run(
+                // argument_ptr.get(), StreamConfig{nullptr, time_kernel, 1, 50, 100, true, 4});
+                argument_ptr.get(),
+                StreamConfig{nullptr, time_kernel, 1, 50, 100});
 
             std::size_t flop      = conv_param.GetFlops();
             std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
