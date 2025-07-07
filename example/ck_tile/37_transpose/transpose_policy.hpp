@@ -12,13 +12,13 @@ struct TransposePolicy
     static constexpr auto TileAccessPattern = tile_distribution_pattern::thread_raked;
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSize()
+    CK_TILE_DEVICE static constexpr auto GetVectorSize()
     {
         return 16 / sizeof(typename Problem::DataType);
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    CK_TILE_DEVICE static constexpr index_t GetSmemSize()
     {
         return integer_least_multiple(
             sizeof(typename Problem::DataType) *
@@ -27,7 +27,7 @@ struct TransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeInputDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeInputDistribution()
     {
         constexpr index_t BlockSize         = Problem::kBlockSize;
         constexpr index_t LeadDimPerBlock   = Problem::kLeadSizePerBlock;
@@ -43,7 +43,7 @@ struct TransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOutputDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeOutputDistribution()
     {
         constexpr auto input_dstr = MakeLdsLoadTileDistribution<Problem>();
 
@@ -56,7 +56,7 @@ struct TransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsStoreBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeLdsStoreBlockDescriptor()
     {
         constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
@@ -82,7 +82,7 @@ struct TransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeLdsLoadBlockDescriptor()
     {
         constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
@@ -109,7 +109,7 @@ struct TransposePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
         using DataType = typename Problem::DataType;
 
