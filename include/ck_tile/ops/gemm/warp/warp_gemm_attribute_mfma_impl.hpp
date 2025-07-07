@@ -1767,8 +1767,8 @@ struct WarpGemmAttributeMfmaImpl_i32_32x32x32_i8
         else
         {
 #if defined(__gfx95__)
-            c_vec =
-                __builtin_amdgcn_mfma_i32_32x32x32_i8(a_vec, bit_cast<int64_t>(b_vec), c_vec, 0, 0, 0);
+            c_vec = __builtin_amdgcn_mfma_i32_32x32x32_i8(
+                a_vec, bit_cast<int64_t>(b_vec), c_vec, 0, 0, 0);
 #else
             ck_tile::ignore = c_vec;
             ck_tile::ignore = a_vec;
