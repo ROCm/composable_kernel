@@ -34,6 +34,8 @@ struct Add
 
         return type_convert<T>(y_ + x_);
     }
+
+    static constexpr bool requires_special_combine = false;
 };
 
 struct SquareAdd
@@ -51,6 +53,18 @@ struct SquareAdd
     {
         return y + (x * x);
     }
+
+    // For combining partial results
+    template <typename T,
+              typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                                          std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t>>>
+    CK_TILE_HOST_DEVICE constexpr T combine_partial_results(const T& partial1,
+                                                            const T& partial2) const
+    {
+        return partial1 + partial2; // Just add the partial sums, don't square again
+    }
+
+    static constexpr bool requires_special_combine = true;
 };
 
 struct Max
@@ -70,6 +84,8 @@ struct Max
     {
         return max(y, x);
     }
+
+    static constexpr bool requires_special_combine = false;
 };
 
 struct AbsMax
@@ -89,6 +105,8 @@ struct AbsMax
     {
         return max(y, abs(x));
     }
+
+    static constexpr bool requires_special_combine = false;
 };
 
 } // namespace ReduceOp

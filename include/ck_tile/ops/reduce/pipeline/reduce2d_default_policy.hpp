@@ -9,7 +9,7 @@
 
 namespace ck_tile {
 
-struct BlockReduce2dDefaultPolicy
+struct Reduce2dDefaultPolicy
 {
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeXBlockTileDistribution()
