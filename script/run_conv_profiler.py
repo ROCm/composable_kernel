@@ -34,6 +34,13 @@ def run_ck_profiler_cmd(cmd, disabled_ops, run_id, log_to_stdout=False):
     env_vars["CK_PROFILER_DISABLED_OPS"] = disabled_ops_str
     run_id_str = f"_{run_id}" if run_id else ""
     env_vars["CK_PROFILER_OUTPUT_FILE"] = f"{working_dir}/conv_profiler_output{run_id_str}_{pid}.csv"
+    cmd_str = get_concated_cmd_string(cmd)
+    cmr_str = cmd_str.replace('../build/bin/ckProfiler', '').strip()
+
+    # Create a new line to the output file and add the cmd as the first elements of the line
+    with open(env_vars["CK_PROFILER_OUTPUT_FILE"], 'a') as f:
+      f.write(f"{cmr_str};")
+
     if log_to_stdout:
       subprocess.run(cmd, env=env_vars) 
     else:
@@ -43,16 +50,25 @@ def run_ck_profiler_cmd(cmd, disabled_ops, run_id, log_to_stdout=False):
 def get_profiler_commands(csv_file):
   profiler_commands = []
   with open(csv_file, 'r') as f:
-    for line in f:
+    lines = f.readlines()
+    lines = list(dict.fromkeys(lines))
+    for line in lines:
         line = line.strip()
         cmd = line.split(',')
         profiler_commands.append(cmd)
   return profiler_commands
 
+def get_concated_cmd_string(cmd):
+  cmd_concatenated_str = ""
+  for arg in cmd:
+      cmd_concatenated_str += arg + " "
+  cmd_concatenated_str = cmd_concatenated_str.strip()
+  return cmd_concatenated_str
+
 def main():
   args = parse_cli_args()
   profiler_commands = get_profiler_commands(args.csv_file)
-  print(f"Got {len(profiler_commands)} commands in total to run.")
+  print(f"Got {len(profiler_commands)} unique commands to run.")
 
   if args.start is not None:
       end = len(profiler_commands)
@@ -66,10 +82,7 @@ def main():
       disabled_ops = [op.strip() for op in disabled_ops if op.strip()]
 
   for i, cmd in enumerate(profiler_commands):
-      cmd_concatenated_str = ""
-      for arg in cmd:
-          cmd_concatenated_str += arg + " "
-      cmd_concatenated_str = cmd_concatenated_str.strip()
+      cmd_concatenated_str = get_concated_cmd_string(cmd)
       print(f"\n##################################################################################################################################")
       print(f"Running command {i + 1}/{len(profiler_commands)}: {cmd_concatenated_str}")
       print(f"##################################################################################################################################")
