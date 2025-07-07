@@ -1,9 +1,10 @@
 #include "test_gemm_pipeline_kernel_types.hpp"
-#include "test_gemm_pipeline_util.hpp"
+#include "test_gemm_pipeline_wmma_base.hpp"
 #include "gtest/gtest.h"
 
 template <typename T>
-class TestCkTileGemmPipelineCompV3Wmma : public TestCkTileGemmPipeline<T>
+class TestCkTileGemmPipelineCompV3Wmma
+    : public TestCkTileGemmPipelineWmmaBase<T, TestCkTileGemmPipelineCompV3Wmma<T>>
 {
 };
 

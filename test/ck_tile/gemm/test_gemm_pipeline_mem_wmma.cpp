@@ -3,7 +3,8 @@
 #include "gtest/gtest.h"
 
 template <typename T>
-class TestCkTileGemmPipelineMemWmma : public TestCkTileGemmPipeline<T>
+class TestCkTileGemmPipelineMemWmma
+    : public TestCkTileGemmPipelineWmmaBase<T, TestCkTileGemmPipelineMemWmma<T>>
 {
 };
 

@@ -8,13 +8,6 @@
 
 namespace ck_tile {
 
-// Architecture tags
-struct gfx11_t
-{
-};
-struct gfx12_t
-{
-};
 // Base traits for WMMA operations
 template <typename Arch,
           typename AType,
@@ -115,4 +108,34 @@ using WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_bf8_gfx12 =
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_f8_gfx12 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, bf8_t, fp8_t, float, 16, 16, 16>>;
 
+template <typename Arch,
+          typename AType,
+          typename BType,
+          typename CType,
+          index_t warp_m,
+          index_t warp_n,
+          index_t warp_k>
+struct has_wmma_traits
+{
+    template <typename T>
+    static auto test(int) -> decltype(
+        std::declval<
+            typename WmmaTraits<T, AType, BType, CType, warp_m, warp_n, warp_k>::ADataType>(),
+        std::true_type{});
+
+    template <typename>
+    static std::false_type test(...);
+
+    static constexpr bool value = decltype(test<Arch>(0))::value;
+};
+
+template <typename Arch,
+          typename AType,
+          typename BType,
+          typename CType,
+          index_t warp_m,
+          index_t warp_n,
+          index_t warp_k>
+constexpr bool has_wmma_traits_v =
+    has_wmma_traits<Arch, AType, BType, CType, warp_m, warp_n, warp_k>::value;
 } // namespace ck_tile
