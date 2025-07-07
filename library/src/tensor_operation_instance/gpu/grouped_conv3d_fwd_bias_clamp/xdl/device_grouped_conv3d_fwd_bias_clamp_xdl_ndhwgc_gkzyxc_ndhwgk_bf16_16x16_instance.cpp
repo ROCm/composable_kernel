@@ -24,7 +24,8 @@ void add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_16x1
                                                                 AddClamp>>>& instances)
 {
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_16x16_instances<3,
+                                   device_grouped_conv_fwd_xdl_16bt_16x16_instances<BF16,
+                                                                                    3,
                                                                                     NDHWGC,
                                                                                     GKZYXC,
                                                                                     Tuple<NDHWGK>,
@@ -33,7 +34,8 @@ void add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_16x1
                                                                                     Tuple<BF16>,
                                                                                     AddClamp>{});
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_16x16_instances<3,
+                                   device_grouped_conv_fwd_xdl_16bt_16x16_instances<BF16,
+                                                                                    3,
                                                                                     NDHWGC,
                                                                                     GKZYXC,
                                                                                     Tuple<NDHWGK>,
@@ -42,7 +44,8 @@ void add_device_grouped_conv3d_fwd_bias_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_16x1
                                                                                     Tuple<BF16>,
                                                                                     AddClamp>{});
     add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_16x16_instances<3,
+                                   device_grouped_conv_fwd_xdl_16bt_16x16_instances<BF16,
+                                                                                    3,
                                                                                     NDHWGC,
                                                                                     GKZYXC,
                                                                                     Tuple<NDHWGK>,

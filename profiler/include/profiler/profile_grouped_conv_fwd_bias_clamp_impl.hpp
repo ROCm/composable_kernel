@@ -208,36 +208,38 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
             out_device_buf.SetZero();
 
             std::string op_name = op_ptr->GetTypeString();
+            auto invoker_ptr    = op_ptr->MakeInvokerPointer();
 
-            auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-            float avg_time = invoker_ptr->Run(
-                // argument_ptr.get(), StreamConfig{nullptr, time_kernel, 1, 50, 100, true, 4});
-                argument_ptr.get(),
-                StreamConfig{nullptr, time_kernel, 1, 50, 100});
-
-            std::size_t flop      = conv_param.GetFlops();
-            std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
-
-            float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
-
-            float gb_per_sec = num_btype / 1.E6 / avg_time;
-
-            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << op_name << std::endl;
-
-            if(tflops > best_tflops)
+            if(time_kernel)
             {
-                best_op_name    = op_name;
-                best_tflops     = tflops;
-                best_avg_time   = avg_time;
-                best_gb_per_sec = gb_per_sec;
+                float avg_time = invoker_ptr->Run(
+                    // argument_ptr.get(), StreamConfig{nullptr, time_kernel, 1, 50, 100, true, 4});
+                    argument_ptr.get(),
+                    StreamConfig{nullptr, time_kernel, 0, 50, 100});
+
+                std::size_t flop      = conv_param.GetFlops();
+                std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+
+                float tflops = static_cast<float>(flop) / 1.E9 / avg_time;
+
+                float gb_per_sec = num_btype / 1.E6 / avg_time;
+
+                std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops
+                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << std::endl;
+
+                if(tflops > best_tflops)
+                {
+                    best_op_name    = op_name;
+                    best_tflops     = tflops;
+                    best_avg_time   = avg_time;
+                    best_gb_per_sec = gb_per_sec;
+                }
             }
 
             if(do_verification)
             {
+                (void)invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false, 0, 0, 1});
                 out_device_buf.FromDevice(device_output.mData.data());
-
                 pass = pass & ck::utils::check_err(device_output, host_output);
 
                 if(do_log)
