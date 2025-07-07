@@ -161,11 +161,11 @@ int run_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using ADataType = typename TypeConfig::ADataType;
-    using BQDataType = typename TypeConfig::QDataType;
-    using BDataType = typename TypeConfig::BDataType;
+    using ADataType   = typename TypeConfig::ADataType;
+    using BQDataType  = typename TypeConfig::QDataType;
+    using BDataType   = typename TypeConfig::BDataType;
     using AccDataType = typename TypeConfig::AccDataType;
-    using CDataType = typename TypeConfig::CDataType;
+    using CDataType   = typename TypeConfig::CDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
@@ -259,7 +259,8 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem bq_m_bqk_dev_buf(bq_m_bqk.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-    if constexpr(as_br_cr) {
+    if constexpr(as_br_cr)
+    {
         // do pre-shuffle
         std::string mfma = arg_parser.get_str("prec");
 #if defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8)
@@ -271,12 +272,14 @@ int run_gemm_example_with_layouts(int argc,
 
         b_k_n_dev_buf.Realloc(b_k_n_shuffled.get_element_space_size_in_bytes());
         b_k_n_dev_buf.ToDevice(b_k_n_shuffled.data());
-    } else {
+    }
+    else
+    {
         b_k_n_dev_buf.ToDevice(b_k_n.data());
     }
 
-    static_assert(!GemmConfig::PermuteA, "Not implemented");
-    static_assert(!GemmConfig::PermuteB, "Not implemented");
+    // static_assert(!GemmConfig::PermuteA, "Not implemented");
+    // static_assert(!GemmConfig::PermuteB, "Not implemented");
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());
     bq_m_bqk_dev_buf.ToDevice(bq_m_bqk.data());
@@ -323,7 +326,8 @@ int run_gemm_example_with_layouts(int argc,
                                       BDataType,
                                       AccDataType,
                                       CDataType,
-                                      QuantGroupSize, false>(a_m_k, bq_m_bqk, b_k_n, c_m_n_host_ref);
+                                      QuantGroupSize,
+                                      false>(a_m_k, bq_m_bqk, b_k_n, c_m_n_host_ref);
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(

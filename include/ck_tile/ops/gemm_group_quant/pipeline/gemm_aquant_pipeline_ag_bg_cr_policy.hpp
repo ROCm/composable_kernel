@@ -174,9 +174,12 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                          KPerBlockAQ,
                                                          VecLoadSize>;
 
-        if constexpr (Problem::TransposedWarpGemm == true) {
+        if constexpr(Problem::TransposedWarpGemm == true)
+        {
             return TileEncodingPatternTransposeC::Make2DStaticTileDistribution();
-        } else {
+        }
+        else
+        {
             return TileEncodingPattern::Make2DStaticTileDistribution();
         }
     }
@@ -197,7 +200,8 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                 WarpTile::at(I1),
                                                 WarpTile::at(I2),
                                                 Problem::TransposeC || Problem::TransposedWarpGemm>;
-        static_assert(std::is_same_v<typename Problem::ComputeDataType, fp8_t> || std::is_same_v<typename Problem::ComputeDataType, bf8_t>);
+        static_assert(std::is_same_v<typename Problem::ComputeDataType, fp8_t> ||
+                      std::is_same_v<typename Problem::ComputeDataType, bf8_t>);
         static_assert(std::is_same_v<typename Problem::CDataType, float>);
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
