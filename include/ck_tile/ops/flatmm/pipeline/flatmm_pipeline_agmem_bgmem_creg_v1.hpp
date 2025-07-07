@@ -95,33 +95,61 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
 
-    /*
-    defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8) // mi300 fp8 16c 0.5*K1
-    defined(USING_MFMA_32x32x16) && defined(ENABLE_FP8) // mi300 fp8 32c 0.5*K1
-    defined(USING_MFMA_16x16x16) && defined(ENABLE_FP16) // mi300 fp16 16c 0.5*K1
-    defined(USING_MFMA_32x32x8) && defined(ENABLE_FP16) // mi300 fp16 32c 0.5*K1
+    // MFMA configuration structure
+    struct MfmaConfig
+    {
+        int mfma_per_wg;
+        int dsread_per_wg;
+    };
+    static constexpr MfmaConfig GetMfmaConfig()
+    {
+        constexpr auto warp_m = WarpTile::at(idxM);
+        constexpr auto warp_n = WarpTile::at(idxN);
+        constexpr auto warp_k = WarpTile::at(idxK);
 
-    defined(USING_MFMA_16x16x128) && defined(ENABLE_FP8) // mi350 fp8 32c 2*K1
-    defined(USING_MFMA_32x32x64) && defined(ENABLE_FP8) // mi350 fp8 64c 2*K1
-    defined(USING_MFMA_16x16x32) && defined(ENABLE_FP16) // mi350 fp16 16c 1*K1
-    defined(USING_MFMA_32x32x16) && defined(ENABLE_FP16) // mi350 fp16 32c 1*K1
+        // K1 per Mfma = 0.5 cases: mfma_per_wg = 2, dsread_per_wg = 1
+        if constexpr((warp_m == 16 && warp_n == 16 && warp_k == 32 &&
+                      std::is_same_v<ADataType, fp8_t>) ||
+                     (warp_m == 32 && warp_n == 32 && warp_k == 16 &&
+                      std::is_same_v<ADataType, fp8_t>) ||
+                     (warp_m == 16 && warp_n == 16 && warp_k == 16 &&
+                      std::is_same_v<ADataType, fp16_t>) ||
+                     (warp_m == 32 && warp_n == 32 && warp_k == 8 &&
+                      std::is_same_v<ADataType, fp16_t>))
+        {
+            return {2, 1};
+        }
+        // K1 per Mfma = 2 cases: mfma_per_wg = 1, dsread_per_wg = 2
+        else if constexpr((warp_m == 16 && warp_n == 16 && warp_k == 128 &&
+                           std::is_same_v<ADataType, fp8_t>) ||
+                          (warp_m == 32 && warp_n == 32 && warp_k == 64 &&
+                           std::is_same_v<ADataType, fp8_t>))
+        {
+            return {1, 2};
+        }
+        // K1 per Mfma = 1 cases: mfma_per_wg = 1, dsread_per_wg = 1
+        else if constexpr((warp_m == 16 && warp_n == 16 && warp_k == 32 &&
+                           std::is_same_v<ADataType, fp16_t>) ||
+                          (warp_m == 32 && warp_n == 32 && warp_k == 16 &&
+                           std::is_same_v<ADataType, fp16_t>) ||
+                          (warp_m == 16 && warp_n == 16 && warp_k == 128 /* &&
+                           std::is_same_v<ADataType, fp4_t> */) ||
+                          (warp_m == 32 && warp_n == 32 && warp_k == 64 /* &&
+                           std::is_same_v<ADataType, fp4_t> */))
+        {
+            return {1, 1};
+        }
+        // Default configuration
+        else
+        {
+            return {1, 1};
+        }
+    }
 
-    defined(USING_MFMA_16x16x128) && defined(ENABLE_FP4) // mi350 fp4 16c 1*K1
-    defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
-    */
-
-#if(defined(USING_MFMA_16x16x32_F8) || defined(USING_MFMA_32x32x16_F8) || \
-    defined(USING_MFMA_16x16x16_F16) || defined(USING_MFMA_32x32x8_F16)) // K1 per Mfma = 0.5
-    static constexpr auto mfma_per_wg   = 2;
-    static constexpr auto dsread_per_wg = 1;
-#elif(defined(USING_MFMA_16x16x32_F16) || defined(USING_MFMA_32x32x16_F16) || \
-      defined(USING_MFMA_16x16x128_F4) || defined(USING_MFMA_32x32x64_F4)) // K1 per Mfma = 1
-    static constexpr auto mfma_per_wg   = 1;
-    static constexpr auto dsread_per_wg = 1;
-#elif(defined(USING_MFMA_16x16x128_F8) || defined(USING_MFMA_32x32x64_F8)) // K1 per Mfma = 2
-    static constexpr auto mfma_per_wg   = 1;
-    static constexpr auto dsread_per_wg = 2;
-#endif
+    // Get MFMA configuration values
+    static constexpr auto mfma_config   = GetMfmaConfig();
+    static constexpr auto mfma_per_wg   = mfma_config.mfma_per_wg;
+    static constexpr auto dsread_per_wg = mfma_config.dsread_per_wg;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
