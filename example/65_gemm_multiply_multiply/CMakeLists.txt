@@ -5,6 +5,8 @@ add_example_executable(example_gemm_multiply_multiply_xdl_fp8_bpreshuffle gemm_m
 add_example_executable(example_gemm_multiply_multiply_xdl_fp16_bpreshuffle gemm_multiply_multiply_xdl_fp16_bpreshuffle.cpp)
 add_example_executable(example_gemm_add_add_xdl_fp16 gemm_add_add_xdl_fp16.cpp)
 add_example_executable(example_gemm_multiply_multiply_xdl_int8 gemm_multiply_multiply_xdl_int8.cpp)
+add_example_executable(example_gemm_multiply_multiply_xdl_fastgelu_int8 gemm_multiply_multiply_xdl_fastgelu_int8.cpp)
+
 set(EXAMPLE_COMPILE_OPTIONS)
 # Open it when SGBPack branch landed on mainline
 # list(APPEND EXAMPLE_COMPILE_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllvm --schedmodel=0 -mllvm -misched=gcn-iterative-max-occupancy-experimental")
