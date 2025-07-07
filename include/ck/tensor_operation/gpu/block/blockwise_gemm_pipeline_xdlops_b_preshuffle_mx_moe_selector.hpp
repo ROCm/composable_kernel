@@ -32,7 +32,9 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
-          bool GUFusion = false>
+          bool GUFusion = false,
+          bool AMmaXor = false,
+          bool BMmaXor = false>
 constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
 {
 
@@ -73,7 +75,9 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
                 NPerXDL,
                 MRepeat,
                 NRepeat,
-                KPack>{};
+                KPack,
+                AMmaXor,
+                BMmaXor>{};
         }
         else
         {
@@ -98,7 +102,9 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
                 NPerXDL,
                 MRepeat,
                 NRepeat,
-                KPack>{};
+                KPack,
+                AMmaXor,
+                BMmaXor>{};
         }
     }
     else

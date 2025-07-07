@@ -155,39 +155,6 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
         return math::integer_divide_ceil(N, NPerBlock);
     }
 
-    template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
-    __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
-    {
-        constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
-        constexpr index_t K1 = TileDesc_K0_MN_K1{}.GetLength(Number<2>{});
-
-        return transform_tensor_descriptor(
-            TileDesc_K0_MN_K1{},
-            make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
-                       make_unmerge_transform(make_tuple(
-                           Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
-    }
-
-    template <typename ABlockDesc_AK0_M_AK1>
-    __host__ __device__ static constexpr auto
-    MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
-    {
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-
-        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWaves, MPerXdl>(ABlockDesc_AK0_M_AK1{});
-    }
-
-    template <typename BBlockDesc_BK0_N_BK1>
-    __host__ __device__ static constexpr auto
-    MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
-    {
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-
-        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWaves, NPerXdl>(BBlockDesc_BK0_N_BK1{});
-    }
-
     struct Problem
     {
         __host__ Problem(index_t M_,
@@ -581,7 +548,6 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                 MPerXdl,
                                 NPerXdl,
                                 MXdlPerWave,
-                                NXdlPerWave,
                                 KPack>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()

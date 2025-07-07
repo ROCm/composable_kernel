@@ -21,8 +21,6 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -31,7 +29,6 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
           index_t KPack,
           bool GUFusion = false>
 constexpr auto BlockGemmMXNBSPipeline_Selector()
@@ -55,8 +52,6 @@ constexpr auto BlockGemmMXNBSPipeline_Selector()
                                                               BScaleDataType,
                                                               ATileDesc,
                                                               BTileDesc,
-                                                              AMmaTileDesc,
-                                                              BMmaTileDesc,
                                                               ABlockTransferSrcScalarPerVector,
                                                               BBlockTransferSrcScalarPerVector,
                                                               MPerBlock,
@@ -65,7 +60,6 @@ constexpr auto BlockGemmMXNBSPipeline_Selector()
                                                               MPerXDL,
                                                               NPerXDL,
                                                               MRepeat,
-                                                              NRepeat,
                                                               KPack>{};
         }
     }
@@ -83,8 +77,6 @@ constexpr auto BlockGemmMXNBSPipeline_Selector()
                 BScaleDataType,
                 ATileDesc,
                 BTileDesc,
-                AMmaTileDesc,
-                BMmaTileDesc,
                 ABlockTransferSrcScalarPerVector,
                 BBlockTransferSrcScalarPerVector,
                 MPerBlock,
@@ -93,7 +85,6 @@ constexpr auto BlockGemmMXNBSPipeline_Selector()
                 MPerXDL,
                 NPerXDL,
                 MRepeat,
-                NRepeat,
                 KPack>{};
         }
         else
@@ -107,8 +98,6 @@ constexpr auto BlockGemmMXNBSPipeline_Selector()
                                                               BScaleDataType,
                                                               ATileDesc,
                                                               BTileDesc,
-                                                              AMmaTileDesc,
-                                                              BMmaTileDesc,
                                                               ABlockTransferSrcScalarPerVector,
                                                               BBlockTransferSrcScalarPerVector,
                                                               MPerBlock,
@@ -117,7 +106,6 @@ constexpr auto BlockGemmMXNBSPipeline_Selector()
                                                               MPerXDL,
                                                               NPerXDL,
                                                               MRepeat,
-                                                              NRepeat,
                                                               KPack>{};
         }
     }

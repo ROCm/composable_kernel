@@ -22,8 +22,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           typename BScaleDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -32,8 +30,9 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
-          index_t NRepeat, // NXdlPerWave
-          index_t KPack>
+          index_t KPack,
+          bool AMmaXor = false,
+          bool BMmaXor = false>
 struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle
 {
 };
@@ -46,8 +45,6 @@ template <index_t ThreadBlockSize,
           typename BScaleDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -56,8 +53,9 @@ template <index_t ThreadBlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
-          index_t NRepeat, // NXdlPerWave
-          index_t KPack>
+          index_t KPack,
+          bool AMmaXor,
+          bool BMmaXor>
 struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler::Intrawave,
                                                      ThreadBlockSize,
                                                      ScaleBlockSize,
@@ -67,8 +65,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                      BScaleDataType,
                                                      ATileDesc,
                                                      BTileDesc,
-                                                     AMmaTileDesc,
-                                                     BMmaTileDesc,
                                                      ABlockTransferSrcScalarPerVector,
                                                      BBlockTransferSrcScalarPerVector,
                                                      MPerBlock,
@@ -77,15 +73,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                      MPerXDL,
                                                      NPerXDL,
                                                      MRepeat,
-                                                     NRepeat,
-                                                     KPack>
+                                                     KPack,
+                                                     AMmaXor,
+                                                     BMmaXor>
     : BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
                                            ADataType,
                                            BDataType,
                                            ATileDesc,
                                            BTileDesc,
-                                           AMmaTileDesc,
-                                           BMmaTileDesc,
                                            ABlockTransferSrcScalarPerVector,
                                            BBlockTransferSrcScalarPerVector,
                                            MPerBlock,
@@ -94,8 +89,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                            MPerXDL,
                                            NPerXDL,
                                            MRepeat,
-                                           NRepeat,
-                                           KPack>
+                                           KPack,
+                                           false,
+                                           AMmaXor,
+                                           BMmaXor>
 
 {
 
@@ -104,8 +101,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                       BDataType,
                                                       ATileDesc,
                                                       BTileDesc,
-                                                      AMmaTileDesc,
-                                                      BMmaTileDesc,
                                                       ABlockTransferSrcScalarPerVector,
                                                       BBlockTransferSrcScalarPerVector,
                                                       MPerBlock,
@@ -114,8 +109,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                       MPerXDL,
                                                       NPerXDL,
                                                       MRepeat,
-                                                      NRepeat,
-                                                      KPack>;
+                                                      KPack,
+                                                      false,
+                                                      AMmaXor,
+                                                      BMmaXor>;
     using Base::A_K1;
     using Base::I0;
     using Base::I1;
@@ -150,6 +147,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
     using Base::KXdlPack;
     using Base::MXdlPack;
     using Base::NXdlPack;
+    using Base::NRepeat;
 
     using AccType      = typename Base::AccType;
     using Tuple5       = typename Base::Tuple5;

@@ -1120,10 +1120,6 @@ struct GridwiseMoeGemmMX
                                 AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
                                 decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
-                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_M3_K(
-                                    GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
-                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_N3_K(
-                                    GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
                                 ABlockTransferSrcScalarPerVector,
                                 BBlockTransferSrcScalarPerVector,
                                 MPerBlock,
@@ -1132,7 +1128,6 @@ struct GridwiseMoeGemmMX
                                 MPerXdl,
                                 NPerXdl,
                                 MXdlPerWave,
-                                NXdlPerWave,
                                 KPack,
                                 IsInputGemm>())>;
 

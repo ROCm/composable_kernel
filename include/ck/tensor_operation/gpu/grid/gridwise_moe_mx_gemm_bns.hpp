@@ -291,27 +291,6 @@ struct GridwiseMoeGemmMXBNS
         return math::integer_divide_ceil(N, NPerBlock);
     }
 
-    template <index_t MNXdlPerWave,
-              index_t MNWaves,
-              index_t MNXdlPack,
-              index_t MNPerXdl,
-              typename TileDesc_K0_MN_K1>
-    __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
-    {
-        constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
-        constexpr index_t K1 = TileDesc_K0_MN_K1{}.GetLength(Number<2>{});
-
-        return transform_tensor_descriptor(
-            TileDesc_K0_MN_K1{},
-            make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
-                       make_unmerge_transform(make_tuple(Number<MNXdlPerWave / MNXdlPack>{},
-                                                         Number<MNWaves>{},
-                                                         Number<MNXdlPack>{},
-                                                         Number<MNPerXdl>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<4>{}, Sequence<0, 1, 2, 3>{}));
-    }
-
     __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
         IndexType M, IndexType MPad, IndexType K, IndexType KPad, IndexType StrideA, IndexType AK0)
     {
@@ -481,26 +460,6 @@ struct GridwiseMoeGemmMXBNS
 
             return b_grid_desc_bk0_n_bk1;
         }
-    }
-
-    template <typename ABlockDesc_AK0_M_AK1>
-    __host__ __device__ static constexpr auto
-    MakeAMmaTileDescriptor_M0_M1_M2_M3_K(const ABlockDesc_AK0_M_AK1&)
-    {
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-
-        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWaves, MXdlPack, MPerXdl>(
-            ABlockDesc_AK0_M_AK1{});
-    }
-
-    template <typename BBlockDesc_BK0_N_BK1>
-    __host__ __device__ static constexpr auto
-    MakeBMmaTileDescriptor_N0_N1_N2_N3_K(const BBlockDesc_BK0_N_BK1&)
-    {
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-
-        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWaves, NXdlPack, NPerXdl>(
-            BBlockDesc_BK0_N_BK1{});
     }
 
     template <typename ELayout>
@@ -1051,10 +1010,6 @@ struct GridwiseMoeGemmMXBNS
                                 AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
                                 decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
-                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_M3_K(
-                                    GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
-                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_N3_K(
-                                    GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
                                 ABlockTransferSrcScalarPerVector,
                                 BBlockTransferSrcScalarPerVector,
                                 MPerBlock,
@@ -1063,7 +1018,6 @@ struct GridwiseMoeGemmMXBNS
                                 MPerXdl,
                                 NPerXdl,
                                 MXdlPerWave,
-                                NXdlPerWave,
                                 KPack,
                                 IsInputGemm>())>;
 
@@ -1564,7 +1518,7 @@ struct GridwiseMoeGemmMXBNS
         const auto waveId_n = wave_idx[I1];
 
         auto thread_offset_shuffled =
-            get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack;
+            get_thread_local_1d_id() % get_warp_size() * KXdlPack * MXdlPack;
 
         auto a_thread_offset_m = waveId_m;
 

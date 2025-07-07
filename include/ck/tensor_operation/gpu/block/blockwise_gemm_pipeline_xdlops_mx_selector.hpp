@@ -20,8 +20,6 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -30,8 +28,9 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool AMmaXor = false,
+          bool BMmaXor = false>
 constexpr auto BlockGemmMXPipeline_Selector()
 {
 
@@ -47,8 +46,6 @@ constexpr auto BlockGemmMXPipeline_Selector()
                                                   BScaleDataType,
                                                   ATileDesc,
                                                   BTileDesc,
-                                                  AMmaTileDesc,
-                                                  BMmaTileDesc,
                                                   ABlockTransferSrcScalarPerVector,
                                                   BBlockTransferSrcScalarPerVector,
                                                   MPerBlock,
@@ -57,8 +54,9 @@ constexpr auto BlockGemmMXPipeline_Selector()
                                                   MPerXDL,
                                                   NPerXDL,
                                                   MRepeat,
-                                                  NRepeat,
-                                                  KPack>{};
+                                                  KPack,
+                                                  AMmaXor,
+                                                  BMmaXor>{};
     }
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
@@ -71,8 +69,6 @@ constexpr auto BlockGemmMXPipeline_Selector()
                                                   BScaleDataType,
                                                   ATileDesc,
                                                   BTileDesc,
-                                                  AMmaTileDesc,
-                                                  BMmaTileDesc,
                                                   ABlockTransferSrcScalarPerVector,
                                                   BBlockTransferSrcScalarPerVector,
                                                   MPerBlock,
@@ -81,8 +77,9 @@ constexpr auto BlockGemmMXPipeline_Selector()
                                                   MPerXDL,
                                                   NPerXDL,
                                                   MRepeat,
-                                                  NRepeat,
-                                                  KPack>{};
+                                                  KPack,
+                                                  AMmaXor,
+                                                  BMmaXor>{};
     }
     else
     {

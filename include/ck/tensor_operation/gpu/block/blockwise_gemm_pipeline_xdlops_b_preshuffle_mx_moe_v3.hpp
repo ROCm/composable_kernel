@@ -33,7 +33,9 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
           index_t NRepeat, // NXdlPerWave
-          index_t KPack>
+          index_t KPack,
+          bool AMmaXor = false,
+          bool BMmaXor = false>
 struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3
 {
 };
@@ -57,7 +59,9 @@ template <index_t ThreadBlockSize,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
           index_t NRepeat, // NXdlPerWave
-          index_t KPack>
+          index_t KPack,
+          bool AMmaXor,
+          bool BMmaXor>
 struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineScheduler::Intrawave,
                                                           ThreadBlockSize,
                                                           ScaleBlockSize,
@@ -78,7 +82,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                                                           NPerXDL,
                                                           MRepeat,
                                                           NRepeat,
-                                                          KPack>
+                                                          KPack,
+                                                          AMmaXor
+                                                          BMmaXor>
     : BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
                                            ADataType,
                                            BDataType,
@@ -95,7 +101,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                                            NPerXDL,
                                            MRepeat,
                                            NRepeat,
-                                           KPack>
+                                           KPack,
+                                                      false,
+                                                      AMmaXor,
+                                                      BMmaXor>
 
 {
 
@@ -115,7 +124,10 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                                                       NPerXDL,
                                                       MRepeat,
                                                       NRepeat,
-                                                      KPack>;
+                                                      KPack,
+                                                      false,
+                                                      AMmaXor,
+                                                      BMmaXor>;
     using Base::A_K1;
     using Base::I0;
     using Base::I1;

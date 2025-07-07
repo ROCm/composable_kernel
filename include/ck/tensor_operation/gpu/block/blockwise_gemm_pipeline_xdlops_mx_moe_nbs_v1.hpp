@@ -22,8 +22,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           typename BScaleDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -32,8 +30,9 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
-          index_t NRepeat, // NXdlPerWave
-          index_t KPack>
+          index_t KPack,
+          bool AMmaXor = false,
+          bool BMmaXor = false>
 struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1
 {
 };
@@ -46,8 +45,6 @@ template <index_t ThreadBlockSize,
           typename BScaleDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -56,8 +53,9 @@ template <index_t ThreadBlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
-          index_t NRepeat, // NXdlPerWave
-          index_t KPack>
+          index_t KPack,
+          bool AMmaXor,
+          bool BMmaXor>
 struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::Intrawave,
                                                   ThreadBlockSize,
                                                   ScaleBlockSize,
@@ -67,8 +65,6 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                                                   BScaleDataType,
                                                   ATileDesc,
                                                   BTileDesc,
-                                                  AMmaTileDesc,
-                                                  BMmaTileDesc,
                                                   ABlockTransferSrcScalarPerVector,
                                                   BBlockTransferSrcScalarPerVector,
                                                   MPerBlock,
@@ -77,15 +73,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                                                   MPerXDL,
                                                   NPerXDL,
                                                   MRepeat,
-                                                  NRepeat,
-                                                  KPack>
+                                                  KPack,
+                                                  AMmaXor,
+                                                  BMmaXor>
     : BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
                                            ADataType,
                                            BDataType,
                                            ATileDesc,
                                            BTileDesc,
-                                           AMmaTileDesc,
-                                           BMmaTileDesc,
                                            ABlockTransferSrcScalarPerVector,
                                            BBlockTransferSrcScalarPerVector,
                                            MPerBlock,
@@ -94,8 +89,10 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                                            MPerXDL,
                                            NPerXDL,
                                            MRepeat,
-                                           NRepeat,
-                                           KPack>
+                                           KPack,
+                                                      false,
+                                                      AMmaXor,
+                                                      BMmaXor>
 
 {
 
@@ -104,8 +101,6 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                                                       BDataType,
                                                       ATileDesc,
                                                       BTileDesc,
-                                                      AMmaTileDesc,
-                                                      BMmaTileDesc,
                                                       ABlockTransferSrcScalarPerVector,
                                                       BBlockTransferSrcScalarPerVector,
                                                       MPerBlock,
@@ -114,14 +109,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                                                       MPerXDL,
                                                       NPerXDL,
                                                       MRepeat,
-                                                      NRepeat,
-                                                      KPack>;
+                                                      KPack,
+                                                      false,
+                                                      AMmaXor,
+                                                      BMmaXor>;
     using Base::I0;
     using Base::I1;
     using Base::KRepeat;
     using Base::MWaves;
-    using Base::NWaves;
-    using Base::WaveSize;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
 
@@ -149,6 +144,8 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
     using Base::KXdlPack;
     using Base::MXdlPack;
     using Base::NXdlPack;
+    using Base::NRepeat;
+    using Base::NWaves;
 
     using AccType      = typename Base::AccType;
     using Tuple5       = typename Base::Tuple5;
@@ -277,7 +274,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
             make_multi_index(-MWaves * MRepeat / MXdlPack, KRepeat / KXdlPack, 0));
 
         // Prefetch b_scales
-        static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
+        static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
             static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                 b_scale_thread_copy.Run(b_scale_grid_desc,
                                         b_scale_grid_buf,
@@ -289,14 +286,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                                                        make_multi_index(0, I1, 0));
             });
             b_scale_thread_copy.MoveSrcSliceWindow(
-                b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
         });
 
         // restore col id and advance to the next set of scales
         // NWaves * NPerXDL * NRepeat == NPerBlock
         b_scale_thread_copy.MoveSrcSliceWindow(
             b_scale_grid_desc,
-            make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
+            make_multi_index(-NWaves() * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
 
         // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
@@ -346,7 +343,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                                                    a_thread_buf);
                             });
                     });
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         // read block data in chunks to assemble correct thread vectors
                         static_for<0, xdlops_gemm.K1PerXdlops / (BPackedSize * KThreadChunk), 1>{}(
                             [&](auto chunk) {
@@ -372,7 +369,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                 });
 
                 static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
-                    static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
                         static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                             constexpr index_t a_scale_offset =
                                 a_scale_thread_desc.CalculateOffset(make_tuple(m0, k0, I0));
@@ -474,7 +471,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                     make_multi_index(-MWaves * MRepeat / MXdlPack, KRepeat / KXdlPack, 0));
 
                 // Prefetch b_scales
-                static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
+                static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
                     static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                         b_scale_thread_copy.Run(b_scale_grid_desc,
                                                 b_scale_grid_buf,
@@ -486,14 +483,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                                                                make_multi_index(0, I1, 0));
                     });
                     b_scale_thread_copy.MoveSrcSliceWindow(
-                        b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                        b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
                 });
 
                 // restore col id and advance to the next set of scales
                 // NWaves * NPerXDL * NRepeat == NPerBlock
                 b_scale_thread_copy.MoveSrcSliceWindow(
                     b_scale_grid_desc,
-                    make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
+                    make_multi_index(-NWaves() * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
 
                 block_sync_lds();
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
@@ -532,7 +529,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
                                                a_thread_buf);
                         });
                 });
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     // read block data in chunks to assemble correct thread vectors
                     static_for<0, xdlops_gemm.K1PerXdlops / (BPackedSize * KThreadChunk), 1>{}(
                         [&](auto chunk) {
@@ -558,7 +555,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
             });
 
             static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
-                static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
+                static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
                     static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                         constexpr index_t a_scale_offset =
                             a_scale_thread_desc.CalculateOffset(make_tuple(m0, k0, I0));
@@ -649,11 +646,11 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v1<BlockGemmPipelineScheduler::In
     // TODO: make this field protected when b_scale_thread_copy_ is moved
     // here
     static constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<NRepeat / NXdlPack>{},
+        make_tuple(Number<NRepeat() / NXdlPack>{},
                    Number<KRepeat / KXdlPack>{},
                    Number<ScalesPerXdlopsRunPerThread * b_scale_thread_vec_size>{}));
 
-    protected:
+    //protected:
     using Base::a_thread_copy_;
     using Base::a_thread_desc_;
     using Base::b_thread_copy_;

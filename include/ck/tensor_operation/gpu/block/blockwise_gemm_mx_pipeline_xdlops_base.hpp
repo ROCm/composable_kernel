@@ -16,8 +16,6 @@ template <index_t BlockSize,
           typename BDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -26,9 +24,10 @@ template <index_t BlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
           index_t KPack,
-          bool TransposeC = false>
+          bool TransposeC = false,   
+          bool AMmaXor = false, 
+          bool BMmaXor = false>
 struct BlockwiseGemmXdlops_mx_pipeline_base
 {
     using ComputeTypeA = ADataType;
@@ -46,7 +45,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     // Hardcode to 64, as HIP-provided "WarpSize" would return 32 on RDNA GPUs.
-    static constexpr index_t WaveSize = get_warp_size();
+    //static constexpr index_t get_warp_size() = get_warp_size();
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
@@ -77,14 +76,90 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t KRepeat       = KPerThread / KPack;
     static constexpr index_t KPerInnerLoop = KPack;
 
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
-
-    // Hardcode to 2, for better 8-bit access pattern
-
     static constexpr index_t MXdlPack = 2;
     static constexpr index_t NXdlPack = 2;
     static constexpr index_t KXdlPack = 2;
+
+    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr __device__ index_t NWaves()
+    {
+        static_assert(BlockSize % (get_warp_size() * MWaves) == 0);
+        return BlockSize / get_warp_size() / MWaves;
+    };
+    static constexpr __device__ index_t NRepeat()
+    {  
+        static_assert(NPerBlock / NWaves() / NPerXDL > 0);
+        return NPerBlock / NWaves() / NPerXDL;
+    };
+
+    template <index_t MNXdlPerWave,
+              index_t MNWaves,
+              index_t MNXdlPack,
+              index_t MNPerXdl,
+              bool IsXor,
+              typename TileDesc_K0_MN_K1>
+    __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
+    {
+        constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
+        constexpr index_t MN = TileDesc_K0_MN_K1{}.GetLength(Number<1>{});
+        constexpr index_t K1 = TileDesc_K0_MN_K1{}.GetLength(Number<2>{});
+
+        if constexpr(IsXor)
+        {
+            constexpr auto permuted_desc = transform_tensor_descriptor(
+                TileDesc_K0_MN_K1{},
+                make_tuple(make_xor_with_modulo_transform(make_tuple(Number<MN>{}, Number<K0>{})),
+                           make_pass_through_transform(Number<K1>{})),
+                make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
+                make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
+
+            return transform_tensor_descriptor(
+                permuted_desc,
+                make_tuple(
+                    make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
+                    make_unmerge_transform(make_tuple(Number<MNXdlPerWave / MNXdlPack>{},
+                                                      Number<MNWaves>{},
+                                                      Number<MNXdlPack>{},
+                                                      Number<MNPerXdl>{}))),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+                make_tuple(Sequence<4>{}, Sequence<0, 1, 2, 3>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                TileDesc_K0_MN_K1{},
+                make_tuple(
+                    make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
+                    make_unmerge_transform(make_tuple(Number<MNXdlPerWave / MNXdlPack>{},
+                                                      Number<MNWaves>{},
+                                                      Number<MNXdlPack>{},
+                                                      Number<MNPerXdl>{}))),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+                make_tuple(Sequence<4>{}, Sequence<0, 1, 2, 3>{}));
+        }
+    }
+
+    template <typename ABlockDesc_AK0_M_AK1>
+    __host__ __device__ static constexpr auto
+    MakeAMmaTileDescriptor_M0_M1_M2_M3_K(const ABlockDesc_AK0_M_AK1&)
+    {
+        return MakeGemmMmaTileDescriptor<MRepeat, MWaves, MXdlPack, MPerXDL, AMmaXor>(
+            ABlockDesc_AK0_M_AK1{});
+    }
+
+    template <typename BBlockDesc_BK0_N_BK1>
+    __host__ __device__ static constexpr auto
+    MakeBMmaTileDescriptor_N0_N1_N2_N3_K(const BBlockDesc_BK0_N_BK1&)
+    {
+        return MakeGemmMmaTileDescriptor<NRepeat(), NWaves(), NXdlPack, NPerXDL, BMmaXor>(
+            BBlockDesc_BK0_N_BK1{});
+    }
+
+    static constexpr auto a_block_desc_m0_m1_m2_m3_k = MakeAMmaTileDescriptor_M0_M1_M2_M3_K(ATileDesc{});
+    static constexpr auto b_block_desc_n0_n1_n2_n3_k = MakeBMmaTileDescriptor_N0_N1_N2_N3_K(BTileDesc{});
+    using AMmaTileDesc = decltype(a_block_desc_m0_m1_m2_m3_k);
+    using BMmaTileDesc = decltype(b_block_desc_n0_n1_n2_n3_k);
+    // Hardcode to 2, for better 8-bit access pattern
 
     using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst< //
         BlockSize,
@@ -98,7 +173,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         A_K1,
         B_K1,
         MRepeat,
-        NRepeat,
+        NRepeat(),
         MPerXDL,
         NPerXDL,
         xdlops_gemm.KPerXdlops,
@@ -109,7 +184,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               AccType,
-                              MRepeat * NRepeat,
+                              MRepeat * NRepeat(),
                               xdlops_gemm.GetRegSizePerXdlops(),
                               true>
         c_thread_buf_;
@@ -121,7 +196,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         const index_t thread_id = ThisThreadBlock::GetThreadId();
 
         constexpr auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(MWaves, NWaves, WaveSize))),
+            make_tuple(make_merge_transform(make_tuple(MWaves, NWaves(), get_warp_size()))),
             make_tuple(Sequence<0, 1, 2>{}),
             make_tuple(Sequence<0>{}));
 
@@ -169,7 +244,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         constexpr auto nrepeat_nwave_nperxdl_to_n_adaptor = make_single_stage_tensor_adaptor(
             make_tuple(
-                make_unmerge_transform(make_tuple(NRepeat / NXdlPack, NWaves, NXdlPack, NPerXDL))),
+                make_unmerge_transform(make_tuple(NRepeat() / NXdlPack, NWaves(), NXdlPack, NPerXDL))),
             make_tuple(Sequence<0>{}),
             make_tuple(Sequence<0, 1, 2, 3>{}));
 
@@ -196,8 +271,8 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
      *
      * @note The constructor includes static assertions to ensure that:
      * - The matrix tile descriptors for A and B are known at compile-time.
-     * - The number of threads in the thread block matches the product of MWaves, NWaves, and
-     * WaveSize.
+     * - The number of threads in the thread block matches the product of MWaves, NWaves(), and
+     * get_warp_size().
      * - The dimensions of the block are divisible by the product of the corresponding XDL and
      * repeat dimensions.
      */
@@ -206,13 +281,15 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                          Tuple5 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
+        #if defined(__HIP_DEVICE_COMPILE__)
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
-        static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
-                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
+        static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves() * get_warp_size(),
+                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * get_warp_size()\n");
 
-        static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
+        static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat()) == 0,
                       "wrong!");
+        #endif
     }
 
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
@@ -226,7 +303,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
 
         return make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, N, M0, M1, M2));
+            make_tuple(Number<MRepeat>{}, Number<NRepeat()>{}, I1, I1, N, M0, M1, M2));
     }
 
     // XDL output supporting C_xdl = A_xdl * B_xdl
@@ -240,7 +317,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
 
         return make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
+            make_tuple(Number<MRepeat>{}, Number<NRepeat()>{}, I1, I1, M0, M1, M2, N));
     }
 
     // XDL output supporting C_xdl = A_xdl * B_xdl, packed mfma
@@ -254,7 +331,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
 
         return make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
-                                                              Number<NRepeat / NXdlPack>{},
+                                                              Number<NRepeat() / NXdlPack>{},
                                                               I1,
                                                               I1,
                                                               Number<MXdlPack>{},
@@ -275,7 +352,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
 
         return make_naive_tensor_descriptor_packed(
-            make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M0, M1, M2, N));
+            make_tuple(I1, Number<MRepeat>{}, Number<NRepeat()>{}, I1, I1, M0, M1, M2, N));
     }
 
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
@@ -283,9 +360,9 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     {
         constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
-                                                           Number<NRepeat>{},
+                                                           Number<NRepeat()>{},
                                                            Number<MWaves>{},
-                                                           Number<NWaves>{},
+                                                           Number<NWaves()>{},
                                                            Number<MPerXDL>{},
                                                            Number<NPerXDL>{}));
 
@@ -297,9 +374,9 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     {
         constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
-                                                           Number<NRepeat>{},
+                                                           Number<NRepeat()>{},
                                                            Number<MWaves>{},
-                                                           Number<NWaves>{},
+                                                           Number<NWaves()>{},
                                                            Number<MPerXDL>{},
                                                            Number<NPerXDL>{}));
 
@@ -311,9 +388,9 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     {
         constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
-                                                           Number<NRepeat / NXdlPack>{},
+                                                           Number<NRepeat() / NXdlPack>{},
                                                            Number<MWaves>{},
-                                                           Number<NWaves>{},
+                                                           Number<NWaves()>{},
                                                            Number<MXdlPack>{},
                                                            Number<NXdlPack>{},
                                                            Number<MPerXDL>{},
@@ -328,9 +405,9 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         constexpr auto c_block_desc_g_m0_n0_m1_n1_m2_n2 =
             make_naive_tensor_descriptor_packed(make_tuple(I1,
                                                            Number<MRepeat>{},
-                                                           Number<NRepeat>{},
+                                                           Number<NRepeat()>{},
                                                            Number<MWaves>{},
-                                                           Number<NWaves>{},
+                                                           Number<NWaves()>{},
                                                            Number<MPerXDL>{},
                                                            Number<NPerXDL>{}));
 
@@ -348,7 +425,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         const auto c_grid_desc_m0_n0_m1_n1_m2_n2 = transform_tensor_descriptor(
             c_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(M / (MWaves * MPerXDL), MWaves, MPerXDL)),
-                       make_unmerge_transform(make_tuple(N / (NWaves * NPerXDL), NWaves, NPerXDL))),
+                       make_unmerge_transform(make_tuple(N / (NWaves() * NPerXDL), NWaves(), NPerXDL))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}));
 
@@ -367,7 +444,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
             c_grid_desc_g_m_n,
             make_tuple(make_pass_through_transform(G),
                        make_unmerge_transform(make_tuple(M / (MWaves * MPerXDL), MWaves, MPerXDL)),
-                       make_unmerge_transform(make_tuple(N / (NWaves * NPerXDL), NWaves, NPerXDL))),
+                       make_unmerge_transform(make_tuple(N / (NWaves() * NPerXDL), NWaves(), NPerXDL))),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<1, 3, 5>{}, Sequence<2, 4, 6>{}));
 
@@ -376,9 +453,6 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     }
 
     __host__ __device__ static constexpr auto GetCThreadDesc() { return c_thread_desc_; }
-
-    static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_m3_k;
-    static constexpr BMmaTileDesc b_block_desc_n0_n1_n2_n3_k;
 
     protected:
     // M1, N1 as double buffer index
@@ -389,12 +463,12 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
     // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(make_tuple(
-        Number<NRepeat / NXdlPack>{}, I1, Number<NXdlPack>{}, Number<KRepeat>{}, Number<KPack>{}));
+        Number<NRepeat() / NXdlPack>{}, I1, Number<NXdlPack>{}, Number<KRepeat>{}, Number<KPack>{}));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ =
         make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
-                                                       Number<NRepeat / NXdlPack>{},
+                                                       Number<NRepeat() / NXdlPack>{},
                                                        Number<MXdlPack>{},
                                                        Number<NXdlPack>{},
                                                        xdlops_gemm.GetRegSizePerXdlops()));

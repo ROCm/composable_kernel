@@ -353,21 +353,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
         return math::integer_divide_ceil(N, NPerBlock);
     }
 
-    template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
-    __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
-    {
-        constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
-        constexpr index_t K1 = TileDesc_K0_MN_K1{}.GetLength(Number<2>{});
-
-        return transform_tensor_descriptor(
-            TileDesc_K0_MN_K1{},
-            make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
-                       make_unmerge_transform(make_tuple(
-                           Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
-    }
-
     __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
         index_t M, index_t MPad, index_t K, index_t KPad, index_t StrideA, index_t AK0)
     {
