@@ -240,7 +240,6 @@ TEST(MXFP4, HostScaledConvert)
     EXPECT_EQ(test_size, i);
 }
 
-#if !CK_TEMP_DISABLE_FP4_TESTS
 __global__ void test_mx_fp4_device_scaled_convert(uint64_t N, float* p_test, uint64_t* p_completed)
 {
     test_mx_fp4_scaled_convert(N, p_test, p_completed);
@@ -540,4 +539,3 @@ TEST(MXFP4, DeviceF4x32ToF32x32ScaledConvert)
     EXPECT_EQ(N, completed);
     EXPECT_EQ(N, i);
 }
-#endif // CK_TEMP_DISABLE_FP4_TESTS
