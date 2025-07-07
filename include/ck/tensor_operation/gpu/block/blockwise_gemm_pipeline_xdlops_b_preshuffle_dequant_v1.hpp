@@ -127,7 +127,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
-
+    using Base::NRepeat;
+    using Base::NWaves;
+    
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 2;

@@ -127,6 +127,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
+    using Base::NRepeat;
+    using Base::NWaves;
 
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
@@ -163,7 +165,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =
@@ -428,7 +430,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                    make_tuple(m0, I0, k0, I0),
                                    a_thread_buf);
             });
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
+            static_for<0, NRepeat(), 1>{}([&](auto n0) {
                 b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
                                    make_tuple(n0, I0, I0, Number<k0 * BMmaKStride>{}),
                                    b_block_buf,
@@ -457,7 +459,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
                                 .template AsType<AccDataType>()(Number<t>{}) = 0;
@@ -509,7 +511,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                            make_tuple(m0, I0, k, I0),
                                            a_thread_buf);
                     });
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
                                            make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
                                            b_block_buf,
@@ -559,7 +561,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
         if constexpr(TailNum == TailNumber::Full)
         {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                         c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
                             .template AsType<AccDataType>()(Number<t>{}) = 0;

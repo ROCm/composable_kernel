@@ -627,7 +627,6 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            NXdlPerWave,
             KPack,
             LoopSched,
             AComputeType,

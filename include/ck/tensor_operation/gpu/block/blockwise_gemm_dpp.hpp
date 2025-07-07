@@ -15,9 +15,9 @@ namespace ck {
  * thread by sharing the data between threads in a lanegroup.
  *
  * In every iteration, each wave calculates a C tile of size `MPerDpp` * `NPerDpp`, there are
- * `MRepeat` iterations for `M` dimension and `NRepeat` for `N` one.
+ * `MRepeat` iterations for `M` dimension and `NRepeat()` for `N` one.
  * In total, the algorithm runs using
- * `MPerBlock / (MRepeat * MPerDpp) * NPerBlock / (NRepeat * NPerDpp)` waves.
+ * `MPerBlock / (MRepeat * MPerDpp) * NPerBlock / (NRepeat() * NPerDpp)` waves.
  */
 template <index_t BlockSize,
           typename ABDataType,
@@ -27,7 +27,7 @@ template <index_t BlockSize,
           index_t MPerDpp,
           index_t NPerDpp,
           index_t MRepeat,
-          index_t NRepeat,
+          index_t NRepeat__,
           index_t KPack>
 struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
 {
@@ -38,7 +38,7 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t WaveSize = get_warp_size();
+    //static constexpr index_t get_warp_size() = get_warp_size();
 
     static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
     static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
@@ -55,23 +55,31 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
     static constexpr index_t KPerThread = KPerBlock / dpp_gemm.K0PerDpp;
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerDpp);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerDpp);
-
+    static constexpr __device__ index_t NWaves()
+    {
+        static_assert(BlockSize % (get_warp_size() * MWaves) == 0);
+        return BlockSize / get_warp_size() / MWaves;
+    };
+    static constexpr __device__ index_t NRepeat()
+    {  
+        static_assert(NPerBlock / NWaves() / NPerDpp > 0);
+        return NPerBlock / NWaves() / NPerDpp;
+    };
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               AccDataType,
-                              MRepeat * NRepeat,
+                              MRepeat * NRepeat(),
                               dpp_gemm.GetRegSizePerDpp(),
                               true>
         c_thread_buf_;
 
-    __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }
+    __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }
 
     __device__ static auto GetWaveIdx()
     {
         const index_t thread_id = ThisThreadBlock::GetThreadId();
 
         constexpr auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(MWaves, NWaves, WaveSize))),
+            make_tuple(make_merge_transform(make_tuple(MWaves, NWaves(), get_warp_size()))),
             make_tuple(Sequence<0, 1, 2>{}),
             make_tuple(Sequence<0>{}));
 
@@ -115,7 +123,7 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
             make_tuple(Sequence<0, 1, 2>{}));
 
         constexpr auto nrepeat_nwave_NPerDpp_to_n_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_unmerge_transform(make_tuple(NRepeat, NWaves, NPerDpp))),
+            make_tuple(make_unmerge_transform(make_tuple(NRepeat(), NWaves(), NPerDpp))),
             make_tuple(Sequence<0>{}),
             make_tuple(Sequence<0, 1, 2>{}));
 
@@ -136,14 +144,14 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
 #if defined(__HIP_DEVICE_COMPILE__)
         // Host wave size can be different than the device one and this assert could fail for host,
         // but it does matter only for device.
-        static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves * WaveSize,
-                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves * WaveSize\n");
+        static_assert(ThisThreadBlock::GetNumOfThread() == MWaves * NWaves() * get_warp_size(),
+                      "ThisThreadBlock::GetNumOfThread() != MWaves * NWaves() * get_warp_size()\n");
 #endif
 
         static_assert(MPerBlock % (MPerDpp * MRepeat) == 0,
                       "Invalid parameters. MPerBlock must be divisible by MPerDpp * MRepeat.");
-        static_assert(NPerBlock % (NPerDpp * NRepeat) == 0,
-                      "Invalid parameters. NPerBlock must be divisible by NPerDpp * NRepeat.");
+        static_assert(NPerBlock % (NPerDpp * NRepeat()) == 0,
+                      "Invalid parameters. NPerBlock must be divisible by NPerDpp * NRepeat().");
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2()
@@ -153,7 +161,7 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
         constexpr auto N               = c_m_n_tblk_lens[I1];
 
         return make_naive_tensor_descriptor_packed(
-            make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M, N));
+            make_tuple(Number<MRepeat>{}, Number<NRepeat()>{}, I1, I1, M, N));
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_G_M0_N0_M1_N1_M2_N2()
@@ -163,16 +171,16 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
         constexpr auto N               = c_m_n_tblk_lens[I1];
 
         return make_naive_tensor_descriptor_packed(
-            make_tuple(I1, Number<MRepeat>{}, Number<NRepeat>{}, I1, I1, M, N));
+            make_tuple(I1, Number<MRepeat>{}, Number<NRepeat()>{}, I1, I1, M, N));
     }
 
     __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_N2()
     {
         constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
             make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat>{},
-                                                           Number<NRepeat>{},
+                                                           Number<NRepeat()>{},
                                                            Number<MWaves>{},
-                                                           Number<NWaves>{},
+                                                           Number<NWaves()>{},
                                                            Number<MPerDpp>{},
                                                            Number<NPerDpp>{}));
 
@@ -184,9 +192,9 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
         constexpr auto c_block_desc_g_m0_n0_m1_n1_m2_n2 =
             make_naive_tensor_descriptor_packed(make_tuple(I1,
                                                            Number<MRepeat>{},
-                                                           Number<NRepeat>{},
+                                                           Number<NRepeat()>{},
                                                            Number<MWaves>{},
-                                                           Number<NWaves>{},
+                                                           Number<NWaves()>{},
                                                            Number<MPerDpp>{},
                                                            Number<NPerDpp>{}));
         return c_block_desc_g_m0_n0_m1_n1_m2_n2;
@@ -202,7 +210,7 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
         const auto c_grid_desc_m0_n0_m1_n1_m2_n2 = transform_tensor_descriptor(
             c_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(M / (MWaves * MPerDpp), MWaves, MPerDpp)),
-                       make_unmerge_transform(make_tuple(N / (NWaves * NPerDpp), NWaves, NPerDpp))),
+                       make_unmerge_transform(make_tuple(N / (NWaves() * NPerDpp), NWaves(), NPerDpp))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5>{}));
 
@@ -221,7 +229,7 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
             c_grid_desc_g_m_n,
             make_tuple(make_pass_through_transform(G),
                        make_unmerge_transform(make_tuple(M / (MWaves * MPerDpp), MWaves, MPerDpp)),
-                       make_unmerge_transform(make_tuple(N / (NWaves * NPerDpp), NWaves, NPerDpp))),
+                       make_unmerge_transform(make_tuple(N / (NWaves() * NPerDpp), NWaves(), NPerDpp))),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0>{}, Sequence<1, 3, 5>{}, Sequence<2, 4, 6>{}));
 
@@ -247,7 +255,7 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
             make_tuple(
                 make_merge_transform_v3_division_mod(make_tuple(Number<B_K0>{}, Number<B_K1>{})),
                 make_unmerge_transform(
-                    make_tuple(Number<NRepeat>{}, Number<NWaves>{}, Number<NPerDpp>{}))),
+                    make_tuple(Number<NRepeat()>{}, Number<NWaves()>{}, Number<NPerDpp>{}))),
             make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
             make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
@@ -274,7 +282,7 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
                                make_tuple(I0, I0, I0, I0),
                                a_thread_buf);
 
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
+            static_for<0, NRepeat(), 1>{}([&](auto n0) {
                 // read B
                 b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
                                    make_tuple(n0, I0, I0, I0),
@@ -319,7 +327,7 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
 
     // C[M, N, NumRegDpp]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, dpp_gemm.GetRegSizePerDpp()));
+        make_tuple(Number<MRepeat>{}, Number<NRepeat()>{}, dpp_gemm.GetRegSizePerDpp()));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<ABDataType,
                                                          ABDataType,

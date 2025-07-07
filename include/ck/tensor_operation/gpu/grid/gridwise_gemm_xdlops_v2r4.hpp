@@ -262,7 +262,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                                                                 MPerXDL,
                                                                 NPerXDL,
                                                                 MRepeat,
-                                                                NRepeat,
                                                                 K1>;
 
         return BlockwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_m_n_grid_desc);
@@ -466,7 +465,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4
                                                                 MPerXDL,
                                                                 NPerXDL,
                                                                 MRepeat,
-                                                                NRepeat,
                                                                 K1>{};
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();

@@ -721,7 +721,6 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             MPerXDL,
             NPerXDL,
             MRepeat,
-            NRepeat,
             K1,
             LoopSched>();
 

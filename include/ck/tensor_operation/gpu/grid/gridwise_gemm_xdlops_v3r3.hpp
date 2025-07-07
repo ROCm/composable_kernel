@@ -497,7 +497,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r3
                                                                 MPerXdl,
                                                                 NPerXdl,
                                                                 MXdlPerWave,
-                                                                NXdlPerWave,
                                                                 K1>{};
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();

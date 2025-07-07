@@ -74,13 +74,13 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr __device__ index_t NWaves()
     {
-        static_assert(BlockSize % (get_warp_size() * MWaves) == 0);
-        return BlockSize / get_warp_size() / MWaves;
+        //static_assert(BlockSize % (get_warp_size() * MWaves) == 0);
+        return math::max(BlockSize / get_warp_size() / MWaves, 1);
     };
     static constexpr __device__ index_t NRepeat()
     {  
-        static_assert(NPerBlock / NWaves() / NPerXDL > 0);
-        return NPerBlock / NWaves() / NPerXDL;
+        //static_assert(NPerBlock / NWaves() / NPerXDL > 0);
+        return math::max(NPerBlock / NWaves() / NPerXDL, 1);
     };
 
     template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>

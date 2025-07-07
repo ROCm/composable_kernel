@@ -126,6 +126,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
+    using Base::NRepeat;
 
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
@@ -162,7 +163,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =
@@ -310,7 +311,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
-        static_for<0, NRepeat, 1>{}([&](auto n0) {
+        static_for<0, NRepeat(), 1>{}([&](auto n0) {
             b_scale_thread_copy.Run(b_scale_grid_desc,
                                     b_scale_grid_buf,
                                     b_scale_thread_desc,
@@ -360,7 +361,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
                                    make_tuple(m0, I0, k0, I0),
                                    a_thread_buf);
             });
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
+            static_for<0, NRepeat(), 1>{}([&](auto n0) {
                 b_thread_copy_.Run(
                     b_block_desc_n0_n1_n2_k,
                     make_tuple(n0, I0, I0, Number<k0 * BMmaKStride>{}),
@@ -391,7 +392,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     b_scale_thread_copy.Run(b_scale_grid_desc,
                                             b_scale_grid_buf,
                                             b_scale_thread_desc,
@@ -415,7 +416,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
 
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        static_for<0, NRepeat(), 1>{}([&](auto n0) {
                             vector_type<ComputeDataType, KPack> a_thread_vec;
                             vector_type<ComputeDataType, KPack> b_thread_vec;
 
@@ -454,7 +455,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
                                            make_tuple(m0, I0, k0, I0),
                                            a_thread_buf);
                     });
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
                                            make_tuple(n0, I0, I0, Number<k0 * BMmaKStride>{}),
                                            b_block_buf,
@@ -477,7 +478,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
         {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec;
 

@@ -145,7 +145,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
     using Base::KXdlPack;
     using Base::MXdlPack;
     using Base::NXdlPack;
-
+    using Base::NRepeat;
+    
     using AccType      = typename Base::AccType;
     using Tuple5       = typename Base::Tuple5;
     using ComputeTypeA = typename Base::ComputeTypeA;

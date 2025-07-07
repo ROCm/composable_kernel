@@ -609,7 +609,6 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            NXdlPerWave,
             KPack,
             LoopSched>();
 
@@ -1048,7 +1047,6 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            NXdlPerWave,
             KPack,
             LoopSched>();
 

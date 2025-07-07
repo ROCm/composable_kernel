@@ -174,7 +174,7 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =

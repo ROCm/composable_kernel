@@ -650,7 +650,6 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            NXdlPerWave,
             KPack,
             LoopSched>();
 

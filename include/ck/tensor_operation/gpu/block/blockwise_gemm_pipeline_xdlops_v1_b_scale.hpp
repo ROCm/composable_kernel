@@ -124,7 +124,9 @@ struct BlockwiseGemmXdlops_pipeline_v1_b_scale<BlockGemmPipelineScheduler::Intra
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
-
+    using Base::NRepeat;
+    using Base::NWaves;
+    
     static constexpr index_t PrefetchStages  = 1;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
@@ -205,7 +207,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_b_scale<BlockGemmPipelineScheduler::Intra
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
-        static_for<0, NRepeat, 1>{}([&](auto n0) {
+        static_for<0, NRepeat(), 1>{}([&](auto n0) {
             b_scale_thread_copy.Run(b_scale_grid_desc,
                                     b_scale_grid_buf,
                                     b_scale_thread_desc,
@@ -250,7 +252,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_b_scale<BlockGemmPipelineScheduler::Intra
                                            make_tuple(m0, I0, k, I0),
                                            a_thread_buf);
                     });
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
                                            make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
                                            b_block_buf,
@@ -261,7 +263,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_b_scale<BlockGemmPipelineScheduler::Intra
                 });
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         c_thread_buf_per_scale.Clear();
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
                             vector_type<ComputeDataType, KPack> a_thread_vec;
@@ -295,7 +297,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_b_scale<BlockGemmPipelineScheduler::Intra
                     });
                 });
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     b_scale_thread_copy.Run(b_scale_grid_desc,
                                             b_scale_grid_buf,
                                             b_scale_thread_desc,
@@ -331,7 +333,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_b_scale<BlockGemmPipelineScheduler::Intra
                                        make_tuple(m0, I0, k, I0),
                                        a_thread_buf);
                 });
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
                                        make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
                                        b_block_buf,
@@ -342,7 +344,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_b_scale<BlockGemmPipelineScheduler::Intra
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     c_thread_buf_per_scale.Clear();
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;

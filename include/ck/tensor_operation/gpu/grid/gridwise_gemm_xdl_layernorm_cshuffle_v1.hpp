@@ -514,7 +514,6 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            NXdlPerWave,
             KPack,
             LoopSched>();
 

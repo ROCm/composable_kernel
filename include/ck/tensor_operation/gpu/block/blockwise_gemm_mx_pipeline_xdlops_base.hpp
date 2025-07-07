@@ -92,6 +92,36 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         return NPerBlock / NWaves() / NPerXDL;
     };
 
+    template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
+    __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
+    {
+        constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
+        constexpr index_t K1 = TileDesc_K0_MN_K1{}.GetLength(Number<2>{});
+
+        return transform_tensor_descriptor(
+            TileDesc_K0_MN_K1{},
+            make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
+                       make_unmerge_transform(make_tuple(
+                           Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+    }
+
+    template <typename ABlockDesc_AK0_M_AK1>
+     __device__ static constexpr auto
+    MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
+    {
+        return MakeGemmMmaTileDescriptor<MRepeat, MWaves, MPerXDL>(ABlockDesc_AK0_M_AK1{});
+    }
+
+    template <typename BBlockDesc_BK0_N_BK1>
+    __device__ static constexpr auto
+    MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
+    {
+        return MakeGemmMmaTileDescriptor<NRepeat(), NWaves(), NPerXDL>(BBlockDesc_BK0_N_BK1{});
+    }
+
+
     template <index_t MNXdlPerWave,
               index_t MNWaves,
               index_t MNXdlPack,

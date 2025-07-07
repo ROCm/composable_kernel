@@ -703,7 +703,6 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            NXdlPerWave,
             KPack,
             LoopSched>();
 

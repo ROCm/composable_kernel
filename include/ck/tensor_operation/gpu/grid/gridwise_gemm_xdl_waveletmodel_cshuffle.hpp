@@ -516,7 +516,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
                 MPerXdl,
                 NPerXdl,
                 MXdlPerWave,
-                NXdlPerWave,
                 KPack>{};
 
             auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();

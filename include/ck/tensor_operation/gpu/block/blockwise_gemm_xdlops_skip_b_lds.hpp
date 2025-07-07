@@ -19,7 +19,6 @@ template <index_t BlockSize,
           index_t NPerBlock,
           index_t K0PerBlock,
           index_t MPerXDL,
-          index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack>
@@ -43,7 +42,46 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1r1
     static constexpr index_t K0PerThread = K0PerBlock / xdlops_gemm.K0PerXdlops;
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr __device__ index_t NWaves()
+    {
+        static_assert(BlockSize % (get_warp_size() * MWaves) == 0);
+        return BlockSize / get_warp_size() / MWaves;
+    };
+    static constexpr __device__ index_t NRepeat()
+    {  
+        static_assert(NPerBlock / NWaves() / NPerXDL > 0);
+        return NPerBlock / NWaves() / NPerXDL;
+    };
+
+    template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
+    __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
+    {
+        constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
+        constexpr index_t K1 = TileDesc_K0_MN_K1{}.GetLength(Number<2>{});
+
+        return transform_tensor_descriptor(
+            TileDesc_K0_MN_K1{},
+            make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
+                       make_unmerge_transform(make_tuple(
+                           Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+    }
+
+    template <typename ABlockDesc_AK0_M_AK1>
+     __device__ static constexpr auto
+    MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
+    {
+        return MakeGemmMmaTileDescriptor<MRepeat, MWaves, MPerXDL>(ABlockDesc_AK0_M_AK1{});
+    }
+
+    template <typename BBlockDesc_BK0_N_BK1>
+    __device__ static constexpr auto
+    MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
+    {
+        return MakeGemmMmaTileDescriptor<NRepeat(), NWaves(), NPerXDL>(BBlockDesc_BK0_N_BK1{});
+    }
+
 
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               FloatAcc,

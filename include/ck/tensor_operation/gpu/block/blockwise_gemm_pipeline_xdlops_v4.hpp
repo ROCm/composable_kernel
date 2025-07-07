@@ -176,7 +176,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto num_dsread_per_issue_b = num_ds_read_inst_b / num_issue_b;
 
         constexpr auto num_mfma_per_issue =
-            HotLoopInstList::C_MFMA_Inst_Num / (num_issue_a + num_issue_b);
+            HotLoopInstList::C_MFMA_Inst_Num() / (num_issue_a + num_issue_b);
 
         static_for<0, num_issue_a, 1>{}([&](auto i) {
             ignore = i;

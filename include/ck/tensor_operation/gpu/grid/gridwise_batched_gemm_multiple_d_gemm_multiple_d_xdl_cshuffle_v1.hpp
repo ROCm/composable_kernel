@@ -99,7 +99,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
-    static constexpr auto WaveSize = get_warp_size();
+    //static constexpr auto WaveSize = get_warp_size();
     // K1 should be Number<...>
     // Gemm0
     static constexpr auto A0K1 = Number<A0K1Value>{};
@@ -147,7 +147,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         const index_t thread_id = get_thread_local_1d_id();
 
         constexpr auto threadid_to_wave_idx_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(Gemm0MWaves, Gemm0NWaves, WaveSize))),
+            make_tuple(make_merge_transform(make_tuple(Gemm0MWaves, Gemm0NWaves, get_warp_size()))),
             make_tuple(Sequence<0, 1, 2>{}),
             make_tuple(Sequence<0>{}));
 
@@ -157,31 +157,11 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     __device__ static auto GetGemm0WaveMNIdx(const index_t thread_id)
     {
         constexpr auto wave_threadid_to_mn_idx_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(WaveSize / Gemm0NPerXdl, Gemm0NPerXdl))),
+            make_tuple(make_merge_transform(make_tuple(get_warp_size() / Gemm0NPerXdl, Gemm0NPerXdl))),
             make_tuple(Sequence<0, 1>{}),
             make_tuple(Sequence<0>{}));
 
         return wave_threadid_to_mn_idx_adaptor.CalculateBottomIndex(make_multi_index(thread_id));
-    }
-
-    template <typename A0BlockDesc_AK0_M_AK1>
-    __host__ __device__ static constexpr auto
-    MakeGemm0AMmaTileDescriptor_M0_M1_M2_K(const A0BlockDesc_AK0_M_AK1&)
-    {
-        constexpr index_t MWaves = Gemm0MPerBlock / (Gemm0MXdlPerWave * Gemm0MPerXdl);
-
-        return MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K<Gemm0MXdlPerWave, MWaves, Gemm0MPerXdl>(
-            A0BlockDesc_AK0_M_AK1{});
-    }
-
-    template <typename BBlockDesc_BK0_N_BK1>
-    __host__ __device__ static constexpr auto
-    MakeGemm0BMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
-    {
-        constexpr index_t NWaves = Gemm0NPerBlock / (Gemm0NXdlPerWave * Gemm0NPerXdl);
-
-        return MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K<Gemm0NXdlPerWave, NWaves, Gemm0NPerXdl>(
-            BBlockDesc_BK0_N_BK1{});
     }
 
     template <typename A0BlockDesc_AK0_M_AK1>
@@ -354,6 +334,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     }
 
     // D0 desc for source in blockwise copy
+    //TODO: remove __host__
     template <typename D0GridDesc_M_N>
     __host__ __device__ static constexpr auto
     MakeGemm0D0GridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(const D0GridDesc_M_N& d0_grid_desc_m_n)
@@ -387,7 +368,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                                                          Gemm0NXdlPerWave,
                                                          Gemm0NWaves,
                                                          N3,
-                                                         WaveSize / Gemm0NPerXdl,
+                                                         get_warp_size() / Gemm0NPerXdl,
                                                          N5))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 2, 4, 6>{}, Sequence<1, 3, 5, 7, 8, 9>{}));
@@ -681,15 +662,12 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             Acc0DataType,
             decltype(a0_block_desc_ak0_m_ak1),
             decltype(b0_block_desc_bk0_n_bk1),
-            decltype(MakeGemm0AMmaTileDescriptor_M0_M1_M2_K(a0_block_desc_ak0_m_ak1)),
-            decltype(MakeGemm0BMmaTileDescriptor_N0_N1_N2_K(b0_block_desc_bk0_n_bk1)),
             Gemm0MPerBlock,
             Gemm0NPerBlock,
             Gemm0KPerBlock,
             Gemm0MPerXdl,
             Gemm0NPerXdl,
             Gemm0MXdlPerWave,
-            Gemm0NXdlPerWave,
             KPack,
             true>{}; // TransposeC
 
@@ -903,17 +881,15 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             Acc1DataType,
             decltype(a1_thread_desc_k0_m_k1),
             decltype(b1_block_desc_bk0_n_bk1),
-            decltype(MakeGemm1AMmaTileDescriptor_M0_M1_M2_K(a1_thread_desc_k0_m_k1)),
-            decltype(MakeGemm1BMmaTileDescriptor_N0_N1_N2_K(b1_block_desc_bk0_n_bk1)),
             Gemm0MPerBlock,
             Gemm1NPerBlock,
             Gemm1KPerBlock,
             Gemm0MPerXdl,
             Gemm0NPerXdl,
             Gemm0MXdlPerWave,
-            Gemm1NXdlPerWave,
             Gemm1KPack,
             false,      // TransposeC
+            true,
             Gemm1KPack, // AMmaKStride
             Gemm1KPack * XdlopsGemm<A0B0B1DataType,
                                     Gemm0MPerXdl,

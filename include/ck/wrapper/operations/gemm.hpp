@@ -130,7 +130,6 @@ __device__ void blockwise_gemm_xdl(const ATensorType& a_local_tile_tensor,
                                                         GemmTraits::MPerXDL,
                                                         GemmTraits::NPerXDL,
                                                         GemmTraits::MXdlPerWave,
-                                                        GemmTraits::NXdlPerWave,
                                                         GemmTraits::K1>
         blockwise_gemm_xdl_op{};
 
@@ -212,7 +211,6 @@ make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
                                                             GemmTraits::MPerXDL,
                                                             GemmTraits::NPerXDL,
                                                             GemmTraits::MXdlPerWave,
-                                                            GemmTraits::NXdlPerWave,
                                                             GemmTraits::K1>;
 
     constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
@@ -370,7 +368,6 @@ __host__ __device__ constexpr auto make_blockwise_gemm_xdl_c_vgpr()
                                                             GemmTraits::MPerXDL,
                                                             GemmTraits::NPerXDL,
                                                             GemmTraits::MXdlPerWave,
-                                                            GemmTraits::NXdlPerWave,
                                                             GemmTraits::K1>;
     // Calcualte descriptor, shape and layout
     constexpr auto vgpr_desc = BlockwiseGemmXdlops::GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();

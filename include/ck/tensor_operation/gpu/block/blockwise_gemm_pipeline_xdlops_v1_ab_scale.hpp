@@ -128,6 +128,8 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
 
     using Base::a_block_desc_m0_m1_m2_k;
     using Base::b_block_desc_n0_n1_n2_k;
+    using Base::NRepeat;
+    using Base::NWaves;
 
     static constexpr index_t AMmaKStride = xdlops_gemm.K0PerXdlops * KPack;
     static constexpr index_t BMmaKStride = xdlops_gemm.K0PerXdlops * KPack;
@@ -189,7 +191,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =
@@ -467,7 +469,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                                    make_tuple(m0, I0, k0, I0),
                                    a_thread_buf);
             });
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
+            static_for<0, NRepeat(), 1>{}([&](auto n0) {
                 b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
                                    make_tuple(n0, I0, I0, Number<k0 * BMmaKStride>{}),
                                    b_block_buf,
@@ -496,7 +498,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         static_for<0, num_scale_k_block, 1>{}([&](auto kscale0) {
                             static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                                 c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -535,7 +537,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                                     c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
                                 constexpr index_t cscale_offset =
                                     CScaleThreadDesc{}.CalculateOffset(
-                                        make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat));
+                                        make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat()));
 
                                 c_thread_buf(Number<c_offset>{}) +=
                                     c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -574,7 +576,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                                            make_tuple(m0, I0, k, I0),
                                            a_thread_buf);
                     });
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
                                            make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
                                            b_block_buf,
@@ -626,7 +628,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
             b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, num_scale_k_block, 1>{}([&](auto kscale0) {
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -664,7 +666,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                             constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
                             constexpr index_t cscale_offset = CScaleThreadDesc{}.CalculateOffset(
-                                make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat));
+                                make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat()));
 
                             c_thread_buf(Number<c_offset>{}) +=
                                 c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -703,7 +705,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                                        make_tuple(m0, I0, k, I0),
                                        a_thread_buf);
                 });
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
                                        make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
                                        b_block_buf,
@@ -717,7 +719,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
             __builtin_amdgcn_sched_barrier(0);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, num_scale_k_block, 1>{}([&](auto kscale0) {
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -755,7 +757,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                             constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
                             constexpr index_t cscale_offset = CScaleThreadDesc{}.CalculateOffset(
-                                make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat));
+                                make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat()));
 
                             c_thread_buf(Number<c_offset>{}) +=
                                 c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -771,7 +773,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
         else if constexpr(TailNum == TailNumber::Odd)
         {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, num_scale_k_block, 1>{}([&](auto kscale0) {
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -809,7 +811,7 @@ struct BlockwiseGemmXdlops_pipeline_v1_ab_scale<BlockGemmPipelineScheduler::Intr
                             constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, t));
                             constexpr index_t cscale_offset = CScaleThreadDesc{}.CalculateOffset(
-                                make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat));
+                                make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat()));
 
                             c_thread_buf(Number<c_offset>{}) +=
                                 c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})

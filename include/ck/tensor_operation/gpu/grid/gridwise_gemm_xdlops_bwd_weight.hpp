@@ -768,7 +768,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
                                                                 MPerXDL,
                                                                 NPerXDL,
                                                                 MRepeat,
-                                                                NRepeat,
                                                                 KPack>{};
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();

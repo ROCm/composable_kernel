@@ -180,7 +180,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = MWaves * HotLoopInstList::B_Buffer_Load_Inst_Num;
 
-        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto staged_num_ds_read_inst_a =
             ck::math::integer_divide_ceil(num_ds_read_inst_a, MRepeat);
@@ -329,11 +329,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
     template <typename Stage>
     __device__ static constexpr auto EpilogueScheduler_1(Stage stage)
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
         constexpr auto num_ds_write_inst_a    = HotLoopInstList::A_LDS_Write_Inst_Num;
         constexpr auto num_buffer_load_inst_b = MWaves * HotLoopInstList::B_Buffer_Load_Inst_Num;
 
-        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto staged_num_ds_read_inst_a = num_ds_read_inst_a / MRepeat;
         constexpr auto staged_num_mfma           = num_mfma / MRepeat;
@@ -446,13 +447,15 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
 
             __builtin_amdgcn_sched_barrier(0);
         }
+        #endif
     }
 
     __device__ static constexpr auto EpilogueScheduler_2()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         constexpr auto num_ds_read_inst_a = HotLoopInstList::A_LDS_Read_Inst_Num;
 
-        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto staged_num_ds_read_inst_a = num_ds_read_inst_a / MRepeat;
         constexpr auto staged_num_mfma           = num_mfma / MRepeat;
@@ -467,6 +470,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v3<BlockGemmPipelineSch
         });
 
         __builtin_amdgcn_sched_barrier(0);
+    #endif
     }
 
     template <bool HasMainLoop,

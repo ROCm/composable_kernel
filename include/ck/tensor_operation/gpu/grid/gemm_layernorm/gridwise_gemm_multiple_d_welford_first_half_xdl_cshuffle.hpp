@@ -543,7 +543,6 @@ struct GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            NXdlPerWave,
             KPack,
             LoopSched>();
 

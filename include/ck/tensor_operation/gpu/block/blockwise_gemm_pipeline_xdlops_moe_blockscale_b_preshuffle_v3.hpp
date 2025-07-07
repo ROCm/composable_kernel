@@ -194,7 +194,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
 
         static_assert(num_buffer_load_inst_a == num_ds_write_inst_a);
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num();
         constexpr auto mfma_cycle    = HotLoopInstList::C_MFMA_Inst_Cycle;
 
         constexpr auto ds_read_a_issue_cycle =

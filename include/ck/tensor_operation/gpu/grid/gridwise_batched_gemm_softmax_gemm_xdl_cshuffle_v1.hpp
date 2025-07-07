@@ -118,26 +118,6 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
     template <typename ABlockDesc_AK0_M_AK1>
     __host__ __device__ static constexpr auto
-    MakeGemm0AMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
-    {
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-
-        return MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K<MXdlPerWave, MWaves, MPerXdl>(
-            ABlockDesc_AK0_M_AK1{});
-    }
-
-    template <typename BBlockDesc_BK0_N_BK1>
-    __host__ __device__ static constexpr auto
-    MakeGemm0BMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
-    {
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-
-        return MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K<NXdlPerWave, NWaves, NPerXdl>(
-            BBlockDesc_BK0_N_BK1{});
-    }
-
-    template <typename ABlockDesc_AK0_M_AK1>
-    __host__ __device__ static constexpr auto
     MakeGemm1AMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
     {
         return MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K<MXdlPerWave, 1, 1>(ABlockDesc_AK0_M_AK1{});
@@ -490,15 +470,12 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             FloatGemmAcc,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
-            decltype(MakeGemm0AMmaTileDescriptor_M0_M1_M2_K(a_block_desc_ak0_m_ak1)),
-            decltype(MakeGemm0BMmaTileDescriptor_N0_N1_N2_K(b_block_desc_bk0_n_bk1)),
             MPerBlock,
             NPerBlock,
             KPerBlock,
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            NXdlPerWave,
             KPack,
             true>{}; // TransposeC
 
@@ -650,17 +627,15 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             FloatGemmAcc,
             decltype(a1_thread_desc_k0_m_k1),
             decltype(b1_block_desc_bk0_n_bk1),
-            decltype(MakeGemm1AMmaTileDescriptor_M0_M1_M2_K(a1_thread_desc_k0_m_k1)),
-            decltype(MakeGemm1BMmaTileDescriptor_N0_N1_N2_K(b1_block_desc_bk0_n_bk1)),
             MPerBlock,
             Gemm1NPerBlock,
             Gemm1KPerBlock,
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            Gemm1NXdlPerWave,
             Gemm1KPack,
             true,       // TransposeC
+            true,
             Gemm1KPack, // AMmaKStride
             Gemm1KPack *
                 XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, FloatAB, false>{}.K0PerXdlops>{

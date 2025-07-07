@@ -51,8 +51,14 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t B_LDS_Read_Inst_Num =
         WaveNumM * MPerBlock * KPerBlock / (BlockSize * BLDSReadWidth);
 
-    static constexpr index_t C_MFMA_Inst_Num =
-        MPerBlock * NPerBlock * KPerBlock / (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
+    static constexpr index_t __device__ C_MFMA_Inst_Num()
+    {
+        return MPerBlock * NPerBlock * KPerBlock / (BlockSize / get_warp_size()) / (MPerXDL * NPerXDL * KPerXDL);
+    }
+    static  index_t __host__ C_MFMA_Inst_Num()
+    {
+        return MPerBlock * NPerBlock * KPerBlock / (BlockSize / get_warp_size()) / (MPerXDL * NPerXDL * KPerXDL);
+    }
 
     static constexpr auto Print()
     {
@@ -119,7 +125,46 @@ struct BlockwiseGemmXdlops_pipeline_v4
     static constexpr index_t KRepeat    = KPerThread / KPack;
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr __device__ index_t NWaves()
+    {
+        static_assert(BlockSize % (get_warp_size() * MWaves) == 0);
+        return BlockSize / get_warp_size() / MWaves;
+    };
+    static constexpr __device__ index_t NRepeat()
+    {  
+        static_assert(NPerBlock / NWaves() / NPerXDL > 0);
+        return NPerBlock / NWaves() / NPerXDL;
+    };
+
+    template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
+    __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
+    {
+        constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
+        constexpr index_t K1 = TileDesc_K0_MN_K1{}.GetLength(Number<2>{});
+
+        return transform_tensor_descriptor(
+            TileDesc_K0_MN_K1{},
+            make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
+                       make_unmerge_transform(make_tuple(
+                           Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
+            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
+            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
+    }
+
+    template <typename ABlockDesc_AK0_M_AK1>
+     __device__ static constexpr auto
+    MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
+    {
+        return MakeGemmMmaTileDescriptor<MRepeat, MWaves, MPerXDL>(ABlockDesc_AK0_M_AK1{});
+    }
+
+    template <typename BBlockDesc_BK0_N_BK1>
+    __device__ static constexpr auto
+    MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
+    {
+        return MakeGemmMmaTileDescriptor<NRepeat(), NWaves(), NPerXDL>(BBlockDesc_BK0_N_BK1{});
+    }
+
 
     using HotLoopInstList = BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
                                                                       MPerBlock,
@@ -379,7 +424,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
         constexpr auto num_buffer_load_inst =
             HotLoopInstList::A_Buffer_Load_Inst_Num + HotLoopInstList::B_Buffer_Load_Inst_Num;
         ;
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto num_issue = num_buffer_load_inst;
 
@@ -407,13 +452,14 @@ struct BlockwiseGemmXdlops_pipeline_v4
     template <>
     __device__ constexpr auto TailScheduler<1>()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         // schedule
         constexpr auto num_ds_read_inst =
             HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;
         constexpr auto num_ds_write_inst =
             HotLoopInstList::A_LDS_Write_Inst_Num + HotLoopInstList::B_LDS_Write_Inst_Num;
         ;
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto num_issue = num_ds_write_inst;
 
@@ -429,15 +475,17 @@ struct BlockwiseGemmXdlops_pipeline_v4
             __builtin_amdgcn_sched_group_barrier(
                 0x008, num_mfma_inst / num_ds_write_inst - 3, 0); // MFMA
         });
+    #endif
     }
 
     template <>
     __device__ constexpr auto TailScheduler<2>()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         // schedule
         constexpr auto num_ds_read_inst =
             HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto num_issue = num_ds_read_inst;
 
@@ -447,6 +495,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
             __builtin_amdgcn_sched_group_barrier(
                 0x008, num_mfma_inst / num_ds_read_inst, 0); // MFMA
         });
+    #endif
     }
 
     static constexpr AMmaTileDesc a_block_desc_m0_m1_m2_k;

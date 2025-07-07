@@ -432,7 +432,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 MPerXDL,
                                                                 NPerXDL,
                                                                 MXdlPerWave,
-                                                                NXdlPerWave,
                                                                 K1>;
 
         return BlockwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n);
@@ -577,7 +576,6 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             MPerXDL,
             NPerXDL,
             MXdlPerWave,
-            NXdlPerWave,
             K1,
             LoopSched>();
 
