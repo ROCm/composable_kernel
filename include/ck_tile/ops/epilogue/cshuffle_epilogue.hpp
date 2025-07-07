@@ -201,13 +201,13 @@ struct CShuffleEpilogue
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
 
-    using WG = WarpGemmMfmaDispatcher<ADataType,
-                                      BTypeToUse,
-                                      AccDataType,
-                                      MPerXdl,
-                                      NPerXdl,
-                                      KPerXdl,
-                                      isCTransposed>;
+    using WG = WarpGemmDispatcher<ADataType,
+                                  BTypeToUse,
+                                  AccDataType,
+                                  MPerXdl,
+                                  NPerXdl,
+                                  KPerXdl,
+                                  isCTransposed>;
 
     using CWarpDstr   = typename WG::CWarpDstr;
     using CWarpTensor = typename WG::CWarpTensor;

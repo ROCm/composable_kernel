@@ -954,14 +954,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             }
             else
             {
-                return WarpGemmMfmaDispatcher<
-                    typename Problem::PDataType,
-                    typename Problem::VDataType,
-                    typename Problem::OaccDataType,
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                    true>{};
+                return WarpGemmDispatcher<typename Problem::PDataType,
+                                          typename Problem::VDataType,
+                                          typename Problem::OaccDataType,
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                                          true>{};
             }
         }();
 

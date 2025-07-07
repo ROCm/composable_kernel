@@ -263,3 +263,9 @@
 #ifndef CK_TILE_WA_ISSUE_2028
 #define CK_TILE_WA_ISSUE_2028 0
 #endif
+
+#ifndef CK_TILE_WAVE32_ENABLED
+#if defined(__gfx11__) || defined(__gfx12__)
+#define CK_TILE_WAVE32_ENABLED
+#endif
+#endif

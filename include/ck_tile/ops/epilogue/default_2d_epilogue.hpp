@@ -130,13 +130,13 @@ struct DefaultGemm2DEpilogue : public Default2DEpilogue<Problem_, Policy_>
     static constexpr index_t kKPerXdl      = Problem::kKPerXdl;
     static constexpr index_t isCTransposed = Problem::isCTransposed;
 
-    using WG = WarpGemmMfmaDispatcher<ADataType,
-                                      BTypeToUse,
-                                      AccDataType,
-                                      kMPerXdl,
-                                      kNPerXdl,
-                                      kKPerXdl,
-                                      isCTransposed>;
+    using WG = WarpGemmDispatcher<ADataType,
+                                  BTypeToUse,
+                                  AccDataType,
+                                  kMPerXdl,
+                                  kNPerXdl,
+                                  kKPerXdl,
+                                  isCTransposed>;
 
     using CWarpDstr = typename WG::CWarpDstr;
 

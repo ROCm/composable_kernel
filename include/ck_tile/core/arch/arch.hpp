@@ -9,6 +9,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 
 namespace ck_tile {
 
@@ -50,7 +51,7 @@ enum struct memory_operation_enum : std::uint16_t
 
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
-#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+#if defined(__GFX9__) || (!defined(__HIP_DEVICE_COMPILE__) && !defined(CK_TILE_WAVE32_ENABLED))
     return 64;
 #else
     return 32;
@@ -83,13 +84,16 @@ CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
 CK_TILE_DEVICE void block_sync_lds()
 {
 #if CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
-    // asm volatile("\
-    // s_waitcnt lgkmcnt(0) \n \
-    // s_barrier \
-    // " ::);
-
+#ifdef __gfx12__
+    asm volatile("\
+     s_wait_dscnt 0x0 \n \
+     s_barrier_signal -1 \n \
+     s_barrier_wait -1 \
+     " ::);
+#else
     __builtin_amdgcn_s_waitcnt(0xc07f);
     __builtin_amdgcn_s_barrier();
+#endif
 #else
     __syncthreads();
 #endif
