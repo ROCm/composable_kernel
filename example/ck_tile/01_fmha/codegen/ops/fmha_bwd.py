@@ -169,7 +169,7 @@ template <typename dot_do_o_trait_, typename dq_dk_dv_trait_, typename convert_d
 float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     if(s.log_level_ > 0)
-        std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << "@" << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << "@" << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << std::flush;
+        std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << "@" << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << "@" << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << std::flush;
     return ck_tile::launch_kernel(s,
         [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a); }},
         [=](const ck_tile::stream_config& s_){{ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_>(s_, a); }},
@@ -876,10 +876,10 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask
     kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)
     for kernel in kernels:
         write_single_bwd_dot_do_o_kernel(kernel, output_dir)
-    kernels = get_bwd_convert_dq_blobs(filter_list[2], receipt)
+    kernels = get_bwd_convert_dq_blobs(filter_list[1], receipt)
     for kernel in kernels:
         write_single_bwd_convert_dq_kernel(kernel, output_dir)
-    api_pool, kernels = get_bwd_dq_dk_dv_blobs(filter_list[1], receipt, mask_impl)
+    api_pool, kernels = get_bwd_dq_dk_dv_blobs(filter_list[2], receipt, mask_impl)
     for kernel in kernels:
         write_single_bwd_dq_dk_dv_kernel(kernel, output_dir)
     write_bwd_api(api_pool, output_dir)
@@ -894,10 +894,10 @@ def list_blobs(file_path : Path, filter_list : str, receipt, optdim_list, mask_i
         kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        kernels = get_bwd_convert_dq_blobs(filter_list[2], receipt)
+        kernels = get_bwd_convert_dq_blobs(filter_list[1], receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        _, kernels = get_bwd_dq_dk_dv_blobs(filter_list[1], receipt, mask_impl)
+        _, kernels = get_bwd_dq_dk_dv_blobs(filter_list[2], receipt, mask_impl)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_BWD_API_FILENAME) + "\n")

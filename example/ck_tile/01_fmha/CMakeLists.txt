@@ -34,7 +34,8 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api bwd
   --receipt 3
-  # --filter fmha_bwd_dot...@fmha_bwd...@fmha_bwd_convert...
+  # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
+  --filter fmha_bwd_dot_do_o_d256_fp16_batch_o2_npad@fmha_bwd_convert_dq_d256_fp16_b64x64_batch_o2_npad_ndeterministic@fmha_bwd_d256_fp16_batch_b16x64x256x16x256x16x32x256x256_r1x4x1_r4x1x1_r1x4x1_w16x16x32_w16x16x16_o1_kr_ktr_vr_iglp_npad_nbias_ndbias_nmask_ndropout_ndeterministic
 )
 
 # generate a list of kernels, but not actually emit files at config sta
