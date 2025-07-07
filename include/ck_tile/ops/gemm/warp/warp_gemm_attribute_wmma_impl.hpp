@@ -91,6 +91,9 @@ struct WarpGemmAttributeWmmaImpl
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16_gfx11 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16>>;
 
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf16_bf16_gfx11 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx11_t, bf16_t, bf16_t, float, 16, 16, 16>>;
+
 using WarpGemmAttributeWmmaImpl_i32_16x16x16_i8_i8_gfx11 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx11_t, int8_t, int8_t, int32_t, 16, 16, 16>>;
 
