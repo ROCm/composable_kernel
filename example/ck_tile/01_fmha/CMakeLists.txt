@@ -1,5 +1,5 @@
 # validate user-specified fmha_fwd API list
-set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv")
+set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill")
 set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
     "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
 if(FMHA_FWD_ENABLE_APIS STREQUAL "all")
@@ -100,6 +100,13 @@ if("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
 else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
+endif()
+
+# conditionally enable call to the pagedkv_prefill API in fmha_fwd example
+if("pagedkv_prefill" IN_LIST FMHA_FWD_ENABLE_APIS)
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=1)
+else()
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=0)
 endif()
 
 # conditionally specify the use of OCP_FP8

@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_pipeline_qr_ks_vs_default_policy.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_pagedkv_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
 
-// This pipeline is qkv all located in LDS
-template <typename Problem_, typename Policy_ = BlockFmhaFwdSplitKVPipelineQRKSVSDefaultPolicy>
-struct BlockFmhaFwdSplitKVPipelineQRKSVS
+// TODO: This class is a variant of the existing BlockFmhaFwdSplitKVPipelineQRKSVS pipeline.
+//       Refactoring to extract shared logic is recommended as future work.
+
+template <typename Problem_, typename Policy_ = BlockFmhaFwdPagedKVPipelineQRKSVSDefaultPolicy>
+struct BlockFmhaFwdPagedKVPipelineQRKSVS
 {
     using Problem             = remove_cvref_t<Problem_>;
     using Policy              = remove_cvref_t<Policy_>;
@@ -55,7 +57,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kIsPagedKV        = Problem::kIsPagedKV;
-    static constexpr bool kHasUnevenSplits  = Problem::kHasUnevenSplits;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -75,9 +76,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
     }();
 
-    static constexpr index_t kAlignmentOacc =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentOacc<Problem>();
-
+    static constexpr index_t kAlignmentO =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
@@ -112,7 +112,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         }
     }();
 
-    static constexpr const char* name = "qr";
+    static constexpr const char* name = "qr_pagedkv";
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -125,12 +125,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename VDramBlockWindowLengths,
               typename VPageBlockNavigator,
               typename BiasDramBlockWindowTmp,
-              typename LSEaccDramBlockWindowTmp,
+              typename LSEDramBlockWindowTmp,
               typename QElementFunction,
               typename KElementFunction,
               typename VElementFunction,
               typename BiasElementFunction,
-              typename LSEaccElementFunction,
+              typename LSEElementFunction,
               typename SAccElementFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction,
@@ -148,13 +148,11 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
-               LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp, // M0*1 tile
-               const LSEaccElementFunction& lse_acc_element_func,
+               LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
+               const LSEElementFunction& lse_element_func,
                const SAccElementFunction& s_acc_element_func,
                const PComputeElementFunction& p_compute_element_func,
                const OAccElementFunction& o_acc_element_func,
-               index_t num_splits,
-               index_t i_split,
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
@@ -230,25 +228,24 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         clear_tile(l);
 
         const auto q_origin = q_dram_window.get_window_origin();
-        const auto [logical_seqlen_k_start, logical_seqlen_k_end] = mask.GetTileRangeAlongX(
-            q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
+        const auto [logical_seqlen_k_start, logical_seqlen_k_end] =
+            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
         // check early exit if no work to do
-        if constexpr(FmhaMask::IsMasking || kPadSeqLenK || kHasUnevenSplits)
+        if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
         {
-            const index_t logical_num_total_loop =
+            const auto num_total_loop =
                 integer_divide_ceil(logical_seqlen_k_end - logical_seqlen_k_start, kN0);
-            if(logical_num_total_loop <= 0)
+            if(num_total_loop <= 0)
             {
                 if constexpr(kStoreLSE)
                 {
-                    auto lse_acc =
+                    auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                    set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
 
-                    store_tile(lse_acc_dram_window_tmp,
-                               tile_elementwise_in(lse_acc_element_func, lse_acc));
+                    store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
 
                 // Note: here occ are all cleard, return it
@@ -257,6 +254,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
         }
 
+        // k_dram_block_window
         const index_t physical_seqlen_k_start = logical_seqlen_k_start + kv_l2p_offset;
         const index_t physical_seqlen_k_end   = logical_seqlen_k_end + kv_l2p_offset;
         // make sure the first tile is completely located in page-block (page-block size should be
@@ -289,6 +287,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                                                         aligned_physical_seqlen_k_start)}, // M/N
                              Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
+        // v_dram_window
         auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
             v_dram_block_window_lengths,
             {0, aligned_physical_seqlen_k_start}, // TODO: hdim split?
@@ -442,30 +441,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 }
             }
             move_tile_window(bias_dram_window, {0, kN0});
-
-            /// TODO: only check in first/last iteration without increasing code size
-            if constexpr(kHasUnevenSplits)
-            {
-                const auto k_origin = k_page_block_navigator.to_global_window_origin(
-                    i_page_block_k, k_dram_block_window.get_window_origin());
-                set_tile_if(
-                    s_acc,
-                    -numeric<SMPLComputeDataType>::infinity(),
-                    [&,
-                     physical_seqlen_k_start_ = physical_seqlen_k_start,
-                     physical_seqlen_k_end_   = physical_seqlen_k_end](auto tile_idx) {
-                        const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                        if constexpr(kIsPagedKV)
-                        {
-                            return col < physical_seqlen_k_start_ || physical_seqlen_k_end_ <= col;
-                        }
-                        else
-                        {
-                            return physical_seqlen_k_end_ <= col;
-                        }
-                    });
-            }
-
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto k_origin = k_page_block_navigator.to_global_window_origin(
@@ -481,7 +456,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col - kv_l2p_offset);
+                            return !variant.LogitsMask(variant_params,
+                                                       block_indices.batch_idx,
+                                                       row,
+                                                       col - kv_l2p_offset,
+                                                       block_indices.qo_head_idx,
+                                                       block_indices.kv_head_idx);
                         });
                 }
             }
@@ -658,37 +638,37 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
         } while(++i_total_loops < num_total_loop);
 
+        // store lse
         if constexpr(kStoreLSE)
         {
-            // store lse acc
-            auto lse_acc = make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
+            auto lse = make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-            constexpr auto lse_acc_spans = decltype(lse_acc)::get_distributed_spans();
-            sweep_tile_span(lse_acc_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
+            constexpr auto lse_spans = decltype(lse)::get_distributed_spans();
+            sweep_tile_span(lse_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                              BiasEnum == BlockAttentionBiasEnum::ALIBI)
                 {
-                    lse_acc(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+                    lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
                 }
                 else
                 {
                     if constexpr(kHasLogitsSoftCap)
                     {
-                        lse_acc(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+                        lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
                     }
                     else
                     {
-                        lse_acc(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                        lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
                     }
                 }
 #else
-                    lse_acc(i_idx) = m_[i_idx] + log(l_[i_idx]);
+                lse(i_idx) = m_[i_idx] + log(l_[i_idx]);
 #endif
             });
 
-            store_tile(lse_acc_dram_window_tmp, tile_elementwise_in(lse_acc_element_func, lse_acc));
+            store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
         }
 
         // finally, O
@@ -697,8 +677,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
             const auto tmp       = [&]() {
-                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                             FmhaMask::IsMasking)
+                if constexpr(FmhaMask::IsMasking)
                 {
                     return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
                 }
@@ -722,7 +701,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename VDramBlockWindowLengths,
               typename VPageBlockNavigator,
               typename BiasDramBlockWindowTmp,
-              typename LSEaccDramBlockWindowTmp,
+              typename LSEDramBlockWindowTmp,
               typename PositionEncoding,
               typename AttentionVariantParams,
               typename BlockIndices>
@@ -733,9 +712,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                const VDramBlockWindowLengths& v_dram_block_window_lengths, // N1*K1 tile
                const VPageBlockNavigator& v_page_block_navigator,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               LSEaccDramBlockWindowTmp& lse_acc_dram_block_window_tmp,  // M0*1 tile
-               index_t num_splits,
-               index_t i_split,
+               LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
@@ -755,13 +732,11 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                           identity{},
                           bias_dram_block_window_tmp,
                           identity{},
-                          lse_acc_dram_block_window_tmp,
+                          lse_dram_block_window_tmp,
                           identity{},
                           identity{},
                           identity{},
                           identity{},
-                          num_splits,
-                          i_split,
                           mask,
                           position_encoding,
                           scale_s,
