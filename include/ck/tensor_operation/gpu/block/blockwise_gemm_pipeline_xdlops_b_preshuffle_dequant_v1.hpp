@@ -21,8 +21,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -31,7 +29,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
           index_t KPacks>
 struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1
 {
@@ -44,8 +41,6 @@ template <index_t BlockSize,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -54,7 +49,6 @@ template <index_t BlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
           index_t KPack
           // ,bool TransposeC //disable transposec right now...
           >
@@ -66,8 +60,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
                                                             AccDataType,
                                                             ATileDesc,
                                                             BTileDesc,
-                                                            AMmaTileDesc,
-                                                            BMmaTileDesc,
                                                             ABlockTransferSrcScalarPerVector,
                                                             BBlockTransferSrcScalarPerVector,
                                                             MPerBlock,
@@ -76,7 +68,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
                                                             MPerXDL,
                                                             NPerXDL,
                                                             MRepeat,
-                                                            NRepeat,
                                                             KPack>
     : BlockwiseGemmXdlops_pipeline_base<BlockSize,
                                         ADataType,
@@ -85,8 +76,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
                                         AccDataType,
                                         ATileDesc,
                                         BTileDesc,
-                                        AMmaTileDesc,
-                                        BMmaTileDesc,
                                         ABlockTransferSrcScalarPerVector,
                                         BBlockTransferSrcScalarPerVector,
                                         MPerBlock,
@@ -95,7 +84,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
                                         MPerXDL,
                                         NPerXDL,
                                         MRepeat,
-                                        NRepeat,
                                         KPack>
 
 {
@@ -106,8 +94,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
                                                    AccDataType,
                                                    ATileDesc,
                                                    BTileDesc,
-                                                   AMmaTileDesc,
-                                                   BMmaTileDesc,
                                                    ABlockTransferSrcScalarPerVector,
                                                    BBlockTransferSrcScalarPerVector,
                                                    MPerBlock,
@@ -182,6 +168,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
@@ -208,6 +195,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
             __builtin_amdgcn_sched_group_barrier(0x100, 2, 0); // DS read
         });
+    #endif
     }
 
     template <bool HasMainLoop,

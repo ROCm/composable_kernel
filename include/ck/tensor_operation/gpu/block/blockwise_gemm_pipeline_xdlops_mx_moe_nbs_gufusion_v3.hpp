@@ -118,7 +118,6 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
     using Base::KRepeat;
     using Base::MWaves;
     using Base::NWaves;
-    using Base::WaveSize;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
 
@@ -190,6 +189,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
         constexpr auto num_ds_read_inst_a =
@@ -210,7 +210,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
         constexpr auto num_buffer_load_a_scale = MRepeat / MXdlPack * KRepeat / KXdlPack;
         constexpr auto num_buffer_load_b_scale = NRepeat() / NXdlPack * KRepeat / KXdlPack * 2;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num * APackedSize * 2;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num() * APackedSize * 2;
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =
@@ -361,6 +361,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                      0); // DS read
             }
         });
+        #endif
     }
 
     template <bool HasMainLoop,
@@ -478,14 +479,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                        make_multi_index(0, I1, 0));
             });
             b_scale_thread_copy.MoveSrcSliceWindow(
-                b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
         });
 
         // restore col id and advance to the next set of scales
-        // NWaves * NPerXDL * NRepeat() == NPerBlock
+        // NWaves() * NPerXDL * NRepeat() == NPerBlock
         b_scale_thread_copy.MoveSrcSliceWindow(
             b_scale_grid_desc,
-            make_multi_index(-NWaves * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
+            make_multi_index(-NWaves() * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
 
         static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
             static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
@@ -499,14 +500,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                           make_multi_index(0, I1, 0));
             });
             b_scale_thread_copy_up.MoveSrcSliceWindow(
-                b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
         });
 
         // restore col id and advance to the next set of scales
-        // NWaves * NPerXDL * NRepeat() == NPerBlock
+        // NWaves() * NPerXDL * NRepeat() == NPerBlock
         b_scale_thread_copy_up.MoveSrcSliceWindow(
             b_scale_grid_desc,
-            make_multi_index(-NWaves * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
+            make_multi_index(-NWaves() * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
 
         // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
@@ -652,14 +653,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                                    make_multi_index(0, I1, 0));
                         });
                         b_scale_thread_copy.MoveSrcSliceWindow(
-                            b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                            b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
                     });
 
                     // restore col id and advance to the next set of scales
-                    // NWaves * NPerXDL * NRepeat() == NPerBlock
+                    // NWaves() * NPerXDL * NRepeat() == NPerBlock
                     b_scale_thread_copy.MoveSrcSliceWindow(
                         b_scale_grid_desc,
-                        make_multi_index(-NWaves * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
+                        make_multi_index(-NWaves() * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
 
                     // Prefetch b_scales_up
                     static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
@@ -674,14 +675,14 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                                       make_multi_index(0, I1, 0));
                         });
                         b_scale_thread_copy_up.MoveSrcSliceWindow(
-                            b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                            b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
                     });
 
                     // restore col id and advance to the next set of scales
-                    // NWaves * NPerXDL * NRepeat() == NPerBlock
+                    // NWaves() * NPerXDL * NRepeat() == NPerBlock
                     b_scale_thread_copy_up.MoveSrcSliceWindow(
                         b_scale_grid_desc,
-                        make_multi_index(-NWaves * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
+                        make_multi_index(-NWaves() * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
 
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                     b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
@@ -931,7 +932,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                            make_multi_index(0, I1, 0));
                 });
                 b_scale_thread_copy.MoveSrcSliceWindow(
-                    b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                    b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
             });
 
             // Prefetch b_scales_up
@@ -947,7 +948,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_bns_gufusion_v3<BlockGemmPipelineSche
                                                               make_multi_index(0, I1, 0));
                 });
                 b_scale_thread_copy_up.MoveSrcSliceWindow(
-                    b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                    b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
             });
 
             block_sync_lds();

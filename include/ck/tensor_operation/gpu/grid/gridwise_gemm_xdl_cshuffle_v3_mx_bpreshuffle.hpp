@@ -942,10 +942,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
                                 MPerXdl,
                                 NPerXdl,
                                 MXdlPerWave,
-                                KPack,
-                                false,
-                                true,
-                                false>())>;
+                                KPack>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -1868,7 +1865,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
 
         // A wave access continuous memory
         auto thread_offset_shuffled =
-            get_thread_local_1d_id() % BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack;
+            get_thread_local_1d_id() % get_warp_size() * KXdlPack * MXdlPack;
 
         auto a_thread_offset_m = waveId_m;
 

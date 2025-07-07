@@ -155,6 +155,7 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         // TODO: Take data type into consideration as pipe ver 3
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
@@ -301,6 +302,7 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
         // IGLP COMPILER BUG:
         // If comment out following scheduler barrier would cause sanity fail.
         __builtin_amdgcn_sched_barrier(0);
+    #endif
     }
 
     template <bool HasMainLoop,

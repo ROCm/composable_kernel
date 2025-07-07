@@ -21,8 +21,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -31,7 +29,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
           index_t KPacks>
 struct BlockwiseGemmXdlops_pipeline_v2_ab_scale
 {
@@ -44,8 +41,6 @@ template <index_t BlockSize,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -54,7 +49,6 @@ template <index_t BlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
           index_t KPack
           // ,bool TransposeC //disable transposec right now...
           >
@@ -66,8 +60,6 @@ struct BlockwiseGemmXdlops_pipeline_v2_ab_scale<BlockGemmPipelineScheduler::Intr
                                                 AccDataType,
                                                 ATileDesc,
                                                 BTileDesc,
-                                                AMmaTileDesc,
-                                                BMmaTileDesc,
                                                 ABlockTransferSrcScalarPerVector,
                                                 BBlockTransferSrcScalarPerVector,
                                                 MPerBlock,
@@ -76,7 +68,6 @@ struct BlockwiseGemmXdlops_pipeline_v2_ab_scale<BlockGemmPipelineScheduler::Intr
                                                 MPerXDL,
                                                 NPerXDL,
                                                 MRepeat,
-                                                NRepeat,
                                                 KPack>
     : BlockwiseGemmXdlops_pipeline_base<BlockSize,
                                         ADataType,
@@ -85,8 +76,6 @@ struct BlockwiseGemmXdlops_pipeline_v2_ab_scale<BlockGemmPipelineScheduler::Intr
                                         AccDataType,
                                         ATileDesc,
                                         BTileDesc,
-                                        AMmaTileDesc,
-                                        BMmaTileDesc,
                                         ABlockTransferSrcScalarPerVector,
                                         BBlockTransferSrcScalarPerVector,
                                         MPerBlock,
@@ -95,7 +84,6 @@ struct BlockwiseGemmXdlops_pipeline_v2_ab_scale<BlockGemmPipelineScheduler::Intr
                                         MPerXDL,
                                         NPerXDL,
                                         MRepeat,
-                                        NRepeat,
                                         KPack,
                                         true>
 
@@ -107,8 +95,6 @@ struct BlockwiseGemmXdlops_pipeline_v2_ab_scale<BlockGemmPipelineScheduler::Intr
                                                    AccDataType,
                                                    ATileDesc,
                                                    BTileDesc,
-                                                   AMmaTileDesc,
-                                                   BMmaTileDesc,
                                                    ABlockTransferSrcScalarPerVector,
                                                    BBlockTransferSrcScalarPerVector,
                                                    MPerBlock,
@@ -117,7 +103,6 @@ struct BlockwiseGemmXdlops_pipeline_v2_ab_scale<BlockGemmPipelineScheduler::Intr
                                                    MPerXDL,
                                                    NPerXDL,
                                                    MRepeat,
-                                                   NRepeat,
                                                    KPack,
                                                    true>;
     using Base::I0;

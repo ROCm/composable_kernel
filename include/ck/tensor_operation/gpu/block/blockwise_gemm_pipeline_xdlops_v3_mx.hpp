@@ -189,6 +189,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
         constexpr auto num_ds_read_inst_a =
@@ -206,7 +207,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto num_buffer_load_a_scale = MRepeat / MXdlPack * KRepeat / KXdlPack;
         constexpr auto num_buffer_load_b_scale = NRepeat() / NXdlPack * KRepeat / KXdlPack;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num * APackedSize;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num() * APackedSize;
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =
@@ -338,6 +339,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                                      0); // DS read
             }
         });
+        #endif
     }
 
     template <bool HasMainLoop,
@@ -430,7 +432,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             make_multi_index(-MWaves * MRepeat / MXdlPack, KRepeat / KXdlPack, 0));
 
         // Prefetch b_scales
-        static_for<0, NRepeat()() / NXdlPack, 1>{}([&](auto n0) {
+        static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
             static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                 b_scale_thread_copy.Run(b_scale_grid_desc,
                                         b_scale_grid_buf,

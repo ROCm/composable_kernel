@@ -884,10 +884,6 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                                 AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
                                 decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
-                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
-                                    GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
-                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
-                                    GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
                                 ABlockTransferSrcScalarPerVector,
                                 BBlockTransferSrcScalarPerVector,
                                 MPerBlock,
@@ -896,7 +892,6 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
                                 MPerXdl,
                                 NPerXdl,
                                 MXdlPerWave,
-                                NXdlPerWave,
                                 KPack>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()

@@ -872,15 +872,12 @@ struct GridwiseGemm_xdl_cshuffle_v2
             FloatGemmAcc,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
-            decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(a_block_desc_ak0_m_ak1)),
-            decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(b_block_desc_bk0_n_bk1)),
             MPerBlock,
             NPerBlock,
             KPerBlock,
             MPerXdl,
             NPerXdl,
             MXdlPerWave,
-            NXdlPerWave,
             KPack>{}; // TransposeC
 
         auto c_thread_buf = blockwise_gemm_pipeline.GetCThreadBuffer();

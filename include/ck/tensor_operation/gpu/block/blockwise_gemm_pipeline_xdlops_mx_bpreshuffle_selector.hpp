@@ -27,7 +27,9 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool AMmaXor = true,
+          bool BMmaXor = false>
 constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
 {
 
@@ -51,7 +53,9 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
                                                              MPerXDL,
                                                              NPerXDL,
                                                              MRepeat,
-                                                             KPack>{};
+                                                             KPack,
+                                                             AMmaXor,
+                                                             BMmaXor>{};
     }
     else
     {

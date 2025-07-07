@@ -22,8 +22,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           typename BScaleDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -32,7 +30,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
-          index_t NRepeat, // NXdlPerWave
           index_t KPack,
           bool AMmaXor = false,
           bool BMmaXor = false>
@@ -48,8 +45,6 @@ template <index_t ThreadBlockSize,
           typename BScaleDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -58,7 +53,6 @@ template <index_t ThreadBlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
-          index_t NRepeat, // NXdlPerWave
           index_t KPack>
 struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
     BlockGemmPipelineScheduler::Intrawave,
@@ -70,8 +64,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
     BScaleDataType,
     ATileDesc,
     BTileDesc,
-    AMmaTileDesc,
-    BMmaTileDesc,
     ABlockTransferSrcScalarPerVector,
     BBlockTransferSrcScalarPerVector,
     MPerBlock,
@@ -80,7 +72,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
     MPerXDL,
     NPerXDL,
     MRepeat,
-    NRepeat,
     KPack,
     AMmaXor,
     BMMaXor> : BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
@@ -88,8 +79,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                                                   BDataType,
                                                   ATileDesc,
                                                   BTileDesc,
-                                                  AMmaTileDesc,
-                                                  BMmaTileDesc,
                                                   ABlockTransferSrcScalarPerVector,
                                                   BBlockTransferSrcScalarPerVector,
                                                   MPerBlock,
@@ -98,7 +87,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                                                   MPerXDL,
                                                   NPerXDL,
                                                   MRepeat,
-                                                  NRepeat,
                                                   KPack,
                                                   false,
                                                   AMmaXor,
@@ -111,8 +99,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                                                       BDataType,
                                                       ATileDesc,
                                                       BTileDesc,
-                                                      AMmaTileDesc,
-                                                      BMmaTileDesc,
                                                       ABlockTransferSrcScalarPerVector,
                                                       BBlockTransferSrcScalarPerVector,
                                                       MPerBlock,
@@ -121,7 +107,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                                                       MPerXDL,
                                                       NPerXDL,
                                                       MRepeat,
-                                                      NRepeat,
                                                       KPack,
                                                       false,
                                                       AMmaXor,
@@ -211,6 +196,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
         constexpr auto num_ds_read_inst_a =

@@ -190,6 +190,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v3<BlockGemmPipelineScheduler::In
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
         constexpr auto num_ds_read_inst_a =
@@ -210,7 +211,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v3<BlockGemmPipelineScheduler::In
         constexpr auto num_buffer_load_a_scale = MRepeat / MXdlPack * KRepeat / KXdlPack;
         constexpr auto num_buffer_load_b_scale = NRepeat / NXdlPack * KRepeat / KXdlPack;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num * APackedSize;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num() * APackedSize;
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =
@@ -361,6 +362,7 @@ struct BlockwiseGemmXdlops_pipeline_mx_moe_nbs_v3<BlockGemmPipelineScheduler::In
                                                      0); // DS read
             }
         });
+    #endif
     }
 
     template <bool HasMainLoop,

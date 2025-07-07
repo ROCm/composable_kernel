@@ -119,7 +119,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
     using Base::KRepeat;
     using Base::MWaves;
     using Base::NWaves;
-    using Base::WaveSize;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
 
@@ -161,7 +160,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
     static constexpr index_t HotloopLocalBufSwitch = MRepeat % 2 == 0 ? 0 : 1;
 
     static constexpr auto num_buffer_load_a_scale = MRepeat / MXdlPack * KRepeat / KXdlPack;
-    static constexpr auto num_buffer_load_b_scale = NRepeat / NXdlPack * KRepeat / KXdlPack;
+    static constexpr auto num_buffer_load_b_scale = NRepeat() / NXdlPack * KRepeat / KXdlPack;
     static constexpr auto async_vmcnt =
         num_buffer_load_a_scale + num_buffer_load_b_scale + HotLoopInstList::B_Buffer_Load_Inst_Num;
     static constexpr auto async_vmcnt_encoding = 3952 + async_vmcnt % 16 + async_vmcnt / 16 * 16384;
@@ -199,6 +198,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+     #if defined(__HIP_DEVICE_COMPILE__)   
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
         constexpr auto num_ds_read_inst_a =
@@ -213,7 +213,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
 
         constexpr auto num_buffer_load_stage2 = num_buffer_load_inst_a;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num * APackedSize;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num() * APackedSize;
         constexpr auto mfma_cycle    = HotLoopInstList::C_MFMA_Inst_Cycle;
 
         constexpr auto ds_read_a_issue_cycle =
@@ -511,7 +511,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
             make_multi_index(-MWaves * MRepeat / MXdlPack, KRepeat / KXdlPack, 0));
 
         // Prefetch b_scales
-        static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
+        static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
             static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                 b_scale_thread_copy.Run(b_scale_grid_desc,
                                         b_scale_grid_buf,
@@ -523,14 +523,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                        make_multi_index(0, I1, 0));
             });
             b_scale_thread_copy.MoveSrcSliceWindow(
-                b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
         });
 
         // restore col id and advance to the next set of scales
-        // NWaves * NPerXDL * NRepeat == NPerBlock
+        // NWaves() * NPerXDL * NRepeat() == NPerBlock
         b_scale_thread_copy.MoveSrcSliceWindow(
             b_scale_grid_desc,
-            make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
+            make_multi_index(-NWaves() * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
 
         // Local prefetch 1, sync the async load
         __builtin_amdgcn_s_waitcnt(async_vmcnt_encoding);
@@ -600,7 +600,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                         make_multi_index(-MWaves * MRepeat / MXdlPack, KRepeat / KXdlPack, 0));
 
                     // Prefetch b_scales
-                    static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
                         static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                             b_scale_thread_copy.Run(b_scale_grid_desc,
                                                     b_scale_grid_buf,
@@ -612,14 +612,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                                    make_multi_index(0, I1, 0));
                         });
                         b_scale_thread_copy.MoveSrcSliceWindow(
-                            b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                            b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
                     });
 
                     // restore col id and advance to the next set of scales
-                    // NWaves * NPerXDL * NRepeat == NPerBlock
+                    // NWaves() * NPerXDL * NRepeat() == NPerBlock
                     b_scale_thread_copy.MoveSrcSliceWindow(
                         b_scale_grid_desc,
-                        make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
+                        make_multi_index(-NWaves() * NRepeat() / NXdlPack, KRepeat / KXdlPack, 0));
 
                     // a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                     b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
@@ -630,7 +630,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                         static_for<0, KRepeat, 1>{}([&](auto k0) {
                             constexpr auto ik_major = k0 / KXdlPack;
                             constexpr auto ik_minor = k0 % KXdlPack;
-                            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            static_for<0, NRepeat(), 1>{}([&](auto n0) {
                                 constexpr auto in_major = n0 / NXdlPack;
                                 constexpr auto in_minor = n0 % NXdlPack;
 
@@ -783,7 +783,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
             });
 
             // Prefetch b_scales
-            static_for<0, NRepeat / NXdlPack, 1>{}([&](auto n0) {
+            static_for<0, NRepeat() / NXdlPack, 1>{}([&](auto n0) {
                 static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
                     b_scale_thread_copy.Run(b_scale_grid_desc,
                                             b_scale_grid_buf,
@@ -795,7 +795,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                            make_multi_index(0, I1, 0));
                 });
                 b_scale_thread_copy.MoveSrcSliceWindow(
-                    b_scale_grid_desc, make_multi_index(NWaves, -KRepeat / KXdlPack, 0));
+                    b_scale_grid_desc, make_multi_index(NWaves(), -KRepeat / KXdlPack, 0));
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -804,7 +804,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     constexpr auto ik_major = k0 / KXdlPack;
                     constexpr auto ik_minor = k0 % KXdlPack;
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         constexpr auto in_major = n0 / NXdlPack;
                         constexpr auto in_minor = n0 % NXdlPack;
 
@@ -908,7 +908,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     constexpr auto ik_major = k0 / KXdlPack;
                     constexpr auto ik_minor = k0 % KXdlPack;
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         constexpr auto in_major = n0 / NXdlPack;
                         constexpr auto in_minor = n0 % NXdlPack;
 
@@ -1012,7 +1012,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     constexpr auto ik_major = k0 / KXdlPack;
                     constexpr auto ik_minor = k0 % KXdlPack;
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    static_for<0, NRepeat(), 1>{}([&](auto n0) {
                         constexpr auto in_major = n0 / NXdlPack;
                         constexpr auto in_minor = n0 % NXdlPack;
 
@@ -1137,7 +1137,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
     // TODO: make this field protected when b_scale_thread_copy_ is moved
     // here
     static constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<NRepeat / NXdlPack>{},
+        make_tuple(Number<NRepeat() / NXdlPack>{},
                    Number<KRepeat / KXdlPack>{},
                    Number<ScalesPerXdlopsRunPerThread * b_scale_thread_vec_size>{}));
 

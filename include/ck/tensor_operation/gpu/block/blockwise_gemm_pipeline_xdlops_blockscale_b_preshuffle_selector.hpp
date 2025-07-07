@@ -16,8 +16,6 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -29,7 +27,6 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
           index_t KPack>
 constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
 {
@@ -44,8 +41,6 @@ constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
             AccDataType,
             ATileDesc,
             BTileDesc,
-            AMmaTileDesc,
-            BMmaTileDesc,
             ABlockTransferSrcScalarPerVector,
             BBlockTransferSrcScalarPerVector,
             MPerBlock,
@@ -57,7 +52,6 @@ constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
             MPerXDL,
             NPerXDL,
             MRepeat,
-            NRepeat,
             KPack>{};
     }
 #if 0
@@ -72,8 +66,6 @@ constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
             AccDataType,
             ATileDesc,
             BTileDesc,
-            AMmaTileDesc,
-            BMmaTileDesc,
             ABlockTransferSrcScalarPerVector,
             BBlockTransferSrcScalarPerVector,
             MPerBlock,
@@ -82,7 +74,6 @@ constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
             MPerXDL,
             NPerXDL,
             MRepeat,
-            NRepeat,
             KPack>{};
     }
 #endif
@@ -98,8 +89,6 @@ constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
             AccDataType,
             ATileDesc,
             BTileDesc,
-            AMmaTileDesc,
-            BMmaTileDesc,
             ABlockTransferSrcScalarPerVector,
             BBlockTransferSrcScalarPerVector,
             MPerBlock,
@@ -111,7 +100,6 @@ constexpr auto BlockGemmBlockScaleBPreshufflePipeline_Selector()
             MPerXDL,
             NPerXDL,
             MRepeat,
-            NRepeat,
             KPack>{};
     }
     else

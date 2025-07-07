@@ -84,15 +84,12 @@ template <
     typename FloatAcc,
     typename ATileDesc,
     typename BTileDesc,
-    typename AMmaTileDesc,
-    typename BMmaTileDesc,
     index_t MPerBlock,
     index_t NPerBlock,
     index_t KPerBlock,
     index_t MPerXDL,
     index_t NPerXDL,
     index_t MRepeat,
-    index_t NRepeat,
     index_t KPack,
     bool TransposeC = false,
     index_t AMmaKStride =
@@ -372,6 +369,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         // schedule
         constexpr auto num_ds_read_inst =
             HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;
@@ -398,6 +396,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
             __builtin_amdgcn_sched_group_barrier(
                 0x008, num_mfma_inst / num_buffer_load_inst - 3, 0); // MFMA
         });
+    #endif
     }
 
     template <index_t stage>

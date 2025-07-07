@@ -153,6 +153,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
 
     __device__ static constexpr void HotLoopScheduler()
     {
+    #if defined(__HIP_DEVICE_COMPILE__)
         // TODO: Take data type into consideration as pipe ver 3
         // A-B splited schedule
         constexpr auto num_ds_read_inst_a =
@@ -219,6 +220,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                                                  0); // MFMA
         });
         __builtin_amdgcn_sched_barrier(0);
+    #endif
     }
 
     template <bool HasMainLoop,
