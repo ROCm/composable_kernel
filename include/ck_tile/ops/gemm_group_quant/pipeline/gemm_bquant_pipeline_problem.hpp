@@ -48,7 +48,7 @@ struct GemmBQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
     using typename Base::BLayout;
     using typename Base::CLayout;
 
-    static constexpr bool TransposeC = Traits::TransposeC;
+    static constexpr bool TransposeC         = Traits::TransposeC;
     static constexpr bool TransposedWarpGemm = TransposedWarpGemm_;
 
     using Base::kBlockSize;
@@ -87,9 +87,7 @@ struct GemmBQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
         return VectorLoadSize / sizeof(BQDataType);
     }
 
-    static constexpr index_t VectorSizeBQ = []() {
-        return kPadK ? 1 : GetAlignmentBQ();
-    }();
+    static constexpr index_t VectorSizeBQ = []() { return kPadK ? 1 : GetAlignmentBQ(); }();
 };
 
 template <typename ADataType_,

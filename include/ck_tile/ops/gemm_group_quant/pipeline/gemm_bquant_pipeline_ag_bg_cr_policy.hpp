@@ -129,7 +129,8 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                 WarpTile::at(I1),
                                                 WarpTile::at(I2),
                                                 Problem::TransposeC || Problem::TransposedWarpGemm>;
-        static_assert(std::is_same_v<typename Problem::ComputeDataType, fp8_t> || std::is_same_v<typename Problem::ComputeDataType, bf8_t>);
+        static_assert(std::is_same_v<typename Problem::ComputeDataType, fp8_t> ||
+                      std::is_same_v<typename Problem::ComputeDataType, bf8_t>);
         static_assert(std::is_same_v<typename Problem::CDataType, float>);
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
@@ -139,6 +140,5 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         return BQuantBlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
     }
 };
-
 
 } // namespace ck_tile

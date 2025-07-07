@@ -136,7 +136,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             << "BQ vector size: " << GetVectorSizeBQ() << "\n"
             << "A/B LDS read/write width: " << A_LDS_Read_Width << ", " << B_LDS_Read_Width << "\n"
             << "A/B buffer load inst: " << A_Buffer_Load_Inst_Num << ", " << B_Buffer_Load_Inst_Num
-            << ", " << "AQ buffer load inst: " << AQ_Buffer_Load_Inst_Num << "\n"
+            << ", "
+            << "AQ buffer load inst: " << AQ_Buffer_Load_Inst_Num << "\n"
             << "A/B LDS write inst: " << A_LDS_Write_Inst_Num << ", " << B_LDS_Write_Inst_Num
             << "\n"
             << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"

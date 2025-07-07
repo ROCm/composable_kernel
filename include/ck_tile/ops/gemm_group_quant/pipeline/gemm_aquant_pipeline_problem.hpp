@@ -48,7 +48,7 @@ struct GemmAQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_
     using typename Base::BLayout;
     using typename Base::CLayout;
 
-    static constexpr bool TransposeC = Traits::TransposeC;
+    static constexpr bool TransposeC         = Traits::TransposeC;
     static constexpr bool TransposedWarpGemm = TransposedWarpGemm_;
 
     using Base::kBlockSize;

@@ -123,11 +123,11 @@ int run_gemm_example_with_layouts(int argc,
     if(!result)
         return -1;
 
-    using ADataType = typename TypeConfig::ADataType;
-    using AQDataType = typename TypeConfig::QDataType;
-    using BDataType = typename TypeConfig::BDataType;
+    using ADataType   = typename TypeConfig::ADataType;
+    using AQDataType  = typename TypeConfig::QDataType;
+    using BDataType   = typename TypeConfig::BDataType;
     using AccDataType = typename TypeConfig::AccDataType;
-    using CDataType = typename TypeConfig::CDataType;
+    using CDataType   = typename TypeConfig::CDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");
