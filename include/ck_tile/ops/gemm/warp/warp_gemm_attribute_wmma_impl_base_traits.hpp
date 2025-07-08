@@ -43,11 +43,6 @@ struct WmmaTraitsBase<gfx11_t, ADType, BDType, CDType>
     using kCPs2RHssMinor = sequence<1, 0>;
     using kCYs2RHsMajor  = sequence<1, 1>;
     using kCYs2RHsMinor  = sequence<0, 2>;
-
-    using kCPs2RHssTransMajor = sequence<2, 1>;
-    using kCPs2RHssTransMinor = sequence<1, 0>;
-    using kCYs2RHsTransMajor  = sequence<2, 2>;
-    using kCYs2RHsTransMinor  = sequence<0, 2>;
 };
 
 // GFX12 specialization
@@ -87,10 +82,5 @@ struct WmmaTraitsBase<gfx12_t, ADType, BDType, CDType>
     using kCPs2RHssMinor = sequence<1, 0>;
     using kCYs2RHsMajor  = sequence<1, 1>;
     using kCYs2RHsMinor  = sequence<0, 2>;
-
-    using kCPs2RHssTransMajor = sequence<2, 1>;
-    using kCPs2RHssTransMinor = sequence<1, 0>;
-    using kCYs2RHsTransMajor  = sequence<2, 2>;
-    using kCYs2RHsTransMinor  = sequence<0, 2>;
 };
 } // namespace ck_tile

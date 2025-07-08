@@ -6,10 +6,11 @@
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
 
-namespace ck_tile {
 #define HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN                        \
     __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2f16) && \
         __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2bf16)
+
+namespace ck_tile {
 
 template <typename T, typename ComputeType>
 CK_TILE_HOST_DEVICE T add(const T& a, const T& b)

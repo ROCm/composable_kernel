@@ -34,7 +34,7 @@ template<> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float,  4
 template<> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 64,  4, 16, false> { using Type = WarpGemmMfmaF16F16F32M64N4K16; };
 
 #if defined(__gfx11__)
-template<bool TransposeC> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 16, 16, 16, TransposeC, false { using Type = WarpGemmWmma_f32_16x16x16_f16_f16_gfx11<TransposeC>;};
+template<bool TransposeC> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 16, 16, 16, TransposeC, false> { using Type = WarpGemmWmma_f32_16x16x16_f16_f16_gfx11<TransposeC>;};
 #elif defined(__gfx12__)
 template<bool TransposeC> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 16, 16, 16, TransposeC, false> { using Type = WarpGemmWmma_f32_16x16x16_f16_f16_gfx12<TransposeC>;};
 #else
