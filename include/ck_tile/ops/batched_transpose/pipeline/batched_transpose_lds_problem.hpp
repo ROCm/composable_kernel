@@ -24,8 +24,7 @@ struct TransposeTraits<tensor_layout::gemm::ColumnMajor, kRow, kCol>
 // supports 2D transpose which will store to lds,
 // then use ds_read_b*_tr_b* instruction to get the transposed data
 template <typename DataType_,
-          typename BlockTile, // sequence<block_x, block_y>
-          typename WarpTile>  // sequence<warp_x, warp_y>
+          typename BlockTile> // sequence<block_x, block_y>
 struct BatchedTransposeLdsProblem
 {
     static constexpr index_t kRowWarps_    = 1;
@@ -34,8 +33,8 @@ struct BatchedTransposeLdsProblem
     static constexpr index_t kRowPerBlock_ = BlockTile::at(number<1>{});
     static constexpr index_t kColPerBlock_ = BlockTile::at(number<0>{});
     // TODO: name mismatch
-    static constexpr index_t kRowPerXdl_ = WarpTile::at(number<1>{});
-    static constexpr index_t kColPerXdl_ = WarpTile::at(number<0>{});
+    static constexpr index_t kRowPerXdl_ = get_warp_size();
+    static constexpr index_t kColPerXdl_ = get_warp_size();
 
     using DataType                      = remove_cvref_t<DataType_>;
     using Layout                        = tensor_layout::gemm::RowMajor;

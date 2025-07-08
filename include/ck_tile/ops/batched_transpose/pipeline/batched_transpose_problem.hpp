@@ -12,7 +12,6 @@ namespace ck_tile {
 
 template <typename InputType_,
           typename BlockTile, // Sequence<...
-          typename WarpTile,  // Sequence<...
           typename ThreadTile,
           bool kPadM_ = false,
           bool kPadN_ = false> // Sequence<...
@@ -23,8 +22,8 @@ struct BatchedTransposeProblem
     static constexpr index_t kMPerThread = ThreadTile::at(number<0>{});
     static constexpr index_t kNPerThread = ThreadTile::at(number<1>{});
 
-    static constexpr index_t kMPerWarp = WarpTile::at(number<0>{});
-    static constexpr index_t kNPerWarp = WarpTile::at(number<1>{});
+    static constexpr index_t kMPerWarp = get_warp_size();
+    static constexpr index_t kNPerWarp = get_warp_size();
 
     static constexpr index_t kMThreadPerWarp = kMPerWarp / kMPerThread;
     static constexpr index_t kNThreadPerWarp = kNPerWarp / kNPerThread;
