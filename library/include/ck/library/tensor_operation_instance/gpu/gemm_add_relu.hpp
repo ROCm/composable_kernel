@@ -81,29 +81,29 @@ template <typename ALayout,
           typename D0DataType,
           typename EDataType>
 struct DeviceOperationInstanceFactory<
-    ck::tensor_operation::device::DeviceGemmMultipleD<ALayout,
-                                                      BLayout,
-                                                      ck::Tuple<D0Layout>,
-                                                      ELayout,
-                                                      ADataType,
-                                                      BDataType,
-                                                      ck::Tuple<D0DataType>,
-                                                      EDataType,
-                                                      PassThrough,
-                                                      PassThrough,
-                                                      AddRelu>>
+    ck::tensor_operation::device::DeviceGemmMultipleDSplitK<ALayout,
+                                                            BLayout,
+                                                            ck::Tuple<D0Layout>,
+                                                            ELayout,
+                                                            ADataType,
+                                                            BDataType,
+                                                            ck::Tuple<D0DataType>,
+                                                            EDataType,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            AddRelu>>
 {
-    using DeviceOp = DeviceGemmMultipleD<ALayout,
-                                         BLayout,
-                                         ck::Tuple<D0Layout>,
-                                         ELayout,
-                                         ADataType,
-                                         BDataType,
-                                         ck::Tuple<D0DataType>,
-                                         EDataType,
-                                         PassThrough,
-                                         PassThrough,
-                                         AddRelu>;
+    using DeviceOp = DeviceGemmMultipleDSplitK<ALayout,
+                                               BLayout,
+                                               ck::Tuple<D0Layout>,
+                                               ELayout,
+                                               ADataType,
+                                               BDataType,
+                                               ck::Tuple<D0DataType>,
+                                               EDataType,
+                                               PassThrough,
+                                               PassThrough,
+                                               AddRelu>;
 
     static auto GetInstances()
     {
