@@ -1407,18 +1407,15 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx942") }
                     environment{
-                        if (params.NINJA_FTIME_TRACE){
-                            execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                           -D CMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -D CMAKE_BUILD_TYPE=Release \
-                                           -D CMAKE_CXX_FLAGS=" -O3 -ftime-trace" .. && ninja -j64 """
-                        }
-                        else {
-                            execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                           -D CMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -D CMAKE_BUILD_TYPE=Release \
-                                           -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
-                        }
+                        execute_args = params.NINJA_FTIME_TRACE ? 
+                            """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                -D CMAKE_BUILD_TYPE=Release \
+                                -D CMAKE_CXX_FLAGS=" -O3 -ftime-trace" .. && ninja -j64 """ :
+                            """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                -D CMAKE_BUILD_TYPE=Release \
+                                -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
