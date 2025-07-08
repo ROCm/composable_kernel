@@ -648,5 +648,3 @@ auto create_args(int argc, char* argv[])
 float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s);
 
 float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::stream_config& s);
-
-float gemm_calc_bquant(const ck_tile::BQuantGemmHostArgs& args, const ck_tile::stream_config& s);
