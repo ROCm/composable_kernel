@@ -283,10 +283,15 @@ struct SimplifiedGenericAttentionMask
     }
     CK_TILE_HOST_DEVICE
     SimplifiedGenericAttentionMask(
-        index_t y_, index_t x_, index_t y_total_, index_t x_total_, index_t y_ratio_)
-        : y(y_), x(x_), y_total(y_total_), x_total(x_total_), y_ratio(y_ratio_)
+        index_t y_real_, index_t x_, index_t y_total_, index_t x_total_, mdiv y_ratio_mdiv_)
+        : y(y_real_ * static_cast<index_t>(y_ratio_mdiv_.get())),
+          x(x_),
+          y_total(y_total_),
+          x_total(x_total_),
+          y_real(y_real_),
+          y_ratio(static_cast<index_t>(y_ratio_mdiv_.get())),
+          y_ratio_mdiv(y_ratio_mdiv_)
     {
-        y_ratio_mdiv = mdiv{static_cast<uint32_t>(y_ratio_)};
     }
     template <typename MaskCoordinates>
     CK_TILE_HOST_DEVICE SimplifiedGenericAttentionMask(const MaskCoordinates& mask_coord)
@@ -331,15 +336,9 @@ struct SimplifiedGenericAttentionMask
             {
                 // get the tile start/end range assum we loop over along X tile by tile
                 index_t x_start = [&]() {
-                    index_t temp_offset = -y + i_y + y_ratio;
-                    // index_t tmp         = temp_offset > 0 ? static_cast<index_t>(y_ratio_mdiv.div(
-                    //                                     static_cast<uint32_t>(temp_offset)))
-                    //                                       : 0; // clamp by zero
-            
-                    // index_t tmp         = temp_offset > 0 ? temp_offset / y_ratio
-                    //                                       : 0; // clamp by zero
-
-                    index_t tmp         = max(temp_offset / y_ratio, 0);
+                    index_t tmp =
+                        -y_real +
+                        static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(i_y))) + 1;
 
                     return (tmp / XTile) * XTile; // round to tile aligned
                 }();
@@ -444,21 +443,9 @@ struct SimplifiedGenericAttentionMask
             }
             else
             {
-                index_t start_tmp = -y + i_y + y_ratio;
-                // index_t x_start =
-                //     start_tmp > 0
-                //         ? static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(start_tmp)))
-                //         : 0; // clamp by zero
-
-                // index_t x_start =
-                //     start_tmp > 0
-                //         ? start_tmp / y_ratio
-                //         : 0; // clamp by zero
-                // index_t x_start = max(start_tmp / y_ratio, 0); // clamp by zero
-                index_t x_start = start_tmp / y_ratio;
-
-                uint32_t end_tmp = static_cast<uint32_t>(i_y);
-                index_t x_end    = min(static_cast<index_t>(y_ratio_mdiv.div(end_tmp)) + x,
+                index_t x_tmp = static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(i_y)));
+                index_t x_start = -y_real + x_tmp + 1;
+                index_t x_end   = min(x_tmp + x,
                                     x_total); // need min in case x is padded
                 return i_x < x_start || i_x >= x_end || i_y >= y_total;
             }
@@ -513,7 +500,9 @@ struct SimplifiedGenericAttentionMask
     private:
     index_t y, x;
     index_t y_total, x_total;
-    index_t y_ratio = 1;
+    // y_real is vertical axis before multiplying y_ratio. y_real * y_ratio = y
+    index_t y_real;
+    index_t y_ratio;
     mdiv y_ratio_mdiv;
 };
 
