@@ -744,6 +744,7 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     cond &= pipeline.F_vlayout == 'row'
                     cond &= pipeline.F_bias in ['no', 'bias']
                     cond &= pipeline.F_squant == 'f'
+                    cond &= mode == 'batch'
                     if not cond:
                         continue
                 # Aiter(mha_varlen_fwd) integration
