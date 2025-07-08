@@ -226,10 +226,8 @@ def cmake_build(Map conf=[:]){
     def prefixpath = conf.get("prefixpath","/opt/rocm")
     def setup_args = conf.get("setup_args","")
     // make sure all unit tests always run on develop branch
-    if(env.BRANCH_NAME == "develop"){
-        params.RUN_ALL_UNIT_TESTS = true
-    }
-
+    def runAllUnitTests = (env.BRANCH_NAME == "develop") ? true : params.RUN_ALL_UNIT_TESTS
+    
     if (prefixpath != "/usr/local"){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
     }
@@ -347,8 +345,19 @@ def cmake_build(Map conf=[:]){
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        setup_cmd = conf.get("setup_cmd", """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 -ftime-trace "  .. """)
-        build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
+        def cmake_flags = params.NINJA_BUILD_TRACE ? "-O3 -ftime-trace" : "-O3"
+        if (params.NINJA_BUILD_TRACE) {
+            echo "running ninja build trace"
+        }
+        setup_cmd = conf.get(
+            "setup_cmd",
+            """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" ${cmake_flags} " .. """
+        )
+        build_cmd = conf.get(
+            "build_cmd",
+            "${build_envs} ninja -j${nt} ${config_targets}"
+        )
+        
         cmd = conf.get("cmd", """
             ${setup_cmd}
             ${build_cmd}
@@ -376,7 +385,7 @@ def cmake_build(Map conf=[:]){
                 archiveArtifacts "clang_build_analysis.log"
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
-                    if (!params.RUN_ALL_UNIT_TESTS){
+                    if (!runAllUnitTests){
                         sh "../script/launch_tests.sh"
                     }
                     else{
@@ -395,7 +404,7 @@ def cmake_build(Map conf=[:]){
             else{
                 // run unit tests unless building library for all targets
                 if (!params.BUILD_INSTANCES_ONLY){
-                    if (!params.RUN_ALL_UNIT_TESTS){
+                    if (!runAllUnitTests){
                         sh "../script/launch_tests.sh"
                     }
                     else{

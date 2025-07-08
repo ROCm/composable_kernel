@@ -6,6 +6,7 @@
 #include "ck/utility/type_convert.hpp"
 #include "ck/utility/env.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
+#include "ck/library/utility/device_memory.hpp"
 
 using ck::e8m0_bexp_t;
 using ck::f6_convert_rne;
@@ -227,8 +228,8 @@ TEST(FP6, ScaledConvertFP32Stochastic)
 TEST(FP6, TestSize)
 {
     ASSERT_EQ(1, sizeof(f6_t));
-    ASSERT_EQ(12, sizeof(f6x16_pk_t));
-    ASSERT_EQ(24, sizeof(f6x32_pk_t));
+    ASSERT_EQ(16, sizeof(f6x16_pk_t));
+    ASSERT_EQ(32, sizeof(f6x32_pk_t));
     ASSERT_EQ(16, sizeof(vector_type<f6x16_pk_t, 1>));
     ASSERT_EQ(32, sizeof(vector_type<f6x16_pk_t, 2>));
     ASSERT_EQ(32, sizeof(vector_type<f6x32_pk_t, 1>));
@@ -237,8 +238,8 @@ TEST(FP6, TestSize)
 TEST(FP6, TestAlignment)
 {
     ASSERT_EQ(1, alignof(f6_t));
-    ASSERT_EQ(4, alignof(f6x16_pk_t));
-    ASSERT_EQ(4, alignof(f6x32_pk_t));
+    ASSERT_EQ(16, alignof(f6x16_pk_t));
+    ASSERT_EQ(32, alignof(f6x32_pk_t));
     ASSERT_EQ(16, alignof(vector_type<f6x16_pk_t, 1>));
     ASSERT_EQ(32, alignof(vector_type<f6x16_pk_t, 2>));
     ASSERT_EQ(32, alignof(vector_type<f6x32_pk_t, 1>));
@@ -290,6 +291,60 @@ TEST(FP6, TestAsType16x1)
             << type_convert<float>(static_cast<f6_t>(test_vec[static_cast<int>(i)])) << " ("
             << static_cast<int>(test_vec[static_cast<int>(i)]) << ")" << std::endl;
     });
+}
+
+__global__ void test_f6_convert_rne(float* p_test, uint64_t* p_completed)
+{
+    constexpr int N = 32;
+    if(p_completed == nullptr)
+    {
+        return;
+    }
+
+    uint64_t& i = *p_completed;
+    i           = 0;
+
+    if(p_test == nullptr)
+    {
+        return;
+    }
+
+    ck::float32_t float32_in(1.0f);
+    ck::float32_t float32_out{};
+
+    auto f6x32_vec = f6_convert_rne(float32_in);
+    float32_out    = type_convert<ck::float32_t>(f6x32_vec);
+
+    ck::static_for<0, N, 1>{}([&](auto ii) { p_test[i++] = float32_out[static_cast<int>(ii)]; });
+    i = N;
+}
+
+TEST(MXFP6, DeviceF6ConvertRNE)
+{
+    constexpr int N = 32;
+    std::vector<float> out(N, -1.0f);
+
+    DeviceMem device_out(N * sizeof(float));
+    DeviceMem device_completed(sizeof(uint64_t));
+
+    device_out.SetValue(-21.0f);
+    device_completed.SetValue(-21.0f);
+
+    test_f6_convert_rne<<<1, 1>>>(static_cast<float*>(device_out.GetDeviceBuffer()),
+                                  static_cast<uint64_t*>(device_completed.GetDeviceBuffer()));
+
+    uint64_t completed = 0;
+    device_completed.FromDevice(&completed);
+    device_out.FromDevice(out.data());
+
+    EXPECT_EQ(N, completed);
+    ck::static_for<0, N, 1>{}(
+        [&](auto ii) { EXPECT_EQ(out[static_cast<int>(ii)], 1.0f) << "ii: " << ii << std::endl; });
+
+    auto f6x32_vec_tc    = ck::type_convert<f6x32_pk_t>(ck::float32_t(1.0f));
+    auto f6x32_vec_cnstr = f6x32_pk_t(0x08);
+
+    EXPECT_EQ(f6x32_vec_tc, f6x32_vec_cnstr);
 }
 
 // test vector of 2 f6x16_pk_t, contains 32 f6_t
