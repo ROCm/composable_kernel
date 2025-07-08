@@ -513,18 +513,16 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                          index_t StrideA_,
                          index_t StrideB_,
                          index_t StrideC_,
-                         uint32_t num_cu_,
-                         uint32_t occupancy_,
-                         uint32_t num_sk_blocks_)
+                         index_t Streamk_sel_,
+                         index_t Grid_size_)
             : M{M_},
               N{N_},
               K{K_},
               StrideA{StrideA_},
               StrideB{StrideB_},
               StrideC{StrideC_},
-              num_cu{num_cu_},
-              occupancy{occupancy_},
-              num_sk_blocks{num_sk_blocks_},
+              Streamk_sel{Streamk_sel_},
+              Grid_size{Grid_size_},
               MPadded{CalculateMPadded(M_)},
               NPadded{CalculateNPadded(N_)},
               KRead{CalculateKRead(K_, 1)},
@@ -590,35 +588,26 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                           index_t StrideA_,
                           index_t StrideB_,
                           index_t StrideC_,
-                          uint32_t num_cu_,
-                          uint32_t occupancy_,
-                          uint32_t num_sk_blocks_)
-            : Problem{M_,
-                      N_,
-                      K_,
-                      StrideA_,
-                      StrideB_,
-                      StrideC_,
-                      num_cu_,
-                      occupancy_,
-                      num_sk_blocks_},
+                          index_t Streamk_sel_,
+                          index_t Grid_size_)
+            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, Streamk_sel_, Grid_size_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_c_grid{p_c_grid_},
               block_2_ctile_map_streamk(
-                  M_, N_, AK0Number * CalculateKPadded(K_, 1), num_cu_, occupancy_, num_sk_blocks_)
-
+                  M_, N_, AK0Number * CalculateKPadded(K_, 1), Grid_size_, Streamk_sel_)
         {
         }
 
         const ADataType* p_a_grid;
         const BDataType* p_b_grid;
         CDataType* p_c_grid;
-        BlockToCTileMap_GemmStreamK<MPerBlock,
-                                    NPerBlock,
-                                    KPerBlock,
-                                    StreamKReductionStrategy::Reduction,
-                                    8>
+        BlockToCTileMap_GemmStreamK_v2<MPerBlock,
+                                       NPerBlock,
+                                       KPerBlock,
+                                       StreamKReductionStrategy::Atomic,
+                                       8,
+                                       4>
             block_2_ctile_map_streamk;
     };
 
@@ -1250,11 +1239,12 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         }();
         return c_partial_acc_block_m_n;
     }
-    using Block2CTileMap_streamk = BlockToCTileMap_GemmStreamK<MPerBlock,
-                                                               NPerBlock,
-                                                               KPerBlock,
-                                                               StreamKReductionStrategy::Reduction,
-                                                               8>;
+    using Block2CTileMap_streamk = BlockToCTileMap_GemmStreamK_v2<MPerBlock,
+                                                                  NPerBlock,
+                                                                  KPerBlock,
+                                                                  StreamKReductionStrategy::Atomic,
+                                                                  8,
+                                                                  4>;
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -1283,12 +1273,11 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         Block2CTileMap_streamk block_2_ctile_map_streamk(problem.M,
                                                          problem.N,
                                                          AK0Number * problem.KPadded,
-                                                         problem.num_cu,
-                                                         problem.occupancy,
-                                                         problem.num_sk_blocks);
+                                                         problem.Grid_size,
+                                                         problem.Streamk_sel);
         uint32_t iter_start, iter_end;
-        bool is_sk_block, is_dp_block, is_reduction_block, is_padding_block;
-        // index_t num_k_block_main_loop;
+        bool is_sk_block, is_dp_block, is_reduction_block;
+        index_t num_k_block_main_loop;
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
@@ -1296,36 +1285,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-
-        // lds max alignment
-        constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
-
-        // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
-
-        // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
-
-        // LDS allocation for A and B: be careful of alignment
-        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
-
-        // Cast after lds
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
-
-        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
-
-        // Blockwise GEMM pipeline
-        static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
-        auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
-        auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
 
         uint32_t* p_semaphore = reinterpret_cast<uint32_t*>(
             reinterpret_cast<char*>(p_workspace) +
@@ -1336,21 +1295,14 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             static_cast<uint32_t>(block_idx) >= block_2_ctile_map_streamk.dp_start_block_idx &&
             static_cast<uint32_t>(block_idx) < block_2_ctile_map_streamk.reduction_start_block_idx;
 
-        is_reduction_block =
-            static_cast<uint32_t>(block_idx) >= block_2_ctile_map_streamk.reduction_start_block_idx;
-        is_padding_block =
-            static_cast<uint32_t>(block_idx) >= block_2_ctile_map_streamk.sk_num_blocks &&
-            static_cast<uint32_t>(block_idx) < block_2_ctile_map_streamk.dp_start_block_idx;
-        if(is_padding_block)
-        {
-            return;
-        }
         block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end);
-        uint32_t total_iter_length = iter_end - iter_start;
+        num_k_block_main_loop = iter_end - iter_start;
 
         if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                      StreamKReductionStrategy::Reduction)
         {
+            is_reduction_block = static_cast<uint32_t>(block_idx) >=
+                                 block_2_ctile_map_streamk.reduction_start_block_idx;
             if(is_reduction_block)
             {
                 // descriptors
@@ -1557,7 +1509,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         {
             uint32_t current_iter_length =
                 __builtin_amdgcn_readfirstlane(block_2_ctile_map_streamk.get_current_iter_length(
-                    iter_start, iter_end, total_iter_length));
+                    iter_start, iter_end, num_k_block_main_loop));
             uint32_t tile_idx, iter_offset;
             block_2_ctile_map_streamk.get_tile_idx_with_offset(iter_end - 1, tile_idx, iter_offset);
             iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
@@ -1573,6 +1525,15 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             const index_t k0_block_data_idx_on_grid =
                 __builtin_amdgcn_readfirstlane(iter_offset * AK0Number);
 
+            // lds max alignment
+            constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
+
+            // A matrix in LDS memory, dst of blockwise copy
+            constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+
+            // B matrix in LDS memory, dst of blockwise copy
+            constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+
             // A matrix blockwise copy
             auto a_blockwise_copy =
                 ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
@@ -1587,7 +1548,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                                     decltype(a_grid_desc_ak0_m_ak1),
                                                     decltype(a_block_desc_ak0_m_ak1),
                                                     ABlockTransferSrcAccessOrder,
-                                                    Sequence<1, 0, 2>,
+                                                    Sequence<0, 1, 2>,
                                                     ABlockTransferSrcVectorDim,
                                                     2,
                                                     ABlockTransferSrcScalarPerVector,
@@ -1618,7 +1579,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                                     decltype(b_grid_desc_bk0_n_bk1),
                                                     decltype(b_block_desc_bk0_n_bk1),
                                                     BBlockTransferSrcAccessOrder,
-                                                    Sequence<1, 0, 2>,
+                                                    Sequence<0, 1, 2>,
                                                     BBlockTransferSrcVectorDim,
                                                     2,
                                                     BBlockTransferSrcScalarPerVector,
@@ -1635,7 +1596,30 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     make_multi_index(0, 0, 0),
                     ck::tensor_operation::element_wise::PassThrough{});
 
-            const index_t num_k_block_main_loop = current_iter_length;
+            // LDS allocation for A and B: be careful of alignment
+            constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
+                a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+
+            // Cast after lds
+            auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+
+            auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                static_cast<BDataType*>(p_shared) +
+                    a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
+                b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+
+            constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
+            constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
+
+            // Blockwise GEMM pipeline
+            static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
+            auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
+            auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
+
+            num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
+                (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
+                KPerBlock);
             /**if (threadIdx.x == 0 && threadIdx.y == 0 ){
                               printf("num_k_block_main_loop: %d\n", num_k_block_main_loop);
                       }**/
@@ -1828,7 +1812,107 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                      make_multi_index(0, 0, 0, 0),
                      c_element_op};
 
-                constexpr auto mxdlperwave_forward_step =
+                // space filling curve for threadwise C in VGPR
+                constexpr auto sfc_c_vgpr =
+                    SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                      Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                      Sequence<CShuffleMXdlPerWavePerShuffle,
+                                               CShuffleNXdlPerWavePerShuffle,
+                                               1,
+                                               1,
+                                               M2,
+                                               1,
+                                               M4,
+                                               1>>{};
+
+                // space filling curve for shuffled blockwise C in global mem
+                constexpr auto sfc_c_global =
+                    SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
+                                      Sequence<0, 2, 1, 3>,
+                                      Sequence<1,
+                                               CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                                               1,
+                                               CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
+
+                constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
+
+                static_assert(num_access == sfc_c_global.GetNumOfAccess(), "wrong!");
+
+                static_for<0, num_access, 1>{}([&](auto access_id) {
+                    // make sure it's safe to write to LDS
+                    block_sync_lds();
+
+                    // each thread write its data from VGPR to LDS
+                    c_thread_copy_vgpr_to_lds.Run(c_m0_n0_m1_n1_m2_m3_m4_n2_thread_desc,
+                                                  sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
+                                                  c_thread_buf,
+                                                  c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  c_block_buf);
+
+                    // make sure it's safe to read from LDS
+                    block_sync_lds();
+                    c_block_copy_lds_to_global.SetSrcSliceOrigin(
+                        c_block_desc_mblock_mpershuffle_nblock_npershuffle, make_tuple(0, 0, 0, 0));
+
+                    if(is_dp_block)
+                    {
+                        // each block copy its data from LDS to global
+                        c_block_copy_lds_to_global.template Run<decltype(c_block_buf),
+                                                                decltype(c_grid_buf),
+                                                                InMemoryDataOperationEnum::Set>(
+                            c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                            c_block_buf,
+                            c_grid_desc_mblock_mperblock_nblock_nperblock,
+                            c_grid_buf);
+                    }
+                    else if(is_sk_block)
+                    {
+                        if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                                     StreamKReductionStrategy::Atomic)
+                        {
+                            // each block copy its data from LDS to global
+                            c_block_copy_lds_to_global
+                                .template Run<decltype(c_block_buf),
+                                              decltype(c_grid_buf),
+                                              InMemoryDataOperationEnum::AtomicAdd>(
+                                    c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                                    c_block_buf,
+                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    c_grid_buf);
+                        }
+                        else if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                                          StreamKReductionStrategy::Reduction)
+                        {
+                            // constexpr offset
+                            c_block_copy_lds_to_partial_acc.SetSrcSliceOrigin(
+                                c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                                make_tuple(0, 0, 0, 0));
+
+                            c_block_copy_lds_to_partial_acc.SetDstSliceOrigin(
+                                c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
+                                make_tuple(MXdlPerWave, 0, NXdlPerWave, 0));
+
+                            c_block_copy_lds_to_partial_acc
+                                .template Run<decltype(c_block_buf),
+                                              decltype(c_partial_acc_buf),
+                                              InMemoryDataOperationEnum::Set>(
+                                    c_block_desc_mblock_mpershuffle_nblock_npershuffle,
+                                    c_block_buf,
+                                    c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle,
+                                    c_partial_acc_buf);
+                        }
+                    }
+
+                    if constexpr(access_id < num_access - 1)
+                    {
+                        constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
+
+                        // move on C
+                        c_block_copy_lds_to_global.MoveDstSliceWindow(
+                            c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
+                    }
+                });
+                /**constexpr auto mxdlperwave_forward_step =
                     make_multi_index(0, CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl, 0, 0);
                 constexpr auto nxdlperwave_forward_step =
                     make_multi_index(0, 0, 0, CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl);
@@ -1940,9 +2024,9 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                 c_grid_desc_mblock_mperblock_nblock_nperblock,
                                 mxdlperwave_forward_step);
                         }
-                    });
+                    });**/
 
-                /**if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                              StreamKReductionStrategy::Reduction)
                 {
                     if(is_sk_block)
@@ -1951,7 +2035,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         workgroup_barrier wg_barrier(p_semaphore);
                         wg_barrier.inc(tile_idx);
                     }
-                }**/
+                }
             }
 
             // exit condition
@@ -1966,7 +2050,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             }
             // make sure next loop LDS is ready for use
             block_sync_lds();
-            if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+            /**if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                          StreamKReductionStrategy::Reduction)
             {
                 if(is_sk_block)
@@ -1975,7 +2059,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     workgroup_barrier wg_barrier(p_semaphore);
                     wg_barrier.inc(tile_idx);
                 }
-            }
+            }**/
         }
     }
 
@@ -2021,9 +2105,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         Block2CTileMap_streamk block_2_ctile_map_streamk(problem.M,
                                                          problem.N,
                                                          AK0Number * problem.KPadded,
-                                                         problem.num_cu,
-                                                         problem.occupancy,
-                                                         problem.num_sk_blocks);
+                                                         problem.Grid_size,
+                                                         problem.Streamk_sel);
 
         auto block_idx = get_block_1d_id();
         is_sk_block    = static_cast<uint32_t>(block_idx) < block_2_ctile_map_streamk.sk_num_blocks;
