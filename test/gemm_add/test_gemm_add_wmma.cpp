@@ -25,9 +25,8 @@ class TestGemmAdd : public TestGemmD0Common<Tuple>
     }
 };
 
-using KernelTypes =
-    ::testing::Types<std::tuple<F16, F16, F32, F16, F16, Row, Row, ck::Tuple<Row>, Row>,
-                     std::tuple<BF16, BF16, F32, BF16, BF16, Row, Row, ck::Tuple<Row>, Row>>;
+using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, F16, F16, Row, Row, Row, Row>,
+                                     std::tuple<BF16, BF16, F32, BF16, BF16, Row, Row, Row, Row>>;
 
 TYPED_TEST_SUITE(TestGemmAdd, KernelTypes);
 TYPED_TEST(TestGemmAdd, Test_BF16FP16) { this->Run(); }
