@@ -86,6 +86,18 @@ struct BatchedTransposeLdsProblem
 
     static constexpr index_t kIterationsInSecondDim =
         kQuadNumPerLeadDim * kQuadNumPerSecondDim * 16 / get_warp_size();
+
+    // definitions to adapt to BatchedTransposeKernel
+    using InputType                  = DataType;
+
+    static constexpr bool kPadM      = false;
+    static constexpr bool kPadN      = false;
+    
+    static constexpr auto kMPerBlock = kLeadSizePerBlock;
+    static constexpr auto kNPerBlock = kSecondSizePerBlock;
+
+    static constexpr auto VectorSizeInput = kPadM ? 1 : 16 / sizeof(InputType);
+    static constexpr auto VectorSizeOutput = kPadN ? 1 : 16 / sizeof(InputType);
 };
 
 }

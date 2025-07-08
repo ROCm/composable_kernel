@@ -19,6 +19,7 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     a.dim_block_h = block_y;
     a.dim_block_w = block_x;
 
+#if 0    
     using block_tile  = ck_tile::sequence<block_x, block_y>;
     using warp_tile   = ck_tile::sequence<warp_x, warp_y>;
     using thread_tile = ck_tile::sequence<thread_x, thread_y>;
@@ -28,7 +29,21 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     using ts_pipeline = ck_tile::BatchedTransposePipeline<ts_problem>;
 
     using kernel = ck_tile::BatchedTransposeKernel<ts_pipeline>;
-
+#else
+    using Problem = ck_tile::BatchedTransposeLdsProblem<
+        ts_type,
+        ck_tile::tensor_layout::gemm::RowMajor, // layout
+        64,                                     // blocksize
+        1,                                      // row warps
+        1,                                      // col warps
+        block_y,                                // row per block
+        block_x,                                // col per block
+        warp_y,                                 // row per xdl
+        warp_x>; 
+    using Policy = ck_tile::BatchedTransposeLdsPolicy;
+    using Pipeline = ck_tile::BatchedTransposeLdsPipeline<Problem, Policy>;
+    using kernel = ck_tile::BatchedTransposeKernel<Pipeline>;
+#endif
     auto kargs = kernel::MakeKargs(a);
 
     const dim3 grids      = kernel::GridSize(a);
