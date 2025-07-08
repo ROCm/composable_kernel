@@ -12,13 +12,6 @@ target_compile_options(tile_example_gemm_universal PRIVATE ${EXAMPLE_GEMM_COMPIL
 if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95")
     add_executable(tile_example_gemm_aquant_basic EXCLUDE_FROM_ALL gemm_aquant_basic.cpp)
     target_compile_options(tile_example_gemm_aquant_basic PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-
-    # BQuant example
-    list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DUSING_MFMA_16x16x32=1 -Wno-unused-local-typedef)
-    #list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DUSING_MFMA_32x32x16=1 -Wno-unused-local-typedef)
-
-    add_executable(tile_example_gemm_bquant_basic EXCLUDE_FROM_ALL gemm_bquant_basic.cpp)
-    target_compile_options(tile_example_gemm_bquant_basic PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 else()
     message(DEBUG "Skipping ck_tile quant gemm tests for current target")
 endif()
