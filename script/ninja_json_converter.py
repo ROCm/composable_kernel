@@ -51,20 +51,30 @@ class BuildTarget:
 class ThreadScheduler:
     """Simulates thread allocation for parallelism analysis."""
     
-    def __init__(self):
+    def __init__(self, legacy_mode: bool = False):
         self.workers: List[int] = []
+        self.legacy_mode = legacy_mode
         
     def allocate_thread(self, target: BuildTarget) -> int:
         """Allocate a thread for the given target."""
-        # Find an available worker
-        for i, worker_end_time in enumerate(self.workers):
-            if worker_end_time <= target.start_time:
-                self.workers[i] = target.end_time
-                return i
-        
-        # No available worker, create a new one
-        self.workers.append(target.end_time)
-        return len(self.workers) - 1
+        if self.legacy_mode:
+            # Legacy algorithm from old ninjatracer
+            for worker in range(len(self.workers)):
+                if self.workers[worker] >= target.end_time:
+                    self.workers[worker] = target.start_time
+                    return worker
+            self.workers.append(target.start_time)
+            return len(self.workers) - 1
+        else:
+            # New algorithm
+            for i, worker_end_time in enumerate(self.workers):
+                if worker_end_time <= target.start_time:
+                    self.workers[i] = target.end_time
+                    return i
+            
+            # No available worker, create a new one
+            self.workers.append(target.end_time)
+            return len(self.workers) - 1
 
 
 class NinjaLogParser:
@@ -192,12 +202,14 @@ class ChromeTraceGenerator:
     """Generates Chrome tracing format from build targets."""
     
     def __init__(self, process_id: int = 1, embed_ftime_traces: bool = False, 
-                 granularity_us: int = 50000, ninja_log_dir: Optional[str] = None):
+                 granularity_us: int = 50000, ninja_log_dir: Optional[str] = None,
+                 legacy_format: bool = False):
         self.process_id = process_id
-        self.scheduler = ThreadScheduler()
+        self.scheduler = ThreadScheduler(legacy_mode=legacy_format)
         self.embed_ftime_traces = embed_ftime_traces
         self.ninja_log_dir = ninja_log_dir
         self.ftime_reader = FTimeTraceReader(granularity_us) if embed_ftime_traces else None
+        self.legacy_format = legacy_format
         
     def find_ftime_trace_files(self, target: BuildTarget) -> List[str]:
         """Find Clang -ftime-trace files for a build target."""
@@ -244,20 +256,35 @@ class ChromeTraceGenerator:
             thread_id = self.scheduler.allocate_thread(target)
             
             # Add main ninja build event
-            ninja_event = {
-                'name': target.output_name,
-                'cat': target.category,
-                'ph': 'X',  # Complete event
-                'ts': target.start_time * 1000,  # Convert to microseconds
-                'dur': target.duration * 1000,   # Convert to microseconds
-                'pid': self.process_id,
-                'tid': thread_id,
-                'args': {
-                    'output': target.output_name,
-                    'duration_ms': target.duration,
-                    'cmd_hash': target.cmd_hash
+            if self.legacy_format:
+                # Legacy format: join multiple targets with commas, use "targets" category, empty args
+                target_name = ', '.join(target.targets) if len(target.targets) > 1 else target.output_name
+                ninja_event = {
+                    'name': target_name,
+                    'cat': 'targets',
+                    'ph': 'X',  # Complete event
+                    'ts': target.start_time * 1000,  # Convert to microseconds
+                    'dur': target.duration * 1000,   # Convert to microseconds
+                    'pid': self.process_id,
+                    'tid': thread_id,
+                    'args': {}
                 }
-            }
+            else:
+                # New format: smart categorization, detailed args
+                ninja_event = {
+                    'name': target.output_name,
+                    'cat': target.category,
+                    'ph': 'X',  # Complete event
+                    'ts': target.start_time * 1000,  # Convert to microseconds
+                    'dur': target.duration * 1000,   # Convert to microseconds
+                    'pid': self.process_id,
+                    'tid': thread_id,
+                    'args': {
+                        'output': target.output_name,
+                        'duration_ms': target.duration,
+                        'cmd_hash': target.cmd_hash
+                    }
+                }
             events.append(ninja_event)
             
             # Add embedded Clang -ftime-trace events
@@ -392,6 +419,12 @@ Examples:
         help='Minimum duration for -ftime-trace events in microseconds (default: 50000)'
     )
     
+    parser.add_argument(
+        '--legacy-format',
+        action='store_true',
+        help='Output in legacy format compatible with old ninjatracer (simple JSON array, all categories as "targets", empty args)'
+    )
+    
     return parser
 
 
@@ -421,7 +454,8 @@ def main():
                 process_id=pid,  # Use different PID for each log file
                 embed_ftime_traces=args.embed_ftime_trace,
                 granularity_us=args.granularity,
-                ninja_log_dir=ninja_log_dir
+                ninja_log_dir=ninja_log_dir,
+                legacy_format=args.legacy_format
             )
             events = trace_generator.generate_trace_events(targets)
             all_events.extend(events)
@@ -436,9 +470,13 @@ def main():
             print("No build targets found in any ninja log files", file=sys.stderr)
             return 1
         
-        # Output in original format (simple JSON array) or enhanced format
-        if args.output or args.pretty:
-            # Enhanced format with metadata
+        # Output format logic
+        if args.legacy_format:
+            # Legacy format: always output simple JSON array
+            json_kwargs = {'indent': 2} if args.pretty else {}
+            json_output = json.dumps(all_events, **json_kwargs)
+        elif args.output or args.pretty:
+            # Enhanced format with metadata (when saving to file or pretty printing)
             trace_data = {
                 'traceEvents': all_events,
                 'displayTimeUnit': 'ms',
