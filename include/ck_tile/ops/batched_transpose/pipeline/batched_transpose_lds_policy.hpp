@@ -11,9 +11,6 @@ struct BatchedTransposeLdsPolicy
 {
     static constexpr auto TileAccessPattern = tile_distribution_pattern::thread_raked;
 
-    template <typename DataType>
-    CK_TILE_DEVICE static constexpr auto VectorSize = 16 / sizeof(DataType);
-
     template <typename Problem>
     CK_TILE_DEVICE static constexpr index_t GetSmemSize()
     {
@@ -30,7 +27,7 @@ struct BatchedTransposeLdsPolicy
         constexpr index_t LeadDimPerBlock   = Problem::kLeadSizePerBlock;
         constexpr index_t SecondDimPerBlock = Problem::kSecondSizePerBlock;
 
-        constexpr index_t kVectorSize = VectorSize<typename Problem::DataType>;
+        constexpr index_t kVectorSize = Problem::VectorSizeOutput;
 
         using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
                                                                       SecondDimPerBlock,
@@ -58,7 +55,7 @@ struct BatchedTransposeLdsPolicy
     {
         constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
-        constexpr index_t kVectorSize        = VectorSize<typename Problem::DataType>;
+        constexpr index_t kVectorSize        = Problem::VectorSizeOutput;
 
         constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kSecondDimPerBlock>{},
@@ -84,7 +81,7 @@ struct BatchedTransposeLdsPolicy
     {
         constexpr index_t kLeadDimPerBlock   = Problem::kLeadSizePerBlock;
         constexpr index_t kSecondDimPerBlock = Problem::kSecondSizePerBlock;
-        constexpr index_t kVectorSize        = VectorSize<typename Problem::DataType>;
+        constexpr index_t kVectorSize        = Problem::VectorSizeOutput;
 
         constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kSecondDimPerBlock>{},
