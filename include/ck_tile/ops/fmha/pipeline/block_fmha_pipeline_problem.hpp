@@ -110,7 +110,6 @@ struct BlockFmhaFwdPagedKVPipelineProblem
     static constexpr bool kStoreLSE                  = Traits::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant          = Traits::kDoFp8StaticQuant;
     static constexpr bool kIsPagedKV                 = Traits::kIsPagedKV;
-    static constexpr bool kMergeNumHeadGroupsSeqLenQ = Traits::kMergeNumHeadGroupsSeqLenQ;
     static constexpr index_t kBlockPerCu             = Traits::kBlockPerCu;
 };
 

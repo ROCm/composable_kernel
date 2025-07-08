@@ -1016,14 +1016,14 @@ struct FmhaFwdPagedKVKernel
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
-                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                    sequence<false, kPadHeadDimQ>{});
             }
             else
             {
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
-                    sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                    sequence<false, kPadHeadDimQ>{});
             }
         }();
 
@@ -1120,7 +1120,7 @@ struct FmhaFwdPagedKVKernel
                     const index_t num_blocks =
                         integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
 
-                    const long_index_t fixed_offset = i_nhead_ * kargs.nhead_stride_k;
+                    const long_index_t fixed_offset = static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_k;
 
                     return make_page_block_navigator<const KDataType, 0>(
                         kargs.k_ptr,
@@ -1150,7 +1150,7 @@ struct FmhaFwdPagedKVKernel
                     const index_t num_blocks =
                         integer_divide_ceil(kv_l2p_offset + kargs.seqlen_k, kargs.page_block_size);
 
-                    const long_index_t fixed_offset = i_nhead_ * kargs.nhead_stride_v;
+                    const long_index_t fixed_offset = static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_v;
 
                     return make_page_block_navigator<const VDataType, 1>(
                         kargs.v_ptr,
@@ -1197,7 +1197,7 @@ struct FmhaFwdPagedKVKernel
 
                     return pad_tensor_view(bias_dram_naive,
                                            bias_dram_window_lengths,
-                                           sequence<kPadSeqLenQ, kPadSeqLenK>{});
+                                           sequence<false, kPadSeqLenK>{});
                 }();
 
                 return make_tile_window(bias_dram, bias_dram_window_lengths, {i_m0, 0});
