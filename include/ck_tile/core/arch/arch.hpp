@@ -170,4 +170,12 @@ CK_TILE_HOST_DEVICE constexpr index_t get_smem_capacity()
 #endif
 }
 
+// Architecture tags
+struct gfx11_t
+{
+};
+struct gfx12_t
+{
+};
+
 } // namespace ck_tile
