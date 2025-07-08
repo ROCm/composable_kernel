@@ -118,7 +118,7 @@ class GemmConfig:
     trait_config: TraitConfig
 
     @classmethod
-    def from_json(cls: Type["GemmConfig"], filepath: str, datatype: str) -> "GemmConfig":
+    def from_json(cls: Type["GemmConfig"], filepath: str, datatype: str, layout: str) -> "GemmConfig":
         """JSON configuration loader with validation controls"""
         config_path = Path(filepath)
 
@@ -137,6 +137,15 @@ class GemmConfig:
             if b_type in ['bf8', 'fp8', 'int4']:
                 c_type = "fp16"
 
+            layout_parts = layout.lower()
+            assert len(layout_parts) == 3, f"Invalid layout string: {layout} (must be 3 characters like 'rcr')"
+            assert layout_parts[0] in ("r", "c"), f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' or 'c')"
+            assert layout_parts[1] in ("r", "c"), f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' or 'c')"
+            assert layout_parts[2] == "r", f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r')"
+            a_layout = layout_parts[0]
+            b_layout = layout_parts[1]
+            c_layout = layout_parts[2]
+
             # Parse problem config
             #TODO: Not reading datatype information from json file.
             problem = ProblemConfig(
@@ -150,13 +159,13 @@ class GemmConfig:
                 ),
                 layouts=(
                     EnumConfigParam(
-                        values=config_dict["problem"]["layout_a"]["values"]
+                        values=[a_layout]
                     ),
                     EnumConfigParam(
-                        values=config_dict["problem"]["layout_b"]["values"]
+                        values=[b_layout]
                     ),
                     EnumConfigParam(
-                        values=config_dict["problem"]["layout_c"]["values"]
+                        values=[c_layout]
                     ),
                 ),
             )

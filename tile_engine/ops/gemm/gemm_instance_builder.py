@@ -785,7 +785,7 @@ def do_gen_blobs(
 
 def main(args):
     gemm_config = (
-        GemmConfig.from_json(args.config_json, args.datatype)
+        GemmConfig.from_json(args.config_json, args.datatype, args.layout)
         if args.config_json is not None
         else args.config_json
     )
@@ -824,6 +824,12 @@ if __name__ == "__main__":
         "--datatype",
         required=True,
         help="Specify what datatype to use for the kernel generation, e.g. fp16, bf16, int8, fp8, bf8"
+    )
+    parser.add_argument(
+        "-ly",
+        "--layout",
+        required=True,
+        help="Specify what layout to use for the kernel generation, e.g. rcr, rrr"
     )
     parser.add_argument(
         "-l",
