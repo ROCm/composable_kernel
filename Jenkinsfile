@@ -378,11 +378,16 @@ def cmake_build(Map conf=[:]){
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
             if ((setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE) || params.BUILD_INSTANCES_ONLY){
+                if (params.NINJA_FTIME_TRACE) {
+                    echo "running ninja ftime trace"
+                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
+                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
+                    archiveArtifacts "clang_build_analysis.log"
+                }
+                
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
-                sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
                 archiveArtifacts "ck_build_trace.json"
-                archiveArtifacts "clang_build_analysis.log"
+
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
                     if (!runAllUnitTests){
