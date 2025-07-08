@@ -859,6 +859,7 @@ struct GemmKernel
 
         const auto& c_block_tile = GemmPipeline{}.template operator()(
             a_block_window, b_block_window, num_loop, smem_ptr_0);
+
         if(UseDefaultScheduler || (get_warp_id() == 0))
         {
             auto& c_block_window = gemm_tile_windows.at(I3);

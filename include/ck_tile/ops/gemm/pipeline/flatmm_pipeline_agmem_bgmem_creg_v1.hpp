@@ -79,7 +79,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     using BlockTile  = remove_cvref_t<typename BlockGemmShape::BlockTile>;
     using BlockWarps = remove_cvref_t<typename BlockGemmShape::BlockWarps>;
     using WarpTile   = remove_cvref_t<typename BlockGemmShape::WarpTile>;
-   
+
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr index_t Preshuffle    = Problem::Preshuffle;
 

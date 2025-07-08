@@ -113,7 +113,7 @@ float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile:
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation,
                                                  GemmConfig::NumWaveGroups>>;
-                                                 
+
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
