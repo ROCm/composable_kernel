@@ -51,7 +51,7 @@ template <typename ts_type,
           ck_tile::index_t thread_y,
           bool kPadM,
           bool kPadN,
-          ck_tile::index_t pipeline_id = 1>
+          ck_tile::index_t pipeline_id>
 float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
     uint32_t dim_stride = a.height * a.width;
@@ -73,6 +73,7 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     const dim3 grids      = kernel::GridSize(a);
     constexpr dim3 blocks = kernel::BlockSize();
 
+    printf("Pipeline: %d\n", pipeline_id);
     printf("Grid: x=%u y=%u z=%u\n", grids.x, grids.y, grids.z);
     printf("Block: x=%u y=%u z=%u\n", blocks.x, blocks.y, blocks.z);
     printf(
