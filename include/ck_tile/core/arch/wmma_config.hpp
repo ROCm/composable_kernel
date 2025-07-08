@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/device_prop.hpp"
 
 namespace ck_tile {
 // Architecture tags
