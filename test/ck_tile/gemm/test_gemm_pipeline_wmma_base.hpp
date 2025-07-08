@@ -14,29 +14,11 @@ class TestCkTileGemmPipelineWmmaBase : public TestCkTileGemmPipeline<Tuple, Deri
               ck_tile::index_t K_Warp_Tile>
     bool check_data_type_impl()
     {
-        if(ck_tile::is_gfx12_supported())
-        {
-            return ck_tile::has_wmma_traits_v<ck_tile::gfx12_t,
-                                              ADataType,
-                                              BDataType,
-                                              AccDataType,
-                                              M_Warp_Tile,
-                                              N_Warp_Tile,
-                                              K_Warp_Tile>;
-        }
-        else if(ck_tile::is_gfx11_supported())
-        {
-            return ck_tile::has_wmma_traits_v<ck_tile::gfx11_t,
-                                              ADataType,
-                                              BDataType,
-                                              AccDataType,
-                                              M_Warp_Tile,
-                                              N_Warp_Tile,
-                                              K_Warp_Tile>;
-        }
-        else
-        {
-            return false;
-        }
+        return ck_tile::check_wmma_supported<ADataType,
+                                             BDataType,
+                                             AccDataType,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile>();
     }
 };
