@@ -4,14 +4,12 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "batched_transpose_common_policy.hpp"
 
 namespace ck_tile {
 
-struct BatchedTransposeLdsPolicy
+struct BatchedTransposeLdsPolicy : public BatchedTransposeCommonPolicy
 {
-    CK_TILE_DEVICE static constexpr auto TileAccessPattern =
-        tile_distribution_pattern::thread_raked;
-
     template <typename Problem>
     CK_TILE_DEVICE static constexpr index_t GetSmemSize()
     {
@@ -19,23 +17,6 @@ struct BatchedTransposeLdsPolicy
             sizeof(typename Problem::DataType) *
                 MakeLdsStoreBlockDescriptor<Problem>().get_element_space_size(),
             16);
-    }
-
-    template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto MakeInputDistribution()
-    {
-        constexpr index_t BlockSize         = Problem::kBlockSize;
-        constexpr index_t LeadDimPerBlock   = Problem::kLeadSizePerBlock;
-        constexpr index_t SecondDimPerBlock = Problem::kSecondSizePerBlock;
-
-        constexpr index_t kVectorSize = Problem::VectorSizeOutput;
-
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      SecondDimPerBlock,
-                                                                      LeadDimPerBlock,
-                                                                      kVectorSize,
-                                                                      TileAccessPattern>;
-        return TileEncodingPattern::Make2DStaticTileDistribution();
     }
 
     template <typename Problem>
