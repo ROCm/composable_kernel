@@ -100,21 +100,28 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 }
 
 // Param Comb: type_size, block_x & y, warp_x & y, thread_x & y
-#define FOREACH_TRANSPOSE_PARAM(F)                               \
-    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8, true, true)     \
-    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8, false, false)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8, true, true)   \
-    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8, false, false) \
-    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8, true, true)   \
-    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8, false, false)
+#define FOREACH_TRANSPOSE_PARAM(F)                                  \
+    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8, true, true, 0)     \
+    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8, false, false, 0)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8, true, true, 0)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8, false, false, 0) \
+    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8, true, true, 0)   \
+    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8, false, false, 0) \
+    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8, true, true, 1)     \
+    F(fp8, ck_tile::fp8_t, 64, 64, 64, 64, 8, 8, false, false, 1)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8, true, true, 1)   \
+    F(fp16, ck_tile::fp16_t, 64, 64, 64, 64, 8, 8, false, false, 1) \
+    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8, true, true, 1)   \
+    F(bf16, ck_tile::bf16_t, 64, 64, 64, 64, 8, 8, false, false, 1)
 
 // Macro that defines one static function per line
-#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY, TX, TY, PADM, PADN)             \
-    static float                                                                                \
-        transpose_fn_##SHORT_NAME##_##BX##_##BY##_##WX##_##WY##_##TX##_##TY##_##PADM##_##PADN(  \
-            batched_transpose_kargs& a, ck_tile::stream_config& s)                              \
-    {                                                                                           \
-        return batched_transpose_dispatch<REAL_TYPE, BX, BY, WX, WY, TX, TY, PADM, PADN>(a, s); \
+#define GEN_TRANSPOSE_FN(SHORT_NAME, REAL_TYPE, BX, BY, WX, WY, TX, TY, PADM, PADN, PIPE)                \
+    static float                                                                                         \
+        transpose_fn_##SHORT_NAME##_##BX##_##BY##_##WX##_##WY##_##TX##_##TY##_##PADM##_##PADN##_v##PIPE( \
+            batched_transpose_kargs& a, ck_tile::stream_config& s)                                       \
+    {                                                                                                    \
+        return batched_transpose_dispatch<REAL_TYPE, BX, BY, WX, WY, TX, TY, PADM, PADN, PIPE>(a,        \
+                                                                                               s);       \
     }
 
 FOREACH_TRANSPOSE_PARAM(GEN_TRANSPOSE_FN)
@@ -123,38 +130,78 @@ float batched_transpose(batched_transpose_trait t,
                         batched_transpose_kargs a,
                         ck_tile::stream_config s)
 {
-    if(t.type == "fp8")
+    if(t.pipeline == "0")
     {
-        if(a.height % 64 == 0 && a.width % 64 == 0)
+        if(t.type == "fp8")
         {
-            return transpose_fn_fp8_64_64_64_64_8_8_false_false(a, s);
+            if(a.height % 64 == 0 && a.width % 64 == 0)
+            {
+                return transpose_fn_fp8_64_64_64_64_8_8_false_false_v0(a, s);
+            }
+            else
+            {
+                return transpose_fn_fp8_64_64_64_64_8_8_true_true_v0(a, s);
+            }
         }
-        else
+        else if(t.type == "fp16")
         {
-            return transpose_fn_fp8_64_64_64_64_8_8_true_true(a, s);
+            if(a.height % 64 == 0 && a.width % 64 == 0)
+            {
+                return transpose_fn_fp16_64_64_64_64_8_8_false_false_v0(a, s);
+            }
+            else
+            {
+                return transpose_fn_fp16_64_64_64_64_8_8_true_true_v0(a, s);
+            }
+        }
+        else if(t.type == "bf16")
+        {
+            if(a.height % 64 == 0 && a.width % 64 == 0)
+            {
+                return transpose_fn_bf16_64_64_64_64_8_8_false_false_v0(a, s);
+            }
+            else
+            {
+                return transpose_fn_bf16_64_64_64_64_8_8_true_true_v0(a, s);
+            }
         }
     }
-    else if(t.type == "fp16")
+    else if(t.pipeline == "1")
     {
-        if(a.height % 64 == 0 && a.width % 64 == 0)
+        if(t.type == "fp8")
         {
-            return transpose_fn_fp16_64_64_64_64_8_8_false_false(a, s);
+            if(a.height % 64 == 0 && a.width % 64 == 0)
+            {
+                return transpose_fn_fp8_64_64_64_64_8_8_false_false_v1(a, s);
+            }
+            else
+            {
+                return transpose_fn_fp8_64_64_64_64_8_8_true_true_v1(a, s);
+            }
         }
-        else
+        else if(t.type == "fp16")
         {
-            return transpose_fn_fp16_64_64_64_64_8_8_true_true(a, s);
+            if(a.height % 64 == 0 && a.width % 64 == 0)
+            {
+                return transpose_fn_fp16_64_64_64_64_8_8_false_false_v1(a, s);
+            }
+            else
+            {
+                return transpose_fn_fp16_64_64_64_64_8_8_true_true_v1(a, s);
+            }
+        }
+        else if(t.type == "bf16")
+        {
+            if(a.height % 64 == 0 && a.width % 64 == 0)
+            {
+                return transpose_fn_bf16_64_64_64_64_8_8_false_false_v1(a, s);
+            }
+            else
+            {
+                return transpose_fn_bf16_64_64_64_64_8_8_true_true_v1(a, s);
+            }
         }
     }
-    else if(t.type == "bf16")
-    {
-        if(a.height % 64 == 0 && a.width % 64 == 0)
-        {
-            return transpose_fn_bf16_64_64_64_64_8_8_false_false(a, s);
-        }
-        else
-        {
-            return transpose_fn_bf16_64_64_64_64_8_8_true_true(a, s);
-        }
-    }
+
     return -1;
 }

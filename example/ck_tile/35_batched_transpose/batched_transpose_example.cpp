@@ -102,7 +102,8 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
-        .insert("kname", "0", "t to 1 will print kernel name");
+        .insert("kname", "0", "t to 1 will print kernel name")
+        .insert("pipeline", "0", "0: no LDS usage, 1: LDS-accelerated (gfx950)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -121,6 +122,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     int n_repeat           = args.get_int("repeat");
     std::string layout_in  = args.get_str("layout_in");
     std::string layout_out = args.get_str("layout_out");
+    std::string pipeline   = args.get_str("pipeline");
     int seed               = args.get_int("seed");
 
     int dim_in[4], dim_out[4];
@@ -165,8 +167,6 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     ck_tile::DeviceMem y_dev(y_host.get_element_space_size_in_bytes());
 
     x_dev.ToDevice(x_host.data());
-
-    std::string pipeline = "0";
 
     auto trait = batched_transpose_trait{prec, layout_in, pipeline};
 
