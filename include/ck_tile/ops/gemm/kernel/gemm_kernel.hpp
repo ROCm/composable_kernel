@@ -16,6 +16,7 @@
 #include "ck_tile/core/arch/workgroup_barrier.hpp"
 
 
+
 namespace ck_tile {
 
 // ADD: Global barrier for Split-K synchronization
@@ -691,18 +692,30 @@ struct GemmKernel
                 
                 // c tile in global memory
                 auto& c_block_window = gemm_tile_windows.at(I2);
-                
+
+                constexpr auto MIterPerWarp = GemmPipeline::BlockGemm::MIterPerWarp;
+                constexpr auto MWarp = GemmPipeline::BlockGemm::MWarp;
+                constexpr auto NIterPerWarp = GemmPipeline::BlockGemm::NIterPerWarp;
+                constexpr auto NWarp = GemmPipeline::BlockGemm::NWarp;
+                constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
+                tuple<sequence<1, 2>>,
+                tuple<sequence<1, 1>>,
+                sequence<1, 2>,
+                sequence<0, 0>>{};
+
+                constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+                    c_block_outer_dstr_encoding, typename GemmPipeline::BlockGemm::WarpGemm::CWarpDstrEncoding{});
+                constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
+
                 // Create zero tensor with same distribution as C block tile
-                auto block_gemm = typename GemmPipeline::BlockGemm();
-                auto reference_tile = block_gemm.MakeCBlockTile();
-                using CDistribution = typename decltype(reference_tile)::StaticTileDistribution;
-                auto zero_tile = make_static_distributed_tensor<CDataType>(CDistribution{});
+                auto zero_tile = make_static_distributed_tensor<CDataType>(c_block_dstr);
+                clear_tile(zero_tile);
 
-                tile_elementwise_inout([](auto& c) { c = 0; }, zero_tile);
-                
-                // Store the correctly typed zero tile to global memory
+                // Store the zero tile to global memory
                 store_tile(c_block_window, zero_tile);
-
+                
                 workgroup_barrier cleared_barrier(kargs.cleared_c_tile_barrier);
 
                 // Signal that C tile has been zeroed
