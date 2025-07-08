@@ -4,7 +4,7 @@
 
 namespace {
 
-template <int32_t id>
+template <int32_t pipeline_id>
 struct kernel_traits;
 
 template <>
