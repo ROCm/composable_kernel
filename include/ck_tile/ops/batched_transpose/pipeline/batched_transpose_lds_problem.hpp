@@ -21,24 +21,24 @@ struct TransposeTraits<tensor_layout::gemm::ColumnMajor, kRow, kCol>
     static constexpr index_t kSecondDim = kCol;
 };
 
-// supports 2D transpose which will store to lds, then use ds_read_b*_tr_b* instruction to get the
-// transposed data; Layout in TransposePipelineProblem is the original layout of the data in the
-// global memory
+// supports 2D transpose which will store to lds, 
+// then use ds_read_b*_tr_b* instruction to get the transposed data
 template <typename DataType_,
-          typename Layout_,
-          index_t kBlockSize_,
-          index_t kRowWarps_,    // how many warps in row direction
-          index_t kColWarps_,    // how many warps in col direction
-          index_t kRowPerBlock_, // row number per block
-          index_t kColPerBlock_, // col number per block
-          index_t kRowPerXdl_,   // row number per xdl ops
-          index_t kColPerXdl_>   // col number per xdl ops
+          typename BlockTile, // sequence<block_x, block_y>
+          typename WarpTile>  // sequence<warp_x, warp_y>
 struct BatchedTransposeLdsProblem
 {
-    static_assert(kRowWarps_ * kColWarps_ * get_warp_size() == kBlockSize_,
-                  "the block size is not correct!");
+    static constexpr index_t kRowWarps_ = 1;
+    static constexpr index_t kColWarps_ = 1;
+    static constexpr index_t kBlockSize_ = get_warp_size() * kRowWarps_ * kColWarps_;
+    static constexpr index_t kRowPerBlock_ = BlockTile::at(number<1>{});
+    static constexpr index_t kColPerBlock_ = BlockTile::at(number<0>{});
+    // TODO: name mismatch
+    static constexpr index_t kRowPerXdl_ = WarpTile::at(number<1>{});
+    static constexpr index_t kColPerXdl_ = WarpTile::at(number<0>{});
+
     using DataType                      = remove_cvref_t<DataType_>;
-    using Layout                        = remove_cvref_t<Layout_>;
+    using Layout                        = tensor_layout::gemm::RowMajor;
     static constexpr index_t kBlockSize = kBlockSize_;
     // warps per block
     static constexpr index_t kLeadNumWarps =
