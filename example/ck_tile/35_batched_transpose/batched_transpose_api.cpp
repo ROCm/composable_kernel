@@ -3,7 +3,12 @@
 #include "batched_transpose_example.hpp"
 
 namespace {
-struct kernel_traits_v0
+
+template <int32_t id>
+struct kernel_traits;
+
+template <>
+struct kernel_traits<0>
 {
     template <typename ts_type,
               typename block_tile,
@@ -25,12 +30,13 @@ struct kernel_traits_v0
         Policy>;
 };
 
-struct kernel_traits_v1
+template <>
+struct kernel_traits<1>
 {
     template <typename ts_type, typename block_tile, typename warp_tile>
     using Problem = ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile, warp_tile>;
     using Policy  = ck_tile::BatchedTransposeLdsPolicy;
-    template <typename ts_type, typename block_tile, typename warp_tile>
+    template <typename ts_type, typename block_tile, typename warp_tile, typename, bool, bool>
     using Pipeline =
         ck_tile::BatchedTransposeLdsPipeline<Problem<ts_type, block_tile, warp_tile>, Policy>;
 };
@@ -44,7 +50,8 @@ template <typename ts_type,
           ck_tile::index_t thread_x,
           ck_tile::index_t thread_y,
           bool kPadM,
-          bool kPadN>
+          bool kPadN,
+          ck_tile::index_t pipeline_id = 1>
 float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_config& s)
 {
     uint32_t dim_stride = a.height * a.width;
@@ -53,16 +60,14 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     a.dim_block_h = block_y;
     a.dim_block_w = block_x;
 
-    using block_tile = ck_tile::sequence<block_x, block_y>;
-    using warp_tile  = ck_tile::sequence<warp_x, warp_y>;
-#if 0    
+    using block_tile  = ck_tile::sequence<block_x, block_y>;
+    using warp_tile   = ck_tile::sequence<warp_x, warp_y>;
     using thread_tile = ck_tile::sequence<thread_x, thread_y>;
 
-    using kernel = ck_tile::BatchedTransposeKernel<typename kernel_traits_v0::Pipeline<ts_type, block_tile, warp_tile, thread_tile, kPadM, kPadN>>;
-#else
-    using kernel = ck_tile::BatchedTransposeKernel<
-        typename kernel_traits_v1::Pipeline<ts_type, block_tile, warp_tile>>;
-#endif
+    // TODO: this is fragile and slow to compile
+    using kernel = ck_tile::BatchedTransposeKernel<typename kernel_traits<
+        pipeline_id>::template Pipeline<ts_type, block_tile, warp_tile, thread_tile, kPadM, kPadN>>;
+
     auto kargs = kernel::MakeKargs(a);
 
     const dim3 grids      = kernel::GridSize(a);

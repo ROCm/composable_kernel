@@ -166,7 +166,9 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     x_dev.ToDevice(x_host.data());
 
-    auto trait = batched_transpose_trait{prec, layout_in};
+    std::string pipeline = "0";
+
+    auto trait = batched_transpose_trait{prec, layout_in, pipeline};
 
     uint32_t height = nchw2nhwc ? C : H * W;
     uint32_t width  = nchw2nhwc ? H * W : C;
