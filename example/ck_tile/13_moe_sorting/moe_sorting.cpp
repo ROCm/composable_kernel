@@ -149,7 +149,8 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     ck_tile::HostTensor<IndexType> sorted_ids_host({max_output_ids}, {1});
     ck_tile::HostTensor<WeightType> sorted_weights_host({max_output_ids}, {1});
     ck_tile::HostTensor<IndexType> sorted_expert_ids_host({max_output_ids / unit_size}, {1});
-    ck_tile::HostTensor<IndexType> sorted_id_cnt_host({1}, {1});
+    // for simplicity, below buffer allocate 2 dword
+    ck_tile::HostTensor<IndexType> sorted_id_cnt_host({2}, {1});
     ck_tile::HostTensor<float> moe_buf_host({moe_buf_size});
 
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(weights_host);
@@ -340,6 +341,17 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                                       std::string("OUT Error: Incorrect eid!"),
                                       1e-6,
                                       1e-6);
+            if(is_local_token)
+            {
+                bool _f = local_tokens == sorted_id_cnt_host.mData[1];
+                rtn &= _f;
+                if(!_f)
+                {
+                    printf("not equal local_token buffer pad %d(%d)\n",
+                           local_tokens,
+                           sorted_id_cnt_host.mData[1]);
+                }
+            }
         }
         else
         {

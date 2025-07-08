@@ -171,7 +171,7 @@ struct MoeSortingHostArgs
     void* p_sorted_token_ids;
     void* p_sorted_weights;
     void* p_sorted_expert_ids;
-    void* p_total_tokens_post_pad;
+    void* p_total_tokens_post_pad; // p_local_tokens!=nullptr? [2]:[1] for simplicity, suggest alloc 2
     // we fused the setzero of output of fused-moe buffer
     // set this pointer to nullptr will skip this operation
     void* p_moe_buf;
@@ -864,6 +864,10 @@ struct MoeSortingKernel
                 if((lid + i_e_ - get_warp_size()) == (num_experts - 1))
                 {
                     *p_total_tokens_post_pad = local_cumsum_;
+                    if constexpr(Problem::LocalToken)
+                    {
+                        p_total_tokens_post_pad[1] = tokens;
+                    }
                 }
             }
             __syncthreads();
@@ -1309,6 +1313,62 @@ CK_TILE_HOST index_t moe_sorting_get_workspace_size(int tokens_, int num_experts
 #endif
 }
 
+#if 0
+template <typename Problem_>
+struct MoeSortingClearWorkspaceKernel
+{
+    static constexpr index_t BLOCK_SIZE = 1024;
+    static constexpr index_t OCCUPANCY  = 1; // hard coded
+
+    using Hargs = MoeSortingHostArgs;
+
+    struct Kargs
+    {
+        const void* p_local_tokens; // [1], if not nullptr, use this as actual tokens
+        void* p_expert_mesh;        // [expert, tokens]
+        index_t tokens; // if p_local_tokens is not nullptr, this indicate the max possible tokens
+                        // used for ws/LDS calculation
+        index_t mesh_stride; // mesh_stride for p_expert_mesh
+    };
+
+    CK_TILE_HOST static constexpr auto get_num_cu()
+    {
+        index_t num_cu = [&]() {
+            hipDeviceProp_t dev_prop;
+            hipDevice_t dev;
+            HIP_CHECK_ERROR(hipGetDevice(&dev));
+            HIP_CHECK_ERROR(hipGetDeviceProperties(&dev_prop, dev));
+            return dev_prop.multiProcessorCount;
+        }();
+        return num_cu;
+    }
+
+    CK_TILE_HOST static constexpr auto MakeKargs(const Hargs& h)
+    {
+        Kargs k;
+        k.p_topk_ids     = h.p_topk_ids;
+        k.p_local_tokens = h.p_local_tokens;
+        k.p_expert_mesh  = h.p_ws;
+        k.tokens         = h.tokens;
+        k.mesh_stride    = impl::moe_sorting_mp_mesh_stride(h.tokens);
+        k.topk_mdiv      = mdiv{static_cast<uint32_t>(h.topk)};
+        return k;
+    }
+
+    CK_TILE_HOST static constexpr auto GridSize(const Hargs&) { return get_num_cu() * OCCUPANCY; }
+
+    CK_TILE_HOST static constexpr auto BlockSize(const Hargs&) { return dim3(BLOCK_SIZE); }
+
+    // in byte
+    CK_TILE_HOST static constexpr auto GetSmemSize() { return 0; }
+
+    CK_TILE_DEVICE void operator()(Kargs kargs) const
+    {
+        for(auto i = 0; i < )
+    }
+};
+#endif
+
 // below kernel is multi-phase implementation for large token and/or expert case
 
 // write into a buffer to record the token cnt
@@ -1436,6 +1496,16 @@ struct MoeSortingMultiPhaseKernel_P0
             else
                 return tokens;
         }();
+        index_t mesh_stride = [&]() {
+            if constexpr(Problem::LocalToken)
+            {
+                return impl::moe_sorting_mp_mesh_stride(tokens);
+            }
+            else
+            {
+                return kargs.mesh_stride;
+            }
+        }();
         index_t total_elem = rounded_tokens * kargs.topk_mdiv.divisor / Problem::SubTokenTile;
 
 #pragma unroll Problem::SubTokenTile
@@ -1450,12 +1520,11 @@ struct MoeSortingMultiPhaseKernel_P0
                 if constexpr(Problem::LocalToken)
                 {
                     if(static_cast<index_t>(curr_token_id) < tokens)
-                        p_expert_mesh[eid * kargs.mesh_stride + curr_token_id] =
+                        p_expert_mesh[eid * mesh_stride + curr_token_id] =
                             (curr_topk_id + 1) & 0xffff;
                 }
                 else
-                    p_expert_mesh[eid * kargs.mesh_stride + curr_token_id] =
-                        (curr_topk_id + 1) & 0xffff;
+                    p_expert_mesh[eid * mesh_stride + curr_token_id] = (curr_topk_id + 1) & 0xffff;
             });
         }
     }
@@ -1514,12 +1583,9 @@ struct MoeSortingMultiPhaseKernel_P1
     {
         __shared__ char smem[GetSmemSize()];
 
-        int eid = blockIdx.x;
-
+        int eid                      = blockIdx.x;
         constexpr index_t index_pack = Problem::SubTokenTile;              // always packed
         using r_t                    = ext_vector_t<MeshType, index_pack>; // always use int32x4
-        r_t* p_expert_mesh           = reinterpret_cast<r_t*>(
-            reinterpret_cast<MeshType*>(kargs.p_expert_mesh) + eid * kargs.mesh_stride);
 
         const IndexType* p_local_expert_mask =
             static_cast<const IndexType*>(kargs.p_local_expert_mask);
@@ -1527,18 +1593,32 @@ struct MoeSortingMultiPhaseKernel_P1
 
         auto f_sum = [](auto x_, auto y_) { return x_ + y_; };
 
-        int loops = [&]() {
+        index_t tokens = [&]() {
             if constexpr(Problem::LocalToken)
             {
-                const auto tokens = reinterpret_cast<const index_t*>(kargs.p_local_tokens)[0];
-                const auto local_mesh_stride = impl::moe_sorting_mp_mesh_stride(tokens);
-                return (local_mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                return reinterpret_cast<const index_t*>(kargs.p_local_tokens)[0];
             }
             else
             {
-                return (kargs.mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                return 0; // will not use if not LocalToken
             }
         }();
+
+        index_t mesh_stride = [&]() {
+            if constexpr(Problem::LocalToken)
+            {
+                return impl::moe_sorting_mp_mesh_stride(tokens);
+            }
+            else
+            {
+                return kargs.mesh_stride;
+            }
+        }();
+
+        r_t* p_expert_mesh = reinterpret_cast<r_t*>(
+            reinterpret_cast<MeshType*>(kargs.p_expert_mesh) + eid * mesh_stride);
+
+        int loops = (mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
         if constexpr(Problem::LocalExpertMasking)
         {
@@ -1552,7 +1632,7 @@ struct MoeSortingMultiPhaseKernel_P1
         {
             int position = i * BLOCK_SIZE + threadIdx.x;
             r_t v{0};
-            if(position < (kargs.mesh_stride / index_pack))
+            if(position < (mesh_stride / index_pack))
                 v = p_expert_mesh[position];
             index_t local_sum = 0;
             static_for<0, index_pack, 1>{}(
@@ -2310,6 +2390,17 @@ struct MoeSortingMultiPhaseKernel_P23
             return;
         }
 
+        index_t tokens = [&]() {
+            if constexpr(Problem::LocalToken)
+            {
+                return reinterpret_cast<const index_t*>(kargs.p_local_tokens)[0];
+            }
+            else
+            {
+                return kargs.tokens;
+            }
+        }();
+
         extern __shared__ char smem[];
         {
             IndexType* s = reinterpret_cast<IndexType*>(smem);
@@ -2442,13 +2533,18 @@ struct MoeSortingMultiPhaseKernel_P23
             {
                 auto total_tokens_post_pad = prev_cumsum_a * kargs.unit_size_mdiv.divisor;
                 if(blockIdx.x == 0)
+                {
                     p_total_tokens_post_pad[0] = total_tokens_post_pad;
+                    if constexpr(Problem::LocalToken)
+                    {
+                        p_total_tokens_post_pad[1] = tokens;
+                    }
+                }
                 p_expert_cumsum_smem[kargs.num_experts] = total_tokens_post_pad;
             }
         }
 
         __syncthreads();
-
         {
             const IndexType* p_local_expert_mask =
                 static_cast<const IndexType*>(kargs.p_local_expert_mask);
@@ -2477,14 +2573,14 @@ struct MoeSortingMultiPhaseKernel_P23
                     return; // skip empty expert
             }
 
-            index_t tokens = [&]() {
+            index_t mesh_stride = [&]() {
                 if constexpr(Problem::LocalToken)
                 {
-                    return reinterpret_cast<const index_t*>(kargs.p_local_tokens)[0];
+                    return impl::moe_sorting_mp_mesh_stride(tokens);
                 }
                 else
                 {
-                    return kargs.tokens;
+                    return kargs.mesh_stride;
                 }
             }();
 
@@ -2492,19 +2588,7 @@ struct MoeSortingMultiPhaseKernel_P23
             constexpr index_t index_pack = Problem::SubTokenTile;              // always packed
             using r_t                    = ext_vector_t<MeshType, index_pack>; // always use int32x4
             using d_t                    = ext_vector_t<index_t, index_pack>;
-            int loops                    = [&]() {
-                if constexpr(Problem::LocalToken)
-                {
-                    // const auto tokens = reinterpret_cast<const
-                    // index_t*>(kargs.p_local_tokens)[0];
-                    const auto local_mesh_stride = impl::moe_sorting_mp_mesh_stride(tokens);
-                    return (local_mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
-                }
-                else
-                {
-                    return (kargs.mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
-                }
-            }();
+            int loops                    = (mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
             int prev_cumsum = 0;
 
@@ -2514,8 +2598,7 @@ struct MoeSortingMultiPhaseKernel_P23
                 r_t x_v          = 0;
                 if(i_token_pack < (tokens + index_pack - 1) / index_pack)
                 {
-                    x_v = reinterpret_cast<r_t*>(p_expert_mesh +
-                                                 eid * kargs.mesh_stride)[i_token_pack];
+                    x_v = reinterpret_cast<r_t*>(p_expert_mesh + eid * mesh_stride)[i_token_pack];
                 }
 
                 r_t x_r;
