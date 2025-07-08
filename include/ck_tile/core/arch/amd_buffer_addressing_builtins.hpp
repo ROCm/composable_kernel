@@ -13,6 +13,7 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 
 using as3_uint32_ptr = uint32_t __attribute__((address_space(3)))*;
 
@@ -1598,7 +1599,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     {
         llvm_amdgcn_raw_buffer_load_lds(
             src_wave_buffer_resource,
-            reinterpret_cast<as3_uint32_ptr t*>(reinterpret_cast<uintptr_t>(smem)),
+            reinterpret_cast<as3_uint32_ptr>(reinterpret_cast<uintptr_t>(smem)),
             bytes,
             src_thread_addr_offset,
             src_wave_addr_offset,
