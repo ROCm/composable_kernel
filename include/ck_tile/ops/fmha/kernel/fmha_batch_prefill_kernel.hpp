@@ -709,7 +709,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         long_index_t batch_offset_lse     = 0;
         long_index_t batch_offset_o       = 0;
 
-        const int32_t num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
+        // const int32_t num_page_blocks = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
+        kargs.seqlen_k = kargs.kv_indptr[i_batch + 1] - kargs.kv_indptr[i_batch];
 #if 0 // we assume page_block_size=1 for now
         const int32_t last_page_len   = kargs.kv_last_page_lens[i_batch];
 #endif
@@ -719,7 +720,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
 
             batch_offset_q = query_start * kargs.stride_q;
-
 
             if constexpr(kIsSglangLayout)
             {
@@ -762,11 +762,12 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                 }
             }
 
-#if 0 // we assume page_block_size=1 for now
-            kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
-#else
-            kargs.seqlen_k = num_page_blocks;
-#endif
+            // #if 0 // we assume page_block_size=1 for now
+            //             kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size +
+            //             last_page_len;
+            // #else
+            //             kargs.seqlen_k = num_page_blocks;
+            // #endif
         }
         else
         {
@@ -789,11 +790,12 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
 
-#if 0 // we assume page_block_size=1 for now
-            kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size + last_page_len;
-#else
-            kargs.seqlen_k = num_page_blocks;
-#endif
+            // #if 0 // we assume page_block_size=1 for now
+            //             kargs.seqlen_k = (num_page_blocks - 1) * kargs.page_block_size +
+            //             last_page_len;
+            // #else
+            //             kargs.seqlen_k = num_page_blocks;
+            // #endif
         }
 
         // for simplicity, batch stride we just modify the pointer
@@ -861,10 +863,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
                 const auto v_dram_transposed = transform_tensor_view(
                     v_dram_naive,
-                    make_tuple(
-                        make_pass_through_transform(kargs.hdim_v),
-                        // make_pass_through_transform(kargs.num_total_pages * kargs.page_block_size)),
-                        make_pass_through_transform(kargs.num_total_pages)),
+                    make_tuple(make_pass_through_transform(kargs.hdim_v),
+                               // make_pass_through_transform(kargs.num_total_pages *
+                               // kargs.page_block_size)),
+                               make_pass_through_transform(kargs.num_total_pages)),
                     make_tuple(sequence<1>{}, sequence<0>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
