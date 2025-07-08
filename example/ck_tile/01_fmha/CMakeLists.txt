@@ -1,7 +1,7 @@
 # validate user-specified fmha_fwd API list
 set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill")
 set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
-    "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
+  "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
 if(FMHA_FWD_ENABLE_APIS STREQUAL "all")
   set(FMHA_FWD_ENABLE_APIS ${FMHA_FWD_KNOWN_APIS})
 endif()
@@ -17,11 +17,30 @@ if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
 endif()
 
+file(GLOB_RECURSE CODE_GEN_SCRIPTS CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  ${CMAKE_CURRENT_LIST_DIR}/codegen/*.py
+)
+# re-run execute_process `generate.py --list_blobs` if any of the codegen scripts change
+set_directory_properties(PROPERTIES CMAKE_CONFIGURE_DEPENDS "${CODE_GEN_SCRIPTS}")
+
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
+set(FMHA_FWD_CODE_GEN_COMMON_ARGS
+  ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --api ${FMHA_FWD_APIS}
+  # --filter fmha_fwd...
+)
+set(FMHA_BWD_CODE_GEN_COMMON_ARGS
+  ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --api bwd
+  --receipt 3
+  # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
+)
+
 # generate a list of kernels, but not actually emit files at config sta
 execute_process(
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FMHA_FWD_APIS} --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_FWD_CODE_GEN_COMMON_ARGS}
+  --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
@@ -29,8 +48,8 @@ if(ret AND NOT ret EQUAL 0)
 endif()
 
 execute_process(
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api bwd --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt --receipt 3
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_BWD_CODE_GEN_COMMON_ARGS}
+  --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
@@ -44,14 +63,16 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt FMHA_BWD_GEN_BLOBS)
 
 add_custom_command(
   OUTPUT ${FMHA_FWD_GEN_BLOBS}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FMHA_FWD_APIS} --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_FWD_CODE_GEN_COMMON_ARGS}
+  --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${CODE_GEN_SCRIPTS}
 )
 
 add_custom_command(
   OUTPUT ${FMHA_BWD_GEN_BLOBS}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api bwd --output_dir ${CMAKE_CURRENT_BINARY_DIR} --receipt 3
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_BWD_CODE_GEN_COMMON_ARGS}
+  --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${CODE_GEN_SCRIPTS}
 )
 
 set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
@@ -73,7 +94,7 @@ target_sources(${EXAMPLE_FMHA_BWD} PRIVATE ${FMHA_BWD_GEN_BLOBS})
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this
 if(NOT DEFINED FMHA_FWD_FAST_EXP2)
-    set(FMHA_FWD_FAST_EXP2 true)
+  set(FMHA_FWD_FAST_EXP2 true)
 endif()
 
 set(EXAMPLE_FMHA_FWD_COMPILE_OPTIONS)
@@ -82,9 +103,9 @@ set(EXAMPLE_FMHA_BWD_COMPILE_OPTIONS)
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 #       ... because they are auto-generated
 if(FMHA_FWD_FAST_EXP2)
-	list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=1 -fgpu-flush-denormals-to-zero)
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=1 -fgpu-flush-denormals-to-zero)
 else()
-	list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
 endif()
 list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-undefined-func-template -fgpu-flush-denormals-to-zero)
 
