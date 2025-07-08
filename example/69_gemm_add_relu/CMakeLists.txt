@@ -1,9 +1,7 @@
 add_custom_target(example_gemm_add_relu_xdl)
 
-add_library(example_gemm_add_relu_xdl_fp16 gemm_add_relu_xdl_fp16.cpp)
 add_example_executable(example_gemm_add_relu_xdl_fp16 gemm_add_relu_xdl_fp16.cpp)
 
-add_library(example_gemm_add_relu_xdl_bf16 gemm_add_relu_xdl_bf16.cpp)
 add_example_executable(example_gemm_add_relu_xdl_bf16 gemm_add_relu_xdl_bf16.cpp)
 
 
@@ -12,8 +10,6 @@ add_example_executable(example_gemm_add_relu_wmma_bf16 gemm_add_relu_wmma_bf16.c
 
 add_example_executable(example_gemm_add_relu_wmma_fp16 gemm_add_relu_wmma_fp16.cpp)
 
-add_example_executable(example_gemm_add_relu_wmma_v3_fp16 gemm_add_relu_wmma_v3_fp16.cpp)
-add_example_executable(example_gemm_add_relu_wmma_v3_bf16 gemm_add_relu_wmma_v3_bf16.cpp)
 
 
 

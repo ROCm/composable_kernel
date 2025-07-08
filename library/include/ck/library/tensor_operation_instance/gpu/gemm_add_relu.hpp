@@ -45,30 +45,30 @@ void add_device_gemm_add_relu_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instan
 
 #elif defined(CK_USE_WMMA)
 void add_device_gemm_add_relu_wmma_c_shuffle_f16_f16_f16_f16_mk_kn_mn_mn_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
-                                                    Row,
-                                                    Row_Tuple,
-                                                    Row,
-                                                    F16,
-                                                    F16,
-                                                    F16_Tuple,
-                                                    F16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    AddRelu>>>&);
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Row,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          F16_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddRelu>>>&);
 
 void add_device_gemm_add_relu_wmma_c_shuffle_bf16_bf16_bf16_bf16_mk_kn_mn_mn_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
-                                                    Row,
-                                                    Row_Tuple,
-                                                    Row,
-                                                    BF16,
-                                                    BF16,
-                                                    BF16_Tuple,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    AddRelu>>>&);
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Row,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          BF16,
+                                                          BF16,
+                                                          BF16_Tuple,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddRelu>>>&);
 #endif
 
 // GEMM + Add + Relu
@@ -137,7 +137,7 @@ struct DeviceOperationInstanceFactory<
 #endif
 
 #elif defined(CK_USE_WMMA)
-        // For wmma ADataType must be same as BDatatype.
+
 #if defined(CK_ENABLE_FP16)
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
@@ -151,7 +151,6 @@ struct DeviceOperationInstanceFactory<
         }
 #endif
 
-// For wmma ADataType must be same as BDatatype.
 #if defined(CK_ENABLE_BF16)
         if constexpr(is_same_v<ADataType, ck::bhalf_t> && is_same_v<BDataType, ck::bhalf_t> &&
                      is_same_v<D0DataType, ck::bhalf_t> && is_same_v<EDataType, ck::bhalf_t>)

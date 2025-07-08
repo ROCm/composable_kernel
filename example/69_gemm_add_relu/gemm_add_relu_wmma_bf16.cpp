@@ -73,6 +73,6 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Wmma_
 
 // clang-format on
 
-#include "run_gemm_add_relu_example_v3.inc"
+#include "run_gemm_add_relu_example.inc"
 
 int main(int argc, char* argv[]) { return !run_gemm_add_relu_example(argc, argv); }
