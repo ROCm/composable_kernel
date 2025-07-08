@@ -9,7 +9,8 @@ namespace ck_tile {
 
 struct BatchedTransposeLdsPolicy
 {
-    static constexpr auto TileAccessPattern = tile_distribution_pattern::thread_raked;
+    CK_TILE_DEVICE static constexpr auto TileAccessPattern =
+        tile_distribution_pattern::thread_raked;
 
     template <typename Problem>
     CK_TILE_DEVICE static constexpr index_t GetSmemSize()
