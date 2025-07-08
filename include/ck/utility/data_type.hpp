@@ -67,25 +67,40 @@ struct f6_pk_t
 {
     using element_type = uint32_t; // element storage fundamental type
 
-    static constexpr index_t packed_size       = pk_size;
-    static constexpr index_t num_bits_elem     = 6;
-    static constexpr index_t num_bits_vec_elem = sizeof(element_type) * CHAR_BIT;
+    static constexpr index_t packed_size   = pk_size; // 16 or 32 for now
+    static constexpr index_t num_bits_elem = 6;       // specialized for 6-bit data
+    // XXX: CHAR_BIT is not defined in HIPRTC, so we must use 8
+    static constexpr index_t num_bits_vec_elem =
+        sizeof(element_type) * 8; // 32-bit uint for storage
     static_assert((packed_size * num_bits_elem) % num_bits_vec_elem == 0,
                   "Packed elements must fit exactly into the element storage.");
-    static constexpr index_t vector_size = (packed_size * num_bits_elem) / num_bits_vec_elem;
+    static constexpr index_t vector_size =
+        (packed_size * num_bits_elem) / num_bits_vec_elem; // 3 or 6 element_type units
 
-    using storage_type = StaticallyIndexedArray_v2<element_type, vector_size>;
-    storage_type data; // packed data
+    using storage_type = element_type __attribute__((ext_vector_type(vector_size)));
+    storage_type data_{storage_type(0)}; // packed data
 
     using type = f6_pk_t<BitType, packed_size>;
 
-    __host__ __device__ constexpr f6_pk_t() : data{} {}
-    __host__ __device__ constexpr f6_pk_t(storage_type init) : data{init} {}
+    __host__ __device__ constexpr f6_pk_t() {}
+    __host__ __device__ constexpr f6_pk_t(const storage_type& init) : data_{init}
+    {
+        // TODO: consider removing initialization similar to vector_type<T, 256>
+    }
+
+    // Initialize from a vector type with the same size as packed_size
     template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == packed_size>>
-    __host__ __device__ f6_pk_t(const T& v) : data{}
+    __host__ __device__ f6_pk_t(const T& v)
     {
         static_for<0, packed_size, 1>{}(
             [&](auto i) { pack(v[static_cast<index_t>(i)], static_cast<index_t>(i)); });
+    }
+
+    // Broadcast single initialization value to all packed elements
+    __host__ __device__ f6_pk_t(const int8_t v)
+        : f6_pk_t(static_cast<int8_t __attribute__((ext_vector_type(packed_size)))>(v))
+    {
+        // TODO: consider removing initialization similar to vector_type<T, 256>
     }
 
     template <typename T>
@@ -99,18 +114,18 @@ struct f6_pk_t
         const int arr_index  = bit_pos / num_bits_vec_elem;
         const int bit_offset = bit_pos % num_bits_vec_elem;
         const int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
-        uint32_t old_value   = data.data_[arr_index];
+        uint32_t old_value   = data_[arr_index];
 
         // insert bits into the current 32-bit block
         old_value |= (bits << bit_offset);
-        data.data_[arr_index] = old_value;
+        data_[arr_index] = old_value;
 
         // if it crosses into the next block, shift the remainder
         if(overhang > 0 && (arr_index + 1) < vector_size)
         {
-            uint32_t next_value = data.data_[arr_index + 1];
+            uint32_t next_value = data_[arr_index + 1];
             next_value |= (bits >> (num_bits_elem - overhang));
-            data.data_[arr_index + 1] = next_value;
+            data_[arr_index + 1] = next_value;
         }
     }
 
@@ -121,17 +136,33 @@ struct f6_pk_t
         const int bit_offset = bit_pos % num_bits_vec_elem;
         const int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
 
-        uint32_t bits = pk.data.data_[arr_idx] >> bit_offset;
+        uint32_t bits = pk.data_[arr_idx] >> bit_offset;
         if(overhang > 0 && (arr_idx + 1) < vector_size)
         {
-            bits |= (pk.data.data_[arr_idx + 1] & ((1u << overhang) - 1))
-                    << (num_bits_elem - overhang);
+            bits |= (pk.data_[arr_idx + 1] & ((1u << overhang) - 1)) << (num_bits_elem - overhang);
         }
 
         return static_cast<BitType>(bits & 0x3F);
     }
 
     __host__ __device__ inline BitType unpack(const index_t i) const { return unpack(*this, i); }
+
+    // Compare operator
+    __host__ __device__ friend bool operator==(const f6_pk_t& lhs, const f6_pk_t& rhs)
+    {
+#pragma unroll
+        for(index_t i = 0; i < vector_size; ++i)
+        {
+            if(lhs.data_[i] != rhs.data_[i])
+                return false;
+        }
+        return true;
+    }
+
+    __host__ __device__ friend bool operator!=(const f6_pk_t& lhs, const f6_pk_t& rhs)
+    {
+        return !(lhs == rhs);
+    }
 };
 
 using f6x16_pk_t  = f6_pk_t<f6_t, 16>;
@@ -293,6 +324,34 @@ template <>
 struct scalar_type<f4x2_pk_t>
 {
     using type                           = f4x2_pk_t::type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<f6x32_pk_t>
+{
+    using type                           = f6x32_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bf6x32_pk_t>
+{
+    using type                           = bf6x32_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<f6x16_pk_t>
+{
+    using type                           = f6x16_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bf6x16_pk_t>
+{
+    using type                           = bf6x16_pk_t::storage_type;
     static constexpr index_t vector_size = 1;
 };
 

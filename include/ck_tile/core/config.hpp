@@ -269,3 +269,9 @@
 #define CK_TILE_WAVE32_ENABLED
 #endif
 #endif
+
+// Y pointed to R, we don't see a valuable use case.
+// Will enforce encoding to check Y not pointed to R if set to zero
+#ifndef CK_TILE_ENC_SUPPORT_Y_TO_R
+#define CK_TILE_ENC_SUPPORT_Y_TO_R 0
+#endif

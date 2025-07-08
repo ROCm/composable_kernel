@@ -355,7 +355,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<AccDataType>(nhead);
-        assert(slopes.size() == nhead);
+        assert(slopes.size() == static_cast<decltype(slopes.size())>(nhead));
         if(bias.rank_info == 0)
         {
             // alibi in 1*h

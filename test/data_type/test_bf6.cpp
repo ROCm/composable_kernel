@@ -228,8 +228,8 @@ TEST(BF6, ScaledConvertFP32Stochastic)
 TEST(BF6, TestSize)
 {
     ASSERT_EQ(1, sizeof(bf6_t));
-    ASSERT_EQ(12, sizeof(bf6x16_pk_t));
-    ASSERT_EQ(24, sizeof(bf6x32_pk_t));
+    ASSERT_EQ(16, sizeof(bf6x16_pk_t));
+    ASSERT_EQ(32, sizeof(bf6x32_pk_t));
     ASSERT_EQ(16, sizeof(vector_type<bf6x16_pk_t, 1>));
     ASSERT_EQ(32, sizeof(vector_type<bf6x16_pk_t, 2>));
     ASSERT_EQ(32, sizeof(vector_type<bf6x32_pk_t, 1>));
@@ -238,8 +238,8 @@ TEST(BF6, TestSize)
 TEST(BF6, TestAlignment)
 {
     ASSERT_EQ(1, alignof(bf6_t));
-    ASSERT_EQ(4, alignof(bf6x16_pk_t));
-    ASSERT_EQ(4, alignof(bf6x32_pk_t));
+    ASSERT_EQ(16, alignof(bf6x16_pk_t));
+    ASSERT_EQ(32, alignof(bf6x32_pk_t));
     ASSERT_EQ(16, alignof(vector_type<bf6x16_pk_t, 1>));
     ASSERT_EQ(32, alignof(vector_type<bf6x16_pk_t, 2>));
     ASSERT_EQ(32, alignof(vector_type<bf6x32_pk_t, 1>));
