@@ -1406,19 +1406,20 @@ pipeline {
                         expression { params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
-                    environment{
-                        execute_args = params.NINJA_FTIME_TRACE ? 
-                            """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                -D CMAKE_CXX_COMPILER="${build_compiler()}" \
-                                -D CMAKE_BUILD_TYPE=Release \
-                                -D CMAKE_CXX_FLAGS=" -O3 -ftime-trace" .. && ninja -j64 """ :
-                            """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                -D CMAKE_CXX_COMPILER="${build_compiler()}" \
-                                -D CMAKE_BUILD_TYPE=Release \
-                                -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
-                    }
                     steps{
-                        buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        script {
+                            def execute_args = params.NINJA_FTIME_TRACE ? 
+                                """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                    -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                    -D CMAKE_BUILD_TYPE=Release \
+                                    -D CMAKE_CXX_FLAGS=" -O3 -ftime-trace" .. && ninja -j64 """ :
+                                """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                    -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                    -D CMAKE_BUILD_TYPE=Release \
+                                    -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
+                            
+                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        }
                         cleanWs()
                     }
                 }
