@@ -54,6 +54,8 @@ namespace device {
  *
  * Conditions for achieving computational load balancing on different hardware platforms can vary.
  *
+ * \tparam KPerBlock is the number of elements in K dimension that each block processes (multiply with packed_size_v to get the actual KPerBlock)
+ *
  * Serialized version of the algorithm:
  * \code
  * // E = A * B + C
@@ -117,7 +119,7 @@ template <typename ALayout,
           index_t BlockSize,      // Thread block size
           index_t MPerBlock,
           index_t NPerBlock,
-          index_t KPerBlock,
+          index_t KPerBlock, // multiply with packed_size_v to get the actual KPerBlock
           index_t AK1,
           index_t BK1,
           index_t MPerXDL,
