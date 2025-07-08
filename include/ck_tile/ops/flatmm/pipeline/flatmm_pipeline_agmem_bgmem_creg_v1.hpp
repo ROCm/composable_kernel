@@ -579,8 +579,8 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         auto a_lds_block_pong =
             make_tensor_view<address_space_enum::lds>(p_a_lds_pong, a_lds_block_desc);
 
-// A DRAM tile window for load
-#ifndef FINEGRADE_LOADSTORE
+        // A DRAM tile window for load
+
         auto a_copy_dram_window =
             make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
                              make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
@@ -598,45 +598,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                              make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
                              {0, 0},
                              PipelinePolicy::template MakeADramTileDistribution<Problem>());
-#else
-        auto a_copy_dram_window_tmp =
-            make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<AcopyPerLoadM>{}, number<kKPerBlock>{}),
-                             a_dram_block_window_tmp.get_window_origin(),
-                             PipelinePolicy::template MakeADramDistribution<Problem>());
-
-        statically_indexed_array<decltype(a_copy_dram_window_tmp), ACopyLoadNum> a_copy_dram_window;
-        static_for<0, ACopyLoadNum, 1>{}([&](auto AIter) {
-            a_copy_dram_window(AIter) = a_copy_dram_window_tmp;
-            move_tile_window(a_copy_dram_window(AIter), {AIter * AcopyPerLoadM, 0});
-        });
-
-        auto a_copy_lds_window_ping_tmp =
-            make_tile_window(a_lds_block_ping,
-                             make_tuple(number<AcopyPerLoadM>{}, number<kKPerBlock>{}),
-                             {0, 0},
-                             PipelinePolicy::template MakeADramDistribution<Problem>());
-
-        statically_indexed_array<decltype(a_copy_lds_window_ping_tmp), ACopyLoadNum>
-            a_copy_lds_window_ping;
-        static_for<0, ACopyLoadNum, 1>{}([&](auto AIter) {
-            a_copy_lds_window_ping(AIter) = a_copy_lds_window_ping_tmp;
-            move_tile_window(a_copy_lds_window_ping(AIter), {AIter * AcopyPerLoadM, 0});
-        });
-
-        auto a_copy_lds_window_pong_tmp =
-            make_tile_window(a_lds_block_pong,
-                             make_tuple(number<AcopyPerLoadM>{}, number<kKPerBlock>{}),
-                             {0, 0},
-                             PipelinePolicy::template MakeADramDistribution<Problem>());
-
-        statically_indexed_array<decltype(a_copy_lds_window_pong_tmp), ACopyLoadNum>
-            a_copy_lds_window_pong;
-        static_for<0, ACopyLoadNum, 1>{}([&](auto AIter) {
-            a_copy_lds_window_pong(AIter) = a_copy_lds_window_pong_tmp;
-            move_tile_window(a_copy_lds_window_pong(AIter), {AIter * AcopyPerLoadM, 0});
-        });
-#endif
 
         // A LDS tile for block GEMM
         // auto a_lds_gemm_window = make_tile_window(
@@ -714,19 +675,11 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             NIterPerWarp>
             b_warp_tensor_pong;
 
-// Prefetch A0
-#ifndef FINEGRADE_LOADSTORE
+        // Prefetch A0
+
         auto a_block_tile = load_tile(a_copy_dram_window);
         // move A window to next k
         move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-#else
-        statically_indexed_array<decltype(load_tile(a_copy_dram_window(number<0>{}))), ACopyLoadNum>
-            a_block_tile;
-        static_for<0, ACopyLoadNum, 1>{}([&](auto AIter) {
-            a_block_tile(AIter) = load_tile(a_copy_dram_window(AIter));
-            move_tile_window(a_copy_dram_window(AIter), {0, kKPerBlock});
-        });
-#endif
 
         // prefetch B
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -742,41 +695,31 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         // move B window to next flat K
         move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
-// Prefill A0
-// if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
-// {
-//     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-//         PipelinePolicy::template MakeShuffledARegBlockDistribution<Problem>());
-//     shuffle_tile(a_shuffle_tmp, a_block_tile);
-//     const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
-//     store_tile(a_copy_lds_window_ping, a_block_tile_tmp);
-// }
-// else
-// {
-//     store_tile(a_copy_lds_window_ping, tile_elementwise_in(a_element_func, a_block_tile));
-// }
-#ifndef FINEGRADE_LOADSTORE
+        // Prefill A0
+        // if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>)
+        // {
+        //     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+        //         PipelinePolicy::template MakeShuffledARegBlockDistribution<Problem>());
+        //     shuffle_tile(a_shuffle_tmp, a_block_tile);
+        //     const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_shuffle_tmp);
+        //     store_tile(a_copy_lds_window_ping, a_block_tile_tmp);
+        // }
+        // else
+        // {
+        //     store_tile(a_copy_lds_window_ping, tile_elementwise_in(a_element_func,
+        //     a_block_tile));
+        // }
+
         auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
         store_tile(a_copy_lds_window_ping, a_block_tile_tmp);
-#else
-        static_for<0, ACopyLoadNum, 1>{}([&](auto AIter) {
-            store_tile(a_copy_lds_window_ping(AIter),
-                       tile_elementwise_in(a_element_func, a_block_tile(AIter)));
-        });
-#endif
+
         __builtin_amdgcn_sched_barrier(0);
 
-// Prefetch A1
-#ifndef FINEGRADE_LOADSTORE
+        // Prefetch A1
+
         a_block_tile = load_tile(a_copy_dram_window);
         // move A window to next k
         move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-#else
-        static_for<0, ACopyLoadNum, 1>{}([&](auto AIter) {
-            a_block_tile(AIter) = load_tile(a_copy_dram_window(AIter));
-            move_tile_window(a_copy_dram_window(AIter), {0, kKPerBlock});
-        });
-#endif
 
         // initialize C
         tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -818,7 +761,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         // {
         while(iCounter > 0)
         {
-#ifndef FINEGRADE_LOADSTORE
+
             // prefetch B(2i+1)
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -839,7 +782,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             a_block_tile = load_tile(a_copy_dram_window);
             // move A window to next k
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-#endif
 
             // GEMM 2i
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -863,46 +805,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                             merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                             c_warp_tensor.get_thread_buffer());
-
-#ifdef FINEGRADE_LOADSTORE
-                        // prefetch B(2i+1)
-                        constexpr auto curMNIter = mIter * NIterPerWarp + nIter;
-                        if constexpr((curMNIter < NIterPerWarp * BloadGap) &&
-                                     ((curMNIter % BloadGap) == 1))
-                        {
-                            constexpr auto BnIter                         = curMNIter / BloadGap;
-                            constexpr auto BkIter                         = kIter;
-                            b_flat_dram_windows(number<BnIter>{})(BkIter) = b_flat_dram_window;
-                            move_tile_window(
-                                b_flat_dram_windows(number<BnIter>{})(BkIter),
-                                {BnIter * NFlatPerBlockPerIter, BkIter * KFlatPerBlockPerIter});
-                            b_warp_tensor_pong(number<BnIter>{})(BkIter) =
-                                load_tile(b_flat_dram_windows(number<BnIter>{})(BkIter));
-                        }
-                        // Prefill A(2i+1)
-                        if constexpr((mIter >= (MIterPerWarp - 1 - ACopyLoadNumPerK)) &&
-                                     (mIter < (MIterPerWarp - 1)) && ((nIter % NIterPerWarp) == 0))
-                        {
-                            constexpr auto AIter =
-                                (mIter + ACopyLoadNumPerK + 1 + kIter * ACopyLoadNumPerK) %
-                                ACopyLoadNum;
-                            store_tile(
-                                a_copy_lds_window_pong(number<AIter>{}),
-                                tile_elementwise_in(a_element_func, a_block_tile(number<AIter>{})));
-                        }
-                        // Prefetch A(2i+2)
-                        if constexpr((mIter >= (MIterPerWarp - 1 - ACopyLoadNumPerK + 1)) &&
-                                     (mIter < (MIterPerWarp - 1 + 1)) &&
-                                     ((nIter % NIterPerWarp) == (NIterPerWarp - 2)))
-                        {
-                            constexpr auto AIter =
-                                (mIter + ACopyLoadNumPerK + kIter * ACopyLoadNumPerK) %
-                                ACopyLoadNum;
-                            a_block_tile(number<AIter>{}) =
-                                load_tile(a_copy_dram_window(number<AIter>{}));
-                            move_tile_window(a_copy_dram_window(number<AIter>{}), {0, kKPerBlock});
-                        }
-#endif
                         __builtin_amdgcn_sched_barrier(0x7F6);
                     });
                     // preload next A from lds
@@ -937,7 +839,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
             // Next K
 
-#ifndef FINEGRADE_LOADSTORE
             // prefetch B(2i+2)
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -958,7 +859,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             a_block_tile = load_tile(a_copy_dram_window);
             // move A window to next k
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-#endif
 
             // GEMM 2i+1
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -982,7 +882,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                             c_warp_tensor.get_thread_buffer());
 
-#ifdef FINEGRADE_LOADSTORE
                         // prefetch B(2i+2)
                         constexpr auto curMNIter = mIter * NIterPerWarp + nIter;
                         if constexpr((curMNIter < NIterPerWarp * BloadGap) &&
@@ -1020,7 +919,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                                 load_tile(a_copy_dram_window(number<AIter>{}));
                             move_tile_window(a_copy_dram_window(number<AIter>{}), {0, kKPerBlock});
                         }
-#endif
                         __builtin_amdgcn_sched_barrier(0x7F6);
                     });
                     // preload next A from lds
@@ -1059,8 +957,8 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         // tail
         if constexpr(TailNum == TailNumber::Even)
         {
-// __builtin_amdgcn_sched_barrier(0);
-#ifndef FINEGRADE_LOADSTORE
+            // __builtin_amdgcn_sched_barrier(0);
+
             // prefetch B(loopK)
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -1076,7 +974,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             // Prefill A(loopK)
             a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window_pong, a_block_tile_tmp);
-#endif
 
             // GEMM loopK-1
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -1101,33 +998,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                             c_warp_tensor.get_thread_buffer());
 
-#ifdef FINEGRADE_LOADSTORE
-                        // prefetch B(loopK)
-                        constexpr auto curMNIter = mIter * NIterPerWarp + nIter;
-                        if constexpr((curMNIter < NIterPerWarp * BloadGap) &&
-                                     ((curMNIter % BloadGap) == 1))
-                        {
-                            constexpr auto BnIter                         = curMNIter / BloadGap;
-                            constexpr auto BkIter                         = kIter;
-                            b_flat_dram_windows(number<BnIter>{})(BkIter) = b_flat_dram_window;
-                            move_tile_window(
-                                b_flat_dram_windows(number<BnIter>{})(BkIter),
-                                {BnIter * NFlatPerBlockPerIter, BkIter * KFlatPerBlockPerIter});
-                            b_warp_tensor_pong(number<BnIter>{})(BkIter) =
-                                load_tile(b_flat_dram_windows(number<BnIter>{})(BkIter));
-                        }
-                        // Prefill A(loopK)
-                        if constexpr((mIter >= (MIterPerWarp - 1 - ACopyLoadNumPerK)) &&
-                                     (mIter < (MIterPerWarp - 1)) && ((nIter % NIterPerWarp) == 0))
-                        {
-                            constexpr auto AIter =
-                                (mIter + ACopyLoadNumPerK + 1 + kIter * ACopyLoadNumPerK) %
-                                ACopyLoadNum;
-                            store_tile(
-                                a_copy_lds_window_pong(number<AIter>{}),
-                                tile_elementwise_in(a_element_func, a_block_tile(number<AIter>{})));
-                        }
-#endif
                         __builtin_amdgcn_sched_barrier(0x7F6);
                     });
                     // preload next A from lds
@@ -1224,33 +1094,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                             c_warp_tensor.get_thread_buffer());
 
-#ifdef FINEGRADE_LOADSTORE
-                        // prefetch B(loopK)
-                        constexpr auto curMNIter = mIter * NIterPerWarp + nIter;
-                        if constexpr((curMNIter < NIterPerWarp * BloadGap) &&
-                                     ((curMNIter % BloadGap) == 1))
-                        {
-                            constexpr auto BnIter                         = curMNIter / BloadGap;
-                            constexpr auto BkIter                         = kIter;
-                            b_flat_dram_windows(number<BnIter>{})(BkIter) = b_flat_dram_window;
-                            move_tile_window(
-                                b_flat_dram_windows(number<BnIter>{})(BkIter),
-                                {BnIter * NFlatPerBlockPerIter, BkIter * KFlatPerBlockPerIter});
-                            b_warp_tensor_pong(number<BnIter>{})(BkIter) =
-                                load_tile(b_flat_dram_windows(number<BnIter>{})(BkIter));
-                        }
-                        // Prefill A(loopK)
-                        if constexpr((mIter >= (MIterPerWarp - 1 - ACopyLoadNumPerK)) &&
-                                     (mIter < (MIterPerWarp - 1)) && ((nIter % NIterPerWarp) == 0))
-                        {
-                            constexpr auto AIter =
-                                (mIter + ACopyLoadNumPerK + 1 + kIter * ACopyLoadNumPerK) %
-                                ACopyLoadNum;
-                            store_tile(
-                                a_copy_lds_window_pong(number<AIter>{}),
-                                tile_elementwise_in(a_element_func, a_block_tile(number<AIter>{})));
-                        }
-#endif
                         __builtin_amdgcn_sched_barrier(0x7F6);
                     });
                     // preload next A from lds
