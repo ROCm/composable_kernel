@@ -535,17 +535,17 @@ def plot_performance(fixed_split_k_tflops, best_occupancy_split_k_tflops, gemm_m
     
     perf = (best_occupancy_split_k_tflops / fixed_split_k_tflops) * 100.0
 
-    x_values = np.log(gemm_k_arr) 
-    y_values = np.log(gemm_m_arr * gemm_n_arr)
+    x_values = np.log10(gemm_k_arr) 
+    y_values = np.log10(gemm_m_arr * gemm_n_arr)
 
     # Heat map with axis gemm_m * gemm_n and gemm_k
     scatter = plt.scatter(x_values, y_values, 
                 c=perf,
-                cmap='coolwarm',
+                cmap='bwr',
                 edgecolor='black',
                 alpha=0.7,
                 s=40,  # Size of the points
-                norm=plt.Normalize(vmin=50, vmax=150))  # Normalize colors: blue (<100%), red (>100%)
+                norm=plt.Normalize(vmin=0, vmax=200))  # Normalize colors: blue (<100%), red (>100%)
     
     title = op_name if op_name else 'Performance of Best Occupancy Split-K vs Fixed Split-K'
     title_size = 14 if op_name else 16
@@ -566,11 +566,11 @@ def plot_performance(fixed_split_k_tflops, best_occupancy_split_k_tflops, gemm_m
     plt.figure(figsize=(12, 8))
     scatter = plt.scatter(x_values, y_values,
                 c=perf,
-                cmap='coolwarm',
+                cmap='bwr',
                 edgecolor='black',
                 alpha=0.7,
                 s=40,  # Size of the points
-                norm=plt.Normalize(vmin=50, vmax=150))  # Normalize colors: blue (<100%), red (>100%)
+                norm=plt.Normalize(vmin=0, vmax=200))  # Normalize colors: blue (<100%), red (>100%)
     plt.colorbar(label='Performance (%)')
     plt.title(title, fontsize=title_size)
     plt.xlabel('log(K)', fontsize=14)
@@ -578,58 +578,142 @@ def plot_performance(fixed_split_k_tflops, best_occupancy_split_k_tflops, gemm_m
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
 
+    fp16_ridge_point = np.log10(1307.4 / 5.3)
+    fp32_ridge_point = np.log10(653.7 / 5.3) 
+    plt.axhline(y=fp16_ridge_point, color='green', linestyle='--', label='FP16/BF16 Ridge Point')
+    plt.axhline(y=fp32_ridge_point, color='black', linestyle='--', label='FP32 Ridge Point')
+
     file_name = os.path.join(output_dir, f'performance_heatmap_k_ai{suffix}.png')
     plt.savefig(file_name, dpi=150)
     print(f"Saved performance heatmap to: {file_name}")
 
-
-def main():
-    args = parse_cli_args()
-
-    csv.register_dialect('PipeDialect', delimiter=';')
-    with open(args.csv_file) as csvfile:
-        data = [row for row in csv.reader(csvfile, 'PipeDialect')]
-
-    df = pd.DataFrame(data = data)
-
-    print(f"Loaded {len(df)} rows.")
-    print(df.head())
-
-    if args.old_format:
-        fixed_split_k_ops = df[0]
-        fixed_split_k_times = df[1]
-        fixed_split_k_values = df[2]
-        best_occupancy_split_k_ops = df[3]
-        best_occupancy_split_k_times = df[4]
-        best_occupancy_split_k_values = df[5]
-    else:
-        valid_mask1 = df[10] == "SplitKStrategy::FixedSplitK"
-        valid_mask2 = df[16] == "SplitKStrategy::BestOccupancy"
-        valid_mask = valid_mask1 & valid_mask2
-
-        gemm_m = df[0][valid_mask]
-        gemm_n = df[1][valid_mask]
-        gemm_k = df[2][valid_mask]
-        arithmetic_intensity = df[3][valid_mask]
-        data_type = df[4][valid_mask]
-
-        fixed_split_k_ops = df[5][valid_mask]
-        fixed_split_k_times = df[6][valid_mask]
-        fixed_split_k_tflops = df[7][valid_mask]
-        fixed_split_k_values = df[8][valid_mask]
-        # 9 - rank
-        # 10 - strategy
+def plot_split_k_value_comparison(fixed_split_k_values, best_occupancy_split_k_values, gemm_k, arithmetic_intensity, output_dir, suffix, op_name):
+    """Plot the comparison of fixed split-k values vs best occupancy split-k values."""
+    plt.figure(figsize=(12, 8))
     
-        best_occupancy_split_k_ops = df[11][valid_mask]
-        best_occupancy_split_k_times = df[12][valid_mask]
-        best_occupancy_split_k_tflops = df[13][valid_mask]
-        best_occupancy_split_k_values = df[14][valid_mask]
-        # 15 - rank
-        # 16 - strategy
-        # 17 - total number of candidate ops.
+    # Convert to float for plotting
+    fixed_split_k_values = fixed_split_k_values.astype(float).values
+    best_occupancy_split_k_values = best_occupancy_split_k_values.astype(float).values
+    gemm_k_arr = gemm_k.astype(float).values
+    ai_arr = arithmetic_intensity.astype(float).values
+    
+    ratio = (fixed_split_k_values / best_occupancy_split_k_values)
 
-    suffix = f"_{args.label}" if args.label else ""
+    x_values = np.log(gemm_k_arr) 
+    y_values = np.log(ai_arr)
 
+    # Heat map with axis gemm_k and arithmetic intensity
+    scatter = plt.scatter(x_values, y_values, 
+                c=ratio,
+                cmap='viridis',
+                edgecolor='black',
+                alpha=0.7,
+                s=40,  # Size of the points
+                norm=plt.Normalize(vmin=0.0, vmax=2.0))
+
+    fp16_ridge_point = np.log10(1307.4 / 5.3)
+    fp32_ridge_point = np.log10(653.7 / 5.3) 
+    plt.axhline(y=fp16_ridge_point, color='green', linestyle='--', label='FP16/BF16 Ridge Point')
+    plt.axhline(y=fp32_ridge_point, color='black', linestyle='--', label='FP32 Ridge Point')
+    
+    title = op_name if op_name else 'Comparison of Fixed Split-K vs Best Occupancy Split-K'
+    title_size = 14 if op_name else 16
+
+    plt.colorbar(label='best fixed split-K / best occupancy split-K')
+    plt.title(title, fontsize=title_size)
+    plt.xlabel('log(K)', fontsize=14)
+    plt.ylabel('log(Arithmetic Intensity)', fontsize=14)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+
+    file_name = os.path.join(output_dir, f'split_k_value_comparison{suffix}.png')
+    plt.savefig(file_name, dpi=150)
+    print(f"Saved split-k value comparison heatmap to: {file_name}")
+
+def get_convolution_shapes(profiler_commands):
+    """Extract convolution shapes from profiler commands."""
+    G, N, K, C, Y, X, Ho, Wo = [], [], [], [], [], [], [], []
+    
+    for command in profiler_commands:
+        parts = command.split()
+        g = int(parts[9])
+        n = int(parts[10])
+        k = int(parts[11])
+        c = int(parts[12])
+        y = int(parts[13])
+        x = int(parts[13])
+        hi = int(parts[14])
+        wi = int(parts[15])
+        sy = int(parts[16])
+        sx = int(parts[17])
+        dy = int(parts[18])
+        dx = int(parts[19])
+        left_py = int(parts[20])
+        left_px = int(parts[21])
+        right_py = int(parts[22])
+        right_px = int(parts[23])
+
+        effective_y = dy * (y - 1) + 1
+        effective_x = dx * (x - 1) + 1
+        
+        total_pad_y = left_py + right_py
+        total_pad_x = left_px + right_px
+        
+        ho = (hi + total_pad_y - effective_y) // sy + 1
+        wo = (wi + total_pad_x - effective_x) // sx + 1
+     
+        G.append(g)
+        N.append(n)
+        K.append(k)
+        C.append(c)
+        Y.append(y)
+        X.append(x)
+        Ho.append(ho)
+        Wo.append(wo)
+    
+    return G, N, K, C, Y, X, Ho, Wo
+
+def plot_tSNE_performance(G, N, K, C, Y, X, Ho, Wo, fixed_split_k_tflops, best_occupancy_split_k_tflops, output_dir, suffix="", op_name=""):
+    """Plot t-SNE performance of fixed split-k vs best occupancy split-k."""
+    from sklearn.manifold import TSNE
+    
+    # Prepare data for t-SNE
+    data = np.array([G, N, K, C, Y, X, Ho, Wo]).T
+    tsne = TSNE(n_components=2, random_state=42)
+    tsne_results = tsne.fit_transform(data)
+
+    perf = (best_occupancy_split_k_tflops / fixed_split_k_tflops) * 100.0
+
+    plt.figure(figsize=(12, 8))
+    
+    # Scatter plot of t-SNE results
+    scatter = plt.scatter(
+        tsne_results[:, 0], 
+        tsne_results[:, 1], 
+        c=perf, 
+        cmap='bwr', 
+        edgecolor='black', 
+        alpha=0.7,
+        s=30,
+        norm=plt.Normalize(vmin=0, vmax=200))
+    
+    plt.colorbar(scatter, label='Performance (%)')
+    
+    title = op_name if op_name else 't-SNE Performance of Fixed Split-K vs Best Occupancy Split-K'
+    title_size = 14 if op_name else 16
+
+    plt.title(title, fontsize=title_size)
+    plt.xlabel('t-SNE Component 1', fontsize=14)
+    plt.ylabel('t-SNE Component 2', fontsize=14)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    file_name = os.path.join(output_dir, f'tSNE_performance{suffix}.png')
+    plt.savefig(file_name, dpi=150)
+    print(f"Saved t-SNE performance chart to: {file_name}")
+    
+    plt.close()
+
+def get_statistics(fixed_split_k_values, fixed_split_k_times, fixed_split_k_ops, best_occupancy_split_k_values, best_occupancy_split_k_times, best_occupancy_split_k_ops):
     # Find indices where split-k is not in the standard set
     standard_split_k = ['1', '2', '4', '8', '16', '32', '64', '128']
     non_standard_indices = [i for i in range(len(best_occupancy_split_k_values)) 
@@ -685,23 +769,87 @@ def main():
             elif best_occ_split_k_time < tol and fixed_split_k_time < tol:
                 print(f"WARNING: Both optimized and non-optimized times are too small for row {i}, skipping this. Split-K (opt): {best_occ_split_k_value}, Split-K (stardard): {fixed_split_k_value}")
 
+    return perf_change, fixed_split_k_counts, fixed_equal_best_occupancy_counts, best_occupancy_split_k_count, non_standard_indices
+
+def main():
+    args = parse_cli_args()
+
+    csv.register_dialect('PipeDialect', delimiter=';')
+    with open(args.csv_file) as csvfile:
+        data = [row for row in csv.reader(csvfile, 'PipeDialect')]
+
+    df = pd.DataFrame(data = data)
+
+    print(f"Loaded {len(df)} rows.")
+    print(df.head())
+
+    if args.old_format:
+        fixed_split_k_ops = df[0]
+        fixed_split_k_times = df[1]
+        fixed_split_k_values = df[2]
+        best_occupancy_split_k_ops = df[3]
+        best_occupancy_split_k_times = df[4]
+        best_occupancy_split_k_values = df[5]
+    else:
+        # The dataframe may row that that contain only one column. 
+        # These are the shapes where no instance of the solver was applicable.
+        # Separate these into a separate dataframe.
+        non_null_counts = df.count(axis=1)
+        no_applicable_op_found = df[non_null_counts == 1].copy()
+        df = df[non_null_counts > 1].copy()
+
+        valid_mask1 = df[11] == "SplitKStrategy::FixedSplitK"
+        valid_mask2 = df[17] == "SplitKStrategy::BestOccupancy"
+        valid_mask = valid_mask1 & valid_mask2
+
+        profiler_commands = df[0][valid_mask]
+        gemm_m = df[1][valid_mask]
+        gemm_n = df[2][valid_mask]
+        gemm_k = df[3][valid_mask]
+        arithmetic_intensity = df[4][valid_mask]
+        data_type = df[5][valid_mask]
+
+        fixed_split_k_ops = df[6][valid_mask]
+        fixed_split_k_times = df[7][valid_mask]
+        fixed_split_k_tflops = df[8][valid_mask]
+        fixed_split_k_values = df[8][valid_mask]
+        # 10 - rank
+        # 11 - strategy
+    
+        best_occupancy_split_k_ops = df[12][valid_mask]
+        best_occupancy_split_k_times = df[13][valid_mask]
+        best_occupancy_split_k_tflops = df[14][valid_mask]
+        best_occupancy_split_k_values = df[15][valid_mask]
+        # 16 - rank
+        # 17 - strategy
+        # 18 - total number of candidate ops.
+
     op_name = fixed_split_k_ops.iloc[0].split("<")[0]
+    suffix = f"_{args.label}" if args.label else ""
+
+    G, N, K, C, Y, X, Ho, Wo = get_convolution_shapes(profiler_commands)
+    plot_tSNE_performance(G,N,K,C,Y,X,Ho,Wo, fixed_split_k_tflops.astype(float).values, best_occupancy_split_k_tflops.astype(float).values, args.output_dir, suffix, op_name)
+
+    perf_change, fixed_split_k_counts, fixed_equal_best_occupancy_counts, best_occupancy_split_k_count, non_standard_indices = get_statistics(
+        fixed_split_k_values, fixed_split_k_times, fixed_split_k_ops,
+        best_occupancy_split_k_values, best_occupancy_split_k_times, best_occupancy_split_k_ops)
+
     plot_perf(perf_change, args.output_dir, suffix, op_name)
 
     plot_best_split_k_values(
         fixed_split_k_counts, best_occupancy_split_k_count, 
         fixed_equal_best_occupancy_counts, suffix, args)
 
-    # If optimized count is non-zero, show the distribution of optimized values
-    if best_occupancy_split_k_count > 0:
-        non_standard_values = [best_occupancy_split_k_values.iloc[i] for i in non_standard_indices]
-        non_standard_counts = {}
-        for val in non_standard_values:
-            non_standard_counts[val] = non_standard_counts.get(val, 0) + 1
-        
-        plot_split_k_distribution(non_standard_counts, best_occupancy_split_k_count, args, suffix)
+    non_standard_values = [best_occupancy_split_k_values.iloc[i] for i in non_standard_indices]
+    non_standard_counts = {}
+    for val in non_standard_values:
+        non_standard_counts[val] = non_standard_counts.get(val, 0) + 1
+    
+    plot_split_k_distribution(non_standard_counts, best_occupancy_split_k_count, args, suffix)
 
     plot_performance(fixed_split_k_tflops, best_occupancy_split_k_tflops, gemm_m, gemm_n, gemm_k, arithmetic_intensity, args.output_dir, suffix, op_name)
+
+    plot_split_k_value_comparison(fixed_split_k_values, best_occupancy_split_k_values, gemm_k, arithmetic_intensity, args.output_dir, suffix, op_name)
 
 if __name__ == "__main__":
     main()

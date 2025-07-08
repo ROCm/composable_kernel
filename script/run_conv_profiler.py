@@ -51,6 +51,7 @@ def get_profiler_commands(csv_file):
   profiler_commands = []
   with open(csv_file, 'r') as f:
     lines = f.readlines()
+    lines = lines[1:]  # Skip the header line
     lines = list(dict.fromkeys(lines))
     for line in lines:
         line = line.strip()
