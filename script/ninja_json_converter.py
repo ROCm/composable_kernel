@@ -105,7 +105,7 @@ class NinjaLogParser:
             raise ValueError(f"Unsupported ninja log version: {version}")
             
         # Skip additional header line for version 6
-        start_line = 2 if version == 6 else 1
+        start_line = 2 if version > 5 else 1
         
         targets: Dict[str, BuildTarget] = {}
         last_end_time = 0
