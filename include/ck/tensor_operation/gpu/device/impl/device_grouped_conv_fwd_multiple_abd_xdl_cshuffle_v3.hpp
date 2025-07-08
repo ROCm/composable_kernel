@@ -1976,13 +1976,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
 
             const auto num_k_loop = gemm_arg.AK0 / (KPerBlock / AK1);
-            // if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
-            // {
-            if(num_k_loop <= GridwiseGemmSplitK::BlockwiseGemmPipe::PrefetchStages)
+            if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
             {
-                return false;
+                if(num_k_loop <= GridwiseGemmSplitK::BlockwiseGemmPipe::PrefetchStages)
+                {
+                    return false;
+                }
             }
-            // }
         }
 
         return true;
