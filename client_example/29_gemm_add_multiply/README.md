@@ -25,7 +25,7 @@ make -j install
 
 ### Build and Execute
 ```bash
-cd composable_kernel/client_example/15_gemm_add_multiply
+cd composable_kernel/client_example/29_gemm_add_multiply
 mkdir build && cd build
 cmake -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc ..
 make -j
@@ -38,7 +38,7 @@ make -j
 
 ### Directory Layout
 ```
-client_example/15_gemm_add_multiply/
+client_example/29_gemm_add_multiply/
 ├── gemm_add_multiply.cpp         # Main client example: GEMM+Add+Multiply
 ├── CMakeLists.txt                # Build configuration for the example
 ```
@@ -61,7 +61,7 @@ client_example/15_gemm_add_multiply/
 
 ## Related Examples
 
-- [02_gemm_bilinear](../02_gemm_bilinear/README.md): Multi-tensor bilinear operations
+- [02_gemm_bilinear](../../example/02_gemm_bilinear/README.md): Multi-tensor bilinear operations
 - [46_gemm_add_multiply](../../example/46_gemm_add_multiply/README.md): GEMM with add and multiply in the main example directory
 
 ---

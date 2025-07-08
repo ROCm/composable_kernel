@@ -1,4 +1,4 @@
-[Back to supported operations](../../../include/ck/README.md)
+[Back to supported operations](../../include/ck/README.md)
 # Composable Kernel Grouped Convolution
 
 ## Grouped Convolution Backward Weight

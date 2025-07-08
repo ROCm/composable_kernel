@@ -23,7 +23,7 @@ make -j install
 
 ### Build and Execute
 ```bash
-cd composable_kernel/client_example/22_im2col_col2im
+cd composable_kernel/client_example/27_im2col_col2im
 mkdir build && cd build
 cmake -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc ..
 make -j
@@ -39,7 +39,7 @@ make -j
 
 ### Directory Layout
 ```
-client_example/22_im2col_col2im/
+client_example/27_im2col_col2im/
 ├── image_to_column.cpp         # im2col: image to column transformation
 ├── column_to_image.cpp         # col2im: column to image transformation
 ├── CMakeLists.txt              # Build configuration for the example

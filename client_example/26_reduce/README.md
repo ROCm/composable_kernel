@@ -24,7 +24,7 @@ make -j install
 
 ### Build and Execute
 ```bash
-cd composable_kernel/client_example/15_reduce
+cd composable_kernel/client_example/26_reduce
 mkdir build && cd build
 cmake -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc ..
 make -j
@@ -37,7 +37,7 @@ make -j
 
 ### Directory Layout
 ```
-client_example/15_reduce/
+client_example/26_reduce/
 ├── reduce_nhwc_c.cpp         # Main client example: reduction over NHWC tensors (channel axis)
 ├── CMakeLists.txt            # Build configuration for the example
 ```
