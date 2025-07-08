@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/concat.hpp"
-#include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
 
 namespace ck_tile {
 
@@ -31,6 +31,7 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
         return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Empty>{});
     }
 };
+
 template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
 struct FlatmmPipelineAGmemBGmemCRegV1
 {
@@ -55,10 +56,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
-    // static constexpr index_t GetVectorSizeA() { return Problem::VectorSizeA; }
-    // static constexpr index_t GetVectorSizeB() { return Problem::VectorSizeB; }
-    // static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
-
     static constexpr index_t GetVectorSizeA()
     {
         return PipelinePolicy::template GetVectorSizeA<Problem>();
@@ -67,8 +64,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     {
         return PipelinePolicy::template GetVectorSizeB<Problem>();
     }
-    // static constexpr index_t GetVectorSizeC() { return PipelinePolicy::template
-    // GetVectorSizeC<Problem>(); }
 
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
@@ -84,7 +79,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     using BlockTile  = remove_cvref_t<typename BlockGemmShape::BlockTile>;
     using BlockWarps = remove_cvref_t<typename BlockGemmShape::BlockWarps>;
     using WarpTile   = remove_cvref_t<typename BlockGemmShape::WarpTile>;
-    // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
+   
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr index_t Preshuffle    = Problem::Preshuffle;
 
@@ -193,15 +188,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                                         index_t num_loop,
                                         void* p_smem) const
     {
-        // static_assert(
-        //     std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
-        //     "wrong!");
-
-        // static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}],
-        //               "wrong!");
-        // static_assert(kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
-        //               "wrong!");
-
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                 std::is_same_v<BDataType, remove_cvref_t<typename BFlatBlockWindowTmp::DataType>>,
@@ -209,7 +195,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
             "([A|B]DataType) defined in Problem definition!");
 
         constexpr bool is_a_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-        // constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
         static_assert(is_a_col_major
                           ? (kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0] &&

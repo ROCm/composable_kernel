@@ -220,11 +220,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     auto [result, arg_parser] = create_args(argc, argv);
     bool preshuffle           = GemmConfig::Preshuffle;
 
-    // if(preshuffle && std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
-    // {
-    //     throw std::runtime_error("Preshuffle is not supported for this int4 datatype!");
-    // }
-
     if(preshuffle && a_layout != "R" && b_layout != "C")
     {
         throw std::runtime_error(
