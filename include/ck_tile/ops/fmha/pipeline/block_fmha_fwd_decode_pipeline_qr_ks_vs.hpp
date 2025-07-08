@@ -47,11 +47,15 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
+    // static_assert(Problem::kPadSeqLenQ == true && Problem::kPadHeadDimQ == true &&
+    //               Problem::kPadHeadDimV == true);
+
     static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
+    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ; // support multiple of vector(like 8x)
+    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV; // support multiple of vector(like 8x)
+
     static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
@@ -65,19 +69,16 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
-    static constexpr index_t kAlignmentQ =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentQ<Problem>();
-    static constexpr index_t kAlignmentK =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
+    static constexpr index_t kAlignmentQ = Policy::template GetAlignmentQ<Problem>();
+    static constexpr index_t kAlignmentK = Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV = []() {
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            return kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+            return Policy::template GetAlignmentV<Problem>();
         else
             return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
     }();
 
-    static constexpr index_t kAlignmentOacc =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentOacc<Problem>();
+    static constexpr index_t kAlignmentOacc = Policy::template GetAlignmentO<Problem>();
 
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
@@ -349,7 +350,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
-        static_assert(2 <= k0_loops);
+        static_assert(1 <= k0_loops);
         static_assert(1 <= k1_loops);
 
         auto k_dram_window = make_tile_window(
@@ -370,9 +371,6 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
             // STAGE 1, QK gemm
             clear_tile(s_acc); // initialize C
 
-            // load the second tile of the first iteration
-            k_block_tile = load_tile(k_dram_window);
-
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 __builtin_amdgcn_sched_barrier(
@@ -385,9 +383,10 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                     0); // prevent from messing up the order of global loads
             }
 
-            if constexpr(k0_loops > 2)
+            if constexpr(k0_loops > 1)
             {
-                static_for<0, k0_loops - 2, 1>{}([&](auto i_k0) {
+                static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
+                    k_block_tile = load_tile(k_dram_window);                // global read i + 1
                     block_sync_lds();
                     gemm_0(s_acc,
                            get_slice_tile(q_tile,
@@ -400,21 +399,11 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                     store_tile(
                         k_lds_window,
                         tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
-                    k_block_tile = load_tile(k_dram_window);                // global read i + 2
                 });
             }
 
             const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
             {                                                 // tail
-                block_sync_lds();
-                gemm_0(s_acc,
-                       get_slice_tile(q_tile,
-                                      sequence<0, (k0_loops - 2) * kK0>{},
-                                      sequence<kM0, (k0_loops - 1) * kK0>{}),
-                       k_lds_window);
-                block_sync_lds();
-
-                store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
                 block_sync_lds();
 
                 gemm_0(s_acc,

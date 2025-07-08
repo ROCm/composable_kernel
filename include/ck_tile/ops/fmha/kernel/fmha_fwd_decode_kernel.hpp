@@ -20,7 +20,7 @@
 namespace ck_tile {
 
 template <typename FmhaPipeline_, typename EpiloguePipeline_>
-struct FmhaFwdSplitKVKernel
+struct FmhaFwdDecodeKernel
 {
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
     using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
@@ -88,7 +88,7 @@ struct FmhaFwdSplitKVKernel
             if (kPadHeadDimV) n += "dv";
             return n.empty() ? n : std::string("p") + n; }();
         return
-            _SS_("fmha_fwd_splitkv_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
+            _SS_("fmha_fwd_decode_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
             "_" + (kIsGroupMode ? "group" : "batch") + "_"
             "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
                     _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kQKHeaddim) + "_" +
@@ -1071,20 +1071,20 @@ struct FmhaFwdSplitKVKernel
             {
                 return FmhaPipeline{}(q_dram_window,
                                       k_dram_window_lengths,
-                                    //   k_page_block_navigator,
+                                      k_page_block_navigator, // Remove it
                                       v_dram_window_lengths,
-                                    //   v_page_block_navigator,
+                                      v_page_block_navigator, // Remove it
                                       bias_dram_window,
                                       lse_acc_dram_window,
-                                    //   kargs.num_splits,
-                                    //   i_split_,
+                                      kargs.num_splits,       // Remove it
+                                      i_split_,               // Remove it
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
-                                      variant,
-                                      variant_params,
-                                      block_indices,
-                                    //   kv_l2p_offset,
+                                      variant,                // Remove it
+                                      variant_params,         // Remove it
+                                      block_indices,          // Remove it
+                                      kv_l2p_offset,          // Remove it
                                       smem_ptr);
             }
         }();

@@ -3,7 +3,7 @@
 # generate kernel instances to speed up compilation
 
 FWD_DTYPE_MAP = {
-    # "fp16"   : "FmhaFwdFp16",
+    "fp16"   : "FmhaFwdFp16",
     "bf16"   : "FmhaFwdBf16",
     # "fp8"    : "FmhaFwdFp8",
     # "fp8fp16": "FmhaFwdFp8Fp16",
@@ -22,7 +22,7 @@ MASK_IMPL = {
 
 _MASK_SIMPLIFIED_MAP = {
     "s_no" : "ck_tile::SimplifiedGenericAttentionMask<false>",
-    "s_mask" : "ck_tile::SimplifiedGenericAttentionMask<true>",
+    # "s_mask" : "ck_tile::SimplifiedGenericAttentionMask<true>",
 }
 
 _MASK_MAP = {
@@ -62,8 +62,8 @@ def get_mask_check_map(mask : str):
 
 BIAS_MAP = {
     "no" : "ck_tile::BlockAttentionBiasEnum::NO_BIAS",
-    "bias"  : "ck_tile::BlockAttentionBiasEnum::ELEMENTWISE_BIAS",
-    "alibi" : "ck_tile::BlockAttentionBiasEnum::ALIBI"
+    # "bias"  : "ck_tile::BlockAttentionBiasEnum::ELEMENTWISE_BIAS",
+    # "alibi" : "ck_tile::BlockAttentionBiasEnum::ALIBI"
 }
 
 # TODO: this is ugly
