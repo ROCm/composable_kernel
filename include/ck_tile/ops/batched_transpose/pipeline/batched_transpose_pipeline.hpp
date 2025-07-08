@@ -12,8 +12,8 @@ template <typename Problem_, typename Policy_ = BatchedTransposePolicy>
 struct BatchedTransposePipeline
 {
     // TODO: this kernel only support warp per row
-    using Problem   = ck_tile::remove_cvref_t<Problem_>;
-    using Policy    = ck_tile::remove_cvref_t<Policy_>;
+    using Problem = ck_tile::remove_cvref_t<Problem_>;
+    using Policy  = ck_tile::remove_cvref_t<Policy_>;
 
     template <typename InputWindow, typename OutputWindow>
     CK_TILE_DEVICE auto operator()(const InputWindow& input_window, OutputWindow& out_window)

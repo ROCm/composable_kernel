@@ -21,16 +21,16 @@ struct TransposeTraits<tensor_layout::gemm::ColumnMajor, kRow, kCol>
     static constexpr index_t kSecondDim = kCol;
 };
 
-// supports 2D transpose which will store to lds, 
+// supports 2D transpose which will store to lds,
 // then use ds_read_b*_tr_b* instruction to get the transposed data
 template <typename DataType_,
           typename BlockTile, // sequence<block_x, block_y>
           typename WarpTile>  // sequence<warp_x, warp_y>
 struct BatchedTransposeLdsProblem
 {
-    static constexpr index_t kRowWarps_ = 1;
-    static constexpr index_t kColWarps_ = 1;
-    static constexpr index_t kBlockSize_ = get_warp_size() * kRowWarps_ * kColWarps_;
+    static constexpr index_t kRowWarps_    = 1;
+    static constexpr index_t kColWarps_    = 1;
+    static constexpr index_t kBlockSize_   = get_warp_size() * kRowWarps_ * kColWarps_;
     static constexpr index_t kRowPerBlock_ = BlockTile::at(number<1>{});
     static constexpr index_t kColPerBlock_ = BlockTile::at(number<0>{});
     // TODO: name mismatch
@@ -50,7 +50,7 @@ struct BatchedTransposeLdsProblem
         TransposeTraits<Layout, kRowPerBlock_, kColPerBlock_>::kLeadDim;
     static constexpr index_t kSecondSizePerBlock =
         TransposeTraits<Layout, kRowPerBlock_, kColPerBlock_>::kSecondDim;
-        
+
     static constexpr index_t kLeadSizePerXdl =
         TransposeTraits<Layout, kRowPerXdl_, kColPerXdl_>::kLeadDim;
     static constexpr index_t kSecondSizePerXdl =
@@ -88,16 +88,16 @@ struct BatchedTransposeLdsProblem
         kQuadNumPerLeadDim * kQuadNumPerSecondDim * 16 / get_warp_size();
 
     // definitions to adapt to BatchedTransposeKernel
-    using InputType                  = DataType;
+    using InputType = DataType;
 
-    static constexpr bool kPadM      = false;
-    static constexpr bool kPadN      = false;
-    
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+
     static constexpr auto kMPerBlock = kLeadSizePerBlock;
     static constexpr auto kNPerBlock = kSecondSizePerBlock;
 
-    static constexpr auto VectorSizeInput = kPadM ? 1 : 16 / sizeof(InputType);
+    static constexpr auto VectorSizeInput  = kPadM ? 1 : 16 / sizeof(InputType);
     static constexpr auto VectorSizeOutput = kPadN ? 1 : 16 / sizeof(InputType);
 };
 
-}
+} // namespace ck_tile

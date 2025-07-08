@@ -2,6 +2,40 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 #include "batched_transpose_example.hpp"
 
+namespace {
+struct kernel_traits_v0
+{
+    template <typename ts_type,
+              typename block_tile,
+              typename warp_tile,
+              typename thread_tile,
+              bool kPadM,
+              bool kPadN>
+    using Problem =
+        ck_tile::BatchedTransposeProblem<ts_type, block_tile, warp_tile, thread_tile, kPadM, kPadN>;
+    using Policy = ck_tile::BatchedTransposePolicy;
+    template <typename ts_type,
+              typename block_tile,
+              typename warp_tile,
+              typename thread_tile,
+              bool kPadM,
+              bool kPadN>
+    using Pipeline = ck_tile::BatchedTransposePipeline<
+        Problem<ts_type, block_tile, warp_tile, thread_tile, kPadM, kPadN>,
+        Policy>;
+};
+
+struct kernel_traits_v1
+{
+    template <typename ts_type, typename block_tile, typename warp_tile>
+    using Problem = ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile, warp_tile>;
+    using Policy  = ck_tile::BatchedTransposeLdsPolicy;
+    template <typename ts_type, typename block_tile, typename warp_tile>
+    using Pipeline =
+        ck_tile::BatchedTransposeLdsPipeline<Problem<ts_type, block_tile, warp_tile>, Policy>;
+};
+} // namespace
+
 template <typename ts_type,
           ck_tile::index_t block_x,
           ck_tile::index_t block_y,
@@ -19,24 +53,15 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
     a.dim_block_h = block_y;
     a.dim_block_w = block_x;
 
-    using block_tile  = ck_tile::sequence<block_x, block_y>;
-    using warp_tile   = ck_tile::sequence<warp_x, warp_y>;
+    using block_tile = ck_tile::sequence<block_x, block_y>;
+    using warp_tile  = ck_tile::sequence<warp_x, warp_y>;
 #if 0    
     using thread_tile = ck_tile::sequence<thread_x, thread_y>;
 
-    using ts_problem =
-        ck_tile::BatchedTransposeProblem<ts_type, block_tile, warp_tile, thread_tile, kPadM, kPadN>;
-    using ts_pipeline = ck_tile::BatchedTransposePipeline<ts_problem>;
-
-    using kernel = ck_tile::BatchedTransposeKernel<ts_pipeline>;
+    using kernel = ck_tile::BatchedTransposeKernel<typename kernel_traits_v0::Pipeline<ts_type, block_tile, warp_tile, thread_tile, kPadM, kPadN>>;
 #else
-    using Problem = ck_tile::BatchedTransposeLdsProblem<
-        ts_type,
-        block_tile,
-        warp_tile>; 
-    using Policy = ck_tile::BatchedTransposeLdsPolicy;
-    using Pipeline = ck_tile::BatchedTransposeLdsPipeline<Problem, Policy>;
-    using kernel = ck_tile::BatchedTransposeKernel<Pipeline>;
+    using kernel = ck_tile::BatchedTransposeKernel<
+        typename kernel_traits_v1::Pipeline<ts_type, block_tile, warp_tile>>;
 #endif
     auto kargs = kernel::MakeKargs(a);
 
