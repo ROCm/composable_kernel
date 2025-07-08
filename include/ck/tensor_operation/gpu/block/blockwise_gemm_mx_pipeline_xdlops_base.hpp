@@ -66,9 +66,12 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr index_t AMmaKStride = KPack;
     static constexpr index_t BMmaKStride = KPack;
 
-    //> store rows/cols into thread registers in chunks of 16
-    //> e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
-    static constexpr index_t KThreadChunk = 16 / sizeof(ComputeTypeA);
+    // store rows/cols into thread registers in chunks of 16 for FP8
+    // e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
+    // or in chunks of 32 / APackedSize for FP6/FP4
+    static constexpr index_t KThreadChunk = (APackedSize == 1) ? 16 : 32 / APackedSize;
+
+    static_assert(APackedSize == BPackedSize, "APackedSize must be equal to BPackedSize for now");
 
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
