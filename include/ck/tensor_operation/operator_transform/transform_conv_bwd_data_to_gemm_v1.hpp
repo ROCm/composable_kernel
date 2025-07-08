@@ -896,9 +896,6 @@ struct TransformConvBwdDataToGemm_v1
                                 bool>::type = false>
     __host__ __device__ auto MakeBDescriptor_BK0_N_BK1() const
     {
-        // assume packed
-        // k_y_x_c for 2d or k_z_y_x_c for 3d
-        const auto wei_grid_desc = MakeWeiGridDesc();
 
         if constexpr(ConvBwdDataSpecialization ==
                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
@@ -927,8 +924,12 @@ struct TransformConvBwdDataToGemm_v1
         }
         else
         {
+            // assume packed
+            // k_y_x_c for 2d or k_z_y_x_c for 3d
             static_assert(is_same_v<BLayout_, tensor_layout::convolution::GKYXC> ||
                           is_same_v<BLayout_, tensor_layout::convolution::GKZYXC>);
+            const auto wei_grid_desc = MakeWeiGridDesc();
+
             // GemmK is different for each GEMM
             const auto ZDotSlice = math::integer_divide_ceil(Z_ - IdxZTilde_, ZTilde_);
             const auto YDotSlice = math::integer_divide_ceil(Y_ - IdxYTilde_, YTilde_);
