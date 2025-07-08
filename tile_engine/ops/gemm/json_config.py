@@ -138,10 +138,10 @@ class GemmConfig:
                 c_type = "fp16"
 
             layout_parts = layout.lower()
-            assert len(layout_parts) == 3, f"Invalid layout string: {layout} (must be 3 characters like 'rcr')"
-            assert layout_parts[0] in ("r", "c"), f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' or 'c')"
-            assert layout_parts[1] in ("r", "c"), f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' or 'c')"
-            assert layout_parts[2] == "r", f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r')"
+            assert len(layout_parts) == 3, f"Invalid layout string: {layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
+            assert layout_parts[0] in ("r", "c"), f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' for row major or or 'c' for column major)"
+            assert layout_parts[1] in ("r", "c"), f"Invalid matrix_a layout: {layout_parts[1]} (must be 'r' for row major or or 'c' for column major)"
+            assert layout_parts[2] == "r", f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
             a_layout = layout_parts[0]
             b_layout = layout_parts[1]
             c_layout = layout_parts[2]
