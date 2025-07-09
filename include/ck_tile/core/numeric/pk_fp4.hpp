@@ -63,7 +63,7 @@ struct pk_float4_e2m1_t
 
 #if TEST_convert_with_table
     static constexpr float e2m1_to_fp32_table[16] = {
-        0, 0.5, 1, 1.5, 2, 3, 4, 6, 0, -0.5, -1, -1.5, -2, -3, -4, -6};
+        0, 0.5, 1, 1.5, 2, 3, 4, 6, -0, -0.5, -1, -1.5, -2, -3, -4, -6};
     static constexpr fp16_t e2m1_to_fp16_table[16] = {
         bit_cast<fp16_t>(static_cast<uint16_t>(0x0000)), //  0
         bit_cast<fp16_t>(static_cast<uint16_t>(0x3800)), //  0.5
@@ -140,14 +140,6 @@ CK_TILE_HOST_DEVICE pk_fp4_raw_t pk_fp4_t::unpack(number<I>) const
 }
 CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST_DEVICE, pk_fp4_t)
 // TODO: consider replace this macro to improve performance
-// CK_TILE_HOST_DEVICE constexpr bool operator==(const pk_fp4_t& lhs, const pk_fp4_t& rhs)
-// {
-//     return lhs.get() == rhs.get();
-// }
-// CK_TILE_HOST_DEVICE constexpr bool operator!=(const pk_fp4_t& lhs, const pk_fp4_t& rhs)
-// {
-//     return lhs.get() != rhs.get();
-// }
 
 #if CK_TILE_FP4_CVT_DEVICE
 namespace impl {
