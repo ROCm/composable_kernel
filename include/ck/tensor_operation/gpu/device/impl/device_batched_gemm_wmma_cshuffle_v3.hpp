@@ -64,16 +64,16 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
+        static_for<0, GridwiseGemm::NumATensor, 1>{}(
+            [&](auto i) { splitk_batch_offset.a_k_split_offset[i] += a_batch_offset; });
+
+        static_for<0, GridwiseGemm::NumBTensor, 1>{}(
+            [&](auto i) { splitk_batch_offset.b_k_split_offset[i] += b_batch_offset; });
+
+        splitk_batch_offset.c_reduce_offset += c_batch_offset;
+
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-            karg.p_a_grid + splitk_batch_offset.a_k_split_offset + a_batch_offset,
-            karg.p_b_grid + splitk_batch_offset.b_k_split_offset + b_batch_offset,
-            karg.p_ds_grid,
-            karg.p_e_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
-            p_shared,
-            karg,
-            karg.a_element_op,
-            karg.b_element_op,
-            karg.cde_element_op);
+            p_shared, splitk_batch_offset, karg);
 #if defined(__gfx11__)
     }
 #endif
@@ -278,8 +278,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
         BLayout,
         Tuple<>, // DsLayout
         CLayout,
-        ADataType,
-        BDataType,
+        Tuple<ADataType>,
+        Tuple<BDataType>,
         AccDataType,
         CShuffleDataType,
         Tuple<>, // DsDataType
@@ -346,15 +346,15 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                           BElementwiseOperation b_element_op_,
                           CElementwiseOperation cde_element_op_,
                           bool is_reduce_ = false)
-            : GridwiseGemm::Argument(p_a_grid_,
-                                     p_b_grid_,
+            : GridwiseGemm::Argument(std::array<const void*, 1>{p_a_grid_},
+                                     std::array<const void*, 1>{p_b_grid_},
                                      std::array<const void*, 0>{}, // p_ds_grid_
                                      p_c_grid_,
                                      M_,
                                      N_,
                                      K_,
-                                     StrideA_,
-                                     StrideB_,
+                                     std::array<index_t, 1>{StrideA_},
+                                     std::array<index_t, 1>{StrideB_},
                                      std::array<index_t, 0>{}, // StrideDs_
                                      StrideC_,
                                      k_batch_,
@@ -423,26 +423,37 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                 {
                     Argument arg_ = arg;
 
-                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
-                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
-                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
-                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
+                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAsGridDescriptor_AK0_M_AK1(
+                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideAs, arg_.AK0);
+                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBsGridDescriptor_BK0_N_BK1(
+                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideBs, arg_.BK0);
 
                     // Packed sizes are 1 for all implemented data types but we include it anyway
                     // for future compatibility.
-                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
+                    std::array<std::size_t, 1> size_as_buffers;
+                    size_as_buffers[0] = arg_.Batch *
+                                         a_grid_desc_ak0_m_ak1[Number<0>{}].GetElementSpaceSize() *
                                          sizeof(ADataType) / GridwiseGemm::APackedSize;
-                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
+
+                    std::array<std::size_t, 1> size_bs_buffers;
+                    size_bs_buffers[0] = arg_.Batch *
+                                         b_grid_desc_bk0_n_bk1[Number<0>{}].GetElementSpaceSize() *
                                          sizeof(BDataType) / GridwiseGemm::BPackedSize;
+
+                    std::array<std::size_t, GridwiseGemm::NumDTensor> size_ds_buffers;
 
                     // Note: the grid descriptors and size_a / size_b do *not* take batching into
                     // account, so we have to manually multiply overall buffer sizes for rotating
                     // memory by batch.
-                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
-                        arg_,
-                        stream_config.rotating_count,
-                        arg_.Batch * size_a_buffer,
-                        arg_.Batch * size_b_buffer);
+                    ck::utility::RotatingMemWrapperMultiABD<Argument,
+                                                            Tuple<ADataType>,
+                                                            Tuple<BDataType>,
+                                                            Tuple<>>
+                        rotating_mem(arg_,
+                                     stream_config.rotating_count,
+                                     size_as_buffers,
+                                     size_bs_buffers,
+                                     size_ds_buffers);
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
