@@ -122,6 +122,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             {
                 if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     return 1;
+                // use larger K/V LDS buffer size will lower the occupancy
+                else if constexpr(64 <= kK0 || 64 <= kK1)
+                    return 1;
                 else
                     return 2;
             }

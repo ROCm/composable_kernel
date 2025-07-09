@@ -4,11 +4,12 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/host/stream_config.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
+#include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/timer.hpp"
-#include <hip/hip_runtime.h>
 #include <cstddef>
+#include <hip/hip_runtime.h>
 
 namespace ck_tile {
 
@@ -24,7 +25,11 @@ __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
 #endif
     __global__ void kentry(Args... args)
 {
+#if defined(__HIP_DEVICE_COMPILE__)
     Kernel{}(args...);
+#else
+    (..., (ignore = args, 0));
+#endif
 }
 
 //

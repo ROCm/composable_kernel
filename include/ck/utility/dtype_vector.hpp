@@ -1490,7 +1490,7 @@ struct non_native_vector_base<
         }
         else
         {
-            return data_.dTxN; // XXX this should cause an error
+            return err; // XXX this should cause an error
         }
     }
 
