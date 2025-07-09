@@ -10,8 +10,8 @@
 namespace ck_tile {
 
 template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
-struct FlatmmPipelineAGmemBGmemCRegV0 
-: public FlatmmPipelineAGmemBGmemCRegBase<Problem, PipelinePolicy>
+struct FlatmmPipelineAGmemBGmemCRegV0
+    : public FlatmmPipelineAGmemBGmemCRegBase<Problem, PipelinePolicy>
 {
     using Base = FlatmmPipelineAGmemBGmemCRegBase<Problem, PipelinePolicy>;
     using typename Base::ADataType;
@@ -97,7 +97,8 @@ struct FlatmmPipelineAGmemBGmemCRegV0
 
     CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
     {
-        // constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+        // constexpr auto config = BlockFlatmm::BlockPolicy::template
+        // GetWarpGemmMWarpNWarp<Problem>();
 
         // using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
@@ -192,7 +193,8 @@ struct FlatmmPipelineAGmemBGmemCRegV0
         static_assert(kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
-        // constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+        // constexpr auto config = BlockFlatmm::BlockPolicy::template
+        // GetWarpGemmMWarpNWarp<Problem>();
 
         // using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
