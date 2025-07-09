@@ -581,7 +581,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
-    factory = CustomFactory if os.environ.get('CK_TILE_FMHA_FWD_CUSTOM_FACTORY', 0) else KernelComponentFactory
+    factory = CustomFactory if os.environ.get('CK_TILE_FMHA_FWD_CUSTOM_FACTORY', '0') == '1' else KernelComponentFactory
 
     for dtype in FWD_DTYPE_MAP.keys():
         d = factory.get_hdim_tile_size_dict(dtype)
