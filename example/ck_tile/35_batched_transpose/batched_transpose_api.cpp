@@ -23,11 +23,12 @@ struct kernel_traits<0>
 template <>
 struct kernel_traits<1>
 {
-    template <typename ts_type, typename block_tile>
-    using Problem = ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile>;
+    template <typename ts_type, typename block_tile, bool kPadM, bool kPadN>
+    using Problem = ck_tile::BatchedTransposeLdsProblem<ts_type, block_tile, kPadM, kPadN>;
     using Policy  = ck_tile::BatchedTransposeLdsPolicy;
-    template <typename ts_type, typename block_tile, typename, bool, bool>
-    using Pipeline = ck_tile::BatchedTransposeLdsPipeline<Problem<ts_type, block_tile>, Policy>;
+    template <typename ts_type, typename block_tile, typename, bool kPadM, bool kPadN>
+    using Pipeline =
+        ck_tile::BatchedTransposeLdsPipeline<Problem<ts_type, block_tile, kPadM, kPadN>, Policy>;
 };
 } // namespace
 

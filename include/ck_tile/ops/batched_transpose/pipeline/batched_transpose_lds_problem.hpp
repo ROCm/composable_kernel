@@ -10,7 +10,9 @@ namespace ck_tile {
 // supports 2D transpose which will store to lds,
 // then use ds_read_b*_tr_b* instruction to get the transposed data
 template <typename DataType_,
-          typename BlockTile> // sequence<block_x, block_y>
+          typename BlockTile, // sequence<block_x, block_y>
+          bool kPadM_,
+          bool kPadN_>
 struct BatchedTransposeLdsProblem
 {
     static constexpr index_t kRowWarps_    = 1;
@@ -25,13 +27,13 @@ struct BatchedTransposeLdsProblem
     using DataType                      = remove_cvref_t<DataType_>;
     static constexpr index_t kBlockSize = kBlockSize_;
     // warps per block
-    static constexpr index_t kLeadNumWarps = kRowWarps_;
+    static constexpr index_t kLeadNumWarps   = kRowWarps_;
     static constexpr index_t kSecondNumWarps = kColWarps_;
 
-    static constexpr index_t kLeadSizePerBlock = kRowPerBlock_;
+    static constexpr index_t kLeadSizePerBlock   = kRowPerBlock_;
     static constexpr index_t kSecondSizePerBlock = kColPerBlock_;
 
-    static constexpr index_t kLeadSizePerXdl = kRowPerXdl_;
+    static constexpr index_t kLeadSizePerXdl   = kRowPerXdl_;
     static constexpr index_t kSecondSizePerXdl = kColPerXdl_;
 
     static constexpr index_t kQuadrantLeadDim   = LaneGroupTransposeTraits<DataType>::kleadDim;
