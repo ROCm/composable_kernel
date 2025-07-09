@@ -19,317 +19,6 @@ struct UniversalGemmBasePolicy
     static constexpr auto ATileAccessPattern = tile_distribution_pattern::thread_raked;
     static constexpr auto BTileAccessPattern = tile_distribution_pattern::thread_raked;
 
-    /**
-     * @brief Get the maximum global memory vector load size.
-     *
-     * @tparam Problem      The UniversalGemmPipelineProblem object.
-     * @tparam DataType     The tensor data type we're considering.
-     * @tparam MNPerBlock   The MPerBlock or NPerBlock value depending on tensor (A/B).
-     * @tparam XPerTile     The contiguous Tile dimension size.
-     * @return Maximum DRAM vector load size.
-     */
-    template <typename Problem, typename DataType, index_t MNPerBlock, index_t XPerTile>
-    CK_TILE_HOST_DEVICE static constexpr auto GetGlobalVectorLoadSize()
-    {
-        constexpr index_t BlockSize           = Problem::kBlockSize;
-        constexpr index_t KPerBlock           = Problem::BlockGemmShape::kK;
-        constexpr index_t elements_per_thread = MNPerBlock * KPerBlock / BlockSize;
-        constexpr index_t PackedSize =
-            ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
-
-        // Assume DataType is even!
-        if constexpr(XPerTile % (PackedSize * 32 / sizeof(DataType)) == 0 &&
-                     elements_per_thread % (PackedSize * 32 / sizeof(DataType)) == 0 &&
-                     PackedSize == 2)
-        {
-            return (PackedSize * 32 / sizeof(DataType));
-        }
-        else if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
-                          elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
-        {
-            return (PackedSize * 16 / sizeof(DataType));
-        }
-        else if constexpr(XPerTile % (PackedSize * 8 / sizeof(DataType)) == 0 &&
-                          elements_per_thread % (PackedSize * 8 / sizeof(DataType)) == 0)
-        {
-            return (PackedSize * 8 / sizeof(DataType));
-        }
-        else if constexpr(sizeof(DataType) >= PackedSize * 4 &&
-                          XPerTile % (PackedSize * 4 / sizeof(DataType)) == 0 &&
-                          elements_per_thread % (PackedSize * 4 / sizeof(DataType)) == 0)
-        {
-            return (PackedSize * 4 / sizeof(DataType));
-        }
-        else if constexpr(sizeof(DataType) >= PackedSize * 2 &&
-                          XPerTile % (PackedSize * 2 / sizeof(DataType)) == 0 &&
-                          elements_per_thread % (PackedSize * 2 / sizeof(DataType)) == 0)
-        {
-            return (PackedSize * 2 / sizeof(DataType));
-        }
-        else
-        {
-            return PackedSize;
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA()
-    {
-        using ALayout               = remove_cvref_t<typename Problem::ALayout>;
-        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
-        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-
-        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, KPerBlock>();
-        }
-        else
-        {
-            return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, MPerBlock>();
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB()
-    {
-        using BLayout               = remove_cvref_t<typename Problem::BLayout>;
-        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-
-        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, NPerBlock>();
-        }
-        else
-        {
-            return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, KPerBlock>();
-        }
-    }
-
-    /**
-     * @brief Get the vector store size for C tensor.
-     *
-     * @tparam Problem - Gemm pipeline problem class.
-     *
-     * @note The vector store size for output C tensor would depend on multiple factors
-     *       like its data layout and warp gemm C transposition. In general it would
-     *       be the number of consecutive elements in contiguous C dimension hold by
-     *       single thread.
-     *
-     * @return The vector store size for C tensor.
-     */
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
-    {
-        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
-        using WG        = typename BlockGemm::WarpGemm;
-
-        constexpr bool TransposeC = Problem::TransposeC;
-        using CLayout             = typename Problem::CLayout;
-        using CWarpDstr           = typename WG::CWarpDstr;
-
-        // N is contiguous dimension
-        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
-        {
-            if constexpr(TransposeC)
-            {
-                // In this case each thread has multiple consecutive elements in
-                // N dimension, however consecutive threads' elements have stride.
-                constexpr index_t NDimY = CWarpDstr::NDimY;
-                constexpr auto c_warp_y_lengths =
-                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
-                static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
-                              c_warp_y_lengths.get(number<NDimY - 1>{}));
-                return c_warp_y_lengths.get(number<NDimY - 1>{});
-            }
-            else
-            {
-                // In this case each thread has just a single item in Ndim
-                return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
-            }
-        }
-        // M is contiguous dimension
-        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
-        {
-            if constexpr(TransposeC)
-            {
-                // In this case each thread has just a single item in Mdim
-                return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
-            }
-            else
-            {
-                // In this case each thread has multiple consecutive elements in
-                // M dimension, however consecutive threads' elements have stride.
-                constexpr index_t NDimY = CWarpDstr::NDimY;
-                constexpr auto c_warp_y_lengths =
-                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
-                static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
-                              c_warp_y_lengths.get(number<NDimY - 1>{}));
-                return c_warp_y_lengths.get(number<NDimY - 1>{});
-            }
-        }
-        else
-        {
-            static_assert(false, "Unsupported CLayout!");
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
-    {
-        return Problem::TransposeC;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
-    {
-        using ALayout = remove_cvref_t<typename Problem::ALayout>;
-
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
-
-        // Tile: MPerBlock X KPerBlock
-        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          MPerBlock,
-                                                                          KPerBlock,
-                                                                          VecLoadSize,
-                                                                          ATileAccessPattern>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
-        }
-        // Tile: KPerBlock X MPerBlock
-        else
-        {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          KPerBlock,
-                                                                          MPerBlock,
-                                                                          VecLoadSize,
-                                                                          ATileAccessPattern>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
-    {
-        using BLayout = remove_cvref_t<typename Problem::BLayout>;
-
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
-
-        // Tile: KPerBlock X NPerBlock
-        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          KPerBlock,
-                                                                          NPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
-        }
-        // Tile: NPerBlock X KPerBlock
-        else
-        {
-            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          NPerBlock,
-                                                                          KPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern>;
-            return TileEncodingPattern::Make2DStaticTileDistribution();
-        }
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledARegTileDistribution()
-    {
-        using ALayout = remove_cvref_t<typename Problem::ALayout>;
-        static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
-
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      KPerBlock,
-                                                                      MPerBlock,
-                                                                      VecLoadSize,
-                                                                      ATileAccessPattern>;
-        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBRegTileDistribution()
-    {
-        using BLayout = remove_cvref_t<typename Problem::BLayout>;
-        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
-
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      KPerBlock,
-                                                                      NPerBlock,
-                                                                      VecLoadSize,
-                                                                      BTileAccessPattern>;
-        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
-    {
-        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
-        constexpr index_t KPack = BlockGemm::Traits::KPack;
-        return KPack;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
-    {
-        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
-        constexpr index_t KPack = BlockGemm::Traits::KPack;
-        return KPack;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
-    {
-        constexpr auto a_lds_desc     = Derived::template MakeALdsBlockDescriptor<Problem>();
-        constexpr index_t smem_size_a = integer_least_multiple(
-            sizeof(typename Problem::ADataType) * a_lds_desc.get_element_space_size(), 16);
-        return smem_size_a;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
-    {
-        constexpr auto b_lds_desc     = Derived::template MakeBLdsBlockDescriptor<Problem>();
-        constexpr index_t smem_size_b = integer_least_multiple(
-            sizeof(typename Problem::BDataType) * b_lds_desc.get_element_space_size(), 16);
-        return smem_size_b;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
-    {
-        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
-        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
-
-        return smem_size_a + smem_size_b;
-    }
-};
-
-// UniversalGemm Policy
-struct UniversalGemmPipelineAgBgCrPolicy
-    : public UniversalGemmBasePolicy<UniversalGemmPipelineAgBgCrPolicy>
-{
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
@@ -569,6 +258,329 @@ struct UniversalGemmPipelineAgBgCrPolicy
 #endif
     }
 
+    /**
+     * @brief Get the maximum global memory vector load size.
+     *
+     * @tparam Problem      The UniversalGemmPipelineProblem object.
+     * @tparam DataType     The tensor data type we're considering.
+     * @tparam MNPerBlock   The MPerBlock or NPerBlock value depending on tensor (A/B).
+     * @tparam XPerTile     The contiguous Tile dimension size.
+     * @return Maximum DRAM vector load size.
+     */
+    template <typename Problem, typename DataType, index_t MNPerBlock, index_t XPerTile>
+    CK_TILE_HOST_DEVICE static constexpr auto GetGlobalVectorLoadSize()
+    {
+        constexpr index_t BlockSize           = Problem::kBlockSize;
+        constexpr index_t KPerBlock           = Problem::BlockGemmShape::kK;
+        constexpr index_t elements_per_thread = MNPerBlock * KPerBlock / BlockSize;
+        constexpr index_t PackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
+
+        // Assume DataType is even!
+        if constexpr(XPerTile % (PackedSize * 32 / sizeof(DataType)) == 0 &&
+                     elements_per_thread % (PackedSize * 32 / sizeof(DataType)) == 0 &&
+                     PackedSize == 2)
+        {
+            return (PackedSize * 32 / sizeof(DataType));
+        }
+        else if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
+                          elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
+        {
+            return (PackedSize * 16 / sizeof(DataType));
+        }
+        else if constexpr(XPerTile % (PackedSize * 8 / sizeof(DataType)) == 0 &&
+                          elements_per_thread % (PackedSize * 8 / sizeof(DataType)) == 0)
+        {
+            return (PackedSize * 8 / sizeof(DataType));
+        }
+        else if constexpr(sizeof(DataType) >= PackedSize * 4 &&
+                          XPerTile % (PackedSize * 4 / sizeof(DataType)) == 0 &&
+                          elements_per_thread % (PackedSize * 4 / sizeof(DataType)) == 0)
+        {
+            return (PackedSize * 4 / sizeof(DataType));
+        }
+        else if constexpr(sizeof(DataType) >= PackedSize * 2 &&
+                          XPerTile % (PackedSize * 2 / sizeof(DataType)) == 0 &&
+                          elements_per_thread % (PackedSize * 2 / sizeof(DataType)) == 0)
+        {
+            return (PackedSize * 2 / sizeof(DataType));
+        }
+        else
+        {
+            return PackedSize;
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA()
+    {
+        using ALayout               = remove_cvref_t<typename Problem::ALayout>;
+        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+
+        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, KPerBlock>();
+        }
+        else
+        {
+            return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, MPerBlock>();
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB()
+    {
+        using BLayout               = remove_cvref_t<typename Problem::BLayout>;
+        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
+        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, NPerBlock>();
+        }
+        else
+        {
+            return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, KPerBlock>();
+        }
+    }
+
+    /**
+     * @brief Get the vector store size for C tensor.
+     *
+     * @tparam Problem - Gemm pipeline problem class.
+     *
+     * @note The vector store size for output C tensor would depend on multiple factors
+     *       like its data layout and warp gemm C transposition. In general it would
+     *       be the number of consecutive elements in contiguous C dimension hold by
+     *       single thread.
+     *
+     * @return The vector store size for C tensor.
+     */
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
+    {
+        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
+        using WG        = typename BlockGemm::WarpGemm;
+
+        constexpr bool TransposeC = Problem::TransposeC;
+        using CLayout             = typename Problem::CLayout;
+        using CWarpDstr           = typename WG::CWarpDstr;
+
+        // N is contiguous dimension
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
+        {
+            if constexpr(TransposeC)
+            {
+                // In this case each thread has multiple consecutive elements in
+                // N dimension, however consecutive threads' elements have stride.
+                constexpr index_t NDimY = CWarpDstr::NDimY;
+                constexpr auto c_warp_y_lengths =
+                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
+                static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
+                              c_warp_y_lengths.get(number<NDimY - 1>{}));
+                return c_warp_y_lengths.get(number<NDimY - 1>{});
+            }
+            else
+            {
+                // In this case each thread has just a single item in Ndim
+                return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
+            }
+        }
+        // M is contiguous dimension
+        else if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::ColumnMajor>)
+        {
+            if constexpr(TransposeC)
+            {
+                // In this case each thread has just a single item in Mdim
+                return WG::WarpGemmAttribute::Impl::kCNLane / WG::kN;
+            }
+            else
+            {
+                // In this case each thread has multiple consecutive elements in
+                // M dimension, however consecutive threads' elements have stride.
+                constexpr index_t NDimY = CWarpDstr::NDimY;
+                constexpr auto c_warp_y_lengths =
+                    CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
+                static_assert(WG::WarpGemmAttribute::Impl::kCM1PerLane ==
+                              c_warp_y_lengths.get(number<NDimY - 1>{}));
+                return c_warp_y_lengths.get(number<NDimY - 1>{});
+            }
+        }
+        else
+        {
+            static_assert(false, "Unsupported CLayout!");
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
+    {
+        return Problem::TransposeC;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
+    {
+        using ALayout = remove_cvref_t<typename Problem::ALayout>;
+
+        constexpr index_t BlockSize = Problem::kBlockSize;
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize =
+            Problem::FixedVectorSize ? Problem::VectorSizeA : GetVectorSizeA<Problem>();
+        constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
+        // Tile: MPerBlock X KPerBlock
+        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                          MPerBlock,
+                                                                          KPerBlock,
+                                                                          VecLoadSize,
+                                                                          ATileAccessPattern,
+                                                                          NumWaveGroups>;
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
+        // Tile: KPerBlock X MPerBlock
+        else
+        {
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                          KPerBlock,
+                                                                          MPerBlock,
+                                                                          VecLoadSize,
+                                                                          ATileAccessPattern,
+                                                                          NumWaveGroups>;
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
+    {
+        using BLayout = remove_cvref_t<typename Problem::BLayout>;
+
+        constexpr index_t BlockSize = Problem::kBlockSize;
+        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize =
+            Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>();
+        constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
+        // Tile: KPerBlock X NPerBlock
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                          KPerBlock,
+                                                                          NPerBlock,
+                                                                          VecLoadSize,
+                                                                          BTileAccessPattern,
+                                                                          NumWaveGroups>;
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
+        // Tile: NPerBlock X KPerBlock
+        else
+        {
+            using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                          NPerBlock,
+                                                                          KPerBlock,
+                                                                          VecLoadSize,
+                                                                          BTileAccessPattern,
+                                                                          NumWaveGroups>;
+            return TileEncodingPattern::Make2DStaticTileDistribution();
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledARegTileDistribution()
+    {
+        using ALayout = remove_cvref_t<typename Problem::ALayout>;
+        static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
+        constexpr index_t BlockSize     = Problem::kBlockSize;
+        constexpr index_t MPerBlock     = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock     = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize   = GetVectorSizeA<Problem>();
+        constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
+        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                      KPerBlock,
+                                                                      MPerBlock,
+                                                                      VecLoadSize,
+                                                                      ATileAccessPattern,
+                                                                      NumWaveGroups>;
+        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBRegTileDistribution()
+    {
+        using BLayout = remove_cvref_t<typename Problem::BLayout>;
+        static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>);
+        constexpr index_t BlockSize     = Problem::kBlockSize;
+        constexpr index_t NPerBlock     = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock     = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize   = GetVectorSizeB<Problem>();
+        constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
+        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
+                                                                      KPerBlock,
+                                                                      NPerBlock,
+                                                                      VecLoadSize,
+                                                                      BTileAccessPattern,
+                                                                      NumWaveGroups>;
+        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
+    {
+        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
+        constexpr index_t KPack = BlockGemm::Traits::KPack;
+        return KPack;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackB()
+    {
+        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
+        constexpr index_t KPack = BlockGemm::Traits::KPack;
+        return KPack;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
+    {
+        constexpr auto a_lds_desc     = MakeALdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_a = integer_least_multiple(
+            sizeof(typename Problem::ADataType) * a_lds_desc.get_element_space_size(), 16);
+        return smem_size_a;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
+    {
+        constexpr auto b_lds_desc     = MakeBLdsBlockDescriptor<Problem>();
+        constexpr index_t smem_size_b = integer_least_multiple(
+            sizeof(typename Problem::BDataType) * b_lds_desc.get_element_space_size(), 16);
+        return smem_size_b;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
+        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
+
+        return smem_size_a + smem_size_b;
+    }
+};
+
+// UniversalGemm Policy
+struct UniversalGemmPipelineAgBgCrPolicy
+    : public UniversalGemmBasePolicy<UniversalGemmPipelineAgBgCrPolicy>
+{
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {

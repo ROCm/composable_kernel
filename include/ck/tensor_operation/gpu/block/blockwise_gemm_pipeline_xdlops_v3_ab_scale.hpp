@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -179,7 +179,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
 
         constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
 
-        constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
+        constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =
             HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
         constexpr auto ds_read_b_issue_cycle =
@@ -532,6 +532,9 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                     });
                 });
 
+                HotLoopScheduler();
+                __builtin_amdgcn_sched_barrier(0);
+
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     a_scale_thread_copy.Run(a_scale_grid_desc,
                                             a_scale_grid_buf,
@@ -560,8 +563,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                         b_scale_thread_buf);
 
                 b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
-                HotLoopScheduler();
-                __builtin_amdgcn_sched_barrier(0);
+
                 i += 1;
             } while(i < (num_loop - 1));
         }

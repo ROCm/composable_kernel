@@ -126,6 +126,8 @@ def run_ck_grouped_conv_bwd_data(args):
     args.ck_profier_op = "grouped_conv_bwd_data"
     parse_data_type(args)
     parse_layouts(args)
+    # Test all split K value from the list {1, 2, 4, 8, 32, 64, 128}
+    args.split_k_value = -1
 
     cmd = [str(args.ck_profiler_cmd), str(args.ck_profier_op)]
     cmd += [str(args.data_type), str(args.layout)]
@@ -136,6 +138,7 @@ def run_ck_grouped_conv_bwd_data(args):
     cmd += [str(args.in_channels)]
     add_conv_params_to_cmd(args, cmd)
 
+    cmd += [str(args.split_k_value)]
     run_ck_profiler_cmd(cmd)
 
 
@@ -205,6 +208,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-in_layout",
         "-I",
+        "--in_layout",
+        "--I",
         default="NCHW",
         type=str,
         required=False,
@@ -213,6 +218,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-forw",
         "-F",
+        "--forw",
+        "--F",
         default=0,
         type=int,
         required=False,
@@ -228,6 +235,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-spatial_dim",
         "-_",
+        "--spatial_dim",
+        "--_",
         default=2,
         type=int,
         required=False,
@@ -236,6 +245,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-batchsize",
         "-n",
+        "--batchsize",
+        "--n",
         default=100,
         type=int,
         required=False,
@@ -244,6 +255,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-in_channels",
         "-c",
+        "--in_channels",
+        "--c",
         default=3,
         type=int,
         required=False,
@@ -252,6 +265,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-in_d",
         "-!",
+        "--in_d",
+        "--!",
         default=32,
         type=int,
         required=False,
@@ -260,6 +275,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-in_h",
         "-H",
+        "--in_h",
+        "--H",
         default=32,
         type=int,
         required=False,
@@ -268,6 +285,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-in_w",
         "-W",
+        "--in_w",
+        "--W",
         default=32,
         type=int,
         required=False,
@@ -276,6 +295,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-out_channels",
         "-k",
+        "--out_channels",
+        "--k",
         default=32,
         type=int,
         required=False,
@@ -284,6 +305,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-fil_d",
         "-@",
+        "--fil_d",
+        "--@",
         default=3,
         type=int,
         required=False,
@@ -292,6 +315,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-fil_h",
         "-y",
+        "--fil_h",
+        "--y",
         default=3,
         type=int,
         required=False,
@@ -300,6 +325,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-fil_w",
         "-x",
+        "--fil_w",
+        "--x",
         default=3,
         type=int,
         required=False,
@@ -308,6 +335,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-conv_stride_d",
         "-#",
+        "--conv_stride_d",
+        "--#",
         default=1,
         type=int,
         required=False,
@@ -316,6 +345,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-conv_stride_h",
         "-u",
+        "--conv_stride_h",
+        "--u",
         default=1,
         type=int,
         required=False,
@@ -324,6 +355,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-conv_stride_w",
         "-v",
+        "--conv_stride_w",
+        "--v",
         default=1,
         type=int,
         required=False,
@@ -332,6 +365,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-pad_d",
         "-$",
+        "--pad_d",
+        "--$",
         default=1,
         type=int,
         required=False,
@@ -340,6 +375,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-pad_h",
         "-p",
+        "--pad_h",
+        "--p",
         default=1,
         type=int,
         required=False,
@@ -348,6 +385,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-pad_w",
         "-q",
+        "--pad_w",
+        "--q",
         default=1,
         type=int,
         required=False,
@@ -356,6 +395,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-verify",
         "-V",
+        "--verify",
+        "--V",
         default=1,
         type=int,
         required=False,
@@ -364,6 +405,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-time",
         "-t",
+        "--time",
+        "--t",
         default=0,
         type=int,
         required=False,
@@ -372,6 +415,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-dilation_d",
         "-^",
+        "--dilation_d",
+        "--^",
         default=1,
         type=int,
         required=False,
@@ -380,6 +425,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-dilation_h",
         "-l",
+        "--dilation_h",
+        "--l",
         default=1,
         type=int,
         required=False,
@@ -388,6 +435,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-dilation_w",
         "-j",
+        "--dilation_w",
+        "--j",
         default=1,
         type=int,
         required=False,
@@ -396,6 +445,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-group_count",
         "-g",
+        "--group_count",
+        "--g",
         type=int,
         default=1,
         required=False,

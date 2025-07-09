@@ -1,8 +1,5 @@
-add_executable(tile_example_gemm_basic gemm_basic.cpp)
-rocm_install(TARGETS tile_example_gemm_basic COMPONENT examples)
-add_executable(tile_example_gemm_universal universal_gemm.cpp)
-rocm_install(TARGETS tile_example_gemm_universal COMPONENT examples)
-
+add_executable(tile_example_gemm_basic EXCLUDE_FROM_ALL gemm_basic.cpp)
+add_executable(tile_example_gemm_universal EXCLUDE_FROM_ALL universal_gemm.cpp)
 set(EXAMPLE_GEMM_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
   list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)

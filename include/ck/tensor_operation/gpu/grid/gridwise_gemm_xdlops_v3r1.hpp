@@ -450,13 +450,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         constexpr bool is_single_rate_mfma =
             (((is_same<FloatAB, half_t>::value || is_same<FloatAB, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
-             (is_same<FloatAB, int8_t>::value && lcm_AK1_BK1 <= 8))
+             (is_same<FloatAB, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+             ((is_same<FloatAB, f8_t>::value || is_same<FloatAB, bf8_t>::value) &&
+              lcm_AK1_BK1 < 32))
                 ? true
                 : false;
-        constexpr index_t k_pack = math::max(
+        constexpr auto is_scale_mfma = false;
+        constexpr index_t k_pack     = math::max(
             lcm_AK1_BK1,
-            MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, is_single_rate_mfma>::selected_mfma
-                .k_per_blk);
+            MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, is_single_rate_mfma, is_scale_mfma>::
+                selected_mfma.k_per_blk);
 
         auto blockwise_gemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,

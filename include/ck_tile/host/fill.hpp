@@ -17,13 +17,31 @@
 
 namespace ck_tile {
 
+/**
+ * @brief Functor for filling a range with randomly generated values from a uniform distribution.
+ *
+ * This struct provides functionality to fill iterators or ranges with random values
+ * generated from a uniform distribution. It supports both single-threaded and
+ * multi-threaded operation.
+ *
+ * @tparam T The target type for the generated values.
+ *
+ * @note The multi-threaded implementation is not guaranteed to provide perfectly
+ * distributed values across threads.
+ *
+ * @example
+ *
+ *     // Direct usage without creating a separate variable:
+ *     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_host_tensor);
+ */
 template <typename T>
 struct FillUniformDistribution
 {
     float a_{-5.f};
     float b_{5.f};
     std::optional<uint32_t> seed_{11939};
-    // ATTENTION: threaded does not guarantee the distribution between thread
+    // ATTENTION: Whether to use multi-threading (note: not guaranteed to be perfectly distributed
+    // across threads).
     bool threaded = false;
 
     template <typename ForwardIter>

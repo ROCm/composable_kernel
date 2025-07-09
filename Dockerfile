@@ -1,6 +1,6 @@
 FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ROCMVERSION=6.4
+ARG ROCMVERSION=6.4.1
 ARG compiler_version=""
 ARG compiler_commit=""
 ARG CK_SCCACHE=""
@@ -9,13 +9,12 @@ ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
 
 # Add rocm repository
 RUN set -xe && \
-    useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins && \
     apt-get update && apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl && \
     curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm-keyring.gpg
 
 RUN if [ "$ROCMVERSION" != "6.5" ]; then \
-        sh -c "wget https://repo.radeon.com/amdgpu-install/$ROCMVERSION/ubuntu/jammy/amdgpu-install_6.4.60400-1_all.deb  --no-check-certificate" && \
-        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated ./amdgpu-install_6.4.60400-1_all.deb && \
+        sh -c "wget https://repo.radeon.com/amdgpu-install/$ROCMVERSION/ubuntu/jammy/amdgpu-install_6.4.60401-1_all.deb  --no-check-certificate" && \
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated ./amdgpu-install_6.4.60401-1_all.deb && \
         wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
         sh -c "echo deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/rocm-keyring.gpg] $DEB_ROCM_REPO jammy main > /etc/apt/sources.list.d/rocm.list" && \
         sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/rocm-keyring.gpg] https://repo.radeon.com/amdgpu/$ROCMVERSION/ubuntu jammy main > /etc/apt/sources.list.d/amdgpu.list'; \
@@ -50,9 +49,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     mpich \
     net-tools \
     pkg-config \
-    python3 \
-    python3-dev \
-    python3-pip \
+    python3-full \
     redis \
     rocm-llvm-dev \
     sshpass \
@@ -80,7 +77,6 @@ RUN git clone https://github.com/ccache/ccache.git && \
     wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip && \
     gunzip /usr/local/bin/ninja.gz && \
     chmod a+x /usr/local/bin/ninja && \
-    git clone https://github.com/nico/ninjatracing.git && \
 #Install ClangBuildAnalyzer
     git clone https://github.com/aras-p/ClangBuildAnalyzer.git && \
     cd ClangBuildAnalyzer/ && \

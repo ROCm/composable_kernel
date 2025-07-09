@@ -599,13 +599,19 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         constexpr bool is_single_rate_mfma =
             (((is_same<ComputeType, half_t>::value || is_same<ComputeType, bhalf_t>::value) &&
               lcm_AK1_BK1 <= 4) ||
-             (is_same<ComputeType, int8_t>::value && lcm_AK1_BK1 <= 8))
+             (is_same<ComputeType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
+             ((is_same<ComputeType, f8_t>::value || is_same<ComputeType, bf8_t>::value) &&
+              lcm_AK1_BK1 < 32))
                 ? true
                 : false;
-        constexpr index_t KPack = math::max(
-            lcm_AK1_BK1,
-            MfmaSelector<ComputeType, MPerXdl, NPerXdl, ComputeType, is_single_rate_mfma>::
-                selected_mfma.k_per_blk);
+        constexpr auto is_scale_mfma = false;
+        constexpr index_t KPack      = math::max(lcm_AK1_BK1,
+                                            MfmaSelector<ComputeType,
+                                                         MPerXdl,
+                                                         NPerXdl,
+                                                         ComputeType,
+                                                         is_single_rate_mfma,
+                                                         is_scale_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
