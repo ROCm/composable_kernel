@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -109,32 +109,9 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-#ifdef CK_USE_XDL
-#if defined(CK_ENABLE_INT8) && defined(CK_ENABLE_FP16)
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, int8_t> &&
-                     is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
-            {
-                add_device_gemm_add_relu_xdl_c_shuffle_f16_i8_f16_f16_mk_kn_mn_mn_instances(
-                    op_ptrs);
-            }
-        }
-#endif
-
-#if defined(CK_ENABLE_INT8) && defined(CK_ENABLE_BF16)
-        if constexpr(is_same_v<ADataType, ck::bhalf_t> && is_same_v<BDataType, int8_t> &&
-                     is_same_v<D0DataType, ck::bhalf_t> && is_same_v<EDataType, ck::bhalf_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
-            {
-                add_device_gemm_add_relu_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instances(
-                    op_ptrs);
-            }
-        }
-#endif
+#if defined(CK_USE_XDL)
+        // No XDL instances for DeviceGemmMultipleDSplitK with AddRelu at the moment
+#endif // CK_USE_XDL
 
 #elif defined(CK_USE_WMMA)
 
@@ -169,6 +146,97 @@ struct DeviceOperationInstanceFactory<
     }
 };
 
+// GEMM + Add + Relu
+// DeviceGemmMultipleD specialization
+template <typename ALayout,
+          typename BLayout,
+          typename D0Layout,
+          typename ELayout,
+          typename ADataType,
+          typename BDataType,
+          typename D0DataType,
+          typename EDataType>
+struct DeviceOperationInstanceFactory<DeviceGemmMultipleD<ALayout,
+                                                          BLayout,
+                                                          ck::Tuple<D0Layout>,
+                                                          ELayout,
+                                                          ADataType,
+                                                          BDataType,
+                                                          ck::Tuple<D0DataType>,
+                                                          EDataType,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          AddRelu>>
+{
+    using DeviceOp = DeviceGemmMultipleD<ALayout,
+                                         BLayout,
+                                         ck::Tuple<D0Layout>,
+                                         ELayout,
+                                         ADataType,
+                                         BDataType,
+                                         ck::Tuple<D0DataType>,
+                                         EDataType,
+                                         PassThrough,
+                                         PassThrough,
+                                         AddRelu>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+#ifdef CK_USE_XDL
+#if defined(CK_ENABLE_INT8) && defined(CK_ENABLE_FP16)
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_add_relu_xdl_c_shuffle_f16_i8_f16_f16_mk_kn_mn_mn_instances(
+                    op_ptrs);
+            }
+        }
+#endif
+
+#if defined(CK_ENABLE_INT8) && defined(CK_ENABLE_BF16)
+        if constexpr(is_same_v<ADataType, ck::bhalf_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<D0DataType, ck::bhalf_t> && is_same_v<EDataType, ck::bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_add_relu_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instances(
+                    op_ptrs);
+            }
+        }
+#endif
+
+#endif // CK_USE_XDL
+
+#if defined(CK_USE_WMMA)
+        // Reuse DeviceGemmMultipleDSplitK instances
+        using Wrapper = DeviceGemmMultipleDSplitKWrapper<ALayout,
+                                                         BLayout,
+                                                         ck::Tuple<D0Layout>,
+                                                         ELayout,
+                                                         ADataType,
+                                                         BDataType,
+                                                         ck::Tuple<D0DataType>,
+                                                         EDataType,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         AddRelu>;
+        auto new_op_ptrs =
+            DeviceOperationInstanceFactory<typename Wrapper::DeviceOp>::GetInstances();
+        for(auto& op_ptr : new_op_ptrs)
+        {
+            op_ptrs.emplace_back(std::make_unique<Wrapper>(std::move(op_ptr)));
+        }
+#endif // CK_USE_WMMA
+
+        return op_ptrs;
+    }
+};
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
