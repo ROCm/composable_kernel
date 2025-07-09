@@ -6,8 +6,6 @@
 #include "ck_tile/core.hpp"
 #include <type_traits>
 
-#define VectorLoadSize 16
-
 namespace ck_tile {
 
 template <typename InputType_,
@@ -40,7 +38,9 @@ struct BatchedTransposeProblem
     static constexpr bool kPadM = kPadM_;
     static constexpr bool kPadN = kPadN_;
 
-    static constexpr index_t VectorSizeInput  = kPadM ? 1 : VectorLoadSize / sizeof(InputType);
-    static constexpr index_t VectorSizeOutput = kPadN ? 1 : VectorLoadSize / sizeof(InputType);
+    // 128-bit is the max single-instruction bandwidth for load/store
+    static constexpr index_t MaxLoadStoreSize = 16;
+    static constexpr index_t VectorSizeInput  = kPadM ? 1 : MaxLoadStoreSize / sizeof(InputType);
+    static constexpr index_t VectorSizeOutput = kPadN ? 1 : MaxLoadStoreSize / sizeof(InputType);
 };
 } // namespace ck_tile

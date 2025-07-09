@@ -95,8 +95,10 @@ struct BatchedTransposeLdsProblem
     static constexpr auto kMPerBlock = kLeadSizePerBlock;
     static constexpr auto kNPerBlock = kSecondSizePerBlock;
 
-    static constexpr auto VectorSizeInput  = kPadM ? 1 : 16 / sizeof(InputType);
-    static constexpr auto VectorSizeOutput = kPadN ? 1 : 16 / sizeof(InputType);
+    // 128-bit is the max single-instruction bandwidth for load/store
+    static constexpr index_t MaxLoadStoreSize = 16;
+    static constexpr auto VectorSizeInput     = kPadM ? 1 : MaxLoadStoreSize / sizeof(InputType);
+    static constexpr auto VectorSizeOutput    = kPadN ? 1 : MaxLoadStoreSize / sizeof(InputType);
 };
 
 } // namespace ck_tile
