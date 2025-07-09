@@ -1446,6 +1446,7 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx11-generic" \
+                                           -DUSE_OPT_GFX11=ON \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
@@ -1467,6 +1468,7 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx12-generic" \
+                                           -DUSE_OPT_GFX12=ON \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
