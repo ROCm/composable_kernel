@@ -84,7 +84,6 @@ __device__ _Float16 atomic_add<_Float16>(_Float16* p_dst, const _Float16& x)
 
         uint16_t new_bits;
         memcpy(&new_bits, &new_val, sizeof(uint16_t));
-
         new_word = (old_word & ~mask) | (static_cast<uint32_t>(new_bits) << bit_shift);
 
     } while(atomicCAS(aligned_addr, old_word, new_word) != old_word);
