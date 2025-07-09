@@ -173,7 +173,6 @@ bool profile_gemm_add_relu_impl(int do_verification,
             StrideB,
             std::array<ck::index_t, 1>{StrideD0},
             StrideE,
-            1,
             a_element_op,
             b_element_op,
             cde_element_op);
