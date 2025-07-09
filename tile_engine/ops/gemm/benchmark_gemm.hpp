@@ -179,8 +179,9 @@ bool compare(std::string instanceName,
                                    rtol_atol.at(ck_tile::number<0>{}),
                                    rtol_atol.at(ck_tile::number<1>{}));
 
-    std::cout << "For " << instanceName << " Relative error threshold is " << rtol_atol.at(ck_tile::number<0>{}) 
-    << " Absolute error threshold is " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
+    std::cout << "For " << instanceName << " Relative error threshold is "
+              << rtol_atol.at(ck_tile::number<0>{}) << " Absolute error threshold is "
+              << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
     std::cout << "The verification result is:" << (pass ? "correct" : "fail") << std::endl;
 
     return pass;
