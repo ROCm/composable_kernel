@@ -33,7 +33,6 @@ for pr in "fp8" "fp16" "bf16"; do
 # unpadded only
 $EXE -pr=$pr -pipeline=1 -N=128 -C=1024 -H=64 -W=64 -layout_in='NCHW' -layout_out='NHWC'
 $EXE -pr=$pr -pipeline=1 -N=128 -C=1024 -H=64 -W=64 -layout_in='NHWC' -layout_out='NCHW'
-$EXE -pr=$pr -pipeline=1 -N=1 -C=1 -H=1024 -W=1024 -layout_in='NCHW' -layout_out='NHWC'
-$EXE -pr=$pr -pipeline=1 -N=1 -C=1 -H=1024 -W=1024 -layout_in='NHWC' -layout_out='NCHW'
+$EXE -pr=$pr -pipeline=1 -N=1 -C=1024 -H=1 -W=1024 -layout_in='NCHW' -layout_out='NHWC'
 
 done
