@@ -35,28 +35,17 @@ __device__ float atomic_add<float>(float* p_dst, const float& x)
 template <>
 __device__ unsigned short atomic_add<unsigned short>(unsigned short* p_dst, const unsigned short& x)
 {
-    unsigned short old_val, new_val;
-    do
-    {
-        old_val = *p_dst;
-        new_val = old_val + x;
-    } while(atomicCAS(p_dst, old_val, new_val) != old_val);
-    return old_val;
+    // Use atomicAdd with unsigned int
+    return static_cast<unsigned short>(
+        atomicAdd(reinterpret_cast<unsigned int*>(p_dst), static_cast<unsigned int>(x)));
 }
 
 template <>
 __device__ _Float16 atomic_add<_Float16>(_Float16* p_dst, const _Float16& x)
 {
-    _Float16 old_val, new_val;
-    do
-    {
-        old_val = *p_dst;
-        new_val = old_val + x; // Proper FP16 addition
-    } while(atomicCAS(reinterpret_cast<unsigned short*>(p_dst),
-                      *reinterpret_cast<unsigned short*>(&old_val),
-                      *reinterpret_cast<unsigned short*>(&new_val)) !=
-            *reinterpret_cast<unsigned short*>(&old_val));
-    return old_val;
+    // Use atomicAdd with unsigned int
+    return static_cast<_Float16>(
+        atomicAdd(reinterpret_cast<unsigned int*>(p_dst), static_cast<unsigned int>(x)));
 }
 
 template <>
