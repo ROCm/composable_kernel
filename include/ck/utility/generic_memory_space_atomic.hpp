@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "data_type.hpp"
@@ -35,27 +35,60 @@ __device__ float atomic_add<float>(float* p_dst, const float& x)
 template <>
 __device__ unsigned short atomic_add<unsigned short>(unsigned short* p_dst, const unsigned short& x)
 {
-    unsigned short old_val, new_val;
+    // Use 32-bit aligned atomic operations
+    uint32_t* aligned_addr = reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(p_dst) & ~3U);
+
+    const uint32_t byte_offset = reinterpret_cast<uintptr_t>(p_dst) & 3U;
+    const uint32_t bit_shift   = byte_offset * 8;
+    const uint32_t mask        = 0xFFFFU << bit_shift;
+
+    uint32_t old_word, new_word;
+    unsigned short old_val;
+
     do
     {
-        old_val = *p_dst;
-        new_val = old_val + x;
-    } while(atomicCAS(p_dst, old_val, new_val) != old_val);
+        old_word = *aligned_addr;
+        old_val  = static_cast<unsigned short>((old_word >> bit_shift) & 0xFFFFU);
+
+        uint32_t new_val = (static_cast<uint32_t>(old_val) + static_cast<uint32_t>(x)) & 0xFFFFU;
+        new_word         = (old_word & ~mask) | (new_val << bit_shift);
+
+    } while(atomicCAS(aligned_addr, old_word, new_word) != old_word);
+
     return old_val;
 }
 
 template <>
 __device__ _Float16 atomic_add<_Float16>(_Float16* p_dst, const _Float16& x)
 {
+    // Use memcpy to avoid undefined behavior
+    uint16_t* uint_dst = reinterpret_cast<uint16_t*>(p_dst);
+    uint32_t* aligned_addr =
+        reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(uint_dst) & ~3U);
+
+    const uint32_t byte_offset = reinterpret_cast<uintptr_t>(uint_dst) & 3U;
+    const uint32_t bit_shift   = byte_offset * 8;
+    const uint32_t mask        = 0xFFFFU << bit_shift;
+
+    uint32_t old_word, new_word;
     _Float16 old_val, new_val;
+
     do
     {
-        old_val = *p_dst;
+        old_word          = *aligned_addr;
+        uint16_t old_bits = static_cast<uint16_t>((old_word >> bit_shift) & 0xFFFFU);
+
+        // Use memcpy to avoid undefined behavior
+        memcpy(&old_val, &old_bits, sizeof(uint16_t));
         new_val = old_val + x; // Proper FP16 addition
-    } while(atomicCAS(reinterpret_cast<unsigned short*>(p_dst),
-                      *reinterpret_cast<unsigned short*>(&old_val),
-                      *reinterpret_cast<unsigned short*>(&new_val)) !=
-            *reinterpret_cast<unsigned short*>(&old_val));
+
+        uint16_t new_bits;
+        memcpy(&new_bits, &new_val, sizeof(uint16_t));
+
+        new_word = (old_word & ~mask) | (static_cast<uint32_t>(new_bits) << bit_shift);
+
+    } while(atomicCAS(aligned_addr, old_word, new_word) != old_word);
+
     return old_val;
 }
 
