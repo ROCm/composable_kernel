@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -71,6 +71,6 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Wmma_
 
 // clang-format on
 
-#include "run_gemm_add_example_v3.inc"
+#include "run_gemm_add_example.inc"
 
 int main(int argc, char* argv[]) { return !run_gemm_add_example(argc, argv); }
