@@ -76,7 +76,6 @@ __global__ void
 #endif
 #else
     ignore = karg;
-    ignore = batch;
     ignore = compute_ptr_offset_of_batch;
 #endif
 }
