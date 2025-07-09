@@ -7,20 +7,6 @@
 
 namespace ck_tile {
 
-template <typename Layout_, index_t kRow, index_t kCol>
-struct TransposeTraits
-{
-    static constexpr index_t kLeadDim   = kCol;
-    static constexpr index_t kSecondDim = kRow;
-};
-
-template <index_t kRow, index_t kCol>
-struct TransposeTraits<tensor_layout::gemm::ColumnMajor, kRow, kCol>
-{
-    static constexpr index_t kLeadDim   = kRow;
-    static constexpr index_t kSecondDim = kCol;
-};
-
 // supports 2D transpose which will store to lds,
 // then use ds_read_b*_tr_b* instruction to get the transposed data
 template <typename DataType_,
@@ -37,23 +23,16 @@ struct BatchedTransposeLdsProblem
     static constexpr index_t kColPerXdl_ = get_warp_size();
 
     using DataType                      = remove_cvref_t<DataType_>;
-    using Layout                        = tensor_layout::gemm::RowMajor;
     static constexpr index_t kBlockSize = kBlockSize_;
     // warps per block
-    static constexpr index_t kLeadNumWarps =
-        TransposeTraits<Layout, kRowWarps_, kColWarps_>::kLeadDim;
-    static constexpr index_t kSecondNumWarps =
-        TransposeTraits<Layout, kRowWarps_, kColWarps_>::kSecondDim;
+    static constexpr index_t kLeadNumWarps = kRowWarps_;
+    static constexpr index_t kSecondNumWarps = kColWarps_;
 
-    static constexpr index_t kLeadSizePerBlock =
-        TransposeTraits<Layout, kRowPerBlock_, kColPerBlock_>::kLeadDim;
-    static constexpr index_t kSecondSizePerBlock =
-        TransposeTraits<Layout, kRowPerBlock_, kColPerBlock_>::kSecondDim;
+    static constexpr index_t kLeadSizePerBlock = kRowPerBlock_;
+    static constexpr index_t kSecondSizePerBlock = kColPerBlock_;
 
-    static constexpr index_t kLeadSizePerXdl =
-        TransposeTraits<Layout, kRowPerXdl_, kColPerXdl_>::kLeadDim;
-    static constexpr index_t kSecondSizePerXdl =
-        TransposeTraits<Layout, kRowPerXdl_, kColPerXdl_>::kSecondDim;
+    static constexpr index_t kLeadSizePerXdl = kRowPerXdl_;
+    static constexpr index_t kSecondSizePerXdl = kColPerXdl_;
 
     static constexpr index_t kQuadrantLeadDim   = LaneGroupTransposeTraits<DataType>::kleadDim;
     static constexpr index_t kQuadrantSecondDim = LaneGroupTransposeTraits<DataType>::ksecondDim;

@@ -12,7 +12,6 @@ struct BatchedTransposeLdsPipeline
     using Policy  = remove_cvref_t<Policy_>;
 
     using DataType = remove_cvref_t<typename Problem::DataType>;
-    using Layout   = remove_cvref_t<typename Problem::Layout>;
 
     static constexpr index_t kBlockSize          = Problem::kBlockSize;
     static constexpr index_t kLeadSizePerBlock   = Problem::kLeadSizePerBlock;
