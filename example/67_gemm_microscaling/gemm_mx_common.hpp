@@ -245,6 +245,11 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         throw std::runtime_error("wrong! K must be multiple of ScaleBlockSize.");
     };
 
+    if(K % ck::packed_size_v<ADataType> != 0 || K % ck::packed_size_v<BDataType> != 0)
+    {
+        throw std::runtime_error("wrong! K must be multiple of packed size.");
+    };
+
     // Hardcode scale layouts as per pipeline assumptions
     // TODO: Allow user to specify scale layouts
     using AScaleLayout = Row;
@@ -292,12 +297,20 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     auto a_data_element = [](float x) {
         if constexpr(ck::is_same_v<ADataType, ck::f4x2_pk_t>)
             return ck::type_convert<ADataType>(ck::float2_t(x));
+        else if constexpr(ck::packed_size_v<ADataType> == 32)
+            return ck::type_convert<ADataType>(ck::float32_t(x));
+        else if constexpr(ck::packed_size_v<ADataType> == 16)
+            return ck::type_convert<ADataType>(ck::float16_t(x));
         else
             return ck::type_convert<ADataType>(x);
     };
     auto b_data_element = [](float x) {
         if constexpr(ck::is_same_v<BDataType, ck::f4x2_pk_t>)
             return ck::type_convert<BDataType>(ck::float2_t(x));
+        else if constexpr(ck::packed_size_v<BDataType> == 32)
+            return ck::type_convert<BDataType>(ck::float32_t(x));
+        else if constexpr(ck::packed_size_v<BDataType> == 16)
+            return ck::type_convert<BDataType>(ck::float16_t(x));
         else
             return ck::type_convert<BDataType>(x);
     };
@@ -307,30 +320,35 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
     switch(config.init_method)
     {
     case 0: // Initializations for development and debugging
-        ck::utils::FillConstant<ADataType>{a_data_element(1.0f)}(a_m_k);
-        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(1.0f)}(a_m_k_scale);
+
+        ck::utils::FillConstant<ADataType>{a_data_element(0.5f)}(a_m_k);
+        ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(2.0f)}(a_m_k_scale);
+
         ck::utils::FillConstant<BDataType>{b_data_element(2.0f)}(*b_k_n);
         ck::utils::FillConstant<XDataType>{ck::type_convert<XDataType>(0.5f)}(b_k_n_scale);
+
         if(config.verbosity > 0)
         {
-            std::cout << "Init A = {1}" << std::endl;
+            std::cout << "Init A = {0.5}" << std::endl;
             std::cout << "Init A scale = {2.0}" << std::endl;
-            std::cout << "Init B = {0.5}" << std::endl;
-            std::cout << "Init B scale = {1.0}" << std::endl;
+            std::cout << "Init B = {2.0}" << std::endl;
+            std::cout << "Init B scale = {0.5}" << std::endl;
             std::cout << "Expect C = {K}" << std::endl;
         }
         break;
 
     case 1:
-        a_m_k.GenerateTensorDistr(int_distr{-5, 6});  // Z[-5,5]
-        b_k_n->GenerateTensorDistr(int_distr{-5, 6}); // Z[-5,5]
+        a_m_k.GenerateTensorDistr(
+            int_distr{-5, 5}, ck::identity{}, std::minstd_rand(time(nullptr))); // Z[-5,5]
+        b_k_n->GenerateTensorDistr(int_distr{-5, 5});                           // Z[-5,5]
         static_assert(ck::is_same_v<XDataType, ck::e8m0_bexp_t>);
-        a_m_k_scale.GenerateTensorDistr(int_distr{120, 129}); // scales: {0.25, 0.5, 1, 2}
-        b_k_n_scale.GenerateTensorDistr(int_distr{125, 129}); // scales: {0.25, 0.5, 1, 2}
+        a_m_k_scale.GenerateTensorDistr(int_distr{125, 128}); // scales: {0.25, 0.5, 1, 2}
+        b_k_n_scale.GenerateTensorDistr(int_distr{125, 128}); // scales: {0.25, 0.5, 1, 2}
         break;
 
     case 2:
-        a_m_k.GenerateTensorDistr(float_distr{-2.0, 2.0});
+        a_m_k.GenerateTensorDistr(
+            float_distr{-2.0, 2.0}, ck::identity{}, std::minstd_rand(time(nullptr))); // R[-2,2]
         a_m_k_scale.GenerateTensorDistr(float_distr{powf(2.0f, -125.0f), 1.0f});
 
         b_k_n->GenerateTensorDistr(float_distr{-2.0, 2.0});
