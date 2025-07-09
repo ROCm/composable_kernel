@@ -29,11 +29,11 @@
 #define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
 #endif
 
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
+#if (CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMem
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
+#elif (CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
 #define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV3
 #define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
 #define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
@@ -153,9 +153,9 @@ struct GemmConfig<ck_tile::fp8_t>
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 128;
 #elif defined(USING_MFMA_32x32x64_F8) // MI350 FP8 32X32 (need tune)
-    static constexpr ck_tile::index_t M_Tile      = 128;
-    static constexpr ck_tile::index_t N_Tile      = 256;
-    static constexpr ck_tile::index_t K_Tile      = 128;
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 128;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -165,9 +165,9 @@ struct GemmConfig<ck_tile::fp8_t>
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 64;
 #elif defined(USING_MFMA_16x16x32_F8) // MI300 FP8 16X16
-    static constexpr ck_tile::index_t M_Tile      = 16;
-    static constexpr ck_tile::index_t N_Tile      = 128;
-    static constexpr ck_tile::index_t K_Tile      = 256;
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 256;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -177,9 +177,9 @@ struct GemmConfig<ck_tile::fp8_t>
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 64;
 #elif defined(USING_MFMA_32x32x16_F8) // MI300 FP8 32X32 (need tune)
-    static constexpr ck_tile::index_t M_Tile      = 128;
-    static constexpr ck_tile::index_t N_Tile      = 256;
-    static constexpr ck_tile::index_t K_Tile      = 128;
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 128;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 8;
@@ -222,9 +222,9 @@ struct GemmConfig
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 128;
 #elif defined(USING_MFMA_32x32x64_F8)  // MI350 FP8 32X32 (need tune)
-    static constexpr ck_tile::index_t M_Tile      = 128;
-    static constexpr ck_tile::index_t N_Tile      = 128;
-    static constexpr ck_tile::index_t K_Tile      = 128;
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -234,9 +234,9 @@ struct GemmConfig
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 64;
 #elif defined(USING_MFMA_16x16x32_F16) // MI350 FP16 16X16 (need tune)
-    static constexpr ck_tile::index_t M_Tile      = 128;
-    static constexpr ck_tile::index_t N_Tile      = 128;
-    static constexpr ck_tile::index_t K_Tile      = 128;
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -246,9 +246,9 @@ struct GemmConfig
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 32;
 #elif defined(USING_MFMA_32x32x16_F16) // MI350 FP16 32X32 (need tune)
-    static constexpr ck_tile::index_t M_Tile      = 128;
-    static constexpr ck_tile::index_t N_Tile      = 128;
-    static constexpr ck_tile::index_t K_Tile      = 128;
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -323,15 +323,16 @@ struct GemmConfig
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("Ms", "512,128,1024", "m dimension")
-        .insert("Ns", "256,512,1024", "n dimension")
-        .insert("Ks", "512,1024,1024", "k dimension")
+    arg_parser.insert("Ms", "512,256,1024", "m dimension")
+        .insert("Ns", "1024,512,256", "n dimension")
+        .insert("Ks", "1024,1024,512", "k dimension")
         .insert("group_count", "3", "group count")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Row by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("prec", "fp8", "data type. fp16/bf16/fp8/bf8")
+        .insert("mode", "general", "grouped gemm mode: [general | contiguous], general by default")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "10", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")

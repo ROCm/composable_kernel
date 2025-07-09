@@ -53,10 +53,52 @@ struct GroupedFlatmmHostArgs
     index_t k_batch;
 };
 
+struct ContiguousGroupedFlatmmHostArgs
+{
+    CK_TILE_HOST ContiguousGroupedFlatmmHostArgs() = default;
+    CK_TILE_HOST ContiguousGroupedFlatmmHostArgs(index_t* M_indices_,
+                                                 index_t M_,
+                                                 index_t N_,
+                                                 index_t K_,
+                                                 const void* a_ptr_,
+                                                 index_t stride_A_,
+                                                 const void* b_shuffle_ptr_,
+                                                 index_t stride_B_,
+                                                 void* c_ptr_,
+                                                 index_t stride_C_,
+                                                 index_t k_batch_)
+        : M_indices(M_indices_),
+          M(M_),
+          N(N_),
+          K(K_),
+          a_ptr(a_ptr_),
+          stride_A(stride_A_),
+          b_shuffle_ptr(b_shuffle_ptr_),
+          stride_B(stride_B_),
+          c_ptr(c_ptr_),
+          stride_C(stride_C_),
+          k_batch(k_batch_)
+    {
+    }
+
+    index_t* M_indices;
+    index_t M;
+    index_t N;
+    index_t K;
+    const void* a_ptr;
+    index_t stride_A;
+    const void* b_shuffle_ptr;
+    index_t stride_B;
+    void* c_ptr;
+    index_t stride_C;
+    index_t k_batch;
+};
+
 template <typename TilePartitioner_, typename FlatmmPipeline_, typename EpiloguePipeline_>
 struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, EpiloguePipeline_>
 {
     using UnderlyingGemmKernel = FlatmmKernel<TilePartitioner_, FlatmmPipeline_, EpiloguePipeline_>;
+    using BlockGemmShape       = typename UnderlyingGemmKernel::BlockGemmShape;
 
     using TilePartitioner = remove_cvref_t<TilePartitioner_>;
     using FlatmmPipeline  = remove_cvref_t<FlatmmPipeline_>;
@@ -68,15 +110,13 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
     // Below type is actually accumulation data type - the output of block GEMM.
     using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    using GroupedFlatmmKernelArgs = GroupedFlatmmHostArgs;
-
     CK_TILE_HOST static const std::string GetName()
     {
         return concat(
             '_', "grouped_flatmm", gemm_prec_str<ADataType, BDataType>, FlatmmPipeline::GetName());
     }
-
-    CK_TILE_HOST_DEVICE static auto GridSize(const GroupedFlatmmKernelArgs& kernelArgs)
+    template <class KernelArgs>
+    CK_TILE_HOST_DEVICE static auto GridSizeImpl(const KernelArgs& kernelArgs)
     {
         hipDeviceProp_t prop;
         int deviceId = 0; // default device
@@ -89,29 +129,41 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
 
         e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
             &maxActiveBlocksPerCU,
-            // reinterpret_cast<void*>(GroupedFlatmmKernel::Kernel),
-            reinterpret_cast<void*>(
-                kentry2<block_size, GroupedFlatmmKernel, GroupedFlatmmKernelArgs>),
+            reinterpret_cast<void*>(kentry2<block_size, GroupedFlatmmKernel, KernelArgs>),
             block_size,
             dync_smem_size);
 
         const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
 
-        // print maxActiveBlocksPerCU and persistent_block_size
-        // std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
-        //           << ", persistent_block_size: " << persistent_block_size << std::endl;
+        std::cout << "maxActiveBlocksPerCU: " << maxActiveBlocksPerCU
+                  << ", persistent_block_size: " << persistent_block_size << std::endl;
 
         assert(kernelArgs.k_batch == 1);
         return dim3(persistent_block_size, 1, kernelArgs.k_batch);
     }
 
-    CK_TILE_HOST static constexpr GroupedFlatmmKernelArgs
-    MakeKernelArgs(const GroupedFlatmmHostArgs& hostArgs)
+    CK_TILE_HOST_DEVICE static auto
+    GridSize([[maybe_unused]] const GroupedFlatmmHostArgs& kernelArgs)
+    {
+        return GridSizeImpl<GroupedFlatmmHostArgs>(kernelArgs);
+    }
+    CK_TILE_HOST_DEVICE static auto
+    GridSize([[maybe_unused]] const ContiguousGroupedFlatmmHostArgs& kernelArgs)
+    {
+        return GridSizeImpl<ContiguousGroupedFlatmmHostArgs>(kernelArgs);
+    }
+
+    CK_TILE_HOST static constexpr auto MakeKernelArgs(const GroupedFlatmmHostArgs& hostArgs)
+    {
+        return hostArgs;
+    }
+    CK_TILE_HOST static constexpr auto
+    MakeKernelArgs(const ContiguousGroupedFlatmmHostArgs& hostArgs)
     {
         return hostArgs;
     }
 
-    CK_TILE_DEVICE void operator()(GroupedFlatmmKernelArgs kargs) const
+    CK_TILE_DEVICE void operator()(GroupedFlatmmHostArgs kargs) const
     {
         int group_idx        = 0;
         int block_linear_idx = blockIdx.x;
@@ -145,6 +197,36 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
                 block_linear_idx += total_block_cnt;
             }
             block_linear_idx -= group_block_cnt;
+        }
+    }
+
+    CK_TILE_DEVICE void operator()(ContiguousGroupedFlatmmHostArgs kargs) const
+    {
+        int block_linear_idx    = blockIdx.x;
+        int total_block_cnt     = gridDim.x;
+        int total_work_tile_cnt = TilePartitioner::GridSize(kargs.M, kargs.N);
+
+        UnderlyingGemmKernel underlying_kernel{};
+        for(; block_linear_idx < total_work_tile_cnt; block_linear_idx += total_block_cnt)
+        {
+            auto [block_m_idx, block_n_idx] = TilePartitioner::GetOutputTileIndex(block_linear_idx);
+            // get the group index from the M_indices
+            int group_idx = kargs.M_indices[block_m_idx * BlockGemmShape::kM];
+
+            typename UnderlyingGemmKernel::FlatmmKernelArgs impl_kargs{
+                kargs.a_ptr,
+                static_cast<const BDataType*>(kargs.b_shuffle_ptr) + group_idx * kargs.N * kargs.K,
+                kargs.c_ptr,
+                kargs.M,
+                kargs.N,
+                kargs.K,
+                kargs.stride_A,
+                kargs.stride_B,
+                kargs.stride_C,
+                kargs.k_batch,
+            };
+            // call the underlying flatmm kernel
+            underlying_kernel(impl_kargs, block_linear_idx);
         }
     }
 };

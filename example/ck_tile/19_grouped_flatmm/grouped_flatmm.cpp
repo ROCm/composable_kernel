@@ -19,8 +19,9 @@ template <typename ADataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
-float grouped_flatmm(const ck_tile::GroupedFlatmmHostArgs& args, const ck_tile::stream_config& s)
+          typename CLayout,
+          typename KernelArguments>
+float grouped_flatmm(const KernelArguments& args, const ck_tile::stream_config& s)
 {
     // The kPadM, kPadN, kPadK & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadM = false;
@@ -76,12 +77,12 @@ float grouped_flatmm(const ck_tile::GroupedFlatmmHostArgs& args, const ck_tile::
         constexpr auto tail_number_v    = tail_number_.value;
         constexpr auto memory_operation = memory_operation_.value;
         using CodegenPipelineProblem    = ck_tile::FlatmmPipelineProblem<ADataType,
-                                                                      BDataType,
-                                                                      AccDataType,
-                                                                      CodegenFlatmmShape,
-                                                                      CodegenGemmTraits,
-                                                                      has_hot_loop_v,
-                                                                      tail_number_v>;
+                                                                         BDataType,
+                                                                         AccDataType,
+                                                                         CodegenFlatmmShape,
+                                                                         CodegenGemmTraits,
+                                                                         has_hot_loop_v,
+                                                                         tail_number_v>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -184,34 +185,69 @@ int run_grouped_flatmm_example(int argc, char* argv[])
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
     std::string data_type = arg_parser.get_str("prec");
+    std::string mode      = arg_parser.get_str("mode");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
     if(a_layout == "R" && b_layout == "C")
     {
-        if(data_type == "fp16")
+        if(mode == "general")
         {
-            run_grouped_flatmm_example_with_layouts<ck_tile::half_t>(
-                argc, argv, Row{}, Col{}, Row{});
+            if(data_type == "fp16")
+            {
+                run_grouped_flatmm_example_with_layouts<ck_tile::half_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(data_type == "bf16")
+            {
+                run_grouped_flatmm_example_with_layouts<ck_tile::bf16_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(data_type == "fp8")
+            {
+                run_grouped_flatmm_example_with_layouts<ck_tile::fp8_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(data_type == "bf8")
+            {
+                run_grouped_flatmm_example_with_layouts<ck_tile::bf8_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported data_type!");
+            }
         }
-        else if(data_type == "bf16")
+        else if(mode == "contiguous")
         {
-            run_grouped_flatmm_example_with_layouts<ck_tile::bf16_t>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "fp8")
-        {
-            run_grouped_flatmm_example_with_layouts<ck_tile::fp8_t>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(data_type == "bf8")
-        {
-            run_grouped_flatmm_example_with_layouts<ck_tile::bf8_t>(
-                argc, argv, Row{}, Col{}, Row{});
+            if(data_type == "fp16")
+            {
+                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::half_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(data_type == "bf16")
+            {
+                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::bf16_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(data_type == "fp8")
+            {
+                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::fp8_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(data_type == "bf8")
+            {
+                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::bf8_t>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported data_type!");
+            }
         }
         else
         {
-            throw std::runtime_error("Unsupported data_type!");
+            throw std::runtime_error("Unsupported mode!");
         }
     }
     else
