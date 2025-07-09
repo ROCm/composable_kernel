@@ -221,7 +221,7 @@ float rmsnorm2d_fwd_(const S& s, A a)
     using T5PassPipeline  = ck_tile::Rmsnorm2dFwdPipelineModelSensitiveT5Pass<PipelineProblem>;
 
     using Pipeline = std::conditional_t<
-        (Traits_::kUseModelSensitiveRMSNorm == 0),
+        (Traits_::kUseModelSensitiveRMSNorm == 0 || Traits_::kTwoPass), // TODO: consider TwoPass for T5PassPipeline
         std::conditional_t<Traits_::kTwoPass, TwoPassPipeline, OnePassPipeline>,  // kUseModelSensitiveRMSNorm == 0
         // std::conditional_t<
         //     (Traits_::kUseModelSensitiveRMSNorm == 1),
