@@ -84,9 +84,10 @@ template <typename ADataType,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           bool PadN,
-          index_t NumGemmKPrefetchStage = 1,
-          LoopScheduler LoopSched       = make_default_loop_scheduler(),
-          PipelineVersion PipelineVer   = PipelineVersion::v1>
+          index_t NumGemmKPrefetchStage =
+              1, // TODO: This should take specific pipeline into account.
+          BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
+          BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1>
 struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -514,9 +515,8 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     // used TransposeC = true which we still need to make the operation work.
     using BlockwiseGemmPipe =
         remove_cvref_t<decltype(BlockGemmPipeline_Selector<
-                                BlockGemmPipelineVersion::v1, // BlkGemmPipelineVer, TODO: param
-                                BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched, TODO:
-                                                                       // param
+                                BlkGemmPipelineVer,
+                                BlkGemmPipeSched,
                                 BlockSize,
                                 ADataType,
                                 B0DataType,

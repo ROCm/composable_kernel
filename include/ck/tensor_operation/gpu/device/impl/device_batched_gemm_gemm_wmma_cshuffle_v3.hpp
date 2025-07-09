@@ -206,8 +206,8 @@ template <typename ALayout,
           index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
-          ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
+          BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
+          BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1>
 struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALayout,
                                                                             BLayout, // B0Layout
                                                                             B1Layout,
@@ -461,8 +461,8 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         Transform::matrix_padder.PadN,
         NumPrefetch,
-        LoopSched,
-        PipelineVer>;
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer>;
 
     struct RawArg : public BaseArgument
     {
@@ -773,11 +773,16 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
     {
         auto str = std::stringstream();
 
-        std::map<LoopScheduler, std::string> LoopSchedToString{
-            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+        std::map<BlockGemmPipelineScheduler, std::string> BlkGemmPipelineSchedulerToString{
+            {BlockGemmPipelineScheduler::Intrawave, "Intrawave"},
+            {BlockGemmPipelineScheduler::Interwave, "Interwave"}};
 
-        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
-                                                                       {PipelineVersion::v2, "v2"}};
+        std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
+            {BlockGemmPipelineVersion::v1, "v1"},
+            {BlockGemmPipelineVersion::v2, "v2"},
+            {BlockGemmPipelineVersion::v3, "v3"},
+            {BlockGemmPipelineVersion::v4, "v4"},
+            {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
         str << "DeviceBatchedGemmGemm_Wmma_CShuffleV3"
@@ -802,10 +807,12 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             << B1EnableLds << ", "
             << "NumPrefetch: "
             << NumPrefetch << ", "
-            << "LoopScheduler: "
-            << LoopSchedToString[LoopSched] << ", "
-            << "PipelineVersion: "
-            << PipelineVersionToString[PipelineVer];
+             << "BlkGemmPipelineScheduler: "
+            << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
+            << "BlkGemmPipelineVersion: "
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
+            << "BlkGemmPipelinePrefetchStages: "
+            << GridwiseOp::BlockwiseGemmPipe::PrefetchStages;
         // clang-format on
 
         return str.str();
