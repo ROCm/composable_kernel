@@ -212,7 +212,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         }
         else
         {
-            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+            std::cout << op_ptr->GetTypeString() << ", SplitK " << split_k_local
+                      << " does not support this problem" << std::endl;
         }
     };
 
@@ -246,14 +247,27 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
     for(auto& op_ptr : op_ptrs)
     {
-        std::string op_type   = op_ptr->GetTypeString();
-        bool supports_split_k = op_type.find("V3") != std::string::npos;
+        std::string op_type = op_ptr->GetTypeString();
+        bool supports_split_k =
+            op_type.find("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3") != std::string::npos;
 
         std::vector<ck::index_t> split_k_list = base_split_k_list;
 
         if(!supports_split_k)
         {
-            split_k_list = {1};
+            if(split_k == 0 || split_k > 1)
+            {
+                std::cout << op_type << " does not support SplitK > 1" << std::endl;
+            }
+
+            if(split_k == 0 || split_k == 1)
+            {
+                split_k_list = {1};
+            }
+            else
+            {
+                continue;
+            }
         }
 
         for(std::size_t split_k_id = 0; split_k_id < split_k_list.size(); split_k_id++)
