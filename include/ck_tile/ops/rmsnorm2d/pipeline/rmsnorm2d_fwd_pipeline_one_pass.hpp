@@ -101,21 +101,6 @@ struct Rmsnorm2dFwdPipelineOnePass
             sweep_tile(x_resi, [&](auto idx) {
                 // compute x = x_resi + x
                 acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
-
-                // To make norm input align with residual output
-                if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
-                {
-                    if constexpr(std::is_same_v<YResidualDataType, ck_tile::bf16_t>)
-                    {
-                        acc(idx) = type_convert<ComputeDataType>(
-                            float_to_bf16<bf16_rounding_mode::standard>(acc(idx)));
-                    }
-                    else
-                    {
-                        acc(idx) = type_convert<ComputeDataType>(
-                            type_convert<YResidualDataType>(acc(idx)));
-                    }
-                }
             });
             if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
@@ -124,35 +109,9 @@ struct Rmsnorm2dFwdPipelineOnePass
         }
 
         // compute mean square each-thread->cross-lane->cross-warp
-#if 0
         auto square_sum = block_reduce2d(acc,
                                          reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
                                          reduce_square_sum_func);
-#else
-        auto square_sum = block_reduce2d.template MakeYBlockTile<decltype(acc)>();
-        set_tile(square_sum, 0);
-        // WORKAROUND: To perform vector square_add in vLLM.
-        if constexpr(Problem::BlockShape::Vector_N % 2 == 0)
-        {
-            sweep_tile(
-                acc,
-                [&](auto idx_0, auto idx_1) {
-                    square_sum(idx_0) += acc[idx_0] * acc[idx_0] + acc[idx_1] * acc[idx_1];
-                },
-                sequence<1, 2>{});
-        }
-        else
-        {
-            sweep_tile(
-                acc,
-                [&](auto idx_) {
-                    constexpr auto idx_0 = make_tuple(idx_[number<0>{}]);
-                    square_sum(idx_0)    = reduce_square_sum_func(
-                        square_sum(idx_0), ck_tile::type_convert<ComputeDataType>(acc[idx_]));
-                },
-                sequence<1, 1>{});
-        }
-#endif
         block_reduce2d_sync(square_sum, reduce_sum_func);
         block_reduce2d_cross_warp_sync(square_sum, smem, reduce_sum_func);
 
@@ -170,28 +129,10 @@ struct Rmsnorm2dFwdPipelineOnePass
             constexpr auto j_idx = make_tuple(idx[number<1>{}]);
 
             const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
-#if 0
-            const auto rmsn_  = acc[idx] * inv_rms_[i_idx] * gamma_;
-	        rmsn(idx) = rmsn_;
-#else
-            if constexpr(std::is_same_v<YResidualDataType, ck_tile::bf16_t>)
-            {
-                const auto tmp0 =
-                    float_to_bf16<bf16_rounding_mode::standard>(acc[idx] * inv_rms_[i_idx]);
-                const auto tmp1 = float_to_bf16<bf16_rounding_mode::standard>(
-                    type_convert<ComputeDataType>(tmp0) * gamma_);
-                const auto rmsn_ = type_convert<ComputeDataType>(tmp1);
-                rmsn(idx)        = rmsn_;
-            }
-            else
-            {
-                const auto tmp0 = type_convert<YResidualDataType>(acc[idx] * inv_rms_[i_idx]);
-                const auto tmp1 =
-                    type_convert<YResidualDataType>(type_convert<ComputeDataType>(tmp0) * gamma_);
-                const auto rmsn_ = type_convert<ComputeDataType>(tmp1);
-                rmsn(idx)        = rmsn_;
-            }
-#endif
+
+            auto rmsn_ = acc[idx] * inv_rms_[i_idx] * gamma_;
+
+            rmsn(idx) = rmsn_;
         });
 
         if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)

@@ -218,7 +218,6 @@ struct BlockReduce2dCrossWarpSync
     CK_TILE_DEVICE void
     operator()(YDistributedTensor_& y_tensor, void* smem, const ReduceFunc& reduce_func)
     {
-#if 0
         using DataType = typename YDistributedTensor_::DataType;
 
         constexpr index_t thread_buf_size = YDistributedTensor_::get_thread_buffer_size();
@@ -270,7 +269,68 @@ struct BlockReduce2dCrossWarpSync
 
             y_tensor.get_thread_buffer()(i_0) = v_local;
         });
-#else
+    }
+};
+
+template <typename Problem_, typename Policy_ = void>
+struct BlockReduce2dTreeCrossWarpSync
+{
+    using Problem    = remove_cvref_t<Problem_>;
+    using BlockShape = typename Problem::BlockShape;
+
+    template <typename YDistributedTensor_>
+    CK_TILE_DEVICE static constexpr index_t GetReduceWarps()
+    {
+        constexpr index_t num_reduce_warps = [&]() {
+            using Dstr             = typename YDistributedTensor_::StaticTileDistribution;
+            using DstrEncode       = typename Dstr::DstrEncode;
+            using DstrEncodeDetail = typename DstrEncode::detail;
+
+            constexpr index_t NDimR = Dstr::get_num_of_dimension_r();
+
+            constexpr index_t idim_p_warp = 0;
+
+            index_t len_ = 1;
+            static_for<0, NDimR, 1>{}([&](auto idim_r) {
+                if constexpr(DstrEncodeDetail::does_p_own_r_[idim_p_warp][idim_r])
+                {
+                    constexpr index_t r_length = DstrEncode::rs_lengths_[idim_r];
+                    len_ *= r_length;
+                }
+            });
+            return len_;
+        }();
+        return num_reduce_warps;
+    }
+
+    // return in byte
+    template <typename YDistributedTensor_>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        using DataType                    = typename YDistributedTensor_::DataType;
+        constexpr index_t thread_buf_size = YDistributedTensor_::get_thread_buffer_size();
+
+        // we need to store all data from every wave into smem
+        // e.g. 2x2 reduce along N
+        //     -------------> reduce N
+        //    | w0 | w1 |   ___>      | w01 |
+        //    | w2 | w3 |             | w23 |
+        //
+        //   -> store data from every wave into LDS
+        //
+        //
+        //     -------------> reduce N
+        //    | w0 | w1 | w2 | w3 |   ----->  | w0123 |
+        //
+        //   -> also store data from every wave into LDS
+        constexpr index_t num_warps = BlockShape::BlockSize / warpSize;
+        return num_warps * thread_buf_size * sizeof(DataType);
+    }
+
+    template <typename YDistributedTensor_, typename ReduceFunc>
+    CK_TILE_DEVICE void
+    operator()(YDistributedTensor_& y_tensor, void* smem, const ReduceFunc& reduce_func)
+    {
         // WORKAROUND: Mimic tree reduction
         using DataType                    = typename YDistributedTensor_::DataType;
         constexpr index_t thread_buf_size = YDistributedTensor_::get_thread_buffer_size();
@@ -331,7 +391,6 @@ struct BlockReduce2dCrossWarpSync
         // Broadcast the final result to all threads
         static_for<0, thread_buf_size, 1>{}(
             [&](auto i) { y_tensor.get_thread_buffer()(i) = smem_ptr[i * num_warps]; });
-#endif
     }
 };
 

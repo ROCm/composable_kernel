@@ -84,8 +84,8 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
         auto reduce_sum_func        = ReduceOp::Add{};
         auto block_reduce2d         = Policy::template GetBlockReduce2d<Problem>();
         auto block_reduce2d_sync    = Policy::template GetBlockReduce2dSync<Problem>();
-        auto block_reduce2d_cross_warp_sync =
-            Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
+        auto block_reduce2d_tree_cross_warp_sync =
+            Policy::template GetBlockReduce2dTreeCrossWarpSync<Problem>();
 
         auto x      = load_tile(x_window);
         auto x_resi = load_tile(x_residual_window);
@@ -98,6 +98,9 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
         if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD ||
                      kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
         {
+            [[maybe_unused]] auto pre_out =
+                make_static_distributed_tensor<YResidualDataType>(x.get_tile_distribution());
+
             sweep_tile(x_resi, [&](auto idx) {
                 // compute x = x_resi + x
                 acc(idx) = type_convert<ComputeDataType>(x_resi(idx)) + acc(idx);
@@ -107,31 +110,24 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
                 {
                     if constexpr(std::is_same_v<YResidualDataType, ck_tile::bf16_t>)
                     {
-                        acc(idx) = type_convert<ComputeDataType>(
-                            float_to_bf16<bf16_rounding_mode::standard>(acc(idx)));
+                        pre_out(idx) = float_to_bf16<bf16_rounding_mode::standard>(acc(idx));
                     }
                     else
                     {
-                        acc(idx) = type_convert<ComputeDataType>(
-                            type_convert<YResidualDataType>(acc(idx)));
+                        pre_out(idx) = type_convert<YResidualDataType>(acc(idx));
                     }
+                    acc(idx) = type_convert<ComputeDataType>(pre_out(idx));
                 }
             });
             if constexpr(kFusedAdd == Rmsnorm2dFusedAddEnum::PRE_ADD_STORE)
             {
-                store_tile(y_residual_window, cast_tile<YResidualDataType>(acc));
+                store_tile(y_residual_window, pre_out);
             }
         }
 
         // compute mean square each-thread->cross-lane->cross-warp
-#if 0
-        auto square_sum = block_reduce2d(acc,
-                                         reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
-                                         reduce_square_sum_func);
-#else
         auto square_sum = block_reduce2d.template MakeYBlockTile<decltype(acc)>();
         set_tile(square_sum, 0);
-        // WORKAROUND: To perform vector square_add in vLLM.
         if constexpr(Problem::BlockShape::Vector_N % 2 == 0)
         {
             sweep_tile(
@@ -143,18 +139,12 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
         }
         else
         {
-            sweep_tile(
-                acc,
-                [&](auto idx_) {
-                    constexpr auto idx_0 = make_tuple(idx_[number<0>{}]);
-                    square_sum(idx_0)    = reduce_square_sum_func(
-                        square_sum(idx_0), ck_tile::type_convert<ComputeDataType>(acc[idx_]));
-                },
-                sequence<1, 1>{});
+            square_sum = block_reduce2d(acc,
+                                        reduce_square_sum_func.GetIdentityValue<ComputeDataType>(),
+                                        reduce_square_sum_func);
         }
-#endif
         block_reduce2d_sync(square_sum, reduce_sum_func);
-        block_reduce2d_cross_warp_sync(square_sum, smem, reduce_sum_func);
+        block_reduce2d_tree_cross_warp_sync(square_sum, smem, reduce_sum_func);
 
         // compute inv-rms
         auto inv_rms = tile_elementwise_in(
@@ -170,10 +160,7 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
             constexpr auto j_idx = make_tuple(idx[number<1>{}]);
 
             const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
-#if 0
-            const auto rmsn_  = acc[idx] * inv_rms_[i_idx] * gamma_;
-	        rmsn(idx) = rmsn_;
-#else
+
             if constexpr(std::is_same_v<YResidualDataType, ck_tile::bf16_t>)
             {
                 const auto tmp0 =
@@ -185,13 +172,10 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
             }
             else
             {
-                const auto tmp0 = type_convert<YResidualDataType>(acc[idx] * inv_rms_[i_idx]);
-                const auto tmp1 =
-                    type_convert<YResidualDataType>(type_convert<ComputeDataType>(tmp0) * gamma_);
-                const auto rmsn_ = type_convert<ComputeDataType>(tmp1);
+                const auto tmp   = type_convert<YResidualDataType>(acc[idx] * inv_rms_[i_idx]);
+                const auto rmsn_ = type_convert<ComputeDataType>(tmp) * gamma_;
                 rmsn(idx)        = rmsn_;
             }
-#endif
         });
 
         if constexpr(kFusedQuant == Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT)
