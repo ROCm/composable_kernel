@@ -19,6 +19,8 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_bwd_weight.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -421,7 +423,37 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     using Block2CTileMap =
         decltype(GridwiseGemm::MakeCBlockClusterAdaptor(CGridDesc_M_N{}, 1, 1, 1));
 
-    struct Argument : public BaseArgument
+    struct MaximumActiveBlocksPerMultiprocessor
+    {
+        MaximumActiveBlocksPerMultiprocessor()
+        {
+            constexpr int dynamic_smem_size = 0;
+            int max_occupancy = 0;
+            hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                                &max_occupancy,
+                                kernel_batched_gemm_xdlops_bwd_weight<
+                                    GridwiseGemm,
+                                    ADataType,
+                                    BDataType,
+                                    CDataType,
+                                    OutElementwiseOperation,
+                                    InElementwiseOperation,
+                                    WeiElementwiseOperation,
+                                    remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>, 
+                                    remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>, 
+                                    remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>, 
+                                    remove_reference_t<DeviceOp::Block2CTileMap>,
+                                    ComputePtrOffsetOfStridedBatch<>,
+                                    false>, // Both true/false give the same occupancy.
+                                BlockSize,
+                                dynamic_smem_size));
+            value_ = std::max(1, max_occupancy);
+        }
+        int value_;
+    };
+    
+
+    struct Argument : public BaseArgument, public ArgumentSplitK
     {
         Argument(const InDataType* p_in_grid,
                  WeiDataType* p_wei_grid,
@@ -465,9 +497,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
               output_spatial_lengths_{},
               conv_filter_strides_{conv_filter_strides},
               input_left_pads_{input_left_pads},
-              input_right_pads_{input_right_pads},
-              k_batch_{split_k}
+              input_right_pads_{input_right_pads}
         {
+            static MaximumActiveBlocksPerMultiprocessor max_occupancy;
+
             c_space_size_bytes =
                 ck::accumulate_n<long_index_t>(
                     e_g_k_c_xs_lengths.begin(), NDimSpatial + I3, 1, std::multiplies<>()) *
@@ -493,6 +526,39 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
             std::array<index_t, NDimSpatial + 3> e_g_k_c_xs_strides_transposed =
                 conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(e_g_k_c_xs_lengths,
                                                                     e_g_k_c_xs_strides);
+
+            if (split_k < 0)
+            {
+                constexpr int k_batch_initial = 1;
+                const auto descs_initial =
+                        conv_to_gemm_transformer
+                            .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                                Conv_N_,
+                                Conv_K_,
+                                Conv_C_,
+                                input_spatial_lengths_,
+                                filter_spatial_lengths_,
+                                output_spatial_lengths_,
+                                b_g_n_c_wis_strides_transposed,
+                                e_g_k_c_xs_strides_transposed,
+                                a_g_n_k_wos_strides_transposed,
+                                conv_filter_strides,
+                                conv_filter_dilations,
+                                input_left_pads,
+                                input_right_pads,
+                                k_batch_initial);
+
+                const auto& c_grid_desc_m_n   = descs_initial[I2];
+                const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
+
+                const auto grid_size_mn = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);            
+                k_batch_ = get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size_mn, Conv_G_);
+            }
+            else 
+            {
+                k_batch_ = split_k;
+            }
+
             const auto descs =
                 conv_to_gemm_transformer
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -658,7 +724,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& conv_filter_strides_;
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
-        const index_t k_batch_;
         long_index_t c_space_size_bytes;
     };
 

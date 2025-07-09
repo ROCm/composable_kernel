@@ -88,7 +88,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
 
     const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 9, argv);
 
-    ck::index_t split_k = std::stoi(argv[8 + 1 + 4 + 6 * num_dim_spatial]);
+    const auto& split_k = std::string(argv[8 + 1 + 4 + 6 * num_dim_spatial]);
 
     using F32  = float;
     using F16  = ck::half_t;
