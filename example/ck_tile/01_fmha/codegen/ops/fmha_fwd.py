@@ -118,7 +118,7 @@ FMHA_FWD_API="""
 #include <cstdio>
 
 namespace {{
-bool get_num_cus(unsigned& num_cu) {{
+bool get_num_cus(unsigned& num_cus) {{
     int device;
     auto status = hipGetDevice(&device);
     if(status != hipSuccess) {{
@@ -133,7 +133,7 @@ bool get_num_cus(unsigned& num_cu) {{
         return false;
     }}
 
-    num_cu = props.multiProcessorCount;
+    num_cus = props.multiProcessorCount;
     return true;
 }}
 
