@@ -117,6 +117,8 @@ FMHA_FWD_API_FILENAME="fmha_fwd_api.cpp"
 FMHA_FWD_API="""
 #include <cstdio>
 
+#include <hip/hip_runtime.h>
+
 namespace {{
 bool get_num_cus(unsigned& num_cus) {{
     int device;
