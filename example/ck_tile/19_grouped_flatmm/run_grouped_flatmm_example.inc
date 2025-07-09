@@ -475,6 +475,7 @@ int run_contiguous_grouped_flatmm_example_with_layouts(
         CDataType* d_C;
         ck_tile::hip_check_error(hipMalloc(&d_B, N * K * sizeof(BDataType)));
         ck_tile::hip_check_error(hipMalloc(&d_C, M * N * sizeof(CDataType)));
+        ck_tile::hip_check_error(hipMemset(d_C, 0, M * N * sizeof(CDataType)));
 
         ck_tile::HostTensor<CDataType> c_gpu_ref_host(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
@@ -485,7 +486,7 @@ int run_contiguous_grouped_flatmm_example_with_layouts(
             ck_tile::index_t padded_M = (Ms[i] + BlockM - 1) / BlockM * BlockM;
 
             ck_tile::hip_check_error(hipMemcpy(d_B,
-                                               b_k_n_tensor.data() + group_count * N * K,
+                                               b_k_n_tensor.data() + i * N * K,
                                                N * K * sizeof(BDataType),
                                                hipMemcpyHostToDevice));
             ck_tile::reference_gemm_gpu<ADataType,
