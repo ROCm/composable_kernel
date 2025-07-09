@@ -509,8 +509,9 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
     }
 
     // Blockwise gemm pipeline for gemm0, this replaces the old GridwiseGemmPipe +
-    // BlockwiseGemmWMMA. The latter had two enableLDS bools and a transposeC bool which we don't
-    // have anymore (now effectively true, true, false).
+    // BlockwiseGemmWMMA. The latter had two enableLDS bools which we don't
+    // have anymore, the new pipelines ALWAYS use lds. Furthermore the original BlockwiseGemmWMMA
+    // used TransposeC = true which we still need to make the operation work.
     using BlockwiseGemmPipe =
         remove_cvref_t<decltype(BlockGemmPipeline_Selector<
                                 BlockGemmPipelineVersion::v1, // BlkGemmPipelineVer, TODO: param
@@ -535,7 +536,8 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                                 LPerWmma,
                                 MRepeat,
                                 LRepeat,
-                                KPack>())>;
+                                KPack,
+                                true>())>; // TransposeC (must be true to work), C' = B' x A'
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>
@@ -997,7 +999,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         auto blockwise_gemm0_pipeline = BlockwiseGemmPipe{};
         auto acc0_thread_buf          = blockwise_gemm0_pipeline.GetCThreadBuffer();
 
-        // TODO: Not sure why we were able to just replace the CThreadDescriptor with the untransposed layour but it seems to work.
+        // TODO: Not sure why we were able to just replace the CThreadDescriptor with the untransposed layout but it seems to work.
         constexpr auto acc0_thread_desc_mrepeat_mwave_mthreadpersubgroup_nrepeat_nwave_nsubgroup_naccvgprs = 
             blockwise_gemm0_pipeline.GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
         
@@ -1218,7 +1220,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
         // Outer loop, along GEMM_L
         // Inner loop, along GEMM_K
         do {
-            // gemm0 start, A-B swaped
+            // gemm0 start, A-B swapped
             // GridwiseGemmPipe::template Run<HasMainKBlockLoop>(a_grid_desc,
             //                                                   a_block_desc,
             //                                                   a_blockwise_copy,
@@ -1281,7 +1283,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
                 if constexpr(num_gemm1_l_block_inner_loop > 1)
                 {
                     static_for<0, num_gemm1_l_block_inner_loop - 1, 1>{}([&](auto i) {
-                        // Data cast from Acc0DataType to ADataType happen here
+                        // Data cast from Acc0DataType to ADataType happens here
                         a1_blockwise_copy.Run(acc0_thread_desc_l0perblock_mperblock_l1,
                                               make_tuple(Number<i * A1ThreadSliceL0PerBlock>{}, I0, I0),
                                               acc0_thread_buf,

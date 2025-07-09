@@ -30,8 +30,8 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
-          bool TransposeC = true> // TODO: Forced true for batched gemm gemm wmma (hack), should be
-                                  // set from above!
+          bool TransposeC =
+              false> // TODO: the TransposeC case should have different C descriptor calculators?
 struct BlockwiseGemmWmmaops_pipeline_base
 {
     static constexpr auto I0 = Number<0>{};
