@@ -1395,18 +1395,6 @@ struct ThreadwiseTensorSliceTransfer_v4
                 src_tmp_vector.template AsType<src_vector_t>()(Number<0>{}) =
                     src_buf.template Get<src_vector_t>(src_data_coord.GetOffset() / PackedSize,
                                                        is_src_valid);
-
-#if 0
-                if(blockIdx.x == 0 && threadIdx.x == 4 &&
-                   (src_buf.p_data_ == reinterpret_cast<const void*>(0x1000000000000)))
-                {
-                    printf("ThreadwiseTensorSliceTransfer_v4 -- src_buf[%d] = 0x%08x %08x %08x\n",
-                           src_data_coord.GetOffset() / PackedSize,
-                           src_buf[src_data_coord.GetOffset() / PackedSize].data_[0],
-                           src_buf[src_data_coord.GetOffset() / PackedSize].data_[1],
-                           src_buf[src_data_coord.GetOffset() / PackedSize].data_[2]);
-                }
-#endif
             }
             else if constexpr(SrcBuffer::IsStaticBuffer())
             {

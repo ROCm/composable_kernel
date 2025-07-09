@@ -62,14 +62,12 @@ struct f4x2_pk_t
     }
 
     // Compare operator
-    __attribute__((host)) __attribute__((device)) friend bool operator==(const f4x2_pk_t& lhs,
-                                                                         const f4x2_pk_t& rhs)
+    __host__ __device__ friend bool operator==(const f4x2_pk_t& lhs, const f4x2_pk_t& rhs)
     {
         return lhs.data == rhs.data;
     }
 
-    __attribute__((host)) __attribute__((device)) friend bool operator!=(const f4x2_pk_t& lhs,
-                                                                         const f4x2_pk_t& rhs)
+    __host__ __device__ friend bool operator!=(const f4x2_pk_t& lhs, const f4x2_pk_t& rhs)
     {
         return !(lhs == rhs);
     }
@@ -117,7 +115,7 @@ struct f6_pk_t
     }
 
     template <typename T>
-    __attribute__((host)) __attribute__((device)) void pack(const T x, const index_t i)
+    __host__ __device__ void pack(const T x, const index_t i)
     {
         static_assert(is_integral<T>::value || is_same_v<T, BitType>,
                       "T must be an integral type.");
@@ -142,8 +140,7 @@ struct f6_pk_t
         }
     }
 
-    __attribute__((host)) __attribute__((device)) static inline BitType unpack(const type& pk,
-                                                                               const index_t i)
+    __host__ __device__ static inline BitType unpack(const type& pk, const index_t i)
     {
         const int bit_pos    = i * num_bits_elem;
         const int arr_idx    = bit_pos / num_bits_vec_elem;

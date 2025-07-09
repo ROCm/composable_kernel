@@ -14,7 +14,6 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/env.hpp"
-#include "ck/utility/debug.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_direct_load.hpp"
 
 namespace ck {
@@ -1113,18 +1112,6 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
-
-        // F6, v3: 2048, 32768 -- F4, v3: 32768, 32768
-        // debug::CK_PRINT<static_cast<int>(a_block_space_size_aligned),
-        // static_cast<int>(a_block_space_size_aligned * sizeof(ADataType)) > ();
-        // F6, v3: 2048, 32768 -- F4, v3: 32768, 32768
-        // debug::CK_PRINT<static_cast<int>(b_block_space_size_aligned),
-        // static_cast<int>(b_block_space_size_aligned * sizeof(BDataType)) > ();
-        // F6, v3: 65536 -- F4, v3: 65536
-        // debug::CK_PRINT<static_cast<int>(a_block_space_size_aligned * sizeof(ADataType)) +
-        // static_cast<int>(b_block_space_size_aligned * sizeof(BDataType)) > ();
-        // F6, v3: 8192 -- F4, v3: 8192
-        // debug::CK_PRINT<static_cast<int>(c_block_size * sizeof(CShuffleDataType))>();
 
         return math::max((a_block_space_size_aligned * sizeof(ADataType) +
                           b_block_space_size_aligned * sizeof(BDataType)),

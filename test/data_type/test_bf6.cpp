@@ -479,25 +479,6 @@ __global__ void test_bf6_convert_rne(float* p_test, uint64_t* p_completed)
     auto bf6x32_vec = bf6_convert_rne(float32_in);
     float32_out     = type_convert<ck::float32_t>(bf6x32_vec);
 
-#if 1
-    auto bf6x32_vec_cnstr = bf6x32_pk_t(0x0C);
-
-    printf("test_bf6_convert_rne: bf6x32_vec_cnstr = 0x");
-    for(int ii = 0; ii < 6; ++ii)
-    {
-        printf("%08x ", bf6x32_vec_cnstr.data_[ii]);
-    }
-    printf("\n");
-
-    printf("test_bf6_convert_rne: bf6x32_vec = 0x");
-    for(int ii = 0; ii < 6; ++ii)
-    {
-        printf("%08x ", bf6x32_vec.data_.dN[ii]);
-    }
-    printf("\n");
-
-#endif
-
     ck::static_for<0, N, 1>{}([&](auto ii) { p_test[i++] = float32_out[static_cast<int>(ii)]; });
     i = N;
 }
@@ -528,20 +509,4 @@ TEST(MXBF6, DeviceBF6ConvertRNE)
     auto bf6x32_vec_cnstr = bf6x32_pk_t(0x0C);
 
     EXPECT_EQ(bf6x32_vec_tc, bf6x32_vec_cnstr);
-
-#if 1
-    printf("DeviceBF6ConvertRNE: bf6x32_vec_tc = 0x");
-    for(int ii = 0; ii < 6; ++ii)
-    {
-        printf("%08x ", bf6x32_vec_tc.data_[ii]);
-    }
-    printf("\n");
-
-    printf("bf6x32_vec_cnstr = 0x");
-    for(int ii = 0; ii < 6; ++ii)
-    {
-        printf("%08x ", bf6x32_vec_cnstr.data_[ii]);
-    }
-    printf("\n");
-#endif
 }
