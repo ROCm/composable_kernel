@@ -1244,10 +1244,10 @@ pipeline {
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j128 benchmark_gemm_fp8 && \
-                                           ./bin/benchmark_gemm_fp8 && \
-                                           ninja -j128 benchmark_gemm_fp16 && \
-                                           ./bin/benchmark_gemm_fp16 """
+                                           ninja -j128 benchmark_gemm_fp8_rcr && \
+                                           ./bin/benchmark_gemm_fp8_rcr && \
+                                           ninja -j128 benchmark_gemm_fp16_rcr && \
+                                           ./bin/benchmark_gemm_fp16_rcr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
