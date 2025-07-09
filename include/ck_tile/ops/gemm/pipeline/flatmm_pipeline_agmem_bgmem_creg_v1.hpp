@@ -12,9 +12,10 @@ namespace ck_tile {
 template <typename Problem>
 struct BaseFlatmmPipelineAGmemBGmemCRegV1
 {
-    static constexpr index_t PrefetchStages  = 1;
-    static constexpr index_t PrefillStages   = 1;
-    static constexpr index_t GlobalBufferNum = 1;
+    static constexpr index_t PrefetchStages   = 1;
+    static constexpr index_t PrefillStages    = 1;
+    static constexpr index_t GlobalBufferNum  = 1;
+    static constexpr bool UsePersistentKernel = Problem::Traits::UsePersistentKernel;
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
@@ -33,8 +34,9 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
 };
 
 template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
-struct FlatmmPipelineAGmemBGmemCRegV1
+struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV1<Problem>
 {
+    using Base           = BaseFlatmmPipelineAGmemBGmemCRegV1<Problem>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
@@ -82,6 +84,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr index_t Preshuffle    = Problem::Preshuffle;
+    using Base::UsePersistentKernel;
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
