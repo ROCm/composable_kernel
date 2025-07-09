@@ -113,7 +113,7 @@ struct DeviceOperationInstanceFactory<
         // No XDL instances for DeviceGemmMultipleDSplitK with AddRelu at the moment
 #endif // CK_USE_XDL
 
-#elif defined(CK_USE_WMMA)
+#if defined(CK_USE_WMMA)
 
 #if defined(CK_ENABLE_FP16)
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
