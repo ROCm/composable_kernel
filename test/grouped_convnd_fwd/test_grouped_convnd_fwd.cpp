@@ -21,7 +21,7 @@ class TestGroupedConvndFwd : public ::testing::Test
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
 
-    template <ck::index_t NDimSpatial>
+    template <ck::index_t NDimSpatial, ck::index_t SplitK = 1>
     void Run()
     {
         EXPECT_FALSE(conv_params.empty());
@@ -42,7 +42,8 @@ class TestGroupedConvndFwd : public ::testing::Test
                                1,     // init_method: integer value
                                false, // do_log
                                false, // time_kernel
-                               param);
+                               param,
+                               SplitK);
         }
         EXPECT_TRUE(pass);
     }
@@ -112,6 +113,26 @@ TYPED_TEST(TestGroupedConvndFwd1d, Test1D)
     this->template Run<1>();
 }
 
+TYPED_TEST(TestGroupedConvndFwd1d, Test1DSplitK2)
+{
+    this->conv_params.clear();
+    // Convert 3D shapes to 1D (take first spatial dimension)
+    this->conv_params.push_back({1, 2, 1, 3, 128, {3}, {11}, {1}, {1}, {1}, {0}});
+    this->conv_params.push_back({1, 1, 1, 512, 512, {3}, {5}, {1}, {1}, {1}, {0}});
+    this->conv_params.push_back({1, 1, 1, 512, 512, {3}, {5}, {1}, {1}, {1}, {0}});
+    this->conv_params.push_back({1, 2, 1, 3, 128, {3}, {11}, {1}, {1}, {1}, {0}});
+    this->conv_params.push_back({1, 1, 1, 512, 512, {3}, {5}, {1}, {1}, {1}, {0}});
+    this->template Run<1, 2>();
+}
+
+TYPED_TEST(TestGroupedConvndFwd1d, Test1DSplitK4)
+{
+    this->conv_params.clear();
+    this->conv_params.push_back({1, 1, 1, 512, 512, {3}, {5}, {1}, {1}, {1}, {0}});
+    this->conv_params.push_back({1, 1, 1, 512, 512, {3}, {7}, {1}, {1}, {1}, {0}});
+    this->template Run<1, 4>();
+}
+
 TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
 {
     this->conv_params.clear();
@@ -127,6 +148,33 @@ TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
     this->conv_params.push_back(
         {2, 96, 1, 1, 1, {3, 3}, {120, 160}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->template Run<2>();
+}
+
+TYPED_TEST(TestGroupedConvndFwd2d, Test2DSplitK2)
+{
+    this->conv_params.clear();
+    // Convert 3D shapes to 2D (take first two spatial dimensions)
+    this->conv_params.push_back(
+        {2, 1, 1, 512, 512, {3, 3}, {7, 20}, {1, 1}, {1, 1}, {1, 1}, {0, 0}});
+    this->conv_params.push_back(
+        {2, 2, 1, 512, 512, {3, 3}, {7, 34}, {1, 1}, {1, 1}, {1, 1}, {0, 0}});
+    this->conv_params.push_back(
+        {2, 1, 1, 512, 512, {3, 3}, {7, 38}, {1, 1}, {1, 1}, {1, 1}, {0, 0}});
+    this->conv_params.push_back(
+        {2, 1, 1, 256, 256, {3, 3}, {11, 74}, {1, 1}, {1, 1}, {1, 1}, {0, 0}});
+    this->conv_params.push_back(
+        {2, 1, 1, 256, 512, {1, 1}, {9, 72}, {1, 1}, {1, 1}, {1, 1}, {0, 0}});
+    this->template Run<2, 2>();
+}
+
+TYPED_TEST(TestGroupedConvndFwd2d, Test2DSplitK4)
+{
+    this->conv_params.clear();
+    this->conv_params.push_back(
+        {2, 1, 1, 256, 256, {3, 3}, {7, 130}, {1, 1}, {1, 1}, {1, 1}, {0, 0}});
+    this->conv_params.push_back(
+        {2, 2, 1, 512, 512, {3, 3}, {7, 66}, {1, 1}, {1, 1}, {1, 1}, {0, 0}});
+    this->template Run<2, 4>();
 }
 
 TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
@@ -147,4 +195,31 @@ TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
     this->conv_params.push_back(
         {3, 96, 1, 1, 1, {3, 3, 3}, {4, 30, 160}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->template Run<3>();
+}
+
+TYPED_TEST(TestGroupedConvndFwd3d, Test3DSplitK2)
+{
+    this->conv_params.clear();
+    // Use original 3D shapes
+    this->conv_params.push_back(
+        {3, 1, 1, 3, 128, {3, 3, 3}, {11, 258, 258}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 2, 1, 512, 512, {3, 3, 3}, {5, 20, 18}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 1, 1, 512, 512, {3, 3, 3}, {7, 20, 34}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 1, 1, 256, 256, {3, 3, 3}, {7, 74, 66}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 1, 1, 256, 512, {3, 3, 3}, {7, 130, 66}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}});
+    this->template Run<3, 2>();
+}
+
+TYPED_TEST(TestGroupedConvndFwd3d, Test3DSplitK4)
+{
+    this->conv_params.clear();
+    this->conv_params.push_back(
+        {3, 2, 1, 3, 128, {3, 3, 3}, {11, 146, 258}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 1, 1, 512, 512, {3, 3, 3}, {5, 66, 34}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}});
+    this->template Run<3, 4>();
 }
