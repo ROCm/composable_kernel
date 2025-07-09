@@ -631,6 +631,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     cond &= pipeline.F_squant == 'f'
                     cond &= mode == 'batch'
                     cond &= pipeline.F_skip == 'f'
+                    cond &= pipeline.F_logits == 'f'
                     if not cond:
                         continue
                 # Aiter(mha_fwd) integration
