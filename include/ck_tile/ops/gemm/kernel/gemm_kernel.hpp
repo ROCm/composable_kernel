@@ -654,6 +654,19 @@ struct GemmKernel
         return make_tuple(a_block_window, b_block_window, c_block_window);
     }
    
+    template<typename GemmPipeline_Type>
+    struct GemmProblemForPolicy {
+        using ADataType = typename GemmPipeline_Type::ADataType;
+        using BDataType = typename GemmPipeline_Type::BDataType;
+        using CDataType = typename GemmPipeline_Type::CDataType;
+        using ALayout = typename GemmPipeline_Type::ALayout;
+        using BLayout = typename GemmPipeline_Type::BLayout;
+        using CLayout = typename GemmPipeline_Type::CLayout;
+        using BlockGemmShape = typename GemmPipeline_Type::BlockGemmShape;
+        static constexpr index_t kBlockSize = GemmPipeline_Type::BlockSize;
+        static constexpr bool TransposeC = GemmPipeline_Type::TransposeC;
+        static constexpr bool UseStructuredSparsity = false;
+    };
    
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
@@ -692,25 +705,31 @@ struct GemmKernel
                 
                 // c tile in global memory
                 auto& c_block_window = gemm_tile_windows.at(I2);
+                 
+                constexpr index_t BlockSize = GemmPipeline::BlockSize;
+                constexpr index_t MPerBlock = TilePartitioner::MPerBlock;
+                constexpr index_t NPerBlock = TilePartitioner::NPerBlock;
 
-                constexpr auto MIterPerWarp = GemmPipeline::BlockGemm::MIterPerWarp;
-                constexpr auto MWarp = GemmPipeline::BlockGemm::MWarp;
-                constexpr auto NIterPerWarp = GemmPipeline::BlockGemm::NIterPerWarp;
-                constexpr auto NWarp = GemmPipeline::BlockGemm::NWarp;
-                constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-                tuple<sequence<1, 2>>,
-                tuple<sequence<1, 1>>,
-                sequence<1, 2>,
-                sequence<0, 0>>{};
-
-                constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-                    c_block_outer_dstr_encoding, typename GemmPipeline::BlockGemm::WarpGemm::CWarpDstrEncoding{});
-                constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-
-                // Create zero tensor with same distribution as C block tile
-                auto zero_tile = make_static_distributed_tensor<CDataType>(c_block_dstr);
+                constexpr index_t VecSize = GetThreadVectorLoadSize<CDataType, CLayout, MPerBlock, NPerBlock, BlockSize>();
+                
+                using TilePattern = typename std::conditional_t<
+                    std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>,
+                    TileDistributionEncodingPattern2D<BlockSize,
+                                                    MPerBlock,
+                                                    NPerBlock,
+                                                    VecSize,
+                                                    tile_distribution_pattern::thread_raked>,
+                    TileDistributionEncodingPattern2D<BlockSize,
+                                                    NPerBlock,
+                                                    MPerBlock,
+                                                    VecSize,
+                                                    tile_distribution_pattern::thread_raked>
+                >;
+                
+                
+                auto zero_tile = make_static_distributed_tensor<CDataType>(
+                     TilePattern::Make2DStaticTileDistribution()
+                );
                 clear_tile(zero_tile);
 
                 // Store the zero tile to global memory
@@ -720,7 +739,6 @@ struct GemmKernel
 
                 // Signal that C tile has been zeroed
                 cleared_barrier.inc(blockIdx.x);
-
             }
         }
 
