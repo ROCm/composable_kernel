@@ -202,7 +202,7 @@ float rmsnorm2d_fwd_(const S& s, A a)
                                     Traits_::kTwoPass,
                                     static_cast<ck_tile::Rmsnorm2dFusedAddEnum>(Traits_::kFusedAdd),
                                     static_cast<ck_tile::Rmsnorm2dFusedQuantEnum>(Traits_::kFusedQuant),
-                                    Traits_::kUseModelSensitiveRMSNorm>;
+                                    static_cast<ck_tile::Rmsnorm2dFusedModelSensitiveEnum>(Traits_::kUseModelSensitiveRMSNorm)>;
 
     using PipelineProblem =
         ck_tile::Rmsnorm2dFwdPipelineProblem<typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::XDataType,
@@ -651,7 +651,7 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
         
         total_blob = list()
 
-        for model_sensitive_flag in [0, 1]:
+        for model_sensitive_flag in [0, 1]: # 0: default; 1: model sensitive
             current_trait_dict = h_trait_dicts[model_sensitive_flag]
             for hs_key in current_trait_dict:
                 hs = current_trait_dict[hs_key]            

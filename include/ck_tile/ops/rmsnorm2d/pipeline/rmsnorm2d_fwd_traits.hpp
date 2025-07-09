@@ -30,18 +30,22 @@ enum class Rmsnorm2dFusedQuantEnum
     DYNAMIC_QUANT        = 2, // rowwise quant, store out a y-scale
 };
 
-// enum class Rmsnorm2dFusedModelSensitiveEnum
-// {
-//     NO_MODEL_SENSITIVE   = 0,
-//     T5_LIKED             = 1,
-// };
-
 // clang-format off
 template<Rmsnorm2dFusedQuantEnum> struct Rmsnorm2dFusedQuantEnumName;
 template<> struct Rmsnorm2dFusedQuantEnumName<Rmsnorm2dFusedQuantEnum::NO_SWEEP> { static constexpr const char * name = "no"; };
 template<> struct Rmsnorm2dFusedQuantEnumName<Rmsnorm2dFusedQuantEnum::DYNAMIC_QUANT> { static constexpr const char * name = "dqt"; };
 template<> struct Rmsnorm2dFusedQuantEnumName<Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT> { static constexpr const char * name = "smdqt"; };
-// template<> struct Rmsnorm2dFusedModelSensitiveEnumName<Rmsnorm2dFusedModelSensitiveEnum::T5_LIKED> { static constexpr const char * name = "t5"; };
+// clang-format on
+
+enum class Rmsnorm2dFusedModelSensitiveEnum
+{
+    NO_MODEL_SENSITIVE   = 0,
+    T5_LIKED             = 1,
+};
+
+// clang-format off
+template<Rmsnorm2dFusedModelSensitiveEnum> struct Rmsnorm2dFusedModelSensitiveEnumName;
+template<> struct Rmsnorm2dFusedModelSensitiveEnumName<Rmsnorm2dFusedModelSensitiveEnum::T5_LIKED> { static constexpr const char * name = "t5"; };
 // clang-format on
 
 template <bool kPadN_,
@@ -50,8 +54,7 @@ template <bool kPadN_,
           bool kTwoPass_,
           Rmsnorm2dFusedAddEnum kFusedAdd_,
           Rmsnorm2dFusedQuantEnum kFusedQuant_,
-          ck_tile::index_t kUseModelSensitiveRMSNorm_>
-        //   Rmsnorm2dFusedModelSensitiveEnum kUseModelSensitiveRMSNorm_>
+          Rmsnorm2dFusedModelSensitiveEnum kUseModelSensitiveRMSNorm_>
 struct Rmsnorm2dFwdTraits
 {
     static constexpr bool kPadN                          = kPadN_;
@@ -60,8 +63,7 @@ struct Rmsnorm2dFwdTraits
     static constexpr bool kTwoPass                       = kTwoPass_;
     static constexpr Rmsnorm2dFusedAddEnum kFusedAdd     = kFusedAdd_;
     static constexpr Rmsnorm2dFusedQuantEnum kFusedQuant = kFusedQuant_;
-    // static constexpr Rmsnorm2dFusedModelSensitiveEnum kUseModelSensitiveRMSNorm       = kUseModelSensitiveRMSNorm_;
-    static constexpr ck_tile::index_t kUseModelSensitiveRMSNorm  = kUseModelSensitiveRMSNorm_;
+    static constexpr Rmsnorm2dFusedModelSensitiveEnum kUseModelSensitiveRMSNorm = kUseModelSensitiveRMSNorm_;
 };
 
 } // namespace ck_tile
