@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -93,7 +93,7 @@ bool profile_gemm_add_relu_impl(int do_verification,
     const auto b_element_op   = BElementOp{};
     const auto cde_element_op = CDEElementOp{};
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleDSplitK<
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleD<
         ALayout,
         BLayout,
         ck::Tuple<D0Layout>,
