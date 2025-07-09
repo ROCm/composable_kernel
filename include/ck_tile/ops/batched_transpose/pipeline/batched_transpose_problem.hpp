@@ -8,14 +8,14 @@
 
 namespace ck_tile {
 
-template <typename InputType_,
+template <typename DataType_,
           typename BlockTile, // Sequence<...
           typename ThreadTile,
           bool kPadM_ = false,
           bool kPadN_ = false> // Sequence<...
 struct BatchedTransposeProblem
 {
-    using InputType = remove_cvref_t<InputType_>;
+    using DataType = remove_cvref_t<DataType_>;
 
     static constexpr index_t kMPerThread = ThreadTile::at(number<0>{});
     static constexpr index_t kNPerThread = ThreadTile::at(number<1>{});
@@ -40,7 +40,7 @@ struct BatchedTransposeProblem
 
     // 128-bit is the max single-instruction bandwidth for load/store
     static constexpr index_t MaxLoadStoreSize = 16;
-    static constexpr index_t VectorSizeInput  = kPadM ? 1 : MaxLoadStoreSize / sizeof(InputType);
-    static constexpr index_t VectorSizeOutput = kPadN ? 1 : MaxLoadStoreSize / sizeof(InputType);
+    static constexpr index_t VectorSizeInput  = kPadM ? 1 : MaxLoadStoreSize / sizeof(DataType);
+    static constexpr index_t VectorSizeOutput = kPadN ? 1 : MaxLoadStoreSize / sizeof(DataType);
 };
 } // namespace ck_tile

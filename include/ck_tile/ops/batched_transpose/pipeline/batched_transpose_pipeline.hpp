@@ -23,7 +23,7 @@ struct BatchedTransposePipeline
 
         auto input_tile = load_tile(inp_win);
 
-        auto output_tile = make_static_distributed_tensor<typename Problem::InputType>(
+        auto output_tile = make_static_distributed_tensor<typename Problem::DataType>(
             Policy::template MakeOutputDistribution<Problem>());
 
         transpose_tile2d(output_tile, input_tile);

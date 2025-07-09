@@ -87,7 +87,6 @@ struct BatchedTransposeLdsProblem
         kQuadNumPerLeadDim * kQuadNumPerSecondDim * 16 / get_warp_size();
 
     // definitions to adapt to BatchedTransposeKernel
-    using InputType = DataType;
 
     static constexpr bool kPadM = false;
     static constexpr bool kPadN = false;
@@ -97,8 +96,8 @@ struct BatchedTransposeLdsProblem
 
     // 128-bit is the max single-instruction bandwidth for load/store
     static constexpr index_t MaxLoadStoreSize = 16;
-    static constexpr auto VectorSizeInput     = kPadM ? 1 : MaxLoadStoreSize / sizeof(InputType);
-    static constexpr auto VectorSizeOutput    = kPadN ? 1 : MaxLoadStoreSize / sizeof(InputType);
+    static constexpr auto VectorSizeInput     = kPadM ? 1 : MaxLoadStoreSize / sizeof(DataType);
+    static constexpr auto VectorSizeOutput    = kPadN ? 1 : MaxLoadStoreSize / sizeof(DataType);
 };
 
 } // namespace ck_tile
