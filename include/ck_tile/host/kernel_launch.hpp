@@ -24,7 +24,11 @@ __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
 #endif
     __global__ void kentry(Args... args)
 {
+#if defined(__HIP_DEVICE_COMPILE__)
     Kernel{}(args...);
+# else
+    (..., (ignore = args));
+#endif
 }
 
 //
