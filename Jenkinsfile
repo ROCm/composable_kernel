@@ -384,8 +384,7 @@ def cmake_build(Map conf=[:]){
                     sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis.log"
                     archiveArtifacts "clang_build_analysis.log"
                 }
-                
-                sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
+                sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace.json"
                 archiveArtifacts "ck_build_trace.json"
 
                 // do not run unit tests when building instances only
