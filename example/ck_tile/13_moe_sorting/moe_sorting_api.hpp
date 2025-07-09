@@ -10,8 +10,10 @@
 struct moe_sorting_trait
 {
     std::string index_type;
-    std::string weight_type;   // currently always float
-    bool local_expert_masking; // if mask experts as local expert
+    std::string weight_type;         // currently always float
+    bool local_expert_masking;       // if mask experts as local expert
+    bool clear_workspace_inside_api; // if true, no need clear workspace outsize (will take care of
+                                     // it inside API)
 };
 
 struct moe_sorting_args : public ck_tile::MoeSortingHostArgs

@@ -1070,6 +1070,8 @@ namespace impl {
 // [expert, padded_tokens]
 CK_TILE_HOST_DEVICE index_t moe_sorting_mp_mesh_stride(index_t tokens)
 {
+    // Pad to multiply of 32. This can make sure even if the mesh is in 8bit,
+    // we can still use dwordx4 load/store
     constexpr index_t chunk = 32;
     return (tokens + chunk - 1) / chunk * chunk;
 };
@@ -1313,12 +1315,12 @@ CK_TILE_HOST index_t moe_sorting_get_workspace_size(int tokens_, int num_experts
 #endif
 }
 
-#if 0
 template <typename Problem_>
 struct MoeSortingClearWorkspaceKernel
 {
-    static constexpr index_t BLOCK_SIZE = 1024;
-    static constexpr index_t OCCUPANCY  = 1; // hard coded
+    using Problem                       = remove_cvref_t<Problem_>;
+    static constexpr index_t BLOCK_SIZE = Problem::BlockSize;
+    static constexpr index_t OCCUPANCY  = Problem::Occu;
 
     using Hargs = MoeSortingHostArgs;
 
@@ -1328,7 +1330,9 @@ struct MoeSortingClearWorkspaceKernel
         void* p_expert_mesh;        // [expert, tokens]
         index_t tokens; // if p_local_tokens is not nullptr, this indicate the max possible tokens
                         // used for ws/LDS calculation
+        index_t num_experts;
         index_t mesh_stride; // mesh_stride for p_expert_mesh
+        index_t mesh_byte_size;
     };
 
     CK_TILE_HOST static constexpr auto get_num_cu()
@@ -1346,12 +1350,12 @@ struct MoeSortingClearWorkspaceKernel
     CK_TILE_HOST static constexpr auto MakeKargs(const Hargs& h)
     {
         Kargs k;
-        k.p_topk_ids     = h.p_topk_ids;
         k.p_local_tokens = h.p_local_tokens;
         k.p_expert_mesh  = h.p_ws;
         k.tokens         = h.tokens;
+        k.num_experts    = h.num_experts;
         k.mesh_stride    = impl::moe_sorting_mp_mesh_stride(h.tokens);
-        k.topk_mdiv      = mdiv{static_cast<uint32_t>(h.topk)};
+        k.mesh_byte_size = impl::moe_sorting_mesh_byte_size(h.tokens, h.num_experts, h.topk);
         return k;
     }
 
@@ -1364,10 +1368,44 @@ struct MoeSortingClearWorkspaceKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        for(auto i = 0; i < )
+        index_t tokens = [&]() {
+            if constexpr(Problem::LocalToken)
+            {
+                return reinterpret_cast<const index_t*>(kargs.p_local_tokens)[0];
+            }
+            else
+            {
+                return kargs.tokens;
+            }
+        }();
+
+        index_t mesh_stride = [&]() {
+            if constexpr(Problem::LocalToken)
+            {
+                return impl::moe_sorting_mp_mesh_stride(tokens);
+            }
+            else
+            {
+                return kargs.mesh_stride;
+            }
+        }();
+
+        index_t row_size    = mesh_stride; // impl::moe_sorting_mp_mesh_stride(tokens);
+        index_t pixels      = kargs.num_experts * row_size;
+        index_t total_bytes = pixels * kargs.mesh_byte_size;
+        index_t total_elems = total_bytes / 16; // always use dwordx4
+
+        using vector_type          = ext_vector_t<index_t, 4>;
+        vector_type* p_expert_mesh = reinterpret_cast<vector_type*>(kargs.p_expert_mesh);
+        auto zero_                 = vector_type{0};
+
+        for(index_t i = blockIdx.x * BLOCK_SIZE + threadIdx.x; i < total_elems;
+            i += gridDim.x * BLOCK_SIZE)
+        {
+            p_expert_mesh[i] = zero_;
+        }
     }
 };
-#endif
 
 // below kernel is multi-phase implementation for large token and/or expert case
 
