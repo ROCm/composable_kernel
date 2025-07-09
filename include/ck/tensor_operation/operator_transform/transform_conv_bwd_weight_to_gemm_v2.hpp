@@ -174,8 +174,14 @@ struct TransformConvBwdWeightToGemmV2
     {
         const auto CStride     = Number<1>{};
         const auto KStride     = weights_strides[1];
-        const auto XStride     = weights_strides[4];
         const auto BatchStride = weights_strides[0];
+        auto XStride           = weights_strides[4];
+
+        if constexpr(ConvBackwardWeightSpecialization ==
+                     device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
+        {
+            XStride = GemmK1Number * K;
+        }
         // Add NumGroupsToMerge for Batch+M dimension and, 1 as a placehorder
         // for Batch+N dimension
         const auto desc = make_naive_tensor_descriptor(
@@ -270,8 +276,14 @@ struct TransformConvBwdWeightToGemmV2
     {
         const auto CStride     = Number<1>{};
         const auto KStride     = weights_strides[1];
-        const auto XStride     = weights_strides[5];
         const auto BatchStride = weights_strides[0];
+        auto XStride           = weights_strides[5];
+
+        if constexpr(ConvBackwardWeightSpecialization ==
+                     device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
+        {
+            XStride = GemmK1Number * K;
+        }
         // Add NumGroupsToMerge for Batch+M dimension and, 1 for placehord for Batch+N dimension
         const auto desc = make_naive_tensor_descriptor(
             make_tuple(NumGroupsToMerge, K, Z * Y * X, 1, C),

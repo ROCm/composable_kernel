@@ -176,6 +176,8 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdWeight3d, KernelTypes3d);
 TYPED_TEST(TestGroupedConvndBwdWeight1d, Test1D)
 {
     this->conv_params.clear();
+    this->conv_params.push_back({1, 2, 64, 4, 4, {1}, {7}, {1}, {1}, {0}, {0}});
+    this->conv_params.push_back({1, 1, 1, 4, 4, {1}, {4}, {1}, {1}, {0}, {0}});
     this->conv_params.push_back({1, 2, 128, 128, 256, {1}, {14}, {2}, {1}, {0}, {0}});
     this->conv_params.push_back({1, 2, 32, 128, 256, {3}, {28}, {1}, {1}, {1}, {1}});
     this->conv_params.push_back({1, 2, 128, 128, 256, {1}, {3}, {1}, {1}, {0}, {0}});
@@ -188,6 +190,7 @@ TYPED_TEST(TestGroupedConvndBwdWeight1d, Test1D)
 TYPED_TEST(TestGroupedConvndBwdWeight2d, Test2D)
 {
     this->conv_params.clear();
+    this->conv_params.push_back({2, 1, 1, 4, 4, {1, 1}, {4, 4}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
     this->conv_params.push_back({2, 2, 64, 4, 4, {1, 1}, {7, 7}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
     this->conv_params.push_back(
         {2, 2, 64, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
@@ -208,6 +211,10 @@ TYPED_TEST(TestGroupedConvndBwdWeight2d, Test2D)
 TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
 {
     this->conv_params.clear();
+    this->conv_params.push_back(
+        {3, 2, 64, 4, 4, {1, 1, 1}, {7, 7, 7}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
+    this->conv_params.push_back(
+        {3, 1, 1, 4, 4, {1, 1, 1}, {4, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
         {3, 2, 16, 128, 256, {1, 1, 1}, {7, 7, 7}, {2, 2, 2}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
