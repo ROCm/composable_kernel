@@ -564,16 +564,7 @@ struct GemmKernel
                 }
                 else
                 {
-                    if constexpr(!GemmPipeline::Preshuffle)
-                    {
-                        return make_naive_tensor_view<address_space_enum::global>(
-                            b_ptr,
-                            make_tuple(kargs.N, splitk_batch_offset.splitted_k),
-                            make_tuple(kargs.stride_B, 1),
-                            number<GemmPipeline::GetVectorSizeB()>{},
-                            number<1>{});
-                    }
-                    else
+                    if constexpr(GemmPipeline::Preshuffle)
                     {
                         index_t kFlatK =
                             GemmPipeline::BlockGemmShape::flatKPerWarp *
@@ -585,6 +576,15 @@ struct GemmKernel
                             b_ptr,
                             make_tuple(kFlatN, kFlatK),
                             make_tuple(kFlatK, 1),
+                            number<GemmPipeline::GetVectorSizeB()>{},
+                            number<1>{});
+                    }
+                    else
+                    {
+                        return make_naive_tensor_view<address_space_enum::global>(
+                            b_ptr,
+                            make_tuple(kargs.N, splitk_batch_offset.splitted_k),
+                            make_tuple(kargs.stride_B, 1),
                             number<GemmPipeline::GetVectorSizeB()>{},
                             number<1>{});
                     }
