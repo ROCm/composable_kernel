@@ -33,10 +33,10 @@ using ck::type_convert;
 
 struct ExecutionConfig final
 {
-    int do_verification = 1;    // (0=no, 1=CPU)
-    int init_method     = 2;    // (0=constant values, 1=integer values, 2=decimal values)
-    bool time_kernel    = true; // (0=no, 1=yes)
-    int verbosity       = 1;    // (0=no info, 1=verbose info)
+    int do_verification = 1;     // (0=no, 1=CPU)
+    int init_method     = 2;     // (0=constant values, 1=integer values, 2=decimal values)
+    bool time_kernel    = false; // (0=no, 1=yes)
+    int verbosity       = 0;     // (0=no info, 1=verbose info)
     int warm_up         = 10;
     int repeat          = 10;
 };
