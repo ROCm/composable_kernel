@@ -523,16 +523,17 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                 const auto gemmM = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
                 const auto gemmN = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
 
-                // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups.
-                // Hence, the grid is just size of the tile map.
-                const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN);
+                const auto grid_size_mn = GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN);
                 std::tie(m_dim_size_, n_dim_size_, k_dim_size_) = 
                     get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
                 const auto k_grid_size = k_dim_size_ / K0PerBlock;
 
+                // For V3 pipeline, it is beneficial to oversubscribe and consider the total grid size to be only 
+                // the grid of the GEMM output tiles.
+                const auto total_grid_size = grid_size_mn;
                 k_batch_ = split_k_parameters.strategy_== SplitKStrategy::BestOccupancy
-                    ? get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size)
-                    : get_optimized_k_batch_value(max_occupancy.value_, grid_size, k_grid_size);
+                    ? get_best_occupancy_k_batch_value(max_occupancy.value_, total_grid_size)
+                    : get_optimized_k_batch_value(max_occupancy.value_, grid_size_mn, k_grid_size);
 
                 data_type_ = typeid(ABDataType).name();
                 arithmetic_intensity_ = calculate_arithmetic_intensity(m_dim_size_, n_dim_size_, k_dim_size_, sizeof(ABDataType));

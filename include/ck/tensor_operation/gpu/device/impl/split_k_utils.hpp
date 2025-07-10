@@ -33,21 +33,39 @@ struct DeviceProperties
 inline ck::index_t get_best_occupancy_k_batch_value(int max_occupancy, ck::index_t grid_size)
 {
     static DeviceProperties device_properties;
-    const int num_cu = device_properties.num_cu_;
-    ck::index_t k_batch = 1;
+    const int max_capacity = max_occupancy * device_properties.num_cu_;
 
-    const auto optimal_split = static_cast<ck::index_t>(std::floor((1.0 *max_occupancy * num_cu) / (grid_size)));
+    // constexpr ck::index_t k_batch_max = 1024;
+    // const auto total_grid_size = grid_size_mn * num_conv_groups;
+    // ck::index_t k_batch = static_cast<ck::index_t>(max_capacity / std::gcd(max_capacity, total_grid_size));
+    // if (k_batch > k_batch_max || k_batch == 0)
+    // {
+    //   // TODO: This could be improved by using Euclidian algorithm to find the optimal k_batch.
+    //   auto min_remainder = max_capacity;
+    //   for (ck::index_t k = 1; k <= k_batch_max; ++k)
+    //   {
+    //     const auto remainder = (total_grid_size * k) % max_capacity;
+    //     // For equal remainder values, prefer smaller k values.
+    //     if (remainder < min_remainder)
+    //     {
+    //       min_remainder = remainder;
+    //       k_batch = k;
+    //     }
+    //   }
+    // }
+
+    ck::index_t k_batch = 1;
+    const auto optimal_split = static_cast<ck::index_t>(std::floor((1.0 * max_capacity) / (grid_size)));
     if (optimal_split > 1)
     {
       k_batch = optimal_split;
-    }
+    } 
     
     if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
     {
       std::cout << "[SPLIT-K AUTODEDUCE] Max active thread blocks per CU for GEMM kernel:  " << max_occupancy << std::endl;
       std::cout << "[SPLIT-K AUTODEDUCE] Output grid size:  " << grid_size << std::endl;
-      std::cout << "[SPLIT-K AUTODEDUCE] Optimal split value:  " << optimal_split << std::endl;
-      std::cout << "[SPLIT-K AUTODEDUCE] Optimal split-k value " << k_batch << " for K-batch."<< std::endl;
+      std::cout << "[SPLIT-K AUTODEDUCE] Optimal split-k value " << k_batch << std::endl;
     }
     return k_batch;
 }

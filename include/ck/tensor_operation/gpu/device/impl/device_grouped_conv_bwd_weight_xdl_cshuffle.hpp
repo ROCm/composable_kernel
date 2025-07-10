@@ -553,18 +553,16 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 const auto& c_grid_desc_m_n   = descs_initial[I2];
                 const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
 
-                // Max occupancy is calculated for a batched GEMM kernel where the batch size corresponds to the number of convolution groups, i.e.,
-                // the max occupancy refers to how may simultaneous kernels processing Conv_G_ iGEMMs can simultaneously run on a single CU. 
-                // Hence, the grid is just size of the tile map, i.e., we should not include Conv_G_ to the grid size.
-                const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
+                const auto grid_size_mn = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);
                 std::tie(m_dim_size_, n_dim_size_, k_dim_size_) = 
                     get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
 
                 const auto k_grid_size = k_dim_size_ / K0PerBlock;
 
+                const auto total_grid_size = grid_size_mn * Conv_G_;
                 k_batch_ = split_k_parameters.strategy_== SplitKStrategy::BestOccupancy
-                    ? get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size)
-                    : get_optimized_k_batch_value(max_occupancy.value_, grid_size, k_grid_size);
+                    ? get_best_occupancy_k_batch_value(max_occupancy.value_, total_grid_size)
+                    : get_optimized_k_batch_value(max_occupancy.value_, grid_size_mn, k_grid_size);
 
                 data_type_ = typeid(ABDataType).name();
                 arithmetic_intensity_ = calculate_arithmetic_intensity(m_dim_size_, n_dim_size_, k_dim_size_, sizeof(ABDataType));
