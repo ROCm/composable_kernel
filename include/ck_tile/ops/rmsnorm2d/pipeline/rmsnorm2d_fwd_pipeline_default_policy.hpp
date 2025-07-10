@@ -66,7 +66,7 @@ struct Rmsnorm2dFwdPipelineDefaultPolicy
         using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
                                         typename Problem::ComputeDataType,
                                         typename Problem::BlockShape>;
-        return BlockReduce2dCrossWarpSync<P_>{};
+        return BlockReduce2dTreeCrossWarpSync<P_>{};
     }
 
     template <typename Problem>
