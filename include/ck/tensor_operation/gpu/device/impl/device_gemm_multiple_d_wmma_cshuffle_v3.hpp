@@ -362,6 +362,11 @@ struct DeviceGemmMultipleD_Wmma_CShuffleV3
                 }
             }();
 
+            // ThreadwiseTensorSliceTransfer_v7r3 (used in ThreadGroupTensorSliceTransfer_v7r3) is
+            // currently implemented in such a way that all SrcScalarPerVectors must be the same, so
+            // if one of D matrices is column-major, then all SrcScalarPerVectors must be 1. On the
+            // other hand, Split K for 16-bit outputs uses packed atomics so ScalarPerVectors cannot
+            // be odd.
             constexpr bool AtomicsImplementationExists =
                 !(std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t>) ||
                 (CDEShuffleBlockTransferScalarPerVectors{}[0] % 2 == 0);
