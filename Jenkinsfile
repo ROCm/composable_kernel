@@ -235,9 +235,9 @@ def cmake_build(Map conf=[:]){
     def build_type_debug = (conf.get("build_type",'release') == 'debug')
 
     // use special compiler for gfx950
-    if ( check_arch() == 7){
-        compiler = "/llvm-project/build/bin/clang++"
-    }
+    //if ( check_arch() == 7){
+    //    compiler = "/opt/rocm/llvm/bin/clang++"
+    //}
 
     //cmake_env can overwrite default CXX variables.
     def cmake_envs = "CXX=${compiler} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
