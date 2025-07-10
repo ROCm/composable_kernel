@@ -19,7 +19,6 @@ struct BatchedTransposeHostArgs
     index_t batch;
     index_t height;
     index_t width;
-    // index_t dim_blocks;
     index_t dim_stride;
     index_t dim_block_h;
     index_t dim_block_w;
@@ -28,8 +27,10 @@ struct BatchedTransposeHostArgs
 template <typename Pipeline_>
 struct BatchedTransposeKernel
 {
-    using Pipeline = remove_cvref_t<Pipeline_>;
-    using Problem  = remove_cvref_t<typename Pipeline::Problem>;
+
+    CK_TILE_DEVICE static index_t counter = 0;
+    using Pipeline                        = remove_cvref_t<Pipeline_>;
+    using Problem                         = remove_cvref_t<typename Pipeline::Problem>;
 
     using Type = typename Problem::InputType;
 
@@ -46,11 +47,11 @@ struct BatchedTransposeKernel
     using Kargs = BatchedTransposeKargs;
     using Hargs = BatchedTransposeHostArgs;
 
-    CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
+    CK_TILE_HOST static constexpr auto GridSize(const Hargs& host_args)
     {
-        size_t grid_size_x = (h.width + h.dim_block_w - 1) / h.dim_block_w;
-        size_t grid_size_y = (h.height + h.dim_block_h - 1) / h.dim_block_h;
-        size_t grid_size_z = h.batch;
+        size_t grid_size_x = (host_args.height + host_args.dim_block_h - 1) / host_args.dim_block_h;
+        size_t grid_size_y = (host_args.width + host_args.dim_block_w - 1) / host_args.dim_block_w;
+        size_t grid_size_z = host_args.batch;
         return dim3(grid_size_x, grid_size_y, grid_size_z);
     }
 
@@ -70,58 +71,52 @@ struct BatchedTransposeKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
+        static constexpr ck_tile::index_t kMPerBlock       = Problem::kMPerBlock;
+        static constexpr ck_tile::index_t kNPerBlock       = Problem::kNPerBlock;
+        static constexpr bool kPadM                        = Problem::kPadM;
+        static constexpr bool kPadN                        = Problem::kPadN;
+        static constexpr ck_tile::index_t VectorSizeInput  = Problem::VectorSizeInput;
+        static constexpr ck_tile::index_t VectorSizeOutput = Problem::VectorSizeOutput;
 
-        static constexpr ck_tile::index_t kMPerBlock = Problem::kMPerBlock;
-        static constexpr ck_tile::index_t kNPerBlock = Problem::kNPerBlock;
-        static constexpr bool kPadM                  = Problem::kPadM;
-        static constexpr bool kPadN                  = Problem::kPadN;
+        const auto iM   = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
+        const auto iN   = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
+        const auto iDim = blockIdx.z;
 
-        static constexpr ck_tile::index_t kMPerThread = Problem::kMPerThread;
-        static constexpr ck_tile::index_t kNPerThread = Problem::kNPerThread;
-
-        static_assert(kMPerThread == 1 && kNPerThread == 1);
-
-        const auto iDim  = blockIdx.z;
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
                 make_tuple(kargs.height, kargs.width),
                 make_tuple(kargs.width, 1),
-                number<kNPerThread>{}, // TODO thread load value
+                number<VectorSizeInput>{},
                 number<1>{});
 
             return pad_tensor_view(x_dram_naive,
                                    make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                                   sequence<kPadM, kPadN>{});
+                                   sequence<kPadN, kPadM>{});
         }();
-
-        const auto iM = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
-        const auto iN = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 static_cast<Type*>(kargs.p_output) + iDim * kargs.dim_stride,
                 make_tuple(kargs.width, kargs.height),
                 make_tuple(kargs.height, 1),
-                number<kMPerThread>{},
+                number<VectorSizeOutput>{},
                 number<1>{});
 
             return pad_tensor_view(y_dram_naive,
                                    make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
-                                   sequence<kPadN, kPadM>{});
+                                   sequence<kPadM, kPadN>{});
         }();
 
-        auto x_block_window =
-            make_tile_window(x_m_n,
-                             make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iM * kMPerBlock),
-                              static_cast<ck_tile::index_t>(iN * kNPerBlock)});
+        auto x_block_window = make_tile_window(
+            x_m_n,
+            make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+            {static_cast<ck_tile::index_t>(iM), static_cast<ck_tile::index_t>(iN)});
 
-        auto y_block_window =
-            make_tile_window(y_n_m,
-                             make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
-                             {static_cast<ck_tile::index_t>(iN * kNPerBlock),
-                              static_cast<ck_tile::index_t>(iM * kMPerBlock)});
+        auto y_block_window = make_tile_window(
+            y_n_m,
+            make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
+            {static_cast<ck_tile::index_t>(iN), static_cast<ck_tile::index_t>(iM)});
 
         Pipeline{}(x_block_window, y_block_window);
     }

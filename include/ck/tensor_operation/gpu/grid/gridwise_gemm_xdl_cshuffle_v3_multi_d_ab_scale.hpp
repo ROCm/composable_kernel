@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -156,11 +156,15 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
          (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8))
             ? true
             : false;
-
+    static constexpr auto is_scale_mfma = false;
     static constexpr index_t KPack =
         math::max(lcm_AK1_BK1,
-                  MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB, is_single_rate_mfma>::
-                      selected_mfma.k_per_blk);
+                  MfmaSelector<ComputeTypeA,
+                               MPerXdl,
+                               NPerXdl,
+                               ComputeTypeB,
+                               is_single_rate_mfma,
+                               is_scale_mfma>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 

@@ -50,8 +50,11 @@ enum struct memory_operation_enum : std::uint16_t
 
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
-    // warpSize is defined by HIP
-    return warpSize;
+#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+    return 64;
+#else
+    return 32;
+#endif
 }
 
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
@@ -152,6 +155,15 @@ __host__ __device__ T CK_CONSTANT_ADDRESS_SPACE* cast_pointer_to_constant_addres
 #pragma clang diagnostic ignored "-Wold-style-cast"
     return (T CK_CONSTANT_ADDRESS_SPACE*)p; // NOLINT(old-style-cast)
 #pragma clang diagnostic pop
+}
+
+CK_TILE_HOST_DEVICE constexpr index_t get_smem_capacity()
+{
+#if defined(__gfx950__)
+    return 163840;
+#else
+    return 65536;
+#endif
 }
 
 } // namespace ck_tile
