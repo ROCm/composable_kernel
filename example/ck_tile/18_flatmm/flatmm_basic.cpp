@@ -97,6 +97,8 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
 
         std::cout << "CodegenFlatmmPipeline::GetName(): " << CodegenFlatmmPipeline::GetName()
                   << std::endl;
+        std::cout << "CodegenFlatmmPipeline::DoubleSmemBuffer: "
+                  << CodegenFlatmmPipeline::DoubleSmemBuffer << std::endl;
 
         // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
         // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.

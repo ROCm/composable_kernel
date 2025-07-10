@@ -80,7 +80,7 @@ struct FlatmmPipelineAGmemBGmemCRegV2
     using Base::mfma_per_wg;
     using typename Base::MfmaConfig;
 
-    using Base::DoubleSmemBuffer;
+    static constexpr bool DoubleSmemBuffer = true;
     using Base::GetMfmaConfig;
 
     using Base::GetSmemSize;

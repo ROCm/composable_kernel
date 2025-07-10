@@ -430,15 +430,53 @@ struct FlatmmKernel
         return make_tuple(a_block_window, b_flat_block_window, c_block_window);
     }
 
-    CK_TILE_DEVICE static void RunFlatmm(const ADataType* a_ptr,
-                                         const BDataType* b_flat_ptr,
-                                         CDataType* c_ptr,
-                                         void* smem_ptr_ping,
-                                         void* smem_ptr_pong,
-                                         const FlatmmKernelArgs& kargs,
-                                         const SplitKBatchOffset& splitk_batch_offset,
-                                         const index_t block_idx_m,
-                                         const index_t block_idx_n)
+    CK_TILE_DEVICE static void RunFlatmm1LDS(const ADataType* a_ptr,
+                                             const BDataType* b_flat_ptr,
+                                             CDataType* c_ptr,
+                                             void* smem_ptr,
+                                             const FlatmmKernelArgs& kargs,
+                                             const SplitKBatchOffset& splitk_batch_offset,
+                                             const index_t block_idx_m,
+                                             const index_t block_idx_n)
+    {
+        // Create Gemm tensor views, pad views and tile windows
+        const auto& gemm_tensor_views_tuple =
+            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                a_ptr, b_flat_ptr, c_ptr, kargs, splitk_batch_offset);
+        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
+        auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+
+        const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
+
+        // Run GEMM cooperatively by whole workgroup.
+        const auto& a_block_window      = gemm_tile_windows.at(I0);
+        const auto& b_flat_block_window = gemm_tile_windows.at(I1);
+        const auto& d_block_window      = gemm_tile_windows.at(I2);
+        const auto& c_block_tile        = FlatmmPipeline{}.template operator()(
+            a_block_window, b_flat_block_window, num_loop, smem_ptr);
+
+        // Run Epilogue Pipeline
+        auto& c_block_window = gemm_tile_windows.at(I2);
+
+        // EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+        // c_block_window, c_block_tile, d_block_window, smem_ptr);
+
+        // auto empty_ds_dram_windows = ck_tile::make_tuple();
+
+        // Call with empty D tensors
+        EpiloguePipeline{}.template
+        operator()<decltype(c_block_window), decltype(c_block_tile), decltype(d_block_window)>(
+            c_block_window, c_block_tile, d_block_window, smem_ptr);
+    }
+    CK_TILE_DEVICE static void RunFlatmm2LDS(const ADataType* a_ptr,
+                                             const BDataType* b_flat_ptr,
+                                             CDataType* c_ptr,
+                                             void* smem_ptr_ping,
+                                             void* smem_ptr_pong,
+                                             const FlatmmKernelArgs& kargs,
+                                             const SplitKBatchOffset& splitk_batch_offset,
+                                             const index_t block_idx_m,
+                                             const index_t block_idx_n)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
@@ -485,21 +523,31 @@ struct FlatmmKernel
 
         // allocate LDS
         __shared__ char smem_ptr_ping[GetSmemPingSize()];
-        __shared__ char smem_ptr_pong[GetSmemPongSize()];
 
-        if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                       EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                       is_any_of<CDataType, fp16_t, bf16_t>::value))
+        if constexpr(FlatmmPipeline::DoubleSmemBuffer == false)
         {
-            RunFlatmm(a_ptr,
-                      b_flat_ptr,
-                      c_ptr,
-                      smem_ptr_ping,
-                      smem_ptr_pong,
-                      kargs,
-                      splitk_batch_offset,
-                      i_m,
-                      i_n);
+            RunFlatmm1LDS(
+                a_ptr, b_flat_ptr, c_ptr, smem_ptr_ping, kargs, splitk_batch_offset, i_m, i_n);
+        }
+        else
+        {
+            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
+                           EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                           is_any_of<CDataType, fp16_t, bf16_t>::value &&
+                           FlatmmPipeline::DoubleSmemBuffer == true))
+            {
+                __shared__ char smem_ptr_pong[GetSmemPongSize()];
+
+                RunFlatmm2LDS(a_ptr,
+                              b_flat_ptr,
+                              c_ptr,
+                              smem_ptr_ping,
+                              smem_ptr_pong,
+                              kargs,
+                              splitk_batch_offset,
+                              i_m,
+                              i_n);
+            }
         }
     }
 };

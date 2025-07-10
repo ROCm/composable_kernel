@@ -13,6 +13,7 @@
 #include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_base.hpp"
 #include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v0.hpp"
 #include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1.hpp"
+#include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
 #include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v2.hpp"
 #include "ck_tile/ops/flatmm/pipeline/tile_flatmm_shape.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
