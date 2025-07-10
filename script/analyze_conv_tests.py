@@ -276,7 +276,7 @@ def plot_best_split_k_values(standard_counts, optimized_count,
     
     plt.close()
 
-def plot_perf(perf_difference, output_dir, suffix="", op_name=""):
+def plot_perf(perf_difference, output_dir, suffix="", op_name="", label=""):
     """Plot the performance differences as a histogram with statistics."""
     import numpy as np
     
@@ -369,7 +369,7 @@ def plot_perf(perf_difference, output_dir, suffix="", op_name=""):
     
     plt.tight_layout()
  
-    file_name = os.path.join(output_dir, f'performance{suffix}.png')
+    file_name = os.path.join(output_dir, f'performance{suffix}{label}.png')
     plt.savefig(file_name, dpi=150)
     print(f"Saved performance chart to: {file_name}")
     
@@ -757,10 +757,10 @@ def get_statistics(fixed_split_k_values, fixed_split_k_times, fixed_split_k_ops,
 
             elif best_occ_split_k_time < fixed_split_k_time and best_occ_split_k_time > tol:
                 best_occupancy_split_k_count += 1
-                perf_change.append(perf)
+                perf_change.append(min(150.0, perf)) # Cap to 150% to make visualization better.
             elif best_occ_split_k_time > fixed_split_k_time and fixed_split_k_time > tol:
                 fixed_split_k_counts[fixed_split_k_value] += 1
-                perf_change.append(perf)
+                perf_change.append(min(150.0, perf)) # Cap to 150% to make visualization better.
 
             if best_occ_split_k_time < tol and fixed_split_k_time > tol:
                 print(f"WARNING: Optimized time is very small for row {i}. Split-K (opt): {best_occ_split_k_value}, Split-K (standard): {fixed_split_k_value}")
@@ -770,6 +770,56 @@ def get_statistics(fixed_split_k_values, fixed_split_k_times, fixed_split_k_ops,
                 print(f"WARNING: Both optimized and non-optimized times are too small for row {i}, skipping this. Split-K (opt): {best_occ_split_k_value}, Split-K (stardard): {fixed_split_k_value}")
 
     return perf_change, fixed_split_k_counts, fixed_equal_best_occupancy_counts, best_occupancy_split_k_count, non_standard_indices
+
+def plot_perf_for_all_solvers(solvers_per_conv_shape, output_dir, suffix, op_name):
+    
+    perf_difference = []
+    ranking = []
+    for _, values in solvers_per_conv_shape.items():
+        if not values:
+            continue
+        
+        for _, fixed_split_k_tflops, _, best_occ_split_k_tflops, rank  in values:
+            perf_diff = (best_occ_split_k_tflops / fixed_split_k_tflops) * 100.0 if fixed_split_k_tflops > 0 else 0.0
+            perf_difference.append(min(150.0, perf_diff))
+            ranking.append(rank)
+
+    plot_perf(perf_difference, output_dir, suffix=suffix, op_name=op_name, label="-all_instances")
+
+    # Create a bar chart for the ranking distribution
+    title = op_name if op_name else "Ranking Distribution of All Instances"
+    title_size = 14 if op_name else 16
+    plt.figure(figsize=(10, 6))
+    
+    # Define the bins edges
+    bin_edges = range(1, max(ranking) + 2)
+    
+    # Create histogram
+    counts, bins, patches = plt.hist(ranking, bins=bin_edges, 
+             color='skyblue', edgecolor='black', alpha=0.7)
+    
+    # Calculate the center of each bin for x-ticks
+    bin_centers = [bins[i] + (bins[i+1] - bins[i])/2 for i in range(len(bins)-1)]
+    
+    plt.title(title, fontsize=title_size, fontweight='bold')
+    plt.xlabel('Rank', fontsize=12)
+    plt.ylabel('Count', fontsize=12)
+    
+    # Add explanation text middle top
+    y_loc = 0.9*max(counts)
+    explanation = "Candidate split-K values ['best occupancy', 1, 2, 4, 8, 16, 32, 64, 128].\n" \
+                  "Ranking of 'best occupancy' value for each solver instance\n" \
+                  "Rank 1 is the best, rank 2 is second best, etc."
+    plt.text(2.5, y_loc, explanation)
+
+    # Set x-ticks at the center of each bar
+    plt.xticks(bin_centers, range(1, max(ranking) + 1))
+    
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    rank_distribution_path = os.path.join(output_dir, f'ranking_distribution{suffix}.png')
+    plt.savefig(rank_distribution_path, dpi=150)
+    print(f"Saved ranking distribution chart to: {rank_distribution_path}")
 
 def main():
     args = parse_cli_args()
@@ -824,8 +874,71 @@ def main():
         # 17 - strategy
         # 18 - total number of candidate ops.
 
+    # Columns 19-30 are
+    # 19: op_name
+    # 20: fixed_split_k_time
+    # 21: fixed_split_k_tflops
+    # 22: fixed_split_k_value
+    # 23: rank_fixed_split_k
+    # 24: strategy (FixedSplitK)
+    # 25: best_occupancy_split_k_time
+    # 26: best_occupancy_split_k_tflops
+    # 27: best_occupancy_split_k_value
+    # 28: rank_best_occupancy_split_k
+    # 29: strategy (BestOccupancy)
+    # 30: total number of candidate values
+    # This repeats for size=12 blocks, i.e., the next 12 elemnts from 31-42 have the same structure if they are not null.
+    # Collect  these elents into a dictionary
+    # where each key is the profiler_command and the value is a list of tuples containing the values for each block.
+    solvers_per_conv_shape = defaultdict(list)
+    offset = 18
+    size = 12
+    for i in range(len(profiler_commands)):
+        profiler_command = profiler_commands.iloc[i]
+        #print(f"Processing profiler command: {profiler_command}, row: {i}")
+        if pd.isna(profiler_command):
+            continue
+        if profiler_command not in solvers_per_conv_shape:
+            solvers_per_conv_shape[profiler_command] = []
+        for j in range(0, len(df.columns) - size - offset, size):
+            op_name = df.iloc[i, offset + j + 1]
+            if pd.isna(op_name):
+                continue
+
+            try:
+                loc_fixed_split_k_time = float(df.iloc[i, offset + j + 2])
+                loc_fixed_split_k_tflops = float(df.iloc[i, offset + j + 3])
+                loc_fixed_split_k_value = int(df.iloc[i, offset + j + 4])
+                loc_rank_fixed_split_k = int(df.iloc[i, offset + j + 5])
+                loc_strategy_fixed_split_k = df.iloc[i, offset + j + 6]
+                loc_best_occupancy_split_k_time = float(df.iloc[i, offset + j + 7])
+                loc_best_occupancy_split_k_tflops = float(df.iloc[i, offset + j + 8])
+                loc_best_occupancy_split_k_value = int(df.iloc[i, offset + j + 9])
+                loc_rank_best_occupancy_split_k = int(df.iloc[i, offset + j + 10])
+                loc_strategy_best_occupancy_split_k = df.iloc[i, offset + j + 11]
+                loc_num_candidates = int(df.iloc[i, offset + j + 12])
+
+                assert loc_strategy_fixed_split_k == "SplitKStrategy::FixedSplitK", \
+                    f"Expected strategy_fixed_split_k to be 'SplitKStrategy::FixedSplitK', got {loc_strategy_fixed_split_k}."
+                assert loc_strategy_best_occupancy_split_k == "SplitKStrategy::BestOccupancy", \
+                    f"Expected strategy_best_occupancy_split_k to be 'SplitKStrategy::BestOccupancy', got {loc_strategy_best_occupancy_split_k}."
+                # Candidates: {-1, 1, 2, 4, 8, 16, 32, 64, 128}
+                # Sometime the split-K value can be incompatible with the V3 pipeline and we have may less than 9 candidates.
+                assert loc_num_candidates <= 9 and loc_num_candidates > 1, \
+                    f"Expected num_candidates to be 9, got {loc_num_candidates}." 
+                assert loc_rank_best_occupancy_split_k >= 1 and loc_rank_best_occupancy_split_k <= 9, \
+                        f"Expected rank_best_occupancy_split_k to be between 1 and 9, got {loc_rank_best_occupancy_split_k}."
+
+                solvers_per_conv_shape[profiler_command].append(
+                    (loc_fixed_split_k_value, loc_fixed_split_k_tflops, loc_best_occupancy_split_k_value, loc_best_occupancy_split_k_tflops, loc_rank_best_occupancy_split_k))
+            except (ValueError, TypeError) as e:
+                print(f"Warning: Could not process row {i}, block {j}: {e}. Skipping this block.")
+                continue
+
     op_name = fixed_split_k_ops.iloc[0].split("<")[0]
     suffix = f"_{args.label}" if args.label else ""
+
+    plot_perf_for_all_solvers(solvers_per_conv_shape, args.output_dir, suffix, op_name)
 
     G, N, K, C, Y, X, Ho, Wo = get_convolution_shapes(profiler_commands)
     plot_tSNE_performance(G,N,K,C,Y,X,Ho,Wo, fixed_split_k_tflops.astype(float).values, best_occupancy_split_k_tflops.astype(float).values, args.output_dir, suffix, op_name)

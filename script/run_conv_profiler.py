@@ -45,7 +45,11 @@ def run_ck_profiler_cmd(cmd, disabled_ops, run_id, log_to_stdout=False):
       subprocess.run(cmd, env=env_vars) 
     else:
       with open(os.devnull, 'w') as devnull:
-        subprocess.run(cmd, env=env_vars, stdout=devnull)
+        timeoutInSec = 300
+        try:
+          subprocess.run(cmd, env=env_vars, stdout=devnull, timeout=timeoutInSec)
+        except subprocess.TimeoutExpired:
+          print(f"Command '{cmd_str}' timed out after {timeoutInSec} seconds.", file=sys.stderr)
 
 def get_profiler_commands(csv_file):
   profiler_commands = []
