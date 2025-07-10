@@ -108,16 +108,14 @@ struct TransposePolicy
         return lds_block_desc;
     }
 
-    template <typename Problem, index_t LaneGroupSize = Problem::LaneGroupSize>
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
         using DataType = typename Problem::DataType;
 
         // Extract base dimensions from the traits
-        constexpr index_t kBaseLeadDim =
-            LaneGroupTransposeTraits<DataType, LaneGroupSize>::kleadDim;
-        constexpr index_t kBaseSecondDim =
-            LaneGroupTransposeTraits<DataType, LaneGroupSize>::ksecondDim;
+        constexpr index_t kBaseLeadDim   = LaneGroupTransposeTraits<DataType>::kleadDim;
+        constexpr index_t kBaseSecondDim = LaneGroupTransposeTraits<DataType>::ksecondDim;
 
         // Calculate block-level dimensions
         constexpr index_t kLead              = Problem::kLeadSizePerXdl;
@@ -134,7 +132,7 @@ struct TransposePolicy
         constexpr index_t kSecondDimStrSub     = kSecondRepetitions / kSecondDimIterations;
 
         constexpr auto xdllevel_dstr_encoding = make_transposed_distr_encode<DataType,
-                                                                             LaneGroupSize,
+                                                                             16,
                                                                              kSecondDimStrSub,
                                                                              kSecondDimIterations,
                                                                              kLeadRepetitions,

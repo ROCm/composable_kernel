@@ -100,8 +100,7 @@ auto create_args(int argc, char* argv[])
         .insert("layout_in", "NCHW", "input tensor data layout - NCHW by default")
         .insert("layout_out", "NHWC", "output tensor data layout - NHWC by default ")
         .insert("seed", "-1", "seed to be used, -1 means random every time")
-        .insert("conf", "0", "configuration index to use, default is 0")
-        .insert("kname", "0", "set to 1 will print kernel name");
+        .insert("kname", "0", "t to 1 will print kernel name");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -119,8 +118,6 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     std::string layout_in  = args.get_str("layout_in");
     std::string layout_out = args.get_str("layout_out");
     int seed               = args.get_int("seed");
-    auto kname             = args.get_bool("kname");
-    auto conf              = args.get_int("conf");
 
     int dim_in[4], dim_out[4];
     int stride_dim_in[4], stride_dim_out[4];
@@ -165,7 +162,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     x_dev.ToDevice(x_host.data());
 
-    auto trait = batched_transpose_trait{prec, layout_in, conf, kname};
+    auto trait = batched_transpose_trait{prec, layout_in};
 
     uint32_t height = nchw2nhwc ? C : H * W;
     uint32_t width  = nchw2nhwc ? H * W : C;
@@ -193,7 +190,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
 
     std::cout << "Run Batched Transpose kernel with N=" << N << ", C=" << C << ", H=" << H
               << ", W=" << W << ", layout_in=" << layout_in << ", layout_out=" << layout_out
-              << " : " << ms << " ms (" << ave_time << " ave_time), " << tflops << " TFlops, "
+              << " : " << ms << " ms (" << ave_time << " ave_time), " << tflops << " TFlops"
               << gb_per_sec << " GB/s, " << std::endl;
 
     printf("[%s]N:%d, C:%d, H:%d, W:%d, layout_in:%s, %f\n",
@@ -235,7 +232,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
     return rtn;
 }
 
-int main_(int argc, char** argv)
+int main(int argc, char** argv)
 {
     auto [result, args] = create_args(argc, argv);
     if(!result)
@@ -256,37 +253,5 @@ int main_(int argc, char** argv)
         std::cerr << "Unsupported data type: " << prec << std::endl;
     }
 
-    return r ? 0 : -1;
-}
-
-int main(int argc, char** argv)
-{
-    if(argc > 1)
-    {
-        return main_(argc, argv);
-    }
-    // If no arguments are provided, run the default test cases
-    bool r = true;
-    for(std::string prec : {"fp16", "fp8"})
-    {
-        int num_config = prec == "fp16"  ? batched_transpose_config_list<ck_tile::fp16_t>.size()
-                         : prec == "fp8" ? batched_transpose_config_list<ck_tile::fp8_t>.size()
-                                         : 0;
-        for(int i = 0; i < num_config; i++)
-        {
-            const auto pr_str   = "-pr=" + prec;
-            const auto conf_str = "-conf=" + std::to_string(i);
-            std::vector<const char*> argv_{
-                argv[0],
-                pr_str.c_str(),
-                conf_str.c_str(),
-                "-kname=1",
-            };
-            for(const auto& arg : argv_)
-                std::cout << arg << " ";
-            std::cout << std::endl;
-            r &= 0 == main_(argv_.size(), const_cast<char**>(argv_.data()));
-        }
-    }
     return r ? 0 : -1;
 }
