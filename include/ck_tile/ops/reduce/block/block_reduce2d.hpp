@@ -356,41 +356,26 @@ struct BlockReduce2dTreeCrossWarpSync
         }
         block_sync_lds();
 
-        if(warp_id == 0)
-        {
-            static_for<0, thread_buf_size, 1>{}([&](auto i) {
-                DataType v;
-                if(lane_id < num_reduce_warps)
-                {
-                    v = smem_ptr[lane_id + i * num_warps];
-                }
-                else
-                {
-                    v = 0;
-                }
-                // Perform warp-wide reduction using shuffle operations
-                for(index_t offset = 1; offset < num_reduce_warps; offset <<= 1)
-                {
-                    // Each lane obtains the value from lane (lane_id + offset) of warp 0
-                    const index_t src_lane = lane_id + offset;
-                    DataType o             = warp_shuffle_down(v, offset);
-                    if(src_lane < num_reduce_warps)
-                    {
-                        v = reduce_func(v, o);
-                    }
-                }
+        // We let each warp holds a duplication to do reduction.
+        static_for<0, thread_buf_size, 1>{}([&](auto i) {
+            DataType v = 0;
+            if(lane_id < num_reduce_warps)
+            {
+                v = smem_ptr[lane_id + i * num_warps];
+            }
+            // Perform warp-wide reduction using shuffle operations
+            constexpr index_t nstage = integer_log2_floor(get_warp_size());
 
-                if(lane_id == 0)
-                {
-                    smem_ptr[i * num_warps] = v;
-                }
+            // reduction sweep forward
+            static_for<0, nstage, 1>{}([&](auto istage) {
+                // pull data from remote lane
+                const auto o = __shfl_xor(v, number<1 << istage.value>{}.value);
+
+                // reduce
+                v = reduce_func(v, o);
             });
-        }
-        block_sync_lds();
-
-        // Broadcast the final result to all threads
-        static_for<0, thread_buf_size, 1>{}(
-            [&](auto i) { y_tensor.get_thread_buffer()(i) = smem_ptr[i * num_warps]; });
+            y_tensor.get_thread_buffer()(i) = v;
+        });
     }
 };
 

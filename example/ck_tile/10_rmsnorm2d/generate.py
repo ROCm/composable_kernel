@@ -85,7 +85,7 @@ struct rmsnorm2d_fwd_traits_
         if constexpr(is_warp_per_row)
         {
             static_assert(warpSize % ThreadPerBlock_N_ == 0);
-            return total_warps;
+            return total_warps * (warpSize / ThreadPerBlock_N_);
         }
         else
         {
@@ -223,11 +223,6 @@ float rmsnorm2d_fwd_(const S& s, A a)
     using Pipeline = std::conditional_t<
         (Traits_::kUseModelSensitiveRMSNorm == 0 || Traits_::kTwoPass), // TODO: consider TwoPass for T5PassPipeline
         std::conditional_t<Traits_::kTwoPass, TwoPassPipeline, OnePassPipeline>,  // kUseModelSensitiveRMSNorm == 0
-        // std::conditional_t<
-        //     (Traits_::kUseModelSensitiveRMSNorm == 1),
-        //     T5PassPipeline,  // kUseModelSensitiveRMSNorm == 1
-        //     OtherPipeline    // kUseModelSensitiveRMSNorm == 2 (or other value)
-        // >
         T5PassPipeline
     >;
 
