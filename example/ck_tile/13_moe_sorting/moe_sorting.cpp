@@ -35,7 +35,13 @@ auto create_args(int argc, char* argv[])
         .insert("e", "8", "number of num_experts")
         .insert("k", "4", "topk")
         .insert("unit", "32", "unit_size")
+#if MOE_SORTING_FMOE_2D_BUF
+        .insert("moe_buf_interm_dim", "0", "interm_dim(col) of the following fmoe buf")
+        .insert(
+            "moe_buf_elem_bytes", "2", "fmoe buf element byte size, 1:8bit, 2:16bit, 4:32bit...")
+#else
         .insert("moe_buf_size", "0", "moe_buf_size")
+#endif
         .insert("ci",
                 "1",
                 "clear workspace inside API or not(if \"0\", require manually clear outside)")
@@ -91,11 +97,16 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     int topk                = args.get_int("k");
     int seed                = args.get_int("seed");
     int unit_size           = args.get_int("unit");
-    int64_t moe_buf_size    = static_cast<int64_t>(args.get_uint64("moe_buf_size"));
-    int kname               = args.get_int("kname");
-    int warmup              = args.get_int("warmup");
-    int repeat              = args.get_int("repeat");
-    bool clear_inside       = args.get_int("ci") != 0;
+#if MOE_SORTING_FMOE_2D_BUF
+    int moe_buf_interm_dim = args.get_int("moe_buf_interm_dim");
+    int moe_buf_elem_bytes = args.get_int("moe_buf_elem_bytes");
+#else
+    int64_t moe_buf_size = static_cast<int64_t>(args.get_uint64("moe_buf_size"));
+#endif
+    int kname         = args.get_int("kname");
+    int warmup        = args.get_int("warmup");
+    int repeat        = args.get_int("repeat");
+    bool clear_inside = args.get_int("ci") != 0;
 
     int max_output_ids =
         ck_tile::integer_least_multiple(topk * tokens + num_experts * unit_size - topk, unit_size);
@@ -155,10 +166,20 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     ck_tile::HostTensor<IndexType> sorted_expert_ids_host({max_output_ids / unit_size}, {1});
     // for simplicity, below buffer allocate 2 dword
     ck_tile::HostTensor<IndexType> sorted_id_cnt_host({2}, {1});
+#if MOE_SORTING_FMOE_2D_BUF
+    ck_tile::HostTensor<int8_t> moe_buf_host(
+        {(is_local_token ? local_tokens : tokens) * moe_buf_interm_dim * moe_buf_elem_bytes});
+#else
     ck_tile::HostTensor<float> moe_buf_host({moe_buf_size});
+#endif
+    auto moe_buf_bytes = moe_buf_host.get_element_space_size_in_bytes();
 
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(weights_host);
+#if MOE_SORTING_FMOE_2D_BUF
+    ck_tile::FillUniformDistribution<int8_t>{-.5f, .5f}(moe_buf_host);
+#else
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(moe_buf_host);
+#endif
     topid_unique_gen<IndexType>(topk_ids_host.mData, tokens, topk, num_experts, seed);
 
     ck_tile::DeviceMem topk_ids_dev(topk_ids_host.get_element_space_size_in_bytes());
@@ -181,7 +202,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
 
     topk_ids_dev.ToDevice(topk_ids_host.data());
     weights_dev.ToDevice(weights_host.data());
-    if(moe_buf_size > 0)
+    if(moe_buf_bytes > 0)
     {
         moe_buf_dev.ToDevice(moe_buf_host.data());
     }
@@ -196,22 +217,22 @@ bool test_moe_sorting(ck_tile::ArgParser args)
 
     moe_sorting_trait trait{index_prec, weight_prec, local_expert_masking, clear_inside};
 
-    moe_sorting_args karg{topk_ids_dev.GetDeviceBuffer(),
-                          weights_dev.GetDeviceBuffer(),
-                          local_expert_masking ? local_expert_masking_dev.GetDeviceBuffer()
-                                               : nullptr,
-                          is_local_token ? local_tokens_dev.GetDeviceBuffer() : nullptr,
-                          sorted_ids_dev.GetDeviceBuffer(),
-                          sorted_weights_dev.GetDeviceBuffer(),
-                          sorted_expert_ids_dev.GetDeviceBuffer(),
-                          sorted_id_cnt_dev.GetDeviceBuffer(),
-                          moe_buf_size > 0 ? moe_buf_dev.GetDeviceBuffer() : nullptr,
-                          workspace_size != 0 ? moe_sorting_ws.GetDeviceBuffer() : nullptr,
-                          tokens,
-                          unit_size,
-                          num_experts,
-                          topk,
-                          static_cast<ck_tile::long_index_t>(moe_buf_size * sizeof(float))};
+    moe_sorting_args karg
+    {
+        topk_ids_dev.GetDeviceBuffer(), weights_dev.GetDeviceBuffer(),
+            local_expert_masking ? local_expert_masking_dev.GetDeviceBuffer() : nullptr,
+            is_local_token ? local_tokens_dev.GetDeviceBuffer() : nullptr,
+            sorted_ids_dev.GetDeviceBuffer(), sorted_weights_dev.GetDeviceBuffer(),
+            sorted_expert_ids_dev.GetDeviceBuffer(), sorted_id_cnt_dev.GetDeviceBuffer(),
+            moe_buf_bytes > 0 ? moe_buf_dev.GetDeviceBuffer() : nullptr,
+            workspace_size != 0 ? moe_sorting_ws.GetDeviceBuffer() : nullptr, tokens, unit_size,
+            num_experts, topk,
+#if MOE_SORTING_FMOE_2D_BUF
+            moe_buf_interm_dim, moe_buf_elem_bytes
+#else
+            static_cast<ck_tile::long_index_t>(moe_buf_size * sizeof(float))
+#endif
+    };
 
     ck_tile::stream_config sc{nullptr,
                               true,
@@ -303,7 +324,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     sorted_weights_dev.FromDevice(sorted_weights_host.data());
     sorted_expert_ids_dev.FromDevice(sorted_expert_ids_host.data());
     sorted_id_cnt_dev.FromDevice(sorted_id_cnt_host.data());
-    if(moe_buf_size > 0)
+    if(moe_buf_bytes > 0)
     {
         moe_buf_dev.FromDevice(moe_buf_host.data());
     }
@@ -367,9 +388,13 @@ bool test_moe_sorting(ck_tile::ArgParser args)
             rtn = false;
         }
 
-        if(moe_buf_size)
+        if(moe_buf_bytes)
         {
+#if MOE_SORTING_FMOE_2D_BUF
+            ck_tile::HostTensor<int8_t> moe_buf_ref({moe_buf_bytes});
+#else
             ck_tile::HostTensor<WeightType> moe_buf_ref({moe_buf_size});
+#endif
             rtn &= ck_tile::check_err(
                 moe_buf_host, moe_buf_ref, std::string("OUT Error: Incorrect zero buf!"), 0, 0);
         }

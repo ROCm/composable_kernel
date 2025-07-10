@@ -23,6 +23,11 @@ namespace ck_tile {
 #define MOE_SORTING_FUSE_MP_01 0
 #endif
 
+// weather use 2d buffer indexing for fmoe ws or 1d
+#ifndef MOE_SORTING_FMOE_2D_BUF
+#define MOE_SORTING_FMOE_2D_BUF 1
+#endif
+
 // clang-format off
 // [indexing implementation-1]
 // using M_a as constexpr block_size to partition all tokens into different slices
@@ -171,7 +176,7 @@ struct MoeSortingHostArgs
     void* p_sorted_token_ids;
     void* p_sorted_weights;
     void* p_sorted_expert_ids;
-    void* p_total_tokens_post_pad; // p_local_tokens!=nullptr? [2]:[1] for simplicity, suggest alloc 2
+    void* p_total_tokens_post_pad; // [2], [0]:outputed tokens_post_padded, [1]:actual tokens on current rank (local_tokens or tokens)
     // we fused the setzero of output of fused-moe buffer
     // set this pointer to nullptr will skip this operation
     void* p_moe_buf;
@@ -182,7 +187,18 @@ struct MoeSortingHostArgs
     index_t unit_size;      // this is the M_a of fused-moe kernel
     index_t num_experts;
     index_t topk;
+#if MOE_SORTING_FMOE_2D_BUF
+    // NOTE:
+    // moe_buf_* is a 2d ws buffer used for the following fmoe kernel
+    // arranged as row*col, where row=tokens(or local_token), col=interm_dim
+    // we fuse this clearing inside sorting kernel
+    // Besides, we require inter_dim to be multiple of 16 byte(make sure when alloc ws for fmoe)
+    index_t moe_buf_interm_dim; // p_moe_buf interm_dim
+    index_t moe_buf_elem_bytes; // p_moe_buf byte size(8bit, 16bit, 32bit, etc.)
+#else
     long_index_t moe_buf_bytes;  // byte size of p_moe_buf
+#endif
+    
 };
 
 template <typename Problem_>
@@ -197,6 +213,9 @@ struct MoeSortingKernel
 
     using Hargs = MoeSortingHostArgs;
 
+    static constexpr index_t BLOCK_SIZE = 256;
+    static constexpr index_t OCCUPANCY  = 2; // hard coded
+
     struct Kargs
     {
         const void* p_topk_ids;
@@ -210,8 +229,12 @@ struct MoeSortingKernel
         void* p_moe_buf;
         index_t tokens;
         index_t num_experts;
+#if MOE_SORTING_FMOE_2D_BUF
+        index_t moe_buf_interm_dim; // p_moe_buf interm_dim
+        index_t moe_buf_elem_bytes; // p_moe_buf byte size(8bit, 16bit, 32bit, etc.)
+#else
         long_index_t moe_buf_bytes;
-
+#endif
         index_t tokens_per_thread;
         index_t smem_rows;
         mdiv unit_size_mdiv;
@@ -220,10 +243,27 @@ struct MoeSortingKernel
         // mdiv sub_tokens_mdiv;
     };
 
+    CK_TILE_HOST static constexpr auto get_num_cu()
+    {
+        index_t num_cu = [&]() {
+            hipDeviceProp_t dev_prop;
+            hipDevice_t dev;
+            HIP_CHECK_ERROR(hipGetDevice(&dev));
+            HIP_CHECK_ERROR(hipGetDeviceProperties(&dev_prop, dev));
+            return dev_prop.multiProcessorCount;
+        }();
+        return num_cu;
+    }
+
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
     {
+#if MOE_SORTING_FMOE_2D_BUF
+        (void)h;
+        return get_num_cu() * OCCUPANCY;
+#else
         // TODO: assume num-experts not too much
         return dim3(1 + ck_tile::integer_divide_ceil(h.moe_buf_bytes, BlockSize(h).x * 16));
+#endif
     }
 
     CK_TILE_HOST static constexpr auto BlockSize(const Hargs& h)
@@ -263,7 +303,12 @@ struct MoeSortingKernel
         k.p_total_tokens_post_pad = h.p_total_tokens_post_pad;
         k.tokens                  = h.tokens;
         k.num_experts             = h.num_experts;
+#if MOE_SORTING_FMOE_2D_BUF
+        k.moe_buf_interm_dim      = h.moe_buf_interm_dim;
+        k.moe_buf_elem_bytes      = h.moe_buf_elem_bytes;
+#else
         k.moe_buf_bytes           = h.moe_buf_bytes;
+#endif
 
         const auto blocks   = BlockSize(h);
         // NOTE: tokens could from p_local_tokens, so here this variable is useless
@@ -428,6 +473,24 @@ struct MoeSortingKernel
         if(offset < buf_bytes / 16)
         {
             buf[offset] = uint8x16_t{0};
+        }
+    }
+
+    CK_TILE_DEVICE void
+    moe_buf_set_zero_kernel_2d(void* buf, index_t row, index_t col, index_t elem_bytes) const
+    {
+        const long_index_t total_pixels = static_cast<long_index_t>(row) * col;
+        const long_index_t total_bytes  = total_pixels * elem_bytes;
+        const long_index_t total_elems  = total_bytes / 16; // always use dwordx4
+
+        using vector_type  = ext_vector_t<index_t, 4>;
+        vector_type* p_buf = reinterpret_cast<vector_type*>(buf);
+        auto zero_         = vector_type{0};
+
+        for(long_index_t i = (blockIdx.x - 1) * BLOCK_SIZE + threadIdx.x; i < total_elems;
+            i += (gridDim.x - 1) * BLOCK_SIZE)
+        {
+            p_buf[i] = zero_;
         }
     }
 
@@ -1009,20 +1072,6 @@ struct MoeSortingKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        if(blockIdx.x > 0)
-        {
-            if(kargs.p_moe_buf)
-            {
-                moe_buf_set_zero_kernel(reinterpret_cast<uint8x16_t*>(kargs.p_moe_buf),
-                                        kargs.moe_buf_bytes);
-            }
-            return;
-        }
-        const size_t numel = kargs.tokens * kargs.topk_mdiv.divisor;
-        extern __shared__ char smem[];
-
-#if MOE_SORTING_USE_EX_KERNEL
-        (void)numel;
         index_t tokens_ = [&]() {
             if constexpr(Problem::LocalToken)
             {
@@ -1033,6 +1082,25 @@ struct MoeSortingKernel
                 return kargs.tokens;
             }
         }();
+
+        if(blockIdx.x > 0)
+        {
+            if(kargs.p_moe_buf)
+            {
+#if MOE_SORTING_FMOE_2D_BUF
+                moe_buf_set_zero_kernel_2d(
+                    kargs.p_moe_buf, tokens_, kargs.moe_buf_interm_dim, kargs.moe_buf_elem_bytes);
+#else
+                moe_buf_set_zero_kernel(reinterpret_cast<uint8x16_t*>(kargs.p_moe_buf),
+                                        kargs.moe_buf_bytes);
+#endif
+            }
+            return;
+        }
+
+        extern __shared__ char smem[];
+
+#if MOE_SORTING_USE_EX_KERNEL
         return moe_align_block_size_kernel_ex(
             static_cast<const IndexType*>(kargs.p_topk_ids),
             static_cast<const WeightType*>(kargs.p_weights),
@@ -1049,6 +1117,7 @@ struct MoeSortingKernel
             kargs.smem_rows,
             smem);
 #else
+        const size_t numel = kargs.tokens * kargs.topk_mdiv.divisor;
         return moe_align_block_size_kernel(static_cast<const IndexType*>(kargs.p_topk_ids),
                                            static_cast<const WeightType*>(kargs.p_weights),
                                            static_cast<IndexType*>(kargs.p_sorted_token_ids),
@@ -1264,6 +1333,24 @@ CK_TILE_DEVICE void moe_buf_set_zero_kernel(uint8x16_t* buf, long_index_t buf_by
     if(offset < buf_bytes / 16)
     {
         buf[offset] = uint8x16_t{0};
+    }
+}
+
+template <index_t BLOCK_SIZE = 256>
+CK_TILE_DEVICE void moe_buf_set_zero_kernel_2d(
+    void* buf, index_t row, index_t col, index_t elem_bytes, index_t gid, index_t blocks)
+{
+    const long_index_t total_pixels = static_cast<long_index_t>(row) * col;
+    const long_index_t total_bytes  = total_pixels * elem_bytes;
+    const long_index_t total_elems  = total_bytes / 16; // always use dwordx4
+
+    using vector_type  = ext_vector_t<index_t, 4>;
+    vector_type* p_buf = reinterpret_cast<vector_type*>(buf);
+    auto zero_         = vector_type{0};
+
+    for(long_index_t i = gid * BLOCK_SIZE + threadIdx.x; i < total_elems; i += blocks * BLOCK_SIZE)
+    {
+        p_buf[i] = zero_;
     }
 }
 
@@ -1995,15 +2082,36 @@ struct MoeSortingMultiPhaseKernel_P2
         k.mesh_stride    = impl::moe_sorting_mp_mesh_stride(h.tokens);
         k.unit_size_mdiv = mdiv{static_cast<uint32_t>(h.unit_size)};
 
+#if MOE_SORTING_FMOE_2D_BUF
+        k.moe_buf_interm_dim = h.moe_buf_interm_dim;
+        k.moe_buf_elem_bytes = h.moe_buf_elem_bytes;
+#else
         k.moe_buf_bytes = h.moe_buf_bytes;
+#endif
 
         return k;
     }
 
+    CK_TILE_HOST static constexpr auto get_num_cu()
+    {
+        index_t num_cu = [&]() {
+            hipDeviceProp_t dev_prop;
+            hipDevice_t dev;
+            HIP_CHECK_ERROR(hipGetDevice(&dev));
+            HIP_CHECK_ERROR(hipGetDeviceProperties(&dev_prop, dev));
+            return dev_prop.multiProcessorCount;
+        }();
+        return num_cu;
+    }
+
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
     {
+#if MOE_SORTING_FMOE_2D_BUF
+        return dim3(h.num_experts + get_num_cu() * OCCUPANCY);
+#else
         // use 1 block to cumsum
         return dim3(1 + ck_tile::integer_divide_ceil(h.moe_buf_bytes, BLOCK_SIZE * 16));
+#endif
     }
 
     CK_TILE_HOST static constexpr auto BlockSize(const Hargs&) { return dim3(BLOCK_SIZE); }
@@ -2020,11 +2128,21 @@ struct MoeSortingMultiPhaseKernel_P2
     {
         if(blockIdx.x > 0)
         {
+#if MOE_SORTING_FMOE_2D_BUF
+            impl::moe_buf_set_zero_kernel_2d<BLOCK_SIZE>(kargs.p_moe_buf,
+                                                         kargs.tokens,
+                                                         kargs.moe_buf_interm_dim,
+                                                         kargs.moe_buf_elem_bytes,
+                                                         blockIdx.x - 1,
+                                                         gridDim.x - 1);
+            return;
+#else
             impl::moe_buf_set_zero_kernel<BLOCK_SIZE>(
                 reinterpret_cast<uint8x16_t*>(kargs.p_moe_buf),
                 kargs.moe_buf_bytes,
                 blockIdx.x - 1);
             return;
+#endif
         }
         __shared__ char smem[GetSmemSize()];
         IndexType* s = reinterpret_cast<IndexType*>(smem);
@@ -2367,7 +2485,17 @@ struct MoeSortingMultiPhaseKernel_P23
         index_t mesh_stride; // mesh_stride for p_expert_mesh
         mdiv unit_size_mdiv;
         mdiv topk_mdiv;
-        long_index_t moe_buf_bytes;
+#if MOE_SORTING_FMOE_2D_BUF
+        // NOTE:
+        // moe_buf_* is a 2d ws buffer used for the following fmoe kernel
+        // arranged as row*col, where row=tokens(or local_token), col=interm_dim
+        // we fuse this clearing inside sorting kernel
+        // Besides, we require inter_dim to be multiple of 16 byte(make sure when alloc ws for fmoe)
+        index_t moe_buf_interm_dim; // p_moe_buf interm_dim
+        index_t moe_buf_elem_bytes; // p_moe_buf byte size(8bit, 16bit, 32bit, etc.)
+#else
+        long_index_t moe_buf_bytes; // byte size of p_moe_buf
+#endif
     };
 
     CK_TILE_HOST static constexpr auto MakeKargs(const Hargs& h)
@@ -2394,16 +2522,37 @@ struct MoeSortingMultiPhaseKernel_P23
         k.unit_size_mdiv = mdiv{static_cast<uint32_t>(h.unit_size)};
         k.topk_mdiv      = mdiv{static_cast<uint32_t>(h.topk)};
 
+#if MOE_SORTING_FMOE_2D_BUF
+        k.moe_buf_interm_dim = h.moe_buf_interm_dim;
+        k.moe_buf_elem_bytes = h.moe_buf_elem_bytes;
+#else
         k.moe_buf_bytes = h.moe_buf_bytes;
+#endif
 
         return k;
     }
 
+    CK_TILE_HOST static constexpr auto get_num_cu()
+    {
+        index_t num_cu = [&]() {
+            hipDeviceProp_t dev_prop;
+            hipDevice_t dev;
+            HIP_CHECK_ERROR(hipGetDevice(&dev));
+            HIP_CHECK_ERROR(hipGetDeviceProperties(&dev_prop, dev));
+            return dev_prop.multiProcessorCount;
+        }();
+        return num_cu;
+    }
+
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& h)
     {
+#if MOE_SORTING_FMOE_2D_BUF
+        return dim3(h.num_experts + get_num_cu() * OCCUPANCY);
+#else
         // use 1 block to cumsum
         // return dim3(1 + ck_tile::integer_divide_ceil(h.moe_buf_bytes, BLOCK_SIZE * 16));
         return dim3(h.num_experts + ck_tile::integer_divide_ceil(h.moe_buf_bytes, BLOCK_SIZE * 16));
+#endif
     }
 
     CK_TILE_HOST static constexpr auto BlockSize(const Hargs&) { return dim3(BLOCK_SIZE); }
@@ -2419,15 +2568,6 @@ struct MoeSortingMultiPhaseKernel_P23
     // reduce single pixel within a wave
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        if(static_cast<index_t>(blockIdx.x) >= kargs.num_experts)
-        {
-            impl::moe_buf_set_zero_kernel<BLOCK_SIZE>(
-                reinterpret_cast<uint8x16_t*>(kargs.p_moe_buf),
-                kargs.moe_buf_bytes,
-                blockIdx.x - kargs.num_experts);
-            return;
-        }
-
         index_t tokens = [&]() {
             if constexpr(Problem::LocalToken)
             {
@@ -2438,6 +2578,25 @@ struct MoeSortingMultiPhaseKernel_P23
                 return kargs.tokens;
             }
         }();
+
+        if(static_cast<index_t>(blockIdx.x) >= kargs.num_experts)
+        {
+#if MOE_SORTING_FMOE_2D_BUF
+            impl::moe_buf_set_zero_kernel_2d<BLOCK_SIZE>(kargs.p_moe_buf,
+                                                         tokens,
+                                                         kargs.moe_buf_interm_dim,
+                                                         kargs.moe_buf_elem_bytes,
+                                                         blockIdx.x - kargs.num_experts,
+                                                         gridDim.x - kargs.num_experts);
+            return;
+#else
+            impl::moe_buf_set_zero_kernel<BLOCK_SIZE>(
+                reinterpret_cast<uint8x16_t*>(kargs.p_moe_buf),
+                kargs.moe_buf_bytes,
+                blockIdx.x - kargs.num_experts);
+            return;
+#endif
+        }
 
         extern __shared__ char smem[];
         {
