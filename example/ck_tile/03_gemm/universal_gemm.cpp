@@ -301,18 +301,18 @@ int run_gemm_example(int argc, char* argv[])
     }
     else if(data_type == "int8")
     {
-        // TODO: Add int8 support
-        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V77)
-        {
-            throw std::runtime_error("Unsupported pipeline for this operation !!!");
-            ;
-        }
-        else
+        if constexpr(GemmConfig<ck_tile::int8_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3 ||
+                     GemmConfig<ck_tile::int8_t>::Pipeline == CK_TILE_PIPELINE_MEMORY ||
+                     GemmConfig<ck_tile::int8_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V4)
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::int8_t>,
                                               ck_tile::int8_t,
                                               ck_tile::int8_t,
                                               ck_tile::int32_t>(a_layout, b_layout, argc, argv);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported pipeline for this operation !!!");
         }
     }
     else if(data_type == "pk_int4_t")
