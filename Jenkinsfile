@@ -1239,7 +1239,19 @@ pipeline {
                                            ninja -j64 benchmark_gemm_fp8_rcr && \
                                            ./bin/benchmark_gemm_fp8_rcr && \
                                            ninja -j64 benchmark_gemm_fp16_rcr && \
-                                           ./bin/benchmark_gemm_fp16_rcr """
+                                           ./bin/benchmark_gemm_fp16_rcr && \
+                                           ninja -j64 benchmark_gemm_fp8_crr && \
+                                           ./bin/benchmark_gemm_fp8_crr && \
+                                           ninja -j64 benchmark_gemm_fp16_crr && \
+                                           ./bin/benchmark_gemm_fp16_crr \
+                                           ninja -j64 benchmark_gemm_fp8_ccr && \
+                                           ./bin/benchmark_gemm_fp8_ccr && \
+                                           ninja -j64 benchmark_gemm_fp16_ccr && \
+                                           ./bin/benchmark_gemm_fp16_ccr \
+                                           ninja -j64 benchmark_gemm_fp8_rrr && \
+                                           ./bin/benchmark_gemm_fp8_rrr && \
+                                           ninja -j64 benchmark_gemm_fp16_rrr && \
+                                           ./bin/benchmark_gemm_fp16_rrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1261,10 +1273,22 @@ pipeline {
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j128 benchmark_gemm_fp8_rcr && \
+                                           ninja -j64 benchmark_gemm_fp8_rcr && \
                                            ./bin/benchmark_gemm_fp8_rcr && \
-                                           ninja -j128 benchmark_gemm_fp16_rcr && \
-                                           ./bin/benchmark_gemm_fp16_rcr """
+                                           ninja -j64 benchmark_gemm_fp16_rcr && \
+                                           ./bin/benchmark_gemm_fp16_rcr && \
+                                           ninja -j64 benchmark_gemm_fp8_crr && \
+                                           ./bin/benchmark_gemm_fp8_crr && \
+                                           ninja -j64 benchmark_gemm_fp16_crr && \
+                                           ./bin/benchmark_gemm_fp16_crr \
+                                           ninja -j64 benchmark_gemm_fp8_ccr && \
+                                           ./bin/benchmark_gemm_fp8_ccr && \
+                                           ninja -j64 benchmark_gemm_fp16_ccr && \
+                                           ./bin/benchmark_gemm_fp16_ccr \
+                                           ninja -j64 benchmark_gemm_fp8_rrr && \
+                                           ./bin/benchmark_gemm_fp8_rrr && \
+                                           ninja -j64 benchmark_gemm_fp16_rrr && \
+                                           ./bin/benchmark_gemm_fp16_rrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
