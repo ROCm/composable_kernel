@@ -301,10 +301,19 @@ int run_gemm_example(int argc, char* argv[])
     }
     else if(data_type == "int8")
     {
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::int8_t>,
-                                          ck_tile::int8_t,
-                                          ck_tile::int8_t,
-                                          ck_tile::int32_t>(a_layout, b_layout, argc, argv);
+        // TODO: Add int8 support
+        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V77)
+        {
+            throw std::runtime_error("Unsupported pipeline for this operation !!!");
+            ;
+        }
+        else
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::int8_t>,
+                                              ck_tile::int8_t,
+                                              ck_tile::int8_t,
+                                              ck_tile::int32_t>(a_layout, b_layout, argc, argv);
+        }
     }
     else if(data_type == "pk_int4_t")
     {
@@ -331,7 +340,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        return !run_gemm_example<GemmConfigComputeV3>(argc, argv);
+        return !run_gemm_example<GemmConfigComputeV77>(argc, argv);
     }
     catch(const std::runtime_error& e)
     {
@@ -339,5 +348,4 @@ int main(int argc, char* argv[])
         // Return a non-zero code to indicate failure
         return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
 }
