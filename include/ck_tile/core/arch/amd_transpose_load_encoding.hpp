@@ -31,10 +31,9 @@ struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 2>>
                                    tuple<sequence<kOuterDistDim0, kOuterDistDim1, 4>,
                                          sequence<kInnerDistDim0, kInnerDistDim1, 4, 4>>,
                                    tuple<sequence<1, 2, 1, 2>>,
-                                   tuple<sequence<0, 0, 2, 2>>, // -> <kOuterDistDim0,
-                                                                // kInnerDistDim0, 4, 4>
+                                   tuple<sequence<0, 0, 2, 2>>,
                                    sequence<2, 1, 2>,
-                                   sequence<1, 1, 3>>; // -> <kInnerDistDim1, kOuterDistDim1, 4>
+                                   sequence<1, 1, 3>>;
 };
 
 template <typename T>
@@ -55,10 +54,9 @@ struct LaneGroupTransposeTraits<T, std::enable_if_t<sizeof(T) == 1>>
                                    tuple<sequence<kOuterDistDim0, kOuterDistDim1, 8>,
                                          sequence<kInnerDistDim0, kInnerDistDim1, 2, 8>>,
                                    tuple<sequence<1, 2, 1, 2>>,
-                                   tuple<sequence<0, 0, 2, 2>>, // -> <kOuterDistDim0,
-                                                                // kInnerDistDim0, 8, 2>
+                                   tuple<sequence<0, 0, 2, 2>>,
                                    sequence<2, 1, 2>,
-                                   sequence<1, 1, 3>>; // -> <kInnerDistDim1, kOuterDistDim1, 8>
+                                   sequence<1, 1, 3>>;
 };
 
 /*
