@@ -7,7 +7,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_gemm_universal_util.hpp"
 
-#if CK_USE_WMMA_FP8
+#if defined(CK_USE_WMMA_FP8)
 
 using F8   = ck::f8_t;
 using BF16 = ck::bhalf_t;

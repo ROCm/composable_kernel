@@ -122,6 +122,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             {
                 if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     return 1;
+                // use larger K/V LDS buffer size will lower the occupancy
+                else if constexpr(64 <= kK0 || 64 <= kK1)
+                    return 1;
                 else
                     return 2;
             }
@@ -702,12 +705,19 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             }
 
             const auto p = [&]() {
+#if CK_TILE_FMHA_FLOAT_TO_FLOAT16_RTN
+                // For fp32 to fp16,
+                // impl::cast_tile_pk_fp16_fp32 would cause precision issue,
+                // since it uses __builtin_amdgcn_cvt_pkrtz, which is round to zero.
+                return cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+#else
                 if constexpr(std::is_same_v<PDataType, fp16_t>)
                     return impl::cast_tile_pk_fp16_fp32<PDataType>(
                         tile_elementwise_in(p_compute_element_func, p_compute));
                 else
                     return cast_tile<PDataType>(
                         tile_elementwise_in(p_compute_element_func, p_compute));
+#endif
             }();
 
             // STAGE 3, KV gemm

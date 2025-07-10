@@ -51,6 +51,18 @@ struct DataTypeTraits<ck_tile::bf8_t>
 };
 
 template <>
+struct DataTypeTraits<ck_tile::int8_t>
+{
+    static constexpr const char* name = "int8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::int32_t>
+{
+    static constexpr const char* name = "int32";
+};
+
+template <>
 struct DataTypeTraits<ck_tile::pk_int4_t>
 {
     static constexpr const char* name = "pk_int4_t";
@@ -93,6 +105,11 @@ inline auto create_args(int argc, char* argv[])
                 "0",
                 "The method of tensor initialization. Set to 0 for random, to 1 for linear, or 2 "
                 "for constant(1). Default is 0, random.")
+        .insert("flush_cache",
+                "false",
+                "To flush cache, possible values are true or false. "
+                "Default is false.")
+        .insert("rotating_count", "5", "number of iterations to rotate the cache. default is 5.")
         .insert("metric",
                 "0",
                 "Metric with which to measure kernel performance. Set to 0 for latency, 1 for "

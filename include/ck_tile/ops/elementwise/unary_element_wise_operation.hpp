@@ -1479,5 +1479,6 @@ struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, N>
     CK_TILE_DEVICE OutputArray operator()(InputArray const& Input) { return convert(Input); }
 };
 #endif
+
 } // namespace element_wise
 } // namespace ck_tile
