@@ -31,10 +31,7 @@ struct ElementWiseKernel
 
         // Setup block-level coordinates and transforms
         const index_t iM           = get_block_id() * S::kBlockM;
-        const auto merge_transform = make_merge_transform(
-            ck_tile::generate_tuple([&](auto idx) { return lens[idx]; }, number<lens.size()>{}));
-        const auto dim_seq        = make_index_sequence<Dims::size()>{};
-        const auto merged_dim_seq = ck_tile::make_tuple(sequence<0>{});
+        const auto merge_transform = make_merge_transform(lens);
 
         // Load all input tiles into registers.
         // The lambda structure here is intended to minimize the lifetime
@@ -45,10 +42,11 @@ struct ElementWiseKernel
                     input_tensors.get(i), lens, input_strides, number<S::kVectorM>{});
 
                 const auto transformed_tensor =
-                    transform_tensor_view(tensor_view,
+                    pad_tensor_view(transform_tensor_view(tensor_view,
                                           ck_tile::make_tuple(merge_transform),
-                                          ck_tile::make_tuple(dim_seq),
-                                          merged_dim_seq);
+                                          ck_tile::make_tuple(make_index_sequence<Dims::size()>{}),
+                                          ck_tile::make_tuple(sequence<0>{})), ck_tile::make_tuple(number<S::kBlockM>{}),
+                    sequence<Problem::kPad>{});
 
                 const auto x_window =
                     make_tile_window(transformed_tensor,
@@ -77,15 +75,13 @@ struct ElementWiseKernel
         });
 
         // Setup output window and store the result tile.
-        const auto y_m_n = make_naive_tensor_view<address_space_enum::global,
-                                                  memory_operation_enum::set,
-                                                  amd_buffer_coherence_enum::slc>(
+        const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
             p_y, lens, output_strides, number<S::kVectorM>{});
 
-        const auto transformed_y_m_n = transform_tensor_view(y_m_n,
+        const auto transformed_y_m_n = pad_tensor_view(transform_tensor_view(y_m_n,
                                                              ck_tile::make_tuple(merge_transform),
-                                                             ck_tile::make_tuple(dim_seq),
-                                                             merged_dim_seq);
+                                                             ck_tile::make_tuple(make_index_sequence<Dims::size()>{}),
+                                                             ck_tile::make_tuple(sequence<0>{})), ck_tile::make_tuple(number<S::kBlockM>{}), sequence<Problem::kPad>{});
 
         auto y_window = make_tile_window(transformed_y_m_n,
                                          make_tuple(number<S::kBlockM>{}),

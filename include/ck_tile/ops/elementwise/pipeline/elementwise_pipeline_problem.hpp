@@ -11,7 +11,8 @@ template <typename XDataType_,
           typename ComputeDataType_,
           typename YDataType_,
           typename BlockShape_,
-          typename ElementWiseOperation_>
+          typename ElementWiseOperation_,
+          bool kPad_ = true>
 struct ElementWisePipelineProblem
 {
     using XDataType            = remove_cvref_t<XDataType_>;
@@ -19,6 +20,7 @@ struct ElementWisePipelineProblem
     using YDataType            = remove_cvref_t<YDataType_>;
     using BlockShape           = remove_cvref_t<BlockShape_>;
     using ElementWiseOperation = remove_cvref_t<ElementWiseOperation_>;
+    static constexpr bool kPad = kPad_;
 };
 
 } // namespace ck_tile

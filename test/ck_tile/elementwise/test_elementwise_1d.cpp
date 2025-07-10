@@ -198,9 +198,9 @@ TYPED_TEST_SUITE(TestCkTileElementwise, TestTypes);
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_1024) { this->RunTest(1024); }
 
-TYPED_TEST(TestCkTileElementwise, RunElementwise_512)
+TYPED_TEST(TestCkTileElementwise, RunElementwise_513)
 {
-    this->RunTest(512); // Test with a size that might not be a multiple of blockM
+    this->RunTest(513); // Test with a size that might not be a multiple of blockM
 }
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_Small_32)

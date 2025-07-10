@@ -101,10 +101,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto problem_shape_tuple =
         ck_tile::make_tuple(problem_shape[0], problem_shape[1], problem_shape[2], problem_shape[3]);
 
-    if(host_strides.size() != 4)
-    {
-        throw std::runtime_error("host_strides must have 4 elements for 4D tensor");
-    }
     auto strides_tuple =
         ck_tile::make_tuple(host_strides[0], host_strides[1], host_strides[2], host_strides[3]);
 
