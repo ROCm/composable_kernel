@@ -754,6 +754,15 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+                # PyTorch integration
+                elif receipt == 4:
+                    cond = dtype in ['fp16, bf16']
+                    cond &= pipeline.F_vlayout == 'row'
+                    cond &= pipeline.F_bias in ['no', 'bias']
+                    cond &= pipeline.F_squant == 'f'
+                    cond &= mode == 'batch'
+                    if not cond:
+                        continue
                 # Aiter(mha_varlen_fwd) integration
                 elif receipt == 200:
                     cond = dtype in ['fp16', 'bf16']
