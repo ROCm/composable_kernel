@@ -230,7 +230,8 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
         UnderlyingGemmKernel underlying_kernel{};
         for(; block_linear_idx < total_work_tile_cnt; block_linear_idx += total_block_cnt)
         {
-            auto [block_m_idx, block_n_idx] = TilePartitioner::GetOutputTileIndex(block_linear_idx);
+            auto [block_m_idx, block_n_idx] =
+                TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(block_linear_idx);
             // get the group index from the M_indices
             int group_idx = kargs.M_indices[block_m_idx * BlockGemmShape::kM];
 
