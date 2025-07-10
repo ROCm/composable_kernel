@@ -1180,7 +1180,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
                 auto launch_kernel = [&](auto has_main_k_block_loop, auto no_main_k_block_loop) {
                     constexpr bool has_main_loop = has_main_k_block_loop.value;
-                    constexpr bool no_main_loop = no_main_k_block_loop.value;
+                    constexpr bool no_main_loop  = no_main_k_block_loop.value;
                     if constexpr(CTranspose)
                     {
                         const auto kernel = kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle<
@@ -1455,9 +1455,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             }
         }
 
-        const index_t ConvG = arg.b_g_k_c_xs_lengths_[0];
-        const index_t ConvK = arg.b_g_k_c_xs_lengths_[1];
-        const index_t ConvC = arg.b_g_k_c_xs_lengths_[2];
+        const index_t ConvG               = arg.b_g_k_c_xs_lengths_[0];
+        const index_t ConvK               = arg.b_g_k_c_xs_lengths_[1];
+        const index_t ConvC               = arg.b_g_k_c_xs_lengths_[2];
         const index_t output_spatial_acum = ck::accumulate_n<index_t>(
             arg.e_g_n_c_wis_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
         const index_t input_spatial_acum = ck::accumulate_n<index_t>(
@@ -1612,7 +1612,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             }
         }
 
-        if constexpr (NeedTransposeKernel)
+        if constexpr(NeedTransposeKernel)
         {
             if((ConvG * ConvC) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
