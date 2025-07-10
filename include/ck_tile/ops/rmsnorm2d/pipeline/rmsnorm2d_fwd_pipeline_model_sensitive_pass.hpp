@@ -10,6 +10,24 @@
 
 namespace ck_tile {
 
+/**
+ * @brief This T5Pass implements the RMSNorm2d forward pipeline as a variant
+ *        based on Rmsnorm2dFwdPipelineOnePass and Rmsnorm2dFwdPipelineTwoPass using a T5 model-like
+ * method.
+ *
+ * The T5 model, developed by Google, is a transformer-based architecture designed to perform
+ * a variety of NLP tasks. The T5-like approach employed here is characterized by how RMS
+ * normalization is handled, particularly where intermediate values are cast to BF16. This aims to
+ * achieve a similar value distribution to that produced by the VLLM hip implementation, thereby
+ * enhancing model accuracy.
+ *
+ * Note: While this implementation improves precision and can reduce discrepancies with VLLM, it is
+ * not guaranteed to eliminate all differences or ensure uniform outcomes across every use case.
+ *
+ * This implementation is a variant based on the original one-pass and two-pass approaches,
+ * allowing for both fused and non-fused add operations.
+ */
+
 template <typename Problem_, typename Policy_ = Rmsnorm2dFwdPipelineDefaultPolicy>
 struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
 {

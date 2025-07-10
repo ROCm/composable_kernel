@@ -37,15 +37,19 @@ template<> struct Rmsnorm2dFusedQuantEnumName<Rmsnorm2dFusedQuantEnum::DYNAMIC_Q
 template<> struct Rmsnorm2dFusedQuantEnumName<Rmsnorm2dFusedQuantEnum::SMOOTH_DYNAMIC_QUANT> { static constexpr const char * name = "smdqt"; };
 // clang-format on
 
-enum class Rmsnorm2dFusedModelSensitiveEnum
+enum class Rmsnorm2dSensitiveEnum
 {
-    NO_MODEL_SENSITIVE = 0,
-    T5_LIKED           = 1,
+    NO_SPECIFIC_MODEL = 0,
+    // T5-like model for RMSNorm. The T5 model, developed by Google, is a transformer-based
+    // architecture designed for a variety of NLP tasks. This option mimics T5's approach to
+    // RMSNorm, aiming to ensure similar value distributions and enhance accuracy.
+    T5_MODEL_LIKE = 1,
 };
 
 // clang-format off
-template<Rmsnorm2dFusedModelSensitiveEnum> struct Rmsnorm2dFusedModelSensitiveEnumName;
-template<> struct Rmsnorm2dFusedModelSensitiveEnumName<Rmsnorm2dFusedModelSensitiveEnum::T5_LIKED> { static constexpr const char * name = "t5"; };
+template<Rmsnorm2dSensitiveEnum> struct Rmsnorm2dSensitiveEnumName;
+template<> struct Rmsnorm2dSensitiveEnumName<Rmsnorm2dSensitiveEnum::NO_SPECIFIC_MODEL> { static constexpr const char * name = "nsm"; };
+template<> struct Rmsnorm2dSensitiveEnumName<Rmsnorm2dSensitiveEnum::T5_MODEL_LIKE> { static constexpr const char * name = "t5ml"; };
 // clang-format on
 
 template <bool kPadN_,
@@ -54,17 +58,16 @@ template <bool kPadN_,
           bool kTwoPass_,
           Rmsnorm2dFusedAddEnum kFusedAdd_,
           Rmsnorm2dFusedQuantEnum kFusedQuant_,
-          Rmsnorm2dFusedModelSensitiveEnum kUseModelSensitiveRMSNorm_>
+          Rmsnorm2dSensitiveEnum kUseModelSensitiveRMSNorm_>
 struct Rmsnorm2dFwdTraits
 {
-    static constexpr bool kPadN                          = kPadN_;
-    static constexpr bool kSaveInvRms                    = kSaveInvRms_;
-    static constexpr bool kSaveUnquant                   = kSaveUnquant_;
-    static constexpr bool kTwoPass                       = kTwoPass_;
-    static constexpr Rmsnorm2dFusedAddEnum kFusedAdd     = kFusedAdd_;
-    static constexpr Rmsnorm2dFusedQuantEnum kFusedQuant = kFusedQuant_;
-    static constexpr Rmsnorm2dFusedModelSensitiveEnum kUseModelSensitiveRMSNorm =
-        kUseModelSensitiveRMSNorm_;
+    static constexpr bool kPadN                                       = kPadN_;
+    static constexpr bool kSaveInvRms                                 = kSaveInvRms_;
+    static constexpr bool kSaveUnquant                                = kSaveUnquant_;
+    static constexpr bool kTwoPass                                    = kTwoPass_;
+    static constexpr Rmsnorm2dFusedAddEnum kFusedAdd                  = kFusedAdd_;
+    static constexpr Rmsnorm2dFusedQuantEnum kFusedQuant              = kFusedQuant_;
+    static constexpr Rmsnorm2dSensitiveEnum kUseModelSensitiveRMSNorm = kUseModelSensitiveRMSNorm_;
 };
 
 } // namespace ck_tile

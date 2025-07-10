@@ -202,7 +202,7 @@ float rmsnorm2d_fwd_(const S& s, A a)
                                     Traits_::kTwoPass,
                                     static_cast<ck_tile::Rmsnorm2dFusedAddEnum>(Traits_::kFusedAdd),
                                     static_cast<ck_tile::Rmsnorm2dFusedQuantEnum>(Traits_::kFusedQuant),
-                                    static_cast<ck_tile::Rmsnorm2dFusedModelSensitiveEnum>(Traits_::kUseModelSensitiveRMSNorm)>;
+                                    static_cast<ck_tile::Rmsnorm2dSensitiveEnum>(Traits_::kUseModelSensitiveRMSNorm)>;
 
     using PipelineProblem =
         ck_tile::Rmsnorm2dFwdPipelineProblem<typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::XDataType,
@@ -440,8 +440,10 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                 nnn = nnn + '_' + FUSED_FUSED_SWEEP_STR_MAP[self.F_sweep]
             if self.F_saveunquant:
                 nnn = nnn + '_saveunquant'
-            if self.F_use_model_sensitive_rmsnorm == 1:
-                nnn = nnn + '_t5'
+            if self.F_use_model_sensitive_rmsnorm == 0:
+                nnn = nnn + '_nsm'
+            elif self.F_use_model_sensitive_rmsnorm == 1:
+                nnn = nnn + '_t5ml'
             return nnn
 
         @property

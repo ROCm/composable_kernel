@@ -151,7 +151,8 @@ struct Rmsnorm2dFwd
             if (kPadN) n += "_pn";
             if (kSaveInvRms) n += "_rms";
             if (kTwoPass) n += "_2p";
-            if (kUseModelSensitiveRMSNorm == Rmsnorm2dFusedModelSensitiveEnum::T5_LIKED) n += "_t5";
+            if (kUseModelSensitiveRMSNorm == Rmsnorm2dSensitiveEnum::NO_SPECIFIC_MODEL) n += "_nsm";
+            else if (kUseModelSensitiveRMSNorm == Rmsnorm2dSensitiveEnum::T5_MODEL_LIKE) n += "_t5ml";
             return n; }();
 
         auto prec_str = [&] () {
