@@ -55,7 +55,7 @@ CK_TILE_HOST_DEVICE float convert_to_float(typename T::raw_type data, int scale_
 }
 
 template <typename T>
-CK_TILE_HOST_DEVICE T::raw_type convert_to_type(float value)
+CK_TILE_HOST_DEVICE typename T::raw_type convert_to_type(float value)
 {
     using bitwise_type = typename numeric_traits<T>::bitwise_type;
 

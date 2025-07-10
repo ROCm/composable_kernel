@@ -226,7 +226,7 @@ CK_TILE_HOST_DEVICE constexpr bf16x2_t pk_fp4_to_bf16x2(const pk_fp4_t& x) { ret
 CK_TILE_HOST_DEVICE constexpr pk_fp4_t float_to_pk_fp4(const float& x) { return float_to_e2m1(x); }
 CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp16_to_pk_fp4(const fp16_t& x)
 {
-#if ck_tile_fp4_cvt_device
+#if CK_TILE_FP4_CVT_DEVICE
     return impl::_to_f4(x);
 #else
     return float_to_e2m1(type_convert<float>(x));
@@ -234,7 +234,7 @@ CK_TILE_HOST_DEVICE constexpr pk_fp4_t fp16_to_pk_fp4(const fp16_t& x)
 }
 CK_TILE_HOST_DEVICE constexpr pk_fp4_t bf16_to_pk_fp4(const bf16_t& x)
 {
-#if ck_tile_fp4_cvt_device
+#if CK_TILE_FP4_CVT_DEVICE
     return impl::_to_f4(x);
 #else
     return float_to_e2m1(type_convert<float>(x));
