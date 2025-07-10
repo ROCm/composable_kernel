@@ -24,4 +24,6 @@ args:
  -layout_out    output tensor data layout - NHWC by default
        -seed    seed to be used, -1 means random every time (default:-1)
      -k_name    t to 1 will print kernel name (default:0)
+     -warmup    warmup iterations to run this kernel (default:50)
+     -repeat    number of iterations to run this kernel (default:100)
 ```

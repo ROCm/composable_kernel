@@ -21,10 +21,12 @@ CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,
                                         index_t& unit_cnt,
                                         const index_t experts,
                                         const index_t unit_size,
+                                        const index_t tokens,
                                         bool local_expert_masking,
                                         bool skip_experts_with_zero_token = true)
 {
-    const index_t num_token = topk_ids.mDesc.get_lengths()[0];
+    // note: if tokens is smaller than topk_ids.mDesc.get_lengths()[0], indicating local_token case
+    const index_t num_token = tokens; //  topk_ids.mDesc.get_lengths()[0];
     const index_t topk      = topk_ids.mDesc.get_lengths()[1];
     // allocate a temp buffer, and fill the value with [number_token|topk]
     std::vector<std::vector<IndexType>> expert_tokens(
