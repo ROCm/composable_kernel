@@ -52,7 +52,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     // clang-format on
 
     ck::utils::conv::ConvParam conv_param;
-    ck::index_t split_k{2};
+    std::vector<ck::index_t> split_ks{-1, 2};
 
     template <ck::index_t NDimSpatial>
     bool Run()
@@ -96,7 +96,11 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
         auto conv = GroupedConvBwdWeightDeviceInstance{};
 
-        auto argument = conv.MakeArgument(nullptr,
+        bool is_supported = true;
+
+        for (const auto split_k : split_ks)
+        {
+            auto argument = conv.MakeArgument(nullptr,
                                           nullptr,
                                           nullptr,
                                           input_lengths,
@@ -113,7 +117,9 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                                           PassThrough{},
                                           PassThrough{},
                                           split_k);
-        return conv.IsSupportedArgument(argument);
+            is_supported &=conv.IsSupportedArgument(argument);
+        }
+        return is_supported;
     }
 };
 
