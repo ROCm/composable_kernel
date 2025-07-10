@@ -551,8 +551,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 const auto& c_grid_desc_m_n   = descs_initial[I2];
                 const auto& block_2_ctile_map = GridwiseGemm::MakeCBlockClusterAdaptor(c_grid_desc_m_n, M01, N01, k_batch_initial);
 
-                const auto grid_size_mn = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n);            
-                k_batch_ = get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size_mn, Conv_G_);
+                const auto grid_size = block_2_ctile_map.CalculateGridSize(c_grid_desc_m_n) * Conv_G_; 
+                k_batch_ = get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size);
             }
             else 
             {

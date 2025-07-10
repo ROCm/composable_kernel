@@ -655,8 +655,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 const auto gemmM = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
                 const auto gemmN = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
 
-                const auto grid_size_mn = GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN);
-                k_batch_ = get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size_mn, Conv_G_);
+                const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN) * Conv_G_;
+                k_batch_ = get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size);
 
                 // Ensure that k_batch_ does not exceed the maximum value
                 // for the GEMM pipeline

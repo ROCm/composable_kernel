@@ -27,15 +27,13 @@ struct DeviceProperties
   int num_cu_;
 };
 
-inline ck::index_t get_best_occupancy_k_batch_value(int max_occupancy, ck::index_t grid_size_mn, ck::index_t num_conv_groups)
+inline ck::index_t get_best_occupancy_k_batch_value(int max_occupancy, ck::index_t grid_size)
 {
     static DeviceProperties device_properties;
     const int max_capacity = max_occupancy * device_properties.num_cu_;
 
-    // Empirically, when we have more than one group, we can oversubscribe by the number of groups.
-    // This is because the groups are independent and can be processed in parallel.
     ck::index_t k_batch = 1;
-    const auto optimal_split = static_cast<ck::index_t>(std::floor((1.0 * max_capacity) / (grid_size_mn)));
+    const auto optimal_split = static_cast<ck::index_t>(std::floor((1.0 * max_capacity) / grid_size));
     if (optimal_split > 1)
     {
       k_batch = optimal_split;
@@ -44,8 +42,7 @@ inline ck::index_t get_best_occupancy_k_batch_value(int max_occupancy, ck::index
     if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
     {
       std::cout << "[SPLIT-K AUTODEDUCE] Max active thread blocks per CU for GEMM kernel:  " << max_occupancy << std::endl;
-      std::cout << "[SPLIT-K AUTODEDUCE] Output grid size:  " << grid_size_mn << std::endl;
-      std::cout << "[SPLIT-K AUTODEDUCE] Number of conv groups:  " << num_conv_groups << std::endl;
+      std::cout << "[SPLIT-K AUTODEDUCE] Output grid size:  " << grid_size << std::endl;
       std::cout << "[SPLIT-K AUTODEDUCE] Optimal split-k value " << k_batch << std::endl;
     }
     return k_batch;
