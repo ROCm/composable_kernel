@@ -39,8 +39,8 @@ template<> struct Rmsnorm2dFusedQuantEnumName<Rmsnorm2dFusedQuantEnum::SMOOTH_DY
 
 enum class Rmsnorm2dFusedModelSensitiveEnum
 {
-    NO_MODEL_SENSITIVE   = 0,
-    T5_LIKED             = 1,
+    NO_MODEL_SENSITIVE = 0,
+    T5_LIKED           = 1,
 };
 
 // clang-format off
@@ -63,7 +63,8 @@ struct Rmsnorm2dFwdTraits
     static constexpr bool kTwoPass                       = kTwoPass_;
     static constexpr Rmsnorm2dFusedAddEnum kFusedAdd     = kFusedAdd_;
     static constexpr Rmsnorm2dFusedQuantEnum kFusedQuant = kFusedQuant_;
-    static constexpr Rmsnorm2dFusedModelSensitiveEnum kUseModelSensitiveRMSNorm = kUseModelSensitiveRMSNorm_;
+    static constexpr Rmsnorm2dFusedModelSensitiveEnum kUseModelSensitiveRMSNorm =
+        kUseModelSensitiveRMSNorm_;
 };
 
 } // namespace ck_tile
