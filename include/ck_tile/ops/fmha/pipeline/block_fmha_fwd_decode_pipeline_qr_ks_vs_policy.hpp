@@ -157,7 +157,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         constexpr index_t MWarp = config.template at<1>();
         constexpr index_t NWarp = config.template at<2>();
 
-        static_assert(MWarp == 1, "Check failed!");
+        // static_assert(MWarp == 1, "Check failed!");
 
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;

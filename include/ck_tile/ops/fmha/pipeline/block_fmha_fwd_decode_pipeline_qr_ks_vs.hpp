@@ -44,6 +44,8 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
     static constexpr index_t kK1           = BlockFmhaShape::kK1;
     static constexpr index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
+    static constexpr index_t kNWarp        = BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
+    static constexpr index_t kNXdl         = BlockFmhaShape::Gemm0WarpTile::at(number<1>{});
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
@@ -546,13 +548,21 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
             }
 
             __builtin_amdgcn_sched_barrier(0);
+            
+            // In Nwarp=1 and NXdl=32, GEMM0 output naturally fit the input of GEMM1
+            // Otherwise shuffle through LDS so that the tile layout is consistent with required by Gemm1
+            auto s_new = [&](){
+                if constexpr ( !((kNWarp==1) && (kNXdl == 32)) ){
+                    auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
 
-            const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
-
-            // shuffle through LDS so that the tile layout is consistent with required by Gemm1
-            store_tile(s_write_lds_window, s);
-            block_sync_lds();
-            auto s_new = load_tile(s_read_lds_window);
+                    store_tile(s_write_lds_window, s);
+                    block_sync_lds();
+                    return load_tile(s_read_lds_window);
+                }
+                else{
+                    return cast_tile<SMPLComputeDataType>(s_acc); // S{j}
+                }
+            }();            
 
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
                 s_new,

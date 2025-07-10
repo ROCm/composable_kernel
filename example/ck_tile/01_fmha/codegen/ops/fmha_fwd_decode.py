@@ -37,6 +37,12 @@ K0_MAX_SUBMAX_MAP = {
     256: 256
 }
 
+SEQLENQ_MAP = {
+    "16" : "16",
+    "32" : "32",
+    # "64" : "64"
+}
+
 FMHA_FWD_DECODE_PIPELINE_MAP = {
     "decode_qr" : "ck_tile::BlockFmhaFwdDecodePipelineQRKSVS",
 }
@@ -288,7 +294,7 @@ float fmha_fwd_decode(fmha_fwd_decode_traits t, fmha_fwd_decode_args a, const ck
 """
 
 FMHA_FWD_DECODE_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse}) && (t.do_fp8_static_quant == {F_squant}) &&
-                        ((a.block_table_ptr != nullptr) == {F_pagedkv}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
+                        ((a.block_table_ptr != nullptr) == {F_pagedkv}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck})&& (a.seqlen_q <= {F_bm0}) && ({F_dvcheck})) {{
                 using traits_ = fmha_fwd_decode_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
                 // get combine kernel tile sizes
@@ -346,6 +352,7 @@ class FmhaFwdDecodeApiTrait:
                     f'{self.vlayout}-{self.logits}-{self.mask}-{self.bias}-{self.lse}-{self.squant}-{self.spad}-{self.skpad}-{self.dpad}-'+\
                     f'{self.dvpad}-{self.pagedkv}'
 
+    # sequence length as non-fast-changing dimension, we can always relay on instruction level OOB guard
     @property
     def scheck(self) -> str:
         if self.mode == 'group': return 'true/*group mode spad always true*/'                  # group mode only generate spad/skpad == true
@@ -362,12 +369,15 @@ class FmhaFwdDecodeApiTrait:
             else :                return 'true'
         else: assert False
 
+    # head dimension as fast-changing dimension, we assume is multiple of 8
     @property
     def dcheck(self) -> str:
         if self.pipeline_tag in ['decode_qr', 'qr_nwarp_sshuffle']:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == 't': return f'true /*a.hdim_q % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :               return f'a.hdim_q % {bk0submax} == 0'
+            # if self.skpad == 't' : return 'true'
+            # else :                return 'true'
         else:   assert False
 
     @property
@@ -376,6 +386,8 @@ class FmhaFwdDecodeApiTrait:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == 't': return f'true /*a.hdim_v % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.hdim_v % {bk0submax} == 0'
+            # if self.skpad == 't' : return 'true'
+            # else :                return 'true'
         else:   assert False
 
 @dataclass
@@ -637,19 +649,17 @@ class FmhaFwdSplitKVCombineKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            # '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
-            '64'  : FmhaFwdTileSize(16, 64, 64, 64,  64,  64,   1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-            # '64'  : FmhaFwdTileSize(32, 64, 64, 64,  64,  64,   1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-            # '64'  : FmhaFwdTileSize(64, 64, 64, 64,  64,  64,   1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-            # '64'  : FmhaFwdTileSize(128, 64, 64, 64,  64,  64,   1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-            # '64'  : FmhaFwdTileSize(256, 64, 64, 64,  64,  64,   1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-        ### '96'  : FmhaFwdTileSize(64, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '128' : FmhaFwdTileSize(16, 64, 64, 128, 64,  128,  1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-            # '128' : FmhaFwdTileSize(32, 64, 64, 128, 64,  128,  1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-            # '128' : FmhaFwdTileSize(64, 64, 64, 128, 64,  128,  1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-            # '128' : FmhaFwdTileSize(128, 64, 64, 128, 64,  128,  1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-            # '128' : FmhaFwdTileSize(256, 64, 64, 128, 64,  128,  1, 4, 1,  1, 4, 1,  16, 16, 32,  16, 16, 32,  -1),
-            # '256' : FmhaFwdTileSize(64, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+            '64': {
+            #     # Specialize for different SeqQ
+                '16': FmhaFwdTileSize(16, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                '32': FmhaFwdTileSize(32, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                # '64': FmhaFwdTileSize(64, 64, 64, 64,  64,  64,   4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+            },
+            '128': {
+                '16': FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                '32': FmhaFwdTileSize(32, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                # '64': FmhaFwdTileSize(64, 64, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+            },
         }
     else:
         return None
@@ -684,6 +694,7 @@ def get_fwd_decode_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> T
                 for lse in ['t', 'f']:
                     if hdim in [64, 128]:         ### [32, 64, 96, 128]:
                         pipelines.append(Pipeline('decode_qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, squant, pagedkv, mask))
+                        pipelines.append(Pipeline('decode_qr', 'row', 'f', 'f', 't', 't', logits, bias, lse, squant, pagedkv, mask))
                     else:
                         assert False
         else:
@@ -698,8 +709,8 @@ def get_fwd_decode_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> T
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
-        for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
-            tile = d[hdim_str]
+        for hdim_str, mode, seqlenq in itertools.product(d.keys(), MODE_MAP.keys(), SEQLENQ_MAP.keys()):
+            tile = d[hdim_str][seqlenq]
             hdim = int(hdim_str)
             for pipeline in get_pipelines(dtype, hdim):
                 if mode == "group":
@@ -762,7 +773,7 @@ def get_fwd_decode_combine_blobs(kernel_filter : Optional[str], receipt) -> List
         pipelines = []
         if dtype in ['fp16', 'bf16']:
             # for spad, dvpad, lse in itertools.product(["t", "f"], ["t", "f"], ["t", "f"]):
-            for spad, dvpad, lse in itertools.product(["f"], ["f"], ["t", "f"]):
+            for spad, dvpad, lse in itertools.product(["f"], ["t", "f"], ["t", "f"]):
                 pipelines.append(Pipeline('unused', spad, dvpad, lse, squant))
         elif dtype in ['fp8', 'bf8']:
             # no need lse kernels

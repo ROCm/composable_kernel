@@ -712,6 +712,7 @@ struct FmhaFwdDecodeKernel
                 {
                     // reshape: (nhead_ratio_qk, seqlen_q, hdim_q) -> (nhead_ratio_qk * seqlen_q,
                     // hdim_q)
+                    // We expect Q data reuse among different KVSplited in decode case.
                     const auto view = make_naive_tensor_view<address_space_enum::global>(
                         q_ptr,
                         make_tuple(kargs.nhead_ratio_qk, kargs.seqlen_q, kargs.hdim_q),
@@ -755,7 +756,8 @@ struct FmhaFwdDecodeKernel
         }();
 
         const auto make_k_dram = [&](const KDataType* data, index_t height) {
-            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+            // We don't expect K data reuse among different blocks in decode case.
+            const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global, memory_operation_enum::set, amd_buffer_coherence_enum::SYSTEM_NT1>(
                 data, // will update this pointer if using paged-kvcache
                 make_tuple(height, kargs.hdim_q),
                 make_tuple(kargs.stride_k, 1),
@@ -781,7 +783,8 @@ struct FmhaFwdDecodeKernel
         const auto make_v_dram = [&](const VDataType* data, index_t length) {
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                // We don't expect V data reuse among different blocks in decode case.
+                const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global, memory_operation_enum::set, amd_buffer_coherence_enum::SYSTEM_NT1>(
                     data, // will update this pointer if using paged-kvcache
                     make_tuple(length, kargs.hdim_v),
                     make_tuple(kargs.stride_v, 1),

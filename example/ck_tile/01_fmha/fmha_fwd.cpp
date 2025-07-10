@@ -696,6 +696,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(vnew_host);
         ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
     }
+    else if(init_method == "exp" || init_method == "99")
+    {
+        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(knew_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<VDataType>{1.f, 1.f, seed}(vnew_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+    }
     else if(init_method == "nf")
     {
         ck_tile::FillNormalDistribution<QDataType>{0.f, 3.f, seed}(q_host);
@@ -1136,7 +1145,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
               << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
-              << " GB/s" << std::flush;
+              << " GB/s" << std::flush << std::endl;
 
     if(do_validation == 0)
     {
