@@ -1352,7 +1352,7 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx950" \
-                                           -DCMAKE_CXX_COMPILER=/llvm-project/build/bin/clang++ \
+                                           -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
