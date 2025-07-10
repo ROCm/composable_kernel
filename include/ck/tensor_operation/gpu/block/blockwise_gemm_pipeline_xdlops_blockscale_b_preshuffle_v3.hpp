@@ -137,6 +137,8 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MWaves;
+    using Base::NRepeat;
+    using Base::NWaves;
 
     static constexpr index_t PrefetchStages        = 2;
     static constexpr index_t LocalPrefetchStages   = 2;
@@ -621,19 +623,19 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                         c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
                             c_scale_thread_buf[m0];
 
-                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        static_for<0, NRepeat(), 1>{}([&](auto n0) {
                             constexpr auto mfma_buf_offset =
-                                ((m0 * NRepeat + n0 + 1) % 2) * xdlops_gemm.GetRegSizePerXdlops();
+                                ((m0 * NRepeat() + n0 + 1) % 2) * xdlops_gemm.GetRegSizePerXdlops();
                             constexpr auto scale_buf_offset =
-                                ((m0 * NRepeat + n0) % 2) * xdlops_gemm.GetRegSizePerXdlops();
+                                ((m0 * NRepeat() + n0) % 2) * xdlops_gemm.GetRegSizePerXdlops();
 
                             constexpr auto a_local_buf_offset =
-                                ((m0 * NRepeat + n0 + 1) % (MRepeat * NRepeat)) / NRepeat;
+                                ((m0 * NRepeat() + n0 + 1) % (MRepeat * NRepeat())) / NRepeat();
                             constexpr auto b_local_buf_offset =
-                                ((m0 * NRepeat + n0 + 1) % (MRepeat * NRepeat)) % NRepeat;
+                                ((m0 * NRepeat() + n0 + 1) % (MRepeat * NRepeat())) % NRepeat();
                             constexpr auto b_local_buf_id =
                                 Number<mfma_reg_buf ^
-                                       ((m0 * NRepeat + n0 + 1) / (MRepeat * NRepeat))>{};
+                                       ((m0 * NRepeat() + n0 + 1) / (MRepeat * NRepeat()))>{};
 
                             static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                                 c_thread_buf_per_scale
@@ -760,19 +762,19 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
                     c_scale_thread_buf[m0];
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     constexpr auto mfma_buf_offset =
-                        ((m0 * NRepeat + n0 + 1) % 2) * xdlops_gemm.GetRegSizePerXdlops();
+                        ((m0 * NRepeat() + n0 + 1) % 2) * xdlops_gemm.GetRegSizePerXdlops();
                     constexpr auto scale_buf_offset =
-                        ((m0 * NRepeat + n0) % 2) * xdlops_gemm.GetRegSizePerXdlops();
+                        ((m0 * NRepeat() + n0) % 2) * xdlops_gemm.GetRegSizePerXdlops();
 
                     constexpr auto a_local_buf_offset =
-                        ((m0 * NRepeat + n0 + 1) % (MRepeat * NRepeat)) / NRepeat;
+                        ((m0 * NRepeat() + n0 + 1) % (MRepeat * NRepeat())) / NRepeat();
                     constexpr auto b_local_buf_offset =
-                        ((m0 * NRepeat + n0 + 1) % (MRepeat * NRepeat)) % NRepeat;
+                        ((m0 * NRepeat() + n0 + 1) % (MRepeat * NRepeat())) % NRepeat();
 
                     constexpr auto b_local_buf_id =
-                        Number<0 ^ ((m0 * NRepeat + n0 + 1) / (MRepeat * NRepeat))>{};
+                        Number<0 ^ ((m0 * NRepeat() + n0 + 1) / (MRepeat * NRepeat()))>{};
 
                     static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                         c_thread_buf_per_scale.GetVectorTypeReference(Number<mfma_buf_offset>{})
@@ -860,18 +862,18 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
                     c_scale_thread_buf[m0];
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     constexpr auto mfma_buf_offset =
-                        ((m0 * NRepeat + n0 + 1) % 2) * xdlops_gemm.GetRegSizePerXdlops();
+                        ((m0 * NRepeat() + n0 + 1) % 2) * xdlops_gemm.GetRegSizePerXdlops();
                     constexpr auto scale_buf_offset =
-                        ((m0 * NRepeat + n0) % 2) * xdlops_gemm.GetRegSizePerXdlops();
+                        ((m0 * NRepeat() + n0) % 2) * xdlops_gemm.GetRegSizePerXdlops();
 
                     constexpr auto a_local_buf_offset =
-                        ((m0 * NRepeat + n0 + 1) % (MRepeat * NRepeat)) / NRepeat;
+                        ((m0 * NRepeat() + n0 + 1) % (MRepeat * NRepeat())) / NRepeat();
                     constexpr auto b_local_buf_offset =
-                        ((m0 * NRepeat + n0 + 1) % (MRepeat * NRepeat)) % NRepeat;
+                        ((m0 * NRepeat() + n0 + 1) % (MRepeat * NRepeat())) % NRepeat();
 
-                    if constexpr(!((m0 == (MRepeat - 1)) && (n0 == (NRepeat - 1))))
+                    if constexpr(!((m0 == (MRepeat - 1)) && (n0 == (NRepeat() - 1))))
                     {
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<mfma_buf_offset>{})
@@ -964,18 +966,18 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                 c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
                     c_scale_thread_buf[m0];
 
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     constexpr auto mfma_buf_offset =
-                        ((m0 * NRepeat + n0 + 1) % 2) * xdlops_gemm.GetRegSizePerXdlops();
+                        ((m0 * NRepeat() + n0 + 1) % 2) * xdlops_gemm.GetRegSizePerXdlops();
                     constexpr auto scale_buf_offset =
-                        ((m0 * NRepeat + n0) % 2) * xdlops_gemm.GetRegSizePerXdlops();
+                        ((m0 * NRepeat() + n0) % 2) * xdlops_gemm.GetRegSizePerXdlops();
 
                     constexpr auto a_local_buf_offset =
-                        ((m0 * NRepeat + n0 + 1) % (MRepeat * NRepeat)) / NRepeat;
+                        ((m0 * NRepeat() + n0 + 1) % (MRepeat * NRepeat())) / NRepeat();
                     constexpr auto b_local_buf_offset =
-                        ((m0 * NRepeat + n0 + 1) % (MRepeat * NRepeat)) % NRepeat;
+                        ((m0 * NRepeat() + n0 + 1) % (MRepeat * NRepeat())) % NRepeat();
 
-                    if constexpr(!((m0 == (MRepeat - 1)) && (n0 == (NRepeat - 1))))
+                    if constexpr(!((m0 == (MRepeat - 1)) && (n0 == (NRepeat() - 1))))
                     {
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<mfma_buf_offset>{})
@@ -1067,7 +1069,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
     AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex6D()};
 
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
+        make_tuple(Number<NRepeat()>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
 
     static constexpr BTileDesc b_block_desc_n0_n1_k0_k1;
 

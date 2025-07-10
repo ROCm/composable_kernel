@@ -127,6 +127,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
+    using Base::NRepeat;
 
     static constexpr index_t PrefetchStages  = 3;
     static constexpr index_t PrefillStages   = 2;
@@ -330,7 +331,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        static_for<0, NRepeat(), 1>{}([&](auto n0) {
                             static_for<0, KRepeat, 1>{}([&](auto k0) {
                                 vector_type<ComputeDataType, KPack> a_thread_vec;
                                 vector_type<ComputeDataType, KPack> b_thread_vec;
@@ -401,7 +402,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(mfma_reg), mfma_reg);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec;
@@ -456,7 +457,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec;
@@ -489,7 +490,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
 
         auto CompFunc = [&](auto mfma_reg) {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, KRepeat, 1>{}([&](auto k0) {
                         vector_type<ComputeDataType, KPack> a_thread_vec;
                         vector_type<ComputeDataType, KPack> b_thread_vec;
@@ -549,7 +550,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_v2<BlockGemmPipelineScheduler::I
     AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex6D()};
 
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
+        make_tuple(Number<NRepeat()>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
 
     static constexpr BTileDesc b_block_desc_n0_n1_k0_k1;
 

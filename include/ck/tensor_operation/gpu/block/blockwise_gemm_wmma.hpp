@@ -559,7 +559,7 @@ struct BlockwiseGemmWMMA
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     // Hardcode of WaveSize, since current HIP Runtime(5.4.0-10984) could not return correct one.
-    static constexpr index_t WaveSize = get_warp_size();
+    static constexpr index_t WaveSize = 32;
 
     // When use LDS, each Row(16 consecutive lanes) read whole data from source buffer
     // When not use LDS, each Row read half of whole data from source buffer, exchange the data via

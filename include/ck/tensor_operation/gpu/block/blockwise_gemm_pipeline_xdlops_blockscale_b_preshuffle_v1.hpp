@@ -138,6 +138,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
 
     using Base::MWaves;
     using Base::NWaves;
+    using Base::NRepeat;
 
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
@@ -435,7 +436,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        static_for<0, NRepeat(), 1>{}([&](auto n0) {
                             static_for<0, num_scale_k_block, 1>{}([&](auto kscale0) {
                                 static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                                     c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -444,7 +445,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                                 vector_type<AccDataType, 2> c_scale_thread_vec;
                                 constexpr index_t cscale_offset =
                                     CScaleThreadDesc{}.CalculateOffset(
-                                        make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat));
+                                        make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat()));
 
                                 c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
                                     c_scale_thread_buf[Number<cscale_offset>{}];
@@ -593,7 +594,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, num_scale_k_block, 1>{}([&](auto kscale0) {
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -601,7 +602,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                         });
                         vector_type<AccDataType, 2> c_scale_thread_vec;
                         constexpr index_t cscale_offset = CScaleThreadDesc{}.CalculateOffset(
-                            make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat));
+                            make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat()));
 
                         c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
                             c_scale_thread_buf[Number<cscale_offset>{}];
@@ -690,7 +691,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, num_scale_k_block, 1>{}([&](auto kscale0) {
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -698,7 +699,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                         });
                         vector_type<AccDataType, 2> c_scale_thread_vec;
                         constexpr index_t cscale_offset = CScaleThreadDesc{}.CalculateOffset(
-                            make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat));
+                            make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat()));
 
                         c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
                             c_scale_thread_buf[Number<cscale_offset>{}];
@@ -756,7 +757,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
         else if constexpr(TailNum == TailNumber::Odd)
         {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, NRepeat(), 1>{}([&](auto n0) {
                     static_for<0, num_scale_k_block, 1>{}([&](auto kscale0) {
                         static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                             c_thread_buf_per_scale.GetVectorTypeReference(Number<0>{})
@@ -764,7 +765,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                         });
                         vector_type<AccDataType, 2> c_scale_thread_vec;
                         constexpr index_t cscale_offset = CScaleThreadDesc{}.CalculateOffset(
-                            make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat));
+                            make_tuple(kscale0, m0, n0 * num_scale_n_block / NRepeat()));
 
                         c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
                             c_scale_thread_buf[Number<cscale_offset>{}];
@@ -841,7 +842,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
     AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex6D()};
 
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
+        make_tuple(Number<NRepeat()>{}, I1, Number<KRepeat>{}, Number<KPack>{}));
 
     static constexpr BTileDesc b_block_desc_n0_n1_k0_k1;
 

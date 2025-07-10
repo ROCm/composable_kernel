@@ -102,7 +102,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_bdequant_v1<BlockGemmPipelineSch
                                                    MPerXDL,
                                                    NPerXDL,
                                                    MRepeat,
-                                                   NRepeat,
                                                    KPack>;
     using Base::A_K1;
     using Base::B_K1;

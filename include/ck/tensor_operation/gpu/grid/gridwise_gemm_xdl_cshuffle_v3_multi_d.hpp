@@ -117,7 +117,7 @@ template <typename ALayout,
           index_t MPerXdl,
           index_t NPerXdl,
           index_t MXdlPerWave,
-          index_t NXdlPerWave,
+          index_t NXdlPerWave___,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -165,7 +165,14 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     static constexpr auto BK1Number = Number<BK1Value>{};
 
     static constexpr index_t NumDTensor = DsDataType::Size();
-
+    static constexpr __device__ index_t NXdlPerWave()
+    {
+        constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave = BlockSize / get_warp_size() / MWave;
+        static_assert(BlockSize % (get_warp_size() * MWave) == 0);
+        static_assert(NPerBlock / NWave / NPerXdl > 0);
+        return NPerBlock / NWave / NPerXdl;
+    };
     static constexpr auto MakeDsGridPointer()
     {
         return generate_tuple(
@@ -936,7 +943,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     __device__ static constexpr auto GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
         constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t NWave = NPerBlock / (NXdlPerWave() * NPerXdl);
 
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
             make_naive_tensor_descriptor_packed(
@@ -1000,7 +1007,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                          (NPerBlock % (NXdlPerWave() * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
@@ -1399,11 +1406,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         // shuffle C and write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
-                              NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
+                              NXdlPerWave() % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
 
             constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-            constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
+            constexpr index_t NWave = NPerBlock / (NXdlPerWave() * NPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
@@ -1442,7 +1449,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                         M4)),
                     make_freeze_transform(I0),
                     make_unmerge_transform(make_tuple(
-                        Number<CShuffleNXdlPerWavePerShuffle>{}, // N0 (NXdlPerWave) per shuffle
+                        Number<CShuffleNXdlPerWavePerShuffle>{}, // N0 (NXdlPerWave()) per shuffle
                         N1,                                      // N1 = NWave
                         N2))),                                   // N2 = NPerXdl
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
@@ -1591,7 +1598,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
-                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave(), 1, 1, M2, 1, M4, 1>,
                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                   Sequence<CShuffleMXdlPerWavePerShuffle,
                                            CShuffleNXdlPerWavePerShuffle,
@@ -1866,11 +1873,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         // shuffle C and write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
-                              NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
+                              NXdlPerWave() % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
 
             constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-            constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
+            constexpr index_t NWave = NPerBlock / (NXdlPerWave() * NPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
@@ -1909,7 +1916,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                         M4)),
                     make_freeze_transform(I0),
                     make_unmerge_transform(make_tuple(
-                        Number<CShuffleNXdlPerWavePerShuffle>{}, // N0 (NXdlPerWave) per shuffle
+                        Number<CShuffleNXdlPerWavePerShuffle>{}, // N0 (NXdlPerWave()) per shuffle
                         N1,                                      // N1 = NWave
                         N2))),                                   // N2 = NPerXdl
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
@@ -2058,7 +2065,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
-                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave(), 1, 1, M2, 1, M4, 1>,
                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                   Sequence<CShuffleMXdlPerWavePerShuffle,
                                            CShuffleNXdlPerWavePerShuffle,
