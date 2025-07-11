@@ -98,26 +98,26 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
         bool is_supported = true;
 
-        for (const auto split_k : split_ks)
+        for(const auto split_k : split_ks)
         {
             auto argument = conv.MakeArgument(nullptr,
-                                            nullptr,
-                                            nullptr,
-                                            input_lengths,
-                                            input_strides,
-                                            filter_lengths,
-                                            weights_strides,
-                                            output_lengths,
-                                            output_strides,
-                                            conv_filter_strides,
-                                            conv_filter_dilations,
-                                            input_left_pads,
-                                            input_right_pads,
-                                            PassThrough{},
-                                            PassThrough{},
-                                            PassThrough{},
-                                            split_k);
-            is_supported &=conv.IsSupportedArgument(argument);
+                                              nullptr,
+                                              nullptr,
+                                              input_lengths,
+                                              input_strides,
+                                              filter_lengths,
+                                              weights_strides,
+                                              output_lengths,
+                                              output_strides,
+                                              conv_filter_strides,
+                                              conv_filter_dilations,
+                                              input_left_pads,
+                                              input_right_pads,
+                                              PassThrough{},
+                                              PassThrough{},
+                                              PassThrough{},
+                                              split_k);
+            is_supported &= conv.IsSupportedArgument(argument);
         }
         return is_supported;
     }

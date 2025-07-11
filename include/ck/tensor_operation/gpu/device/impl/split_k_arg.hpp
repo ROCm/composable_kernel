@@ -3,14 +3,13 @@
 
 #pragma once
 
-
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
 struct ArgumentSplitK
 {
-  index_t k_batch_{1};
+    index_t k_batch_{1};
 };
 
 } // namespace device

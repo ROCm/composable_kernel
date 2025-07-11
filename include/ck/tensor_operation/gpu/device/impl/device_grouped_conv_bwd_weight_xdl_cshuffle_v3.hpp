@@ -389,42 +389,40 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         {
             constexpr int dynamic_smem_size = 0;
             constexpr index_t minimum_occupancy =
-                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;            
+                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
             int max_occupancy = 0;
 
             if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
             {
                 hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                                    &max_occupancy,
-                                    kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3_2lds<
-                                        GridwiseGemm,
-                                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                                        remove_reference_t<
-                                            DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                        true,
-                                        InMemoryDataOperationEnum::AtomicAdd,
-                                        minimum_occupancy>,
-                                    BlockSize,
-                                    dynamic_smem_size));
+                    &max_occupancy,
+                    kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3_2lds<
+                        GridwiseGemm,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
             }
-            else 
+            else
             {
                 hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                                    &max_occupancy,
-                                    kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3<
-                                            GridwiseGemm,
-                                            remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
-                                            remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
-                                            remove_reference_t<
-                                                DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
-                                            ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                            true,
-                                            InMemoryDataOperationEnum::AtomicAdd,
-                                            minimum_occupancy>,
-                                    BlockSize,
-                                    dynamic_smem_size));
+                    &max_occupancy,
+                    kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3<
+                        GridwiseGemm,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
             }
             value_ = std::max(1, max_occupancy);
         }
@@ -494,49 +492,50 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
 
-            if (split_k < 0)
+            if(split_k < 0)
             {
                 constexpr int k_batch_initial = 1;
                 const auto descs_initial =
-                        conv_to_gemm_transformer
-                            .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
-                                Conv_N_,
-                                Conv_K_,
-                                Conv_C_,
-                                input_spatial_lengths_,
-                                filter_spatial_lengths_,
-                                output_spatial_lengths_,
-                                b_g_n_c_wis_strides,
-                                e_g_k_c_xs_strides,
-                                a_g_n_k_wos_strides,
-                                conv_filter_strides,
-                                conv_filter_dilations,
-                                input_left_pads,
-                                input_right_pads,
-                                k_batch_initial);
+                    conv_to_gemm_transformer
+                        .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
+                            Conv_N_,
+                            Conv_K_,
+                            Conv_C_,
+                            input_spatial_lengths_,
+                            filter_spatial_lengths_,
+                            output_spatial_lengths_,
+                            b_g_n_c_wis_strides,
+                            e_g_k_c_xs_strides,
+                            a_g_n_k_wos_strides,
+                            conv_filter_strides,
+                            conv_filter_dilations,
+                            input_left_pads,
+                            input_right_pads,
+                            k_batch_initial);
 
                 const auto& a_grid_desc_kbatch_k0_m_k1 = descs_initial[I0];
                 const auto& b_grid_desc_kbatch_k0_n_k1 = descs_initial[I1];
-                const auto gemmM = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
-                const auto gemmN = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
+                const auto gemmM                       = a_grid_desc_kbatch_k0_m_k1.GetLength(I1);
+                const auto gemmN                       = b_grid_desc_kbatch_k0_n_k1.GetLength(I1);
 
-                const auto grid_size = GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN) * Conv_G_;
+                const auto grid_size =
+                    GridwiseGemm::Block2CTileMap::CalculateGridSize(gemmM, gemmN) * Conv_G_;
                 k_batch_ = get_best_occupancy_k_batch_value(max_occupancy.value_, grid_size);
 
                 // Ensure that k_batch_ does not exceed the maximum value
                 // for the GEMM pipeline
                 ck::index_t gemmK;
-                std::tie(std::ignore, std::ignore, gemmK) = 
+                std::tie(std::ignore, std::ignore, gemmK) =
                     get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
                 const auto k_batch_max = static_cast<index_t>((gemmK - 1) / K0PerBlock);
-                k_batch_ = std::min(k_batch_, k_batch_max);
-                
-                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                k_batch_               = std::min(k_batch_, k_batch_max);
+
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " 
-                                << k_batch_max << std::endl;
-                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " 
-                                << k_batch_ << std::endl; 
+                    std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " << k_batch_max
+                              << std::endl;
+                    std::cout << "[SPLIT-K AUTODEDUCE] Final k_batch value: " << k_batch_
+                              << std::endl;
                 }
             }
             else

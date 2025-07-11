@@ -303,11 +303,11 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if (arg.split_k_ < 0)
+        if(arg.split_k_ < 0)
         {
-            // TODO: Add split-K autodeduction. 
-            // This will probably require adding interface to the GEMM operation for 
-            // querying the optimal split-K value, as we cannot easily access the actual GEMM kernel 
+            // TODO: Add split-K autodeduction.
+            // This will probably require adding interface to the GEMM operation for
+            // querying the optimal split-K value, as we cannot easily access the actual GEMM kernel
             // from here.
             return false;
         }

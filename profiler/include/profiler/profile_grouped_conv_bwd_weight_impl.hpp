@@ -139,9 +139,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
-    float best_avg_time      = 0;
-    float best_tflops        = 0;
-    float best_gb_per_sec    = 0;
+    float best_avg_time   = 0;
+    float best_tflops     = 0;
+    float best_gb_per_sec = 0;
     std::string best_split_k("1");
 
     // profile device Conv instances
@@ -171,14 +171,14 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     range_copy(conv_param.input_left_pads_, begin(input_left_pads));
     range_copy(conv_param.input_right_pads_, begin(input_right_pads));
 
-    std::vector<ck::index_t> split_k_list = {/*auto deduce value*/-1, 1, 2, 4, 8, 16, 32, 64, 128};
+    std::vector<ck::index_t> split_k_list = {/*auto deduce value*/ -1, 1, 2, 4, 8, 16, 32, 64, 128};
 
-    if (split_k != "all")
+    if(split_k != "all")
     {
         try
         {
             ck::index_t split_k_value = std::stoi(split_k);
-            split_k_list = {split_k_value};
+            split_k_list              = {split_k_value};
         }
         catch(const std::exception& e)
         {
@@ -209,14 +209,15 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 out_element_op,
                 split_k_list[split_k_id]);
 
-            auto split_k_value = split_k_list[split_k_id];
+            auto split_k_value     = split_k_list[split_k_id];
             auto split_k_param_str = std::to_string(split_k_value);
-            auto* split_k_arg = dynamic_cast<ck::tensor_operation::device::ArgumentSplitK*>(argument_ptr.get());
-            if (split_k_arg && split_k_value < 0)
+            auto* split_k_arg =
+                dynamic_cast<ck::tensor_operation::device::ArgumentSplitK*>(argument_ptr.get());
+            if(split_k_arg && split_k_value < 0)
             {
-                split_k_value = split_k_arg->k_batch_;
+                split_k_value     = split_k_arg->k_batch_;
                 split_k_param_str = std::to_string(split_k_value) + " (best occupancy)";
-            }         
+            }
 
             const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
             DeviceMem workspace_dev(workspace_sz);
