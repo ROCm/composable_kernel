@@ -387,15 +387,14 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                                       std::string("OUT Error: Incorrect eid!"),
                                       1e-6,
                                       1e-6);
-            if(is_local_token)
+            // if(is_local_token)
             {
-                bool _f = local_tokens == sorted_id_cnt_host.mData[1];
+                auto t_ = is_local_token ? local_tokens : tokens;
+                bool _f = t_ == sorted_id_cnt_host.mData[1];
                 rtn &= _f;
                 if(!_f)
                 {
-                    printf("not equal local_token buffer pad %d(%d)\n",
-                           local_tokens,
-                           sorted_id_cnt_host.mData[1]);
+                    printf("not equal token buffer pad %d(%d)\n", t_, sorted_id_cnt_host.mData[1]);
                 }
             }
         }

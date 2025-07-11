@@ -927,10 +927,7 @@ struct MoeSortingKernel
                 if((lid + i_e_ - get_warp_size()) == (num_experts - 1))
                 {
                     *p_total_tokens_post_pad = local_cumsum_;
-                    if constexpr(Problem::LocalToken)
-                    {
-                        p_total_tokens_post_pad[1] = tokens;
-                    }
+                    p_total_tokens_post_pad[1] = tokens;
                 }
             }
             __syncthreads();
@@ -2054,7 +2051,7 @@ struct MoeSortingMultiPhaseKernel_P2
         const void* p_local_tokens;      // [1]
         void* p_expert_mesh;             // [expert, tokens]
         void* p_expert_cumsum;           // [expert + 1]
-        void* p_total_tokens_post_pad;   // [1]
+        void* p_total_tokens_post_pad;   // [2]
         void* p_sorted_expert_ids;
         void* p_moe_buf;
         index_t tokens;
@@ -2473,7 +2470,7 @@ struct MoeSortingMultiPhaseKernel_P23
         const void* p_local_tokens;      // [1]
         void* p_expert_mesh;             // [expert, tokens]
         void* p_expert_cumsum;           // [expert + 1]
-        void* p_total_tokens_post_pad;   // [1]
+        void* p_total_tokens_post_pad;   // [2]
         void* p_sorted_expert_ids;
 
         void* p_sorted_token_ids;
@@ -2732,10 +2729,7 @@ struct MoeSortingMultiPhaseKernel_P23
                 if(blockIdx.x == 0)
                 {
                     p_total_tokens_post_pad[0] = total_tokens_post_pad;
-                    if constexpr(Problem::LocalToken)
-                    {
-                        p_total_tokens_post_pad[1] = tokens;
-                    }
+                    p_total_tokens_post_pad[1] = tokens;
                 }
                 p_expert_cumsum_smem[kargs.num_experts] = total_tokens_post_pad;
             }
