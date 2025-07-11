@@ -550,7 +550,14 @@ struct Tensor
                 auto dis_ = dis; // copy
                 g_.discard(ib_begin * BLOCK_SIZE * ck::packed_size_v<T>);
                 auto t_fn = [&]() {
-                    if constexpr(ck::packed_size_v<T> == 1)
+                    // As user can pass integer distribution in dis, we must ensure that the correct
+                    // constructor/converter is called at all times. For f4/f6/f8 types, to ensure
+                    // correct results, we convert from float to the target type. In these cases
+                    // integer constructors are interpreted as direct initialization of the internal
+                    // storage with binary values instead of treating integers as subset of floats.
+                    if constexpr(ck::is_same_v<T, ck::f8_t> || ck::is_same_v<T, ck::bf8_t>)
+                        return ck::type_convert<T>(static_cast<float>(fn(dis_(g_))));
+                    else if constexpr(ck::packed_size_v<T> == 1)
                         return ck::type_convert<T>(fn(dis_(g_)));
                     else if constexpr(ck::is_same_v<T, ck::f4x2_pk_t>)
                         return ck::f4x2_pk_t{ck::type_convert<ck::f4x2_t>(
