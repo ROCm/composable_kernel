@@ -12,7 +12,7 @@ namespace ck_tile {
 // B is block window on shared memory
 // C is block distributed tensor
 template <typename Problem_, typename BlockPolicy_>
-struct BlockFlatmmASmemBSmemCRegV1_1
+struct BlockFlatmmASmemBSmemCRegV1
 {
     using Problem        = remove_cvref_t<Problem_>;
     using BlockPolicy    = remove_cvref_t<BlockPolicy_>;

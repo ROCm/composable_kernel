@@ -8,7 +8,7 @@
 
 namespace ck_tile {
 
-struct UniversalFlatmmPipelineAgBgCrPolicy
+struct UniversalWeightPreshufflePipelineAgBgCrPolicy
 {
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -342,7 +342,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBFlatDramTileDistribution()
     {
-        using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
+        using TileShape = typename Problem::BlockGemmShape;
 
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t WaveSize  = get_warp_size();
@@ -424,7 +424,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockFlatmm()
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockWeightPreshuffle()
     {
         // using AccDataType = float;
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
@@ -437,13 +437,13 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
                                                 WarpTile::at(I2),
                                                 Problem::TransposeC>;
 
-        using BlockFlatmmPolicy =
-            BlockFlatmmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
+        using BlockWeightPreshufflePolicy =
+            BlockWeightPreshuffleASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                     typename Problem::BDataType,
                                                     typename Problem::CDataType,
                                                     BlockWarps,
                                                     WarpGemm>;
-        return BlockFlatmmASmemBSmemCRegV1<Problem, BlockFlatmmPolicy>{};
+        return BlockWeightPreshuffleASmemBSmemCRegV1<Problem, BlockWeightPreshufflePolicy>{};
     }
 };
 

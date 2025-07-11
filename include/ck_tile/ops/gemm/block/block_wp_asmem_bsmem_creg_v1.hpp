@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/block/block_flatmm_asmem_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_wp_asmem_bsmem_creg_v1_custom_policy.hpp"
 
 namespace ck_tile {
 
@@ -12,14 +12,14 @@ namespace ck_tile {
 // B is block window on shared memory
 // C is block distributed tensor
 template <typename Problem_, typename BlockPolicy_>
-struct BlockFlatmmASmemBSmemCRegV1
+struct BlockWeightPreshuffleASmemBSmemCRegV1
 {
     using Problem        = remove_cvref_t<Problem_>;
     using BlockPolicy    = remove_cvref_t<BlockPolicy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
+    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();

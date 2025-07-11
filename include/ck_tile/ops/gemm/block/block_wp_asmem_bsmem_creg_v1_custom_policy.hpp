@@ -14,7 +14,7 @@ template <typename AType_,
           typename CType_,
           typename BlockWarps_,
           typename WarpGemm_>
-struct BlockFlatmmASmemBSmemCRegV1CustomPolicy
+struct BlockWeightPreshuffleASmemBSmemCRegV1CustomPolicy
 {
     using AType = remove_cvref_t<AType_>;
     using BType = remove_cvref_t<BType_>;

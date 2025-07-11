@@ -9,7 +9,7 @@
 
 namespace ck_tile {
 
-struct UniversalFlatmmPipelineAgBgCrPolicy_1
+struct UniversalFlatmmPipelineAgBgCrPolicy
 {
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -438,7 +438,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy_1
                                                 WarpTile::at(I2),
                                                 Problem::TransposeC>;
 
-        using BlockFlatmmPolicy = BlockFlatmmASmemBSmemCRegV1CustomPolicy_1<
+        using BlockFlatmmPolicy = BlockFlatmmASmemBSmemCRegV1CustomPolicy<
             typename Problem::ADataType,
             // BlockGemmASmemBSmemCRegV1CustomPolicy<typename
             // Problem::ADataType,
@@ -446,7 +446,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy_1
             typename Problem::CDataType,
             BlockWarps,
             WarpGemm>;
-        return BlockFlatmmASmemBSmemCRegV1_1<Problem, BlockFlatmmPolicy>{};
+        return BlockFlatmmASmemBSmemCRegV1<Problem, BlockFlatmmPolicy>{};
     }
 };
 

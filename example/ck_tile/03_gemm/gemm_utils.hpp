@@ -432,9 +432,9 @@ template <>
 struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE>
 {
     template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::FlatmmPipelineAGmemBGmemCRegV1<PipelineProblem>;
+    using GemmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
     template <typename PipelineProblem>
-    using UniversalGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<PipelineProblem>;
+    using UniversalGemmPipeline = ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<PipelineProblem>;
 };
 
 auto create_args(int argc, char* argv[])

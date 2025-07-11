@@ -5,12 +5,12 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/concat.hpp"
-#include "ck_tile/ops/gemm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_v1_policy.hpp"
 
 namespace ck_tile {
 
 template <typename Problem>
-struct BaseFlatmmPipelineAGmemBGmemCRegV1
+struct BaseWeightPreshufflePipelineAGmemBGmemCRegV1
 {
     static constexpr index_t PrefetchStages   = 1;
     static constexpr index_t PrefillStages    = 1;
@@ -33,21 +33,21 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
     }
 };
 
-template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
-struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV1<Problem>
+template <typename Problem, typename PipelinePolicy = UniversalWeightPreshufflePipelineAgBgCrPolicy>
+struct WeightPreshufflePipelineAGmemBGmemCRegV1 : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
 {
-    using Base           = BaseFlatmmPipelineAGmemBGmemCRegV1<Problem>;
+    using Base           = BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
+    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     using ALayout = remove_cvref_t<typename Problem::ALayout>;
     using BLayout = remove_cvref_t<typename Problem::BLayout>;
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
-    using BlockFlatmm =
-        remove_cvref_t<decltype(PipelinePolicy::template GetBlockFlatmm<Problem>())>;
+    using BlockWeightPreshuffle =
+        remove_cvref_t<decltype(PipelinePolicy::template GetBlockWeightPreshuffle<Problem>())>;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
@@ -105,7 +105,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
 
     CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
     {
-        constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr auto config = BlockWeightPreshuffle::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
@@ -206,7 +206,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
                              kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1]),
                       "A block window has incorrect lengths for defined ALayout!");
 
-        constexpr auto config = BlockFlatmm::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr auto config = BlockWeightPreshuffle::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
@@ -268,7 +268,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1 : public BaseFlatmmPipelineAGmemBGmemCRegV
         });
 
         // Block GEMM
-        auto block_flatmm = BlockFlatmm();
+        auto block_flatmm = BlockWeightPreshuffle();
 
         // B flat DRAM window for load
         auto b_flat_distribution =
