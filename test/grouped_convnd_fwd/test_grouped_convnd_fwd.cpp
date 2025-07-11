@@ -116,7 +116,6 @@ TYPED_TEST(TestGroupedConvndFwd1d, Test1D)
 TYPED_TEST(TestGroupedConvndFwd1d, Test1DSplitK2)
 {
     this->conv_params.clear();
-    // Convert 3D shapes to 1D (take first spatial dimension)
     this->conv_params.push_back({1, 2, 1, 3, 128, {3}, {11}, {1}, {1}, {1}, {0}});
     this->conv_params.push_back({1, 1, 1, 512, 512, {3}, {5}, {1}, {1}, {1}, {0}});
     this->conv_params.push_back({1, 1, 1, 512, 512, {3}, {5}, {1}, {1}, {1}, {0}});
@@ -153,7 +152,6 @@ TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
 TYPED_TEST(TestGroupedConvndFwd2d, Test2DSplitK2)
 {
     this->conv_params.clear();
-    // Convert 3D shapes to 2D (take first two spatial dimensions)
     this->conv_params.push_back(
         {2, 1, 1, 512, 512, {3, 3}, {7, 20}, {1, 1}, {1, 1}, {1, 1}, {0, 0}});
     this->conv_params.push_back(
@@ -200,7 +198,6 @@ TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
 TYPED_TEST(TestGroupedConvndFwd3d, Test3DSplitK2)
 {
     this->conv_params.clear();
-    // Use original 3D shapes
     this->conv_params.push_back(
         {3, 1, 1, 3, 128, {3, 3, 3}, {11, 258, 258}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}});
     this->conv_params.push_back(
