@@ -73,6 +73,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
 
         constexpr auto warp_gemm = []() {
             constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
+            constexpr index_t WarpGemmK = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{});
             static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
 
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -81,8 +82,12 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
             {
                 if constexpr(WarpGemmM == 32)
                     return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
-                else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{};
+                else if constexpr(WarpGemmM == 16){
+                    if constexpr(WarpGemmK == 32)
+                        return WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution{};
+                    else
+                        return WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{};
+                }
                 else // WarpGemmM == 4
                     return WarpGemmMfmaF16F16F32M4N64K16{};
             }
@@ -92,8 +97,12 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
             {
                 if constexpr(WarpGemmM == 32)
                     return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
-                else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{};
+                else if constexpr(WarpGemmM == 16){
+                    if constexpr(WarpGemmK == 32)
+                        return WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution{};
+                    else
+                        return WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{};
+                }
                 else // WarpGemmM == 4
                     return WarpGemmMfmaBf16Bf16F32M4N64K16{};
             }
@@ -239,7 +248,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                 if constexpr(WarpGemmM == 32)
                     return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
                 else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{};
+                    return WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution{};
                 else // WarpGemmM == 4
                     return WarpGemmMfmaF16F16F32M4N64K16{};
             }
@@ -250,7 +259,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                 if constexpr(WarpGemmM == 32)
                     return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
                 else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{};
+                    return WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution{};
                 else // WarpGemmM == 4
                     return WarpGemmMfmaBf16Bf16F32M4N64K16{};
             }

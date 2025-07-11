@@ -76,3 +76,7 @@
 #include "ck_tile/core/utility/transpose_vectors.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/unary_element_function.hpp"
+// Use `CK_PRINT<T1, T2, ...>()` to inspect values of type T1, T2, ...
+// Use `CK_PRINT<v1, v2, ...>()` to inspect constexpr values of val1, val2, ... of the same type
+// In a non-evaluated context, you can use `using _dummy = decltype(CK_PRINT<...>());`
+// Set BUILD_DEV to OFF to avoid enabling Werror

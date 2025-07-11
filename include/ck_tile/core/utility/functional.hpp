@@ -229,4 +229,13 @@ constexpr auto conditional_expr(X&& x, Y&& y)
     }
 }
 
+template <auto... val>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
+}
+template <typename... type>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
+}
+
 } // namespace ck_tile

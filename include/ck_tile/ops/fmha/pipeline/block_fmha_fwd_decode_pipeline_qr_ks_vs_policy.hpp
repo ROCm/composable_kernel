@@ -48,18 +48,49 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
+        using QDataType = remove_cvref_t<typename Problem::QDataType>;
+
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kSubQKHeaddim;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
 
-        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::QDataType);
+        constexpr index_t MaxVectorSize = 16 / sizeof(QDataType);
 
         constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
         static_assert(0 < ElemPerThread);
-        constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
+        constexpr index_t kMaxVecLoad = [&](){
+            // Try dwordx4
+            if constexpr (ElemPerThread % MaxVectorSize == 0){
+                return MaxVectorSize;
+            }
+            // Try dwordx2
+            else if constexpr (ElemPerThread % (MaxVectorSize / 2) == 0){
+                return MaxVectorSize / 2;
+            }
+            // Try dword
+            else if constexpr (ElemPerThread % (MaxVectorSize / 4) == 0){
+                return MaxVectorSize / 4;
+            }
+            else{
+                return 1;
+            }
+        }();
 
         constexpr index_t KPerThread     = kMaxVecLoad;
-        constexpr index_t KThreads       = kKPerBlock / KPerThread;
+        // if false, we can not distribute the Ps thread evenly over Hs.
+        constexpr bool KThreadEven = (ElemPerThread/KPerThread) % 2 == 0;
+        constexpr index_t KThreads       = [&](){
+            if constexpr (KThreadEven){
+                return kKPerBlock / KPerThread;
+            }
+            else{
+                // We move the odd factor to multiple instruction issue
+                return kKPerBlock/ElemPerThread;
+            }
+        }();
+
+        constexpr index_t KRepeat        = kKPerBlock / KThreads / KPerThread;
+        static_assert(KRepeat == ElemPerThread/kMaxVecLoad);
         constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
         constexpr index_t NumWarps       = kBlockSize / get_warp_size();
         constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
@@ -67,11 +98,154 @@ struct BlockFmhaFwdDecodePipelineQRKSVSDefaultPolicy
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
                                        tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
-                                             sequence<KThreads, KPerThread>>,
+                                             sequence<KRepeat, KThreads, KPerThread>>,
                                        tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
+                                       tuple<sequence<1>, sequence<2, 1>>,
+                                       sequence<2, 1, 2>,
+                                       sequence<0, 0, 2>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKDramTileDistribution()
+    {
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(KDataType);
+        constexpr index_t ElemPerThread = (kNPerBlock * kKPerBlock) / kBlockSize;
+        constexpr index_t kMaxVecLoad = [&](){
+            // Try dwordx4
+            if constexpr (ElemPerThread % MaxVectorSize == 0){
+                return MaxVectorSize;
+            }
+            // Try dwordx2
+            else if constexpr (ElemPerThread % (MaxVectorSize / 2) == 0){
+                return MaxVectorSize / 2;
+            }
+            // Try dword
+            else if constexpr (ElemPerThread % (MaxVectorSize / 4) == 0){
+                return MaxVectorSize / 4;
+            }
+            else{
+                return 1;
+            }
+        }();
+
+        constexpr index_t KPerThread     = kMaxVecLoad;
+        // if false, we can not distribute the Ps thread evenly over Hs.
+        constexpr bool KThreadEven = (ElemPerThread/KPerThread) % 2 == 0;
+        constexpr index_t KThreads       = [&](){
+            if constexpr (KThreadEven){
+                return kKPerBlock / KPerThread;
+            }
+            else{
+                // We move the odd factor to multiple instruction issue
+                return kKPerBlock/ElemPerThread;
+            }}();
+
+        constexpr index_t KRepeat        = kKPerBlock / KThreads / KPerThread;
+        static_assert(KRepeat == ElemPerThread/kMaxVecLoad);
+        constexpr index_t NThreadPerWarp = get_warp_size() / KThreads;
+        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+        constexpr index_t NPerThread     = kNPerBlock / (NThreadPerWarp * NumWarps);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<NPerThread, NumWarps, NThreadPerWarp>,
+                                             sequence<KRepeat, KThreads, KPerThread>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 1>>,
+                                       sequence<2, 1, 2>,
+                                       sequence<0, 0, 2>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
+    {
+        // constexpr index_t kBlockSize = Problem::kBlockSize;
+        // constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
+        // constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
+        constexpr index_t N2 = 4; // Y 4 
+        constexpr index_t N1 = 4; // P 2
+        constexpr index_t N0 = 3; // Y 2
+        
+        constexpr index_t K2 = 2;  // Y
+        constexpr index_t K1 = 16; // P
+        constexpr index_t K0 = 1;  // P
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1, K2>>,
+                                       tuple<sequence<2>, sequence<2, 1>>,
+                                       tuple<sequence<0>, sequence<1, 1>>,
+                                       sequence<1, 2, 1>,
+                                       sequence<0, 2, 2>>{});
+#if 0
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
+        constexpr index_t N1 = GetAlignmentV<Problem>(); // 8 
+        constexpr index_t N0 = kNPerBlock / N1; // P     // 2
+
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+        static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
+        constexpr index_t K3     = total_pixels / N1;
+        constexpr index_t kKPack = GetSmemKPackV<Problem>();
+        static_assert(kKPack % K3 == 0);
+        constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
+        if constexpr(get_warp_size() % (K2 * N0) == 0)
+        {
+            constexpr index_t K1 = get_warp_size() / (K2 * N0);
+            constexpr index_t K0 = kBlockSize / get_warp_size();
+            static_assert(kKPerBlock == K0 * K1 * K2 * K3);
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0, N1>, sequence<K0, K1, K2, K3>>,
+                                           tuple<sequence<2>, sequence<2, 1, 2>>,
+                                           tuple<sequence<0>, sequence<1, 0, 2>>,
+                                           sequence<2, 1>,
+                                           sequence<3, 1>>{});
+        }
+        else
+        {
+            constexpr index_t K1   = (K2 * N0) / get_warp_size();
+            constexpr index_t K2_m = K2 / K1;
+            constexpr index_t K0   = kBlockSize / get_warp_size() / K1;
+            static_assert(kKPerBlock == K0 * K1 * K2_m * K3);
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0, N1>, sequence<K0, K1, K2_m, K3>>,
+                                           tuple<sequence<2, 2>, sequence<1, 2>>,
+                                           tuple<sequence<0, 1>, sequence<0, 2>>,
+                                           sequence<2, 1>,
+                                           sequence<3, 1>>{});
+        }
+#endif
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledVRegBlockDescriptor()
+    {
+        constexpr index_t N2 = 4; // Y 4 
+        constexpr index_t N1 = 4; // P 2
+        constexpr index_t N0 = 3; // Y 2
+        
+        constexpr index_t K2 = 2;  // Y
+        constexpr index_t K1 = 16; // P
+        constexpr index_t K0 = 1;  // P
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1, K2>>,
+                                       tuple<sequence<2>, sequence<2, 1>>,
+                                       tuple<sequence<0>, sequence<1, 1>>,
+                                       sequence<1, 1, 2>,
+                                       sequence<0, 2, 2>>{});
     }
 
     template <typename Problem>

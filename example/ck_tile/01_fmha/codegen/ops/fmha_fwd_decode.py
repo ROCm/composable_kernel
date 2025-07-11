@@ -31,6 +31,7 @@ DTYPE_BITS = {
 
 K0_MAX_SUBMAX_MAP = {
     32 : 32,
+    48 : 48,
     64 : 64,
     96 : 128,
     128: 128,
@@ -303,18 +304,18 @@ FMHA_FWD_DECODE_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_
 
                 // make sure we can reuse the padding flags in combine kernels
                 static_assert({F_bm0} % kM0 == 0);
-                static_assert({F_bn1} % 32 == 0);
+                static_assert({F_bn1} % 16 == 0);
 
                 if (t.has_lse) {{
                     if constexpr (std::is_same_v<{F_dtype}, FmhaFwdFp8>) {{
                         return -1;
                     }} else {{
-                        using traits2_ = fmha_fwd_decode_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, /*F_bn1=*/32, true, {F_squant}, {F_spad}, {F_dvpad}>;
+                        using traits2_ = fmha_fwd_decode_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, /*F_bn1=*/16, true, {F_squant}, {F_spad}, {F_dvpad}>;
 
                         return fmha_fwd_decode_<traits_, traits2_>(s, a);
                     }}
                 }} else {{
-                    using traits2_ = fmha_fwd_decode_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, /*F_bn1=*/32, false, {F_squant}, {F_spad}, {F_dvpad}>;
+                    using traits2_ = fmha_fwd_decode_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, /*F_bn1=*/16, false, {F_squant}, {F_spad}, {F_dvpad}>;
 
                     return fmha_fwd_decode_<traits_, traits2_>(s, a);
                 }}
@@ -649,17 +650,19 @@ class FmhaFwdSplitKVCombineKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '64': {
+            '48': {
             #     # Specialize for different SeqQ
-                '16': FmhaFwdTileSize(16, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
-                '32': FmhaFwdTileSize(32, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                # '64': FmhaFwdTileSize(64, 64, 64, 64,  64,  64,   4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                '16': FmhaFwdTileSize(16, 32, 48, 48,  32,  48,   1, 1, 1,  1, 1, 1,  16, 16, 16,  16, 16, 32,  -1),
+                '32': FmhaFwdTileSize(32, 32, 48, 48,  32,  48,   1, 1, 1,  1, 1, 1,  32, 32, 16,  16, 16, 32,  -1),
             },
-            '128': {
-                '16': FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
-                '32': FmhaFwdTileSize(32, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                # '64': FmhaFwdTileSize(64, 64, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
-            },
+            # '64': {
+            #     '16': FmhaFwdTileSize(16, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+            #     '32': FmhaFwdTileSize(32, 32, 64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            # },
+            # '128': {
+            #     '16': FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+            #     '32': FmhaFwdTileSize(32, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            # },
         }
     else:
         return None
@@ -668,9 +671,10 @@ def get_fmha_fwd_decode_combine_tile_dict_from_dtype(dtype : str) -> Optional[di
     if dtype == 'fp16' or dtype == 'bf16':
         return {
             # '32'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '64'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
+            '48'  : FmhaFwdSplitKVCombineTileSize(16,  -1),
+            # '64'  : FmhaFwdSplitKVCombineTileSize(16,  -1),
         ### '96'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '128' : FmhaFwdSplitKVCombineTileSize(32,  -1),
+            # '128' : FmhaFwdSplitKVCombineTileSize(16,  -1),
             # '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
     }
     else:
@@ -692,7 +696,8 @@ def get_fwd_decode_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> T
         if dtype in ['fp16', 'bf16']:
             for logits, mask, bias, pagedkv in itertools.product(["f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["f"]):
                 for lse in ['t', 'f']:
-                    if hdim in [64, 128]:         ### [32, 64, 96, 128]:
+                # for lse in ['f']:
+                    if hdim in [48, 64, 128]:         ### [32, 64, 96, 128]:
                         pipelines.append(Pipeline('decode_qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, squant, pagedkv, mask))
                         pipelines.append(Pipeline('decode_qr', 'row', 'f', 'f', 't', 't', logits, bias, lse, squant, pagedkv, mask))
                     else:

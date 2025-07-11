@@ -9,6 +9,8 @@ namespace ck_tile {
 
 static CK_TILE_HOST_DEVICE constexpr index_t ceil_to_qualified_tile_length(index_t len)
 {
+    if(len == 48)
+        return 48;
     if(len == 96)
         return 128;
     if(len == 160)

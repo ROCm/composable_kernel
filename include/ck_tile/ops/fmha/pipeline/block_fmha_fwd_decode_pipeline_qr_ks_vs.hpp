@@ -676,6 +676,7 @@ struct BlockFmhaFwdDecodePipelineQRKSVS
                 auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                     Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
                 shuffle_tile(v_shuffle_tmp, v_prefetch);
+                // CK_PRINT<decltype(v_shuffle_tmp), decltype(v_prefetch)>();
                 store_tile(
                     v_lds_window,
                     tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
