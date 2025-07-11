@@ -168,11 +168,15 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     ck_tile::HostTensor<IndexType> sorted_id_cnt_host({2}, {1});
 #if MOE_SORTING_FMOE_2D_BUF
     ck_tile::HostTensor<int8_t> moe_buf_host(
-        {(is_local_token ? local_tokens : tokens) * moe_buf_interm_dim * moe_buf_elem_bytes});
+        {static_cast<std::size_t>(is_local_token ? local_tokens : tokens) * moe_buf_interm_dim *
+         moe_buf_elem_bytes});
+    auto moe_buf_bytes = moe_buf_interm_dim == 0 ? static_cast<std::size_t>(0)
+                                                 : moe_buf_host.get_element_space_size_in_bytes();
 #else
     ck_tile::HostTensor<float> moe_buf_host({moe_buf_size});
+    auto moe_buf_bytes = moe_buf_size == 0 ? static_cast<std::size_t>(0)
+                                           : moe_buf_host.get_element_space_size_in_bytes();
 #endif
-    auto moe_buf_bytes = moe_buf_host.get_element_space_size_in_bytes();
 
     ck_tile::FillUniformDistribution<WeightType>{-.5f, .5f}(weights_host);
 #if MOE_SORTING_FMOE_2D_BUF
@@ -245,7 +249,7 @@ bool test_moe_sorting(ck_tile::ArgParser args)
 
 #if 0
     {
-        ck_tile::HostTensor<char> ws_host({workspace_size}, {1});
+    ck_tile::HostTensor<char> ws_host({workspace_size}, {1});
         moe_sorting_ws.FromDevice(ws_host.data());
 
         int * p_mesh = reinterpret_cast<int*>(ws_host.data());
@@ -308,6 +312,19 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     if(local_expert_masking)
     {
         printf("local_eid:%s, ", args.get_str("local_eid").c_str());
+    }
+
+    if(moe_buf_bytes > 0)
+    {
+#if MOE_SORTING_FMOE_2D_BUF
+        printf("moe_buf:%lu(%d,%d), ",
+               static_cast<uint64_t>(moe_buf_bytes),
+               moe_buf_interm_dim,
+               moe_buf_elem_bytes);
+#else
+
+        printf("moe_buf:%lu, ", static_cast<uint64_t>(moe_buf_bytes));
+#endif
     }
 
     if(ms < 0)
