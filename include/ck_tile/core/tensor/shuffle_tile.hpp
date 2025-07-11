@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -46,22 +46,21 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
         return rh_major_minor_to_y_;
     };
 
-    constexpr auto rh_major_minor_to_y_in  = get_rh_major_minor_to_y(InTensor{});
-    constexpr auto rh_major_minor_to_y_out = get_rh_major_minor_to_y(OutTensor{});
+    constexpr auto rh_major_minor_to_y_in = get_rh_major_minor_to_y(InTensor{});
 
-    constexpr auto y_dim_out_to_in = [&] {
-        map<index_t, index_t> y_dim_out_to_in_;
-
-        for(const auto& [rh_major_minor, y_out] : rh_major_minor_to_y_out)
-        {
-            y_dim_out_to_in_(y_out) = rh_major_minor_to_y_in[rh_major_minor];
-        }
-
-        return y_dim_out_to_in_;
-    }();
-
-    //
     constexpr index_t NDimY = InTensor::get_tile_distribution().get_num_of_dimension_y();
+
+    using OutDstrEncode = typename decltype(out_tensor.get_tile_distribution())::DstrEncode;
+    // using InDstrEncode  = typename decltype(in_tensor.get_tile_distribution())::DstrEncode;
+
+    constexpr auto y_dim_out_to_in = generate_sequence_v2(
+        [&](auto i) constexpr {
+            constexpr index_t rh_major_out = OutDstrEncode::ys_to_rhs_major_[i];
+            constexpr index_t rh_minor_out = OutDstrEncode::ys_to_rhs_minor_[i];
+
+            return number<rh_major_minor_to_y_in[{rh_major_out, rh_minor_out}]>{};
+        },
+        number<NDimY>{});
 
     constexpr auto y_lengths = to_sequence(y_in_desc.get_lengths());
 
@@ -128,11 +127,8 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
 
         // set output vectors
         static_for<0, num_vec_out, 1>{}([&](auto i) {
-            constexpr auto idx_y_out_tmp = generate_array(
-                [&](auto ii) {
-                    return ii == y_dim_vec_in ? static_cast<index_t>(idx_y_start[ii]) + i
-                                              : static_cast<index_t>(idx_y_start[ii]);
-                },
+            constexpr auto idx_y_out_tmp = generate_tuple(
+                [&](auto ii) { return ii == y_dim_vec_in ? idx_y_start[ii] + i : idx_y_start[ii]; },
                 number<NDimY>{});
 
             constexpr auto idx_y_out =
