@@ -34,7 +34,8 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV1
 };
 
 template <typename Problem, typename PipelinePolicy = UniversalWeightPreshufflePipelineAgBgCrPolicy>
-struct WeightPreshufflePipelineAGmemBGmemCRegV1 : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
+struct WeightPreshufflePipelineAGmemBGmemCRegV1
+    : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
 {
     using Base           = BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
@@ -105,7 +106,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1 : public BaseWeightPreshufflePip
 
     CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
     {
-        constexpr auto config = BlockWeightPreshuffle::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr auto config =
+            BlockWeightPreshuffle::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
@@ -206,7 +208,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1 : public BaseWeightPreshufflePip
                              kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1]),
                       "A block window has incorrect lengths for defined ALayout!");
 
-        constexpr auto config = BlockWeightPreshuffle::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+        constexpr auto config =
+            BlockWeightPreshuffle::BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;
 

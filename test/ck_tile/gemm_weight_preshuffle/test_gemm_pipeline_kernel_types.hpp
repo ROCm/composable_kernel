@@ -19,7 +19,8 @@ using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 using Default = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
                                            ck_tile::GemmPipelineScheduler::Default>;
 
-using WeightPreshuffle = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::WeightPreshuffle>;
+using WeightPreshuffle =
+    ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::WeightPreshuffle>;
 
 // clang-format off
 

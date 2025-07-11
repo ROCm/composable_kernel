@@ -439,10 +439,10 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
 
         using BlockWeightPreshufflePolicy =
             BlockWeightPreshuffleASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
-                                                    typename Problem::BDataType,
-                                                    typename Problem::CDataType,
-                                                    BlockWarps,
-                                                    WarpGemm>;
+                                                              typename Problem::BDataType,
+                                                              typename Problem::CDataType,
+                                                              BlockWarps,
+                                                              WarpGemm>;
         return BlockWeightPreshuffleASmemBSmemCRegV1<Problem, BlockWeightPreshufflePolicy>{};
     }
 };
