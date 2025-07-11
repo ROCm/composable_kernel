@@ -19,13 +19,13 @@ using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 using Default = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
                                            ck_tile::GemmPipelineScheduler::Default>;
 
-using Flatmm = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Flatmm>;
+using WeightPreshuffle = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::WeightPreshuffle>;
 
 // clang-format off
 
-using KernelTypesFlatmm = ::testing::Types<
-     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Default,        Flatmm>,
-     std::tuple<    Row,     Col,     Row,       F8,         F8,         F32,       F16,             Default,        Flatmm>
+using KernelTypesWeightPreshuffle = ::testing::Types<
+     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Default,        WeightPreshuffle>,
+     std::tuple<    Row,     Col,     Row,       F8,         F8,         F32,       F16,             Default,        WeightPreshuffle>
 >;
 
 // clang-format on

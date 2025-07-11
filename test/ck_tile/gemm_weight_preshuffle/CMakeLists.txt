@@ -13,9 +13,9 @@ list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS
 )
 
 if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95")
-    add_gtest_executable(test_ck_tile_gemm_pipeline_flatmm test_gemm_pipeline_flatmm.cpp)
+    add_gtest_executable(test_ck_tile_gemm_pipeline_wp test_gemm_pipeline_wp.cpp)
 
-    target_compile_options(test_ck_tile_gemm_pipeline_flatmm PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+    target_compile_options(test_ck_tile_gemm_pipeline_wp PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 else()
     message(DEBUG "Skipping ck_tile_gemm tests for current target")
 endif()

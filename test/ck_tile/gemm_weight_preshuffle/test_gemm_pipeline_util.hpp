@@ -10,7 +10,6 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/flatmm.hpp"
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -35,19 +34,19 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 
 enum struct GemmPipelineType
 {
-    Flatmm
+    WeightPreshuffle
 };
 
 template <GemmPipelineType PT, typename Problem>
 struct GemmPipelineTypeSelector;
 
 template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::Flatmm, Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::WeightPreshuffle, Problem>
 {
-    using base_pipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<Problem>;
-    using pipeline      = ck_tile::FlatmmPipelineAGmemBGmemCRegV1<Problem>;
+    using base_pipeline = ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
+    using pipeline      = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
 
-    static constexpr auto GetName() { return "GemmPipelineAgBgCrFlatmm"; }
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrWeightPreshuffle"; }
 };
 template <typename Datatype>
 struct config
