@@ -354,6 +354,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        return true;
         // only impl kbatch 1 now
         if(arg.KBatch > 1)
         {
