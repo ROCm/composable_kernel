@@ -1552,7 +1552,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 {
                     if(input_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
                     {
-                        return false;
+                        ds_valid = false;
                     }
                 }
             }
