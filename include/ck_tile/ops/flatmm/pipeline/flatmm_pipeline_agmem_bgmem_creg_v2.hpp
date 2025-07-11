@@ -62,7 +62,7 @@ struct FlatmmPipelineAGmemBGmemCRegV2
 
     using Base::ACopyLoadNum;
     using Base::ACopyLoadNumPerK;
-    using Base::AcopyPerLoadM;
+    using Base::ACopyPerLoadM;
     using Base::BloadGap;
 
     using Base::HasHotLoop;
@@ -142,19 +142,19 @@ struct FlatmmPipelineAGmemBGmemCRegV2
 
         auto a_copy_dram_window_tmp =
             make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<AcopyPerLoadM>{}, number<kKPerBlock>{}),
+                             make_tuple(number<ACopyPerLoadM>{}, number<kKPerBlock>{}),
                              a_dram_block_window_tmp.get_window_origin(),
                              PipelinePolicy::template MakeADramDistribution<Problem>());
 
         statically_indexed_array<decltype(a_copy_dram_window_tmp), ACopyLoadNum> a_copy_dram_window;
         static_for<0, ACopyLoadNum, 1>{}([&](auto AIter) {
             a_copy_dram_window(AIter) = a_copy_dram_window_tmp;
-            move_tile_window(a_copy_dram_window(AIter), {AIter * AcopyPerLoadM, 0});
+            move_tile_window(a_copy_dram_window(AIter), {AIter * ACopyPerLoadM, 0});
         });
 
         auto a_copy_lds_window_ping_tmp =
             make_tile_window(a_lds_block_ping,
-                             make_tuple(number<AcopyPerLoadM>{}, number<kKPerBlock>{}),
+                             make_tuple(number<ACopyPerLoadM>{}, number<kKPerBlock>{}),
                              {0, 0},
                              PipelinePolicy::template MakeADramDistribution<Problem>());
 
@@ -162,12 +162,12 @@ struct FlatmmPipelineAGmemBGmemCRegV2
             a_copy_lds_window_ping;
         static_for<0, ACopyLoadNum, 1>{}([&](auto AIter) {
             a_copy_lds_window_ping(AIter) = a_copy_lds_window_ping_tmp;
-            move_tile_window(a_copy_lds_window_ping(AIter), {AIter * AcopyPerLoadM, 0});
+            move_tile_window(a_copy_lds_window_ping(AIter), {AIter * ACopyPerLoadM, 0});
         });
 
         auto a_copy_lds_window_pong_tmp =
             make_tile_window(a_lds_block_pong,
-                             make_tuple(number<AcopyPerLoadM>{}, number<kKPerBlock>{}),
+                             make_tuple(number<ACopyPerLoadM>{}, number<kKPerBlock>{}),
                              {0, 0},
                              PipelinePolicy::template MakeADramDistribution<Problem>());
 
@@ -175,7 +175,7 @@ struct FlatmmPipelineAGmemBGmemCRegV2
             a_copy_lds_window_pong;
         static_for<0, ACopyLoadNum, 1>{}([&](auto AIter) {
             a_copy_lds_window_pong(AIter) = a_copy_lds_window_pong_tmp;
-            move_tile_window(a_copy_lds_window_pong(AIter), {AIter * AcopyPerLoadM, 0});
+            move_tile_window(a_copy_lds_window_pong(AIter), {AIter * ACopyPerLoadM, 0});
         });
 
         // A LDS tile for block GEMM

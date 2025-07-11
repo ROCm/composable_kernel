@@ -92,7 +92,7 @@ struct FlatmmPipelineAGmemBGmemCRegBase
     static constexpr index_t K1               = 16 / sizeof(ADataType);
     static constexpr index_t ACopyLoadNum     = kMPerBlock * kKPerBlock / BlockSize / K1;
     static constexpr index_t ACopyLoadNumPerK = ACopyLoadNum / KIterPerWarp;
-    static constexpr index_t AcopyPerLoadM    = kMPerBlock / ACopyLoadNum;
+    static constexpr index_t ACopyPerLoadM    = kMPerBlock / ACopyLoadNum;
     static constexpr index_t BloadGap         = MIterPerWarp / 2;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
@@ -543,11 +543,13 @@ struct FlatmmPipelineAGmemBGmemCRegBase
         }
         else
         {
-            if constexpr ((A_LDS_Read_Inst_Num / 2 >
-                           A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num)) {
+            if constexpr((A_LDS_Read_Inst_Num / 2 >
+                          A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num))
+            {
                 static_for<0,
-                        A_LDS_Read_Inst_Num / 2 - A_Buffer_Load_Inst_Num - B_Buffer_Load_Inst_Num,
-                        1>{}([&](auto i) {
+                           A_LDS_Read_Inst_Num / 2 - A_Buffer_Load_Inst_Num -
+                               B_Buffer_Load_Inst_Num,
+                           1>{}([&](auto i) {
                     ignore = i;
                     __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
@@ -583,7 +585,7 @@ struct FlatmmPipelineAGmemBGmemCRegBase
 
     CK_TILE_HOST_DEVICE static constexpr auto TailHotLoopScheduler()
     {
-        #if 0
+#if 0
         static_for<0, 2, 1>{}([&](auto j) {
             ignore = j;
             static_for<0, 3, 1>{}([&](auto i) {
@@ -625,7 +627,7 @@ struct FlatmmPipelineAGmemBGmemCRegBase
             __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
         });
         __builtin_amdgcn_sched_barrier(0);
-        #endif
+#endif
     }
 };
 } // namespace ck_tile

@@ -60,7 +60,7 @@ struct FlatmmPipelineAGmemBGmemCRegV0
 
     using Base::ACopyLoadNum;
     using Base::ACopyLoadNumPerK;
-    using Base::AcopyPerLoadM;
+    using Base::ACopyPerLoadM;
     using Base::BloadGap;
 
     using Base::HasHotLoop;
@@ -93,88 +93,6 @@ struct FlatmmPipelineAGmemBGmemCRegV0
                       concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK));
         // clang-format on
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
-    {
-        // constexpr auto config = BlockFlatmm::BlockPolicy::template
-        // GetWarpGemmMWarpNWarp<Problem>();
-
-        // using WG = remove_cvref_t<decltype(config.template at<0>())>;
-
-        // constexpr index_t MWarp = config.template at<1>();
-        // constexpr index_t NWarp = config.template at<2>();
-
-        // constexpr index_t KIterPerWarp = kKPerBlock / WG::kK;
-        // constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WG::kM);
-        // constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WG::kN);
-
-        constexpr index_t KPerLoad               = Problem::VectorLoadSize / sizeof(ADataType);
-        constexpr index_t A_Buffer_Load_Inst_Num = kMPerBlock * kKPerBlock / BlockSize / KPerLoad;
-        constexpr index_t A_LDS_Read_Inst_Num    = MIterPerWarp * KIterPerWarp;
-        constexpr index_t B_Buffer_Load_Inst_Num = NIterPerWarp * KIterPerWarp;
-
-        if constexpr(WG::kM == 16 && WG::kN == 16)
-        {
-            static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            });
-            static_for<0, A_LDS_Read_Inst_Num - A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x008, 3, 0); // MFMA
-            });
-            static_for<0, B_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
-            });
-            static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
-            });
-        }
-        else if constexpr(WG::kM == 32 && WG::kN == 32 &&
-                          (A_LDS_Read_Inst_Num / 2 >
-                           A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num))
-        {
-            static_for<0,
-                       A_LDS_Read_Inst_Num / 2 - A_Buffer_Load_Inst_Num - B_Buffer_Load_Inst_Num,
-                       1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            });
-            static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            });
-            static_for<0, A_LDS_Read_Inst_Num / 2, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            });
-            static_for<0, B_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-            });
-            static_for<0, A_Buffer_Load_Inst_Num, 1>{}([&](auto i) {
-                ignore = i;
-                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                __builtin_amdgcn_sched_group_barrier(0x008, 3, 0); // MFMA
-            });
-            __builtin_amdgcn_sched_group_barrier(0x008, 4, 0); // MFMA
-        }
     }
 
     template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>

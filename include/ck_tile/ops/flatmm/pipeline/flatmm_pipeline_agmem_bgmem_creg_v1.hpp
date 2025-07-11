@@ -60,7 +60,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
 
     using Base::ACopyLoadNum;
     using Base::ACopyLoadNumPerK;
-    using Base::AcopyPerLoadM;
+    using Base::ACopyPerLoadM;
     using Base::BloadGap;
 
     using Base::HasHotLoop;
