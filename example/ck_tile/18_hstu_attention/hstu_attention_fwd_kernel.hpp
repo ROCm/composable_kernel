@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/fmha/block/block_dropout.hpp"
 
 #include <string>
 #include <type_traits>
