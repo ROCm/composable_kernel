@@ -66,6 +66,8 @@ __global__ void
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__) || defined(__gfx12__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
+    if constexpr(GridwiseGemm::IsValidCompilationParameter())
+    {
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -78,6 +80,7 @@ __global__ void
         p_shared_0,
         p_shared_1,
         karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -278,12 +281,18 @@ struct GridwiseGemm_xdl_cshuffle_v3
     static constexpr __device__ index_t NXdlPerWave()
     {
         constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWave = BlockSize / get_warp_size() / MWave;
-        static_assert(BlockSize % (get_warp_size() * MWave) == 0);
-        static_assert(NPerBlock / NWave / NPerXdl > 0);
-        return NPerBlock / NWave / NPerXdl;
+        constexpr index_t NWave = math::max(BlockSize / get_warp_size() / MWave, 1);
+        //static_assert(BlockSize % (get_warp_size() * MWave) == 0);
+        //static_assert(NPerBlock / NWave / NPerXdl > 0);
+        return math::max(NPerBlock / NWave / NPerXdl, 1);
     };
 
+    static constexpr bool __device__ IsValidCompilationParameter()
+    {
+        // TODO: properly implement this check
+        constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
+        return  BlockSize / get_warp_size() / MWave > 0;
+    }
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
             return 2;
@@ -1058,7 +1067,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
     __device__ static constexpr auto GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
         constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWave = NPerBlock / (NXdlPerWave() * NPerXdl);
+        constexpr index_t NWave = math::max(NPerBlock / (NXdlPerWave() * NPerXdl), 1);
 
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
             make_naive_tensor_descriptor_packed(
