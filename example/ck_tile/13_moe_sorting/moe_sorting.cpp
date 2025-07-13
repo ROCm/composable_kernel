@@ -45,6 +45,10 @@ auto create_args(int argc, char* argv[])
         .insert("ci",
                 "1",
                 "clear workspace inside API or not(if \"0\", require manually clear outside)")
+        .insert(
+            "dispatch",
+            "0",
+            "dispatch policy. 0:automatically pick up kernel, 1:use single kernel, 2:use mp kernel")
         .insert("local_eid",
                 "-1",
                 "a list of experts enabled as local expert. e.g. \"0,1,4,5\"\n"
@@ -103,10 +107,11 @@ bool test_moe_sorting(ck_tile::ArgParser args)
 #else
     int64_t moe_buf_size = static_cast<int64_t>(args.get_uint64("moe_buf_size"));
 #endif
-    int kname         = args.get_int("kname");
-    int warmup        = args.get_int("warmup");
-    int repeat        = args.get_int("repeat");
-    bool clear_inside = args.get_int("ci") != 0;
+    int kname           = args.get_int("kname");
+    int warmup          = args.get_int("warmup");
+    int repeat          = args.get_int("repeat");
+    bool clear_inside   = args.get_int("ci") != 0;
+    int dispatch_policy = args.get_int("dispatch");
 
     int max_output_ids =
         ck_tile::integer_least_multiple(topk * tokens + num_experts * unit_size - topk, unit_size);
@@ -214,12 +219,14 @@ bool test_moe_sorting(ck_tile::ArgParser args)
         local_expert_masking_dev.ToDevice(local_expert_masking_host.data());
 
     // if return zero, means no need workspace, can set moe_sorting_args.p_ws to nullptr
-    ck_tile::index_t workspace_size = moe_sorting_get_workspace_size(tokens, num_experts, topk);
+    ck_tile::index_t workspace_size =
+        moe_sorting_get_workspace_size(tokens, num_experts, topk, dispatch_policy);
     ck_tile::DeviceMem moe_sorting_ws(workspace_size != 0 ? workspace_size : 0);
     if(workspace_size != 0 && clear_inside == false)
         moe_sorting_ws.SetZero(); // note, clear here!!!!
 
-    moe_sorting_trait trait{index_prec, weight_prec, local_expert_masking, clear_inside};
+    moe_sorting_trait trait{
+        index_prec, weight_prec, local_expert_masking, clear_inside, dispatch_policy};
 
     moe_sorting_args karg
     {
@@ -298,10 +305,11 @@ bool test_moe_sorting(ck_tile::ArgParser args)
     }
 #endif
 
-    printf("[%s|%s|%s]tokens:%d",
+    printf("[%s|%s|%s|%d]tokens:%d",
            index_prec.c_str(),
            weight_prec.c_str(),
            workspace_size == 0 ? "cx" : (clear_inside ? "ci" : "co"),
+           dispatch_policy,
            tokens);
     if(is_local_token)
     {

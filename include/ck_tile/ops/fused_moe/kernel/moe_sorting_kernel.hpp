@@ -926,7 +926,7 @@ struct MoeSortingKernel
                 }
                 if((lid + i_e_ - get_warp_size()) == (num_experts - 1))
                 {
-                    *p_total_tokens_post_pad = local_cumsum_;
+                    *p_total_tokens_post_pad   = local_cumsum_;
                     p_total_tokens_post_pad[1] = tokens;
                 }
             }
@@ -1382,13 +1382,29 @@ CK_TILE_HOST index_t moe_sorting_mp_get_workspace_size(int tokens_, int num_expe
 }
 
 // return size in byte
-CK_TILE_HOST index_t moe_sorting_get_workspace_size(int tokens_, int num_experts_, int topk_)
+// dispatch_policy: 0-automatically pick up kerel. 1-always use single kernel, 2-always use mp
+// kernel
+CK_TILE_HOST index_t moe_sorting_get_workspace_size(int tokens_,
+                                                    int num_experts_,
+                                                    int topk_,
+                                                    int dispatch_policy_)
 {
 #if 1
     // return 0;
-    if(moe_sorting_is_oneshot(tokens_, num_experts_))
+    if(dispatch_policy_ == 0)
     {
-        return 0;
+        if(moe_sorting_is_oneshot(tokens_, num_experts_))
+        {
+            return 0;
+        }
+        else
+        {
+            return moe_sorting_mp_get_workspace_size(tokens_, num_experts_, topk_);
+        }
+    }
+    else if(dispatch_policy_ == 1)
+    {
+        return 0; // always use single kernel
     }
     else
     {

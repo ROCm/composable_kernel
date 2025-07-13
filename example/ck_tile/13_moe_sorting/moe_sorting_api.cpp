@@ -175,7 +175,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         }
         }
 #else
-        if(moe_sorting_get_workspace_size(a.tokens, a.num_experts, a.topk) != 0)
+        if(moe_sorting_get_workspace_size(a.tokens, a.num_experts, a.topk, t.dispatch_policy) != 0)
         {
             return moe_sorting_mp(t, a, s);
         }
@@ -438,7 +438,7 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
     return -1;
 }
 
-int moe_sorting_get_workspace_size(int tokens, int num_experts, int topk)
+int moe_sorting_get_workspace_size(int tokens, int num_experts, int topk, int dispatch_policy)
 {
-    return ck_tile::moe_sorting_get_workspace_size(tokens, num_experts, topk);
+    return ck_tile::moe_sorting_get_workspace_size(tokens, num_experts, topk, dispatch_policy);
 }
