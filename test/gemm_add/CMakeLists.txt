@@ -49,3 +49,8 @@ add_gtest_executable(test_gemm_bilinear_wmma test_gemm_bilinear_wmma.cpp)
 if(result EQUAL 0)
     target_link_libraries(test_gemm_bilinear_wmma PRIVATE utility device_gemm_bilinear_instance)
 endif()
+
+add_gtest_executable(test_gemm_add_relu_wmma test_gemm_add_relu_wmma.cpp)
+if(result EQUAL 0)
+    target_link_libraries(test_gemm_add_relu_wmma PRIVATE utility device_gemm_add_relu_instance)
+endif()

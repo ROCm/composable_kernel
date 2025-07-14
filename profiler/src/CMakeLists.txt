@@ -194,7 +194,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
 endif()
 
 if((SUPPORTED_GPU_TARGETS MATCHES "gfx9" AND (DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)) OR
-   (SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]"))
+   (SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]" ))
   list(APPEND DEVICE_INSTANCES device_gemm_bilinear_instance)
 endif()
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx(9[45]|1[12])")
@@ -209,6 +209,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[1
   list(APPEND DEVICE_INSTANCES device_grouped_conv2d_fwd_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv3d_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_gemm_add_fastgelu_instance)
+  list(APPEND DEVICE_INSTANCES device_gemm_add_relu_instance)
   if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
     list(APPEND DEVICE_INSTANCES device_gemm_add_instance)
     list(APPEND DEVICE_INSTANCES device_gemm_fastgelu_instance)
