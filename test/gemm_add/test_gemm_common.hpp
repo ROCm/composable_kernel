@@ -3,6 +3,8 @@
 
 #include "gtest/gtest.h"
 #include "ck/ck.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/utility/data_type.hpp"
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -12,7 +14,12 @@ using I32  = int32_t;
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
-using I32 = int32_t;
+using F8   = ck::f8_t;
+
+// M, N, K
+using TestMatrixSizes = std::vector<std::vector<ck::index_t>>;
+
+static const TestMatrixSizes DefaultTestMatrixSizes = {{16, 32, 64}, {512, 2048, 4096}, {2048, 1024, 16}};
 
 template <typename Tuple>
 class TestGemmCommon : public ::testing::Test
@@ -30,11 +37,8 @@ class TestGemmCommon : public ::testing::Test
 
     virtual ProfileCall GetImpl() = 0;
 
-    void Run()
+    void Run(const TestMatrixSizes& lengths = DefaultTestMatrixSizes)
     {
-        std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {2048, 4096, 8192}, {2048, 1024, 16}};
-
         bool all_success = true;
 
         for(auto length : lengths)
@@ -48,7 +52,7 @@ class TestGemmCommon : public ::testing::Test
 
             all_success =
                 all_success &
-                GetImpl()(1, 1, false, false, M, N, K, StrideA, StrideB, StrideE);
+                GetImpl()(1, 1, false, true, M, N, K, StrideA, StrideB, StrideE);
         }
 
         EXPECT_TRUE(all_success);
@@ -73,11 +77,8 @@ class TestGemmD0Common : public ::testing::Test
 
     virtual ProfileCall GetImpl() = 0;
 
-    void Run()
+    void Run(const TestMatrixSizes& lengths = DefaultTestMatrixSizes)
     {
-        std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {2048, 4096, 8192}, {2048, 1024, 16}};
-
         bool all_success = true;
 
         for(auto length : lengths)
@@ -92,7 +93,7 @@ class TestGemmD0Common : public ::testing::Test
 
             all_success =
                 all_success &
-                GetImpl()(1, 1, false, false, M, N, K, StrideA, StrideB, StrideD0, StrideE);
+                GetImpl()(1, 1, false, true, M, N, K, StrideA, StrideB, StrideD0, StrideE);
         }
 
         EXPECT_TRUE(all_success);
@@ -119,11 +120,8 @@ class TestGemmD0D1Common : public ::testing::Test
 
     virtual ProfileCall GetImpl() = 0;
 
-    void Run()
+    void Run(const TestMatrixSizes& lengths = DefaultTestMatrixSizes)
     {
-        std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {2048, 4096, 8192}, {2048, 1024, 16}};
-
         bool all_success = true;
 
         for(auto length : lengths)
@@ -139,7 +137,7 @@ class TestGemmD0D1Common : public ::testing::Test
 
             all_success =
                 all_success &
-                GetImpl()(1, 1, false, false, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE);
+                GetImpl()(1, 1, false, true, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE);
         }
 
         EXPECT_TRUE(all_success);
