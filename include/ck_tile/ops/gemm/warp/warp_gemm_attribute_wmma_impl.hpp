@@ -76,34 +76,58 @@ struct WarpGemmAttributeWmmaImpl
     }
 };
 
-using WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16_gfx11 =
-    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx11_t, fp16_t, fp16_t, float, 16, 16, 16>>;
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16 = WarpGemmAttributeWmmaImpl<WmmaTraits<
+#if defined(__gfx11__)
+    gfx11_t,
+#else // if defined(__gfx12__)
+    gfx12_t,
+#endif
+    fp16_t,
+    fp16_t,
+    float,
+    16,
+    16,
+    16>>;
 
-using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf16_bf16_gfx11 =
-    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx11_t, bf16_t, bf16_t, float, 16, 16, 16>>;
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf16_bf16 = WarpGemmAttributeWmmaImpl<WmmaTraits<
+#if defined(__gfx11__)
+    gfx11_t,
+#else // if defined(__gfx12__)
+    gfx12_t,
+#endif
+    bf16_t,
+    bf16_t,
+    float,
+    16,
+    16,
+    16>>;
 
-using WarpGemmAttributeWmmaImpl_i32_16x16x16_i8_i8_gfx11 =
-    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx11_t, int8_t, int8_t, int32_t, 16, 16, 16>>;
+using WarpGemmAttributeWmmaImpl_i32_16x16x16_i8_i8 = WarpGemmAttributeWmmaImpl<WmmaTraits<
+#if defined(__gfx11__)
+    gfx11_t,
+#else // if defined(__gfx12__)
+    gfx12_t,
+#endif
+    int8_t,
+    int8_t,
+    int32_t,
+    16,
+    16,
+    16>>;
 
-using WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16_gfx12 =
-    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, fp16_t, fp16_t, float, 16, 16, 16>>;
-
-using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf16_bf16_gfx12 =
-    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, bf16_t, bf16_t, float, 16, 16, 16>>;
-
-using WarpGemmAttributeWmmaImpl_i32_16x16x16_i8_i8_gfx12 =
+using WarpGemmAttributeWmmaImpl_i32_16x16x16_i8_i8 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, int8_t, int8_t, int32_t, 16, 16, 16>>;
 
-using WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_f8_gfx12 =
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_f8 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, fp8_t, fp8_t, float, 16, 16, 16>>;
 
-using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_bf8_gfx12 =
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_bf8 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, bf8_t, bf8_t, float, 16, 16, 16>>;
 
-using WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_bf8_gfx12 =
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_bf8 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, fp8_t, bf8_t, float, 16, 16, 16>>;
 
-using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_f8_gfx12 =
+using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_f8 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, bf8_t, fp8_t, float, 16, 16, 16>>;
 
 template <typename Arch,
