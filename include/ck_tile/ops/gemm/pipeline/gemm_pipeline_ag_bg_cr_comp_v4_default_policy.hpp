@@ -20,9 +20,9 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using AccDataType = float;
-        using BlockWarps  = typename Problem::BlockGemmShape::BlockWarps;
-        using WarpTile    = typename Problem::BlockGemmShape::WarpTile;
+        // using AccDataType     = float;
+        using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
         constexpr index_t B64_SIZE = 8;
         constexpr bool single_load_tr_length =
@@ -35,7 +35,7 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
 
         using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ADataType,
                                                 typename Problem::BDataType,
-                                                AccDataType,
+                                                typename Problem::CDataType, // AccDataType
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),
                                                 WarpTile::at(I2),

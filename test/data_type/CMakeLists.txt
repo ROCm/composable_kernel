@@ -60,6 +60,7 @@ if(GPU_TARGETS MATCHES "gfx950")
 
   add_gtest_executable(test_bf6 test_bf6.cpp)
   if(result EQUAL 0)
+    target_compile_options(test_bf6 PRIVATE -mavx512f)
     target_link_libraries(test_bf6 PRIVATE utility)
   endif()
   add_dependencies(test_mx_data_types test_bf6)
