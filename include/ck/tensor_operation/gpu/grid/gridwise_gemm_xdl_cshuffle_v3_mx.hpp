@@ -419,6 +419,12 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                         (GemmSpec != GemmSpecialization::Default &&
                          GemmSpec != GemmSpecialization::MPadding)),
                       "f4x2_pk_t does not support K padding");
+        static_assert(!((is_same_v<remove_cvref_t<ADataType>, f6x16_pk_t> ||
+                         is_same_v<remove_cvref_t<ADataType>, bf6x16_pk_t> ||
+                         is_same_v<remove_cvref_t<ADataType>, f6x32_pk_t> ||
+                         is_same_v<remove_cvref_t<ADataType>, bf6x32_pk_t>)&&GemmSpec !=
+                        GemmSpecialization::Default),
+                      "Packed F6 types do not support padding");
 
         if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
