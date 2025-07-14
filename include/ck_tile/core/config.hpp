@@ -269,3 +269,9 @@
 #ifndef CK_TILE_ENC_SUPPORT_Y_TO_R
 #define CK_TILE_ENC_SUPPORT_Y_TO_R 0
 #endif
+
+#ifndef CK_TILE_WAVE32_ENABLED
+#if defined(__gfx11__) || defined(__gfx12__)
+#define CK_TILE_WAVE32_ENABLED
+#endif
+#endif

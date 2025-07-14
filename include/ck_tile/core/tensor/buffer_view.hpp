@@ -1013,6 +1013,8 @@ struct buffer_view<address_space_enum::lds,
                          std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
                         // int8 on thread buffer
                         (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                         std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 16>>) ||
+                        (std::is_same_v<remove_cvref_t<T>, int8_t> &&
                          std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 8>>) ||
                         (std::is_same_v<remove_cvref_t<T>, int8_t> &&
                          std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 4>>) ||
@@ -1090,6 +1092,8 @@ struct buffer_view<address_space_enum::lds,
                 }
                 else if constexpr((std::is_same_v<remove_cvref_t<T>, int8_t> &&
                                    std::is_same_v<remove_cvref_t<X>, int8x16_t>) ||
+                                  (std::is_same_v<remove_cvref_t<T>, int8_t> &&
+                                   std::is_same_v<remove_cvref_t<X>, thread_buffer<int8_t, 16>>) ||
                                   (std::is_same_v<remove_cvref_t<T>, pk_int4_t> &&
                                    std::is_same_v<remove_cvref_t<X>, thread_buffer<pk_int4_t, 16>>))
                 {
