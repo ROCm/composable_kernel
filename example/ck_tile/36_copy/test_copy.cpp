@@ -42,7 +42,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::half_t value = 1;
     for(int i = 0; i < m; i++)
     {
-        value = 1;
+        value = i * 8;
         for(int j = 0; j < n; j++)
         {
             x_host(i, j) = value++;
