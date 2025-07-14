@@ -136,7 +136,7 @@ struct DefaultTranspose
         static constexpr auto input_ps_major_last =
             input_ps_major[number<input_ps_major.size() - 1>{}];
         static constexpr auto input_ps_minor_last =
-            input_ps_minor[number<input_ps_major.size() - 1>{}];
+            input_ps_minor[number<input_ps_minor.size() - 1>{}];
 
         using psys_offset = ck_tile::sequence<input_hs[I0].size() - quad_hs[I0].size(),
                                               input_hs[I1].size() - quad_hs[I1].size()>;

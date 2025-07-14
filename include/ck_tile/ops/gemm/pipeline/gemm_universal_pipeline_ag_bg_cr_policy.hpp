@@ -122,7 +122,7 @@ struct UniversalGemmBasePolicy
                 number<1>{});
             return b_lds_block_desc_0;
         }
-        else if constexpr(1)
+        else
         // else if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t KPack     = GetSmemPackB<Problem>();

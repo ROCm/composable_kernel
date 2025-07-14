@@ -132,36 +132,39 @@ struct WarpGemmAtrributeMfmaIterateK
 
     CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
     {
-        if constexpr(AttrNumAccess == WGAttrNumAccessEnum::Double)
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
         {
-            static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
-                          "Multi-block on with double double access is not supported");
-            static_assert(kKPerThread % AttrNumAccessV == 0,
-                          "kKPerThread must be divisible by NumAccess");
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kAMLane>,
-                      sequence<AttrNumAccessV,
-                               Impl::kABKLane,
-                               Impl::kABKPerLane * kKIter / AttrNumAccessV>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<1, 0>>,
-                sequence<2, 2>,
-                sequence<0, 2>>{};
-        }
-        else if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
-        {
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kAMLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
+            if constexpr(AttrNumAccessV == 1)
+            {
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<Impl::kAMLane>,
+                          sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                    tuple<sequence<2, 1>>,
+                    tuple<sequence<0, 0>>,
+                    sequence<2>,
+                    sequence<1>>{};
+            }
+            else
+            {
+                static_assert(kKPerThread % AttrNumAccessV == 0,
+                              "kKPerThread must be divisible by NumAccess");
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<Impl::kAMLane>,
+                          sequence<AttrNumAccessV,
+                                   Impl::kABKLane,
+                                   Impl::kABKPerLane * kKIter / AttrNumAccessV>>,
+                    tuple<sequence<2, 1>>,
+                    tuple<sequence<1, 0>>,
+                    sequence<2, 2>,
+                    sequence<0, 2>>{};
+            }
         }
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
+            static_assert(AttrNumAccessV == 1,
+                          "Multi-block on with double double access is not supported");
             // each M blocks share the same data
             return tile_distribution_encoding<
                 sequence<Impl::kBNBlock>,
@@ -174,6 +177,8 @@ struct WarpGemmAtrributeMfmaIterateK
         }
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
+            static_assert(AttrNumAccessV == 1,
+                          "Multi-block on with double double access is not supported");
             // single block to multi-block thread mapping
             return tile_distribution_encoding<
                 sequence<>,
@@ -188,36 +193,40 @@ struct WarpGemmAtrributeMfmaIterateK
 
     CK_TILE_DEVICE static constexpr auto get_bwarp_dstr_encoding()
     {
-        if constexpr(AttrNumAccess == WGAttrNumAccessEnum::Double)
+        if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
         {
-            static_assert(Impl::kAMBlock == 1 && Impl::kBNBlock == 1,
-                          "Multi-block on with double double access is not supported");
-            static_assert(kKPerThread % AttrNumAccessV == 0,
-                          "kKPerThread must be divisible by NumAccess");
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kBNLane>,
-                      sequence<AttrNumAccessV,
-                               Impl::kABKLane,
-                               Impl::kABKPerLane * kKIter / AttrNumAccessV>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<1, 0>>,
-                sequence<2, 2>,
-                sequence<0, 2>>{};
-        }
-        else if constexpr(Impl::kAMBlock == 1 && Impl::kBNBlock == 1)
-        {
-            return tile_distribution_encoding<
-                sequence<>,
-                tuple<sequence<Impl::kBNLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
-                tuple<sequence<2, 1>>,
-                tuple<sequence<0, 0>>,
-                sequence<2>,
-                sequence<1>>{};
+            if constexpr(AttrNumAccessV == 1)
+            {
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<Impl::kBNLane>,
+                          sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                    tuple<sequence<2, 1>>,
+                    tuple<sequence<0, 0>>,
+                    sequence<2>,
+                    sequence<1>>{};
+            }
+            else
+            {
+
+                static_assert(kKPerThread % AttrNumAccessV == 0,
+                              "kKPerThread must be divisible by NumAccess");
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<Impl::kBNLane>,
+                          sequence<AttrNumAccessV,
+                                   Impl::kABKLane,
+                                   Impl::kABKPerLane * kKIter / AttrNumAccessV>>,
+                    tuple<sequence<2, 1>>,
+                    tuple<sequence<1, 0>>,
+                    sequence<2, 2>,
+                    sequence<0, 2>>{};
+            }
         }
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
+            static_assert(AttrNumAccessV == 1,
+                          "Multi-block on with double double access is not supported");
             // single block to multi-block thread mapping
             return tile_distribution_encoding<
                 sequence<>,
@@ -230,6 +239,8 @@ struct WarpGemmAtrributeMfmaIterateK
         }
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
+            static_assert(AttrNumAccessV == 1,
+                          "Multi-block on with double double access is not supported");
             // each N blocks share the same data
             return tile_distribution_encoding<
                 sequence<Impl::kAMBlock>,
