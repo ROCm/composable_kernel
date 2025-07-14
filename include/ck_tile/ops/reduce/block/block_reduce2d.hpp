@@ -331,8 +331,15 @@ struct BlockReduce2dTreeCrossWarpSync
     CK_TILE_DEVICE void
     operator()(YDistributedTensor_& y_tensor, void* smem, const ReduceFunc& reduce_func)
     {
-        // WORKAROUND: Mimic tree reduction
-        using DataType                    = typename YDistributedTensor_::DataType;
+        using Dstr             = typename YDistributedTensor_::StaticTileDistribution;
+        using DstrEncode       = typename Dstr::DstrEncode;
+        using DstrEncodeDetail = typename DstrEncode::detail;
+        using DataType         = typename YDistributedTensor_::DataType;
+
+        constexpr index_t NDimP = Dstr::get_num_of_dimension_p();
+        constexpr index_t NDimR = Dstr::get_num_of_dimension_r();
+
+        constexpr index_t idim_p_lane     = NDimP - 1;
         constexpr index_t thread_buf_size = YDistributedTensor_::get_thread_buffer_size();
 
         DataType* smem_ptr    = reinterpret_cast<DataType*>(smem);
@@ -363,17 +370,36 @@ struct BlockReduce2dTreeCrossWarpSync
             {
                 v = smem_ptr[lane_id + i * num_warps];
             }
-            // Perform warp-wide reduction using shuffle operations
-            constexpr index_t nstage = integer_log2_floor(get_warp_size());
 
-            // reduction sweep forward
-            static_for<0, nstage, 1>{}([&](auto istage) {
-                // pull data from remote lane
-                const auto o = __shfl_xor(v, number<1 << istage.value>{}.value);
+            // cross-lane reduce for replication
+            // only reduce on R dimension correspond to lane
+            // (lane id maps to this R dimension)
+            static_for<0, NDimR, 1>{}([&](auto idim_r) {
+                // FIXME: nasty to use does_p_own_r_
+                if constexpr(DstrEncodeDetail::does_p_own_r_[idim_p_lane][idim_r])
+                {
+                    constexpr index_t r_length = DstrEncode::rs_lengths_[idim_r];
 
-                // reduce
-                v = reduce_func(v, o);
+                    constexpr index_t lid_over_rid_derivative =
+                        DstrEncodeDetail::ps_over_rs_derivative_[idim_p_lane][idim_r];
+
+                    static_assert(is_power_of_two_integer(r_length),
+                                  "wrong! only support power of 2 reduction");
+
+                    constexpr index_t nstage = integer_log2_floor(r_length);
+
+                    // reduction sweep forward
+                    static_for<0, nstage, 1>{}([&](auto istage) {
+                        // pull data from remote lane
+                        const auto o =
+                            __shfl_xor(v, number<lid_over_rid_derivative << istage.value>{}.value);
+
+                        // reduce
+                        v = reduce_func(v, o);
+                    });
+                }
             });
+
             y_tensor.get_thread_buffer()(i) = v;
         });
     }
