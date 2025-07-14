@@ -182,7 +182,6 @@ struct DeviceMoeGemmPersistent : public DeviceGemmMultipleDSplitKBPreShuffle<ALa
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.KBatch);
             // std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N);
-            printf("gridsize.xyz= %d, %d, %d\n", gdx, gdy, gdz);
 
             float ave_time = 0;
 
@@ -328,12 +327,50 @@ struct DeviceMoeGemmPersistent : public DeviceGemmMultipleDSplitKBPreShuffle<ALa
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    const auto kernel = kernel_moe_gemm<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy,
-                                                        TailNumber::Odd>;
-                    RunKernel(kernel);
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            false,
+                                                            MemoryDataOp,
+                                                            minimum_occupancy,
+                                                            TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_gemm<GridwiseGemm,
+                                                            false,
+                                                            MemoryDataOp,
+                                                            minimum_occupancy,
+                                                            TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
+                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Odd>;
+                        RunKernel(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel = kernel_moe_gemm_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 MemoryDataOp,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Even>;
+                        RunKernel(kernel);
+                    }
+                }
+                else
+                {
+                    throw std::runtime_error("todo: only v1 & v2 support now");
                 }
             }
 #endif

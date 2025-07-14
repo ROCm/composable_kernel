@@ -204,11 +204,11 @@ int main(int argc, char* argv[])
 
     // GEMM shape
     ck::index_t N               = 4096;
-    ck::index_t K               = 6144;
+    ck::index_t K               = 256;
     ck::index_t experts         = 8;
-    ck::index_t sorted_tile_num = 64;
-    ck::index_t valid_tile_num  = 64;
-    ck::index_t tokens          = 4096;
+    ck::index_t sorted_tile_num = 256;
+    ck::index_t valid_tile_num  = 256;
+    ck::index_t tokens          = 16384;
     ck::index_t topk            = 2;
 
     if(argc == 1)
