@@ -24,6 +24,8 @@ using F8   = ck::f8_t;
 using BF8  = ck::bf8_t;
 using I4   = ck::pk_i4_t;
 using F4   = ck::f4x2_pk_t;
+using F6   = ck::f6x16_pk_t;
+using BF6  = ck::bf6x16_pk_t;
 
 using E8M0   = ck::e8m0_bexp_t;
 using E8M0PK = int32_t;
@@ -121,6 +123,7 @@ using AddFastGelu         = ck::tensor_operation::element_wise::AddFastGelu;
 using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
 using AddRelu             = ck::tensor_operation::element_wise::AddRelu;
 using AddClamp            = ck::tensor_operation::element_wise::AddClamp;
+using Clamp               = ck::tensor_operation::element_wise::Clamp;
 using AddSilu             = ck::tensor_operation::element_wise::AddSilu;
 using AddReluAdd          = ck::tensor_operation::element_wise::AddReluAdd;
 using FastGelu            = ck::tensor_operation::element_wise::FastGelu;

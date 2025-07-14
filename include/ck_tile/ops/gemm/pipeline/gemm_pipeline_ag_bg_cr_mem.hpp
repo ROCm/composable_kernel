@@ -188,6 +188,8 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+    static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+    static constexpr index_t Preshuffle    = Problem::Preshuffle;
 
     // Where is the right place for HasHotLoop and TailNum ???
     static constexpr bool HasHotLoop = Problem::HasHotLoop;

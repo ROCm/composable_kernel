@@ -47,6 +47,8 @@ struct GemmPipelineTypeSelector<GemmPipelineType::Mem, Problem>
 {
     using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrMem<Problem>;
     using pipeline      = ck_tile::GemmPipelineAgBgCrMem<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrMem"; }
 };
 
 template <typename Problem>
@@ -54,6 +56,8 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV3, Problem>
 {
     using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<Problem>;
     using pipeline      = ck_tile::GemmPipelineAgBgCrCompV3<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV3"; }
 };
 
 template <typename Problem>
@@ -61,6 +65,8 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
 {
     using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<Problem>;
     using pipeline      = ck_tile::GemmPipelineAgBgCrCompV4<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV4"; }
 };
 
 template <typename Tuple>
@@ -76,12 +82,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using CDataType                    = std::tuple_element_t<6, Tuple>;
     static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
     static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
+
+    using DsLayout   = ck_tile::tuple<>;
+    using DsDataType = ck_tile::tuple<>;
+
     static constexpr bool Persistent =
         ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
     // TODO: expose tile size through test t-param ?
 
-    template <bool PadM, bool PadN, bool PadK>
-    void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+    template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
+    void invoke_gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args,
+                     const ck_tile::stream_config& s)
     {
         // TODO: This should be parameterized in tests
         constexpr ck_tile::index_t M_Tile = 256;
@@ -96,9 +107,10 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr ck_tile::index_t N_Warp_Tile = 32;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-        constexpr bool kPadM = PadM;
-        constexpr bool kPadN = PadN;
-        constexpr bool kPadK = PadK;
+        constexpr bool kPadM      = PadM;
+        constexpr bool kPadN      = PadN;
+        constexpr bool kPadK      = PadK;
+        constexpr bool preshuffle = Preshuffle;
 
         constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
 
@@ -120,7 +132,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
         static constexpr bool StructuredSparsity = false;
-        using GemmUniversalTraits                = ck_tile::TileGemmUniversalTraits<kPadM,
+        static constexpr bool NumWaveGroup       = 1;
+
+        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
                                                                      DoubleSmemBuffer,
@@ -129,7 +143,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      CLayout,
                                                                      TransposeC,
                                                                      StructuredSparsity,
-                                                                     Persistent>;
+                                                                     Persistent,
+                                                                     NumWaveGroup,
+                                                                     preshuffle>;
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -165,9 +181,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
+                                                 DsDataType,
                                                  AccDataType,
                                                  CDataType,
+                                                 DsLayout,
                                                  CLayout,
+                                                 ck_tile::element_wise::PassThrough,
                                                  GemmPipeline::BlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
@@ -247,7 +266,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         }
     }
 
-    template <bool PadM = true, bool PadN = true, bool PadK = true>
+    template <bool PadM = true, bool PadN = true, bool PadK = true, bool Preshuffle = false>
     void Run(const int M,
              const int N,
              const int K,
@@ -257,11 +276,11 @@ class TestCkTileGemmPipeline : public ::testing::Test
     {
         for(auto kb : k_batches_)
         {
-            RunSingle<PadM, PadN, PadK>(M, N, K, StrideA, StrideB, StrideC, kb);
+            RunSingle<PadM, PadN, PadK, Preshuffle>(M, N, K, StrideA, StrideB, StrideC, kb);
         }
     }
 
-    template <bool PadM, bool PadN, bool PadK>
+    template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void RunSingle(const int M,
                    const int N,
                    const int K,
@@ -326,19 +345,19 @@ class TestCkTileGemmPipeline : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs args;
+        ck_tile::GemmHostArgs</*NumDTensor = 0*/> args;
         args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
         args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-        args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
+        args.e_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
         args.k_batch  = kbatch;
         args.M        = M;
         args.N        = N;
         args.K        = K;
         args.stride_A = stride_A;
         args.stride_B = stride_B;
-        args.stride_C = stride_C;
+        args.stride_E = stride_C;
 
-        invoke_gemm<PadM, PadN, PadK>(args, ck_tile::stream_config{nullptr, false});
+        invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false});
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool pass = true;

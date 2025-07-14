@@ -245,12 +245,6 @@
 #define CK_WORKAROUND_SWDEV_388832 1
 
 // workaround: compiler issue on gfx950
-#define CK_WORKAROUND_FP32_TO_FP4_SR_CONVERSION 1
-
-// workaround: compiler issue on gfx950
-#define CK_TEMP_DISABLE_FP4_TESTS 1
-
-// workaround: compiler issue on gfx950
 #define CK_WORKAROUND_FP16_TO_FP8_CONVERSION 1
 
 // workaround: compiler issue on gfx950
@@ -273,6 +267,12 @@
 #define CK_BUILD_DEPRECATED 1
 
 namespace ck {
+
+#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+__device__ static constexpr int WarpSize = 64;
+#else
+__device__ static constexpr int WarpSize = 32;
+#endif
 
 enum struct InMemoryDataOperationEnum
 {
