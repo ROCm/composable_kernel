@@ -164,7 +164,7 @@ struct WarpGemmAtrributeMfmaIterateK
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
             static_assert(AttrNumAccessV == 1,
-                          "Multi-block on with double double access is not supported");
+                          "Multiple access is not supported when using multi-block");
             // each M blocks share the same data
             return tile_distribution_encoding<
                 sequence<Impl::kBNBlock>,
@@ -178,7 +178,7 @@ struct WarpGemmAtrributeMfmaIterateK
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
             static_assert(AttrNumAccessV == 1,
-                          "Multi-block on with double double access is not supported");
+                          "Multiple access is not supported when using multi-block");
             // single block to multi-block thread mapping
             return tile_distribution_encoding<
                 sequence<>,
@@ -226,7 +226,7 @@ struct WarpGemmAtrributeMfmaIterateK
         else if constexpr(Impl::kAMBlock == 1 && 1 < Impl::kBNBlock)
         {
             static_assert(AttrNumAccessV == 1,
-                          "Multi-block on with double double access is not supported");
+                          "Multiple access is not supported when using multi-block");
             // single block to multi-block thread mapping
             return tile_distribution_encoding<
                 sequence<>,
@@ -240,7 +240,7 @@ struct WarpGemmAtrributeMfmaIterateK
         else if constexpr(1 < Impl::kAMBlock && Impl::kBNBlock == 1)
         {
             static_assert(AttrNumAccessV == 1,
-                          "Multi-block on with double double access is not supported");
+                          "Multiple access is not supported when using multi-block");
             // each N blocks share the same data
             return tile_distribution_encoding<
                 sequence<Impl::kAMBlock>,
