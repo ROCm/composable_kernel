@@ -65,7 +65,8 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x32_Base
         // in LDS we need store as
         //          M0(2)* N0(2) *  Nl(4) * Nw(4) * (Mw(16)*Nv(4) + 4)
         //             y    y       wave-id  lid/16  lid%16   v
-        return 2 * 2 * 4 * 4 * (16 * 4 + 4) * sizeof(bf16_t);
+        constexpr index_t nbufs = 2;
+        return 2 * 2 * 4 * 4 * (16 * 4 + 4) * sizeof(bf16_t) * nbufs;
     }
 };
 
@@ -173,7 +174,6 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x32_BF16 : public FlatmmSn_32x128x512_1x4x
         asm volatile(
 #define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_BF16
 #include "uk/flatmm_sn_uk_gfx9_32x128x512_1x4x1_16x16x16.inc"
-#undef CK_TILE_FLATMM_UK_MFMA
             :[smem_]"+r"(smem),
             [s_loop_cnt]"+s"(loop_cnt),
                 [c0]"+v" (v_c0),
@@ -418,7 +418,6 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x32_FP16 : public FlatmmSn_32x128x512_1x4x
         asm volatile(
 #define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_FP16
 #include "uk/flatmm_sn_uk_gfx9_32x128x512_1x4x1_16x16x16.inc"
-#undef CK_TILE_FLATMM_UK_MFMA
             :[smem_]"+r"(smem),
             [s_loop_cnt]"+s"(loop_cnt),
                 [c0]"+v" (v_c0),

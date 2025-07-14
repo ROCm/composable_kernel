@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,9 +7,9 @@
 
 namespace ck_tile {
 
-// Y = X * XScale, QY = RowwiseDynamicQuant(Y) = SaturateCast(Y / YScale)
+// Y = X * SmoothScale, QY = RowwiseDynamicQuant(Y) = SaturateCast(Y / YScale)
 template <typename XDataType_,
-          typename XScaleDataType_,
+          typename SmoothScaleDataType_,
           typename ComputeDataType_,
           typename YScaleDataType_,
           typename QYDataType_,
@@ -18,12 +18,12 @@ template <typename XDataType_,
           bool kTwoPass_>
 struct SmoothquantPipelineProblem
 {
-    using XDataType       = remove_cvref_t<XDataType_>;
-    using XScaleDataType  = remove_cvref_t<XScaleDataType_>;
-    using ComputeDataType = remove_cvref_t<ComputeDataType_>;
-    using YScaleDataType  = remove_cvref_t<YScaleDataType_>;
-    using QYDataType      = remove_cvref_t<QYDataType_>;
-    using BlockShape      = remove_cvref_t<BlockShape_>;
+    using XDataType           = remove_cvref_t<XDataType_>;
+    using SmoothScaleDataType = remove_cvref_t<SmoothScaleDataType_>;
+    using ComputeDataType     = remove_cvref_t<ComputeDataType_>;
+    using YScaleDataType      = remove_cvref_t<YScaleDataType_>;
+    using QYDataType          = remove_cvref_t<QYDataType_>;
+    using BlockShape          = remove_cvref_t<BlockShape_>;
 
     static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
     static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;

@@ -43,3 +43,12 @@ file=./perf_fmha_bwd_gfx90a.log
 if [ -e "$file" ]; then
     python3 process_perf_data.py perf_fmha_bwd_gfx90a.log
 fi
+
+for gpu in "gfx90a" "gfx942"; do
+    for dtype in "fp16" "bf16" "fp8" "bf8"; do
+        file=./perf_tile_gemm_mem_pipeline_${dtype}_${gpu}.log
+        if [ -e "$file" ]; then
+            python3 process_perf_data.py perf_tile_gemm_mem_pipeline_${dtype}_${gpu}.log
+        fi
+    done
+done

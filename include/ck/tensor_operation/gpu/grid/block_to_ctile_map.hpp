@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/math.hpp"
 #include "ck/utility/number.hpp"
+#include "ck/utility/tuple.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <limits>
 #include <stdlib.h>
+#endif
 
 namespace ck {
 
@@ -268,6 +271,7 @@ struct BlockToCTileMap_Grouped_M00_N0_M01Adapt
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
+    __host__ __device__ BlockToCTileMap_Grouped_M00_N0_M01Adapt() = default;
     __host__ __device__ BlockToCTileMap_Grouped_M00_N0_M01Adapt(index_t M,
                                                                 index_t N,
                                                                 index_t M01 = 8)
@@ -867,6 +871,7 @@ struct OffsettedBlockToCTileMap
 {
     using underlying_type = UnderlyingBlockToCTileMap;
 
+    __host__ __device__ OffsettedBlockToCTileMap() = default;
     __host__ __device__ OffsettedBlockToCTileMap(UnderlyingBlockToCTileMap block_to_ctile_map,
                                                  index_t block_start)
     {
@@ -978,8 +983,7 @@ struct BlockToCTileMap_3DGrid_KSplit
         // Create 3D grid
         const auto M0 = math::integer_divide_ceil(M, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N, NPerBlock);
-
-        return std::make_tuple(N0, M0, k_split);
+        return make_tuple(N0, M0, k_split);
     }
 
     template <typename TopIdx>
@@ -1103,7 +1107,7 @@ struct BlockToCTileMap_GemmStreamK
             uint32_t dp_for_sk_iters = k_iters_per_tile.get();
 
             uint32_t best_sk_score =
-                std::numeric_limits<int>::max(); // we need to find the smallest sk iters
+                NumericLimits<int32_t>::Max(); // we need to find the smallest sk iters
             for(uint32_t tentative_sk_blocks = min_sk_tiles; tentative_sk_blocks < max_sk_tiles;
                 tentative_sk_blocks++)
             {
@@ -1413,12 +1417,11 @@ template <uint32_t MPerBlock_,
           index_t M01_                                = 4>
 struct BlockToCTileMap_GemmStreamK_v2
 {
-    static constexpr uint32_t min_k_iters_per_sk_block          = 2;
-    static constexpr uint32_t MPerBlock                         = MPerBlock_;
-    static constexpr uint32_t NPerBlock                         = NPerBlock_;
-    static constexpr uint32_t KPerBlock                         = KPerBlock_;
-    static constexpr StreamKReductionStrategy ReductionStrategy = ReductionStrategy_;
-    static constexpr uint32_t tile_swizzle_sub_m                = TileSwizzleSubM_;
+    static constexpr uint32_t min_k_iters_per_sk_block = 2;
+    static constexpr uint32_t MPerBlock                = MPerBlock_;
+    static constexpr uint32_t NPerBlock                = NPerBlock_;
+    static constexpr uint32_t KPerBlock                = KPerBlock_;
+    static constexpr uint32_t tile_swizzle_sub_m       = TileSwizzleSubM_;
 
     //--------------------------------------
     // pass to device
@@ -1431,17 +1434,28 @@ struct BlockToCTileMap_GemmStreamK_v2
     MDiv k_iters_per_tile;
     MDiv equiv_tiles_big;    // for reduction
     MDiv equiv_tiles_little; // for reduction
+    StreamKReductionStrategy reduction_strategy;
 
     // prefer construct on host
     __host__ __device__ BlockToCTileMap_GemmStreamK_v2(
-        uint32_t m, uint32_t n, uint32_t k, uint32_t grid_size = 1, uint32_t streamk_sel = 1)
+        uint32_t m,
+        uint32_t n,
+        uint32_t k,
+        uint32_t grid_size                           = 1,
+        uint32_t streamk_sel                         = 1,
+        StreamKReductionStrategy reduction_strategy_ = StreamKReductionStrategy::Atomic)
+        : reduction_strategy(reduction_strategy_)
     {
+
         // total output tiles
         uint32_t num_tiles =
             math::integer_divide_ceil(m, MPerBlock) * math::integer_divide_ceil(n, NPerBlock);
         k_iters_per_tile = MDiv(math::integer_divide_ceil(k, KPerBlock));
 
         uint32_t dp_tiles, dp_num_blocks, sk_total_iters;
+
+        // Ensure grid_size is at least 1 to avoid division by zero
+        grid_size = math::max(grid_size, 1u);
 
         // default to regular DP GEMM if sk blocks == 0
         if(streamk_sel == 0)
@@ -1458,31 +1472,45 @@ struct BlockToCTileMap_GemmStreamK_v2
         // 2-tile sk + DP GEMM
         else
         {
-
             // check if there's enough work for DP+ stream-k
             bool bigEnough = num_tiles > grid_size;
-            // select between stream-k strategies
+
+            // Select between stream-k strategies
+            // Add safety checks to prevent zero or negative values
             uint32_t sk_tiles = 0;
             if(streamk_sel == 1) // 1 tile stream-k
             {
                 sk_tiles = bigEnough ? (num_tiles % grid_size) : num_tiles;
+
+                // Ensure sk_tiles is at least 1
+                sk_tiles = math::max(sk_tiles, 1u);
             }
             else if(streamk_sel == 2) // 2-tile stream-k
             {
                 sk_tiles = bigEnough ? (grid_size + num_tiles % grid_size) : num_tiles;
+
+                // Ensure sk_tiles is at least 1 but not more than num_tiles
+                sk_tiles = math::min(math::max(sk_tiles, 1u), num_tiles);
             }
             else if(streamk_sel == 3) // 3-tile stream-k
             {
                 sk_tiles = (num_tiles > (2 * grid_size)) ? (2 * grid_size + num_tiles % grid_size)
                                                          : num_tiles;
+
+                // Ensure sk_tiles is at least 1 but not more than num_tiles
+                sk_tiles = math::min(math::max(sk_tiles, 1u), num_tiles);
             }
             else if(streamk_sel == 4) // 4-tile stream-k
             {
                 sk_tiles = (num_tiles > (3 * grid_size)) ? (3 * grid_size + num_tiles % grid_size)
                                                          : num_tiles;
+
+                // Ensure sk_tiles is at least 1 but not more than num_tiles
+                sk_tiles = math::min(math::max(sk_tiles, 1u), num_tiles);
             }
+
             sk_num_blocks = sk_tiles;
-            // remaining tiles are DP tiles
+            // Remaining tiles are DP tiles
             dp_tiles = bigEnough ? (num_tiles - sk_tiles) : 0;
 
             sk_total_iters = k_iters_per_tile.get() * sk_tiles;
@@ -1498,24 +1526,51 @@ struct BlockToCTileMap_GemmStreamK_v2
             //      => sk_blocks * m + b = sk_total_iters
             //      => b = sk_total_iters - m * sk_blocks
             //      NOTE: big could be zero
-            uint32_t k_iters_per_sk_block = sk_total_iters / sk_num_blocks;
-            sk_num_big_blocks             = sk_total_iters - k_iters_per_sk_block * sk_num_blocks;
-            k_iters_per_big_block         = k_iters_per_sk_block + 1;
+
+            // Add safety check for sk_num_blocks to prevent division by zero
+            if(sk_num_blocks > 0)
+            {
+                uint32_t k_iters_per_sk_block = sk_total_iters / sk_num_blocks;
+                sk_num_big_blocks     = sk_total_iters - k_iters_per_sk_block * sk_num_blocks;
+                k_iters_per_big_block = k_iters_per_sk_block + 1;
+            }
+            else
+            {
+                // Fallback to default GEMM if no stream-k blocks
+                sk_num_blocks         = 0;
+                sk_num_big_blocks     = 0;
+                k_iters_per_big_block = 0;
+                dp_tiles              = num_tiles;
+                dp_num_blocks         = num_tiles;
+                dp_start_block_idx    = 0;
+                sk_total_iters        = 0;
+            }
 
             dp_num_blocks      = dp_tiles;
             dp_start_block_idx = sk_num_blocks;
         }
 
         n_tiles = MDiv2(math::integer_divide_ceil(n, NPerBlock));
-        // using multiple blocks for parallel reduction
+        // Using multiple blocks for parallel reduction
         reduction_start_block_idx = dp_start_block_idx + dp_num_blocks;
 
-        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
+        if(reduction_strategy == ck::StreamKReductionStrategy::Reduction)
         {
-            uint32_t upper_big    = math::lcm(k_iters_per_big_block, k_iters_per_tile.get());
-            uint32_t upper_little = math::lcm(k_iters_per_big_block - 1, k_iters_per_tile.get());
-            equiv_tiles_big       = MDiv(upper_big / k_iters_per_tile.get());
-            equiv_tiles_little    = MDiv(upper_little / k_iters_per_tile.get());
+            // Add additional safety checks
+            if(k_iters_per_big_block > 0 && k_iters_per_tile.get() > 0)
+            {
+                uint32_t upper_big = math::lcm(k_iters_per_big_block, k_iters_per_tile.get());
+                uint32_t upper_little =
+                    math::lcm(math::max(k_iters_per_big_block - 1, 1u), k_iters_per_tile.get());
+                equiv_tiles_big    = MDiv(upper_big / k_iters_per_tile.get());
+                equiv_tiles_little = MDiv(upper_little / k_iters_per_tile.get());
+            }
+            else
+            {
+                // Default safe values
+                equiv_tiles_big    = MDiv(1);
+                equiv_tiles_little = MDiv(1);
+            }
         }
     }
 
@@ -1542,7 +1597,7 @@ struct BlockToCTileMap_GemmStreamK_v2
 
     __host__ __device__ index_t get_grid_dims() const
     {
-        if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction)
+        if(reduction_strategy == StreamKReductionStrategy::Reduction)
         {
             // return dim3(reduction_start_block_idx + get_sk_tiles(), 1, 1);
             return reduction_start_block_idx + get_sk_tiles();

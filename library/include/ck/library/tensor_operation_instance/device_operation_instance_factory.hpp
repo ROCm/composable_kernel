@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -23,6 +23,12 @@ using I32  = int32_t;
 using F8   = ck::f8_t;
 using BF8  = ck::bf8_t;
 using I4   = ck::pk_i4_t;
+using F4   = ck::f4x2_pk_t;
+using F6   = ck::f6x16_pk_t;
+using BF6  = ck::bf6x16_pk_t;
+
+using E8M0   = ck::e8m0_bexp_t;
+using E8M0PK = int32_t;
 
 using Empty_Tuple = ck::Tuple<>;
 
@@ -42,8 +48,9 @@ using BF16_Tuple    = ck::Tuple<BF16>;
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
 
 // GEMM layout
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row  = ck::tensor_layout::gemm::RowMajor;
+using Col  = ck::tensor_layout::gemm::ColumnMajor;
+using MFMA = ck::tensor_layout::gemm::MFMA;
 
 using Row_Tuple     = ck::Tuple<Row>;
 using Row_Row_Tuple = ck::Tuple<Row, Row>;
@@ -70,6 +77,10 @@ using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
 using GKXC   = ck::tensor_layout::convolution::GKXC;
 using GKYXC  = ck::tensor_layout::convolution::GKYXC;
 using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
+
+using GKCX   = ck::tensor_layout::convolution::GKCX;
+using GKCYX  = ck::tensor_layout::convolution::GKCYX;
+using GKCZYX = ck::tensor_layout::convolution::GKCZYX;
 
 using GNWK   = ck::tensor_layout::convolution::GNWK;
 using GNHWK  = ck::tensor_layout::convolution::GNHWK;
@@ -111,6 +122,8 @@ using AddAddFastGelu      = ck::tensor_operation::element_wise::AddAddFastGelu;
 using AddFastGelu         = ck::tensor_operation::element_wise::AddFastGelu;
 using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
 using AddRelu             = ck::tensor_operation::element_wise::AddRelu;
+using AddClamp            = ck::tensor_operation::element_wise::AddClamp;
+using Clamp               = ck::tensor_operation::element_wise::Clamp;
 using AddSilu             = ck::tensor_operation::element_wise::AddSilu;
 using AddReluAdd          = ck::tensor_operation::element_wise::AddReluAdd;
 using FastGelu            = ck::tensor_operation::element_wise::FastGelu;

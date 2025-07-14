@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -284,6 +284,16 @@ struct MultiplyMultiply
     }
 
     template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, int, float, float>(
+        ck::half_t& e, const int& c, const float& d0, const float& d1) const
+    {
+        const float x0_f =
+            ck::type_convert<float>(c) * ck::type_convert<float>(d0) * ck::type_convert<float>(d1);
+
+        e = ck::type_convert<ck::half_t>(x0_f);
+    }
+
+    template <>
     __host__ __device__ constexpr void operator()<ck::bhalf_t, int, float, float>(
         ck::bhalf_t& e, const int& c, const float& d0, const float& d1) const
     {
@@ -533,7 +543,7 @@ struct NormalizeInInfer
                                                   const T3& gamma,
                                                   const T4& beta) const
     {
-        static_assert(std::is_same<T2, float>::value || std::is_same<T2, double>::value,
+        static_assert(is_same<T2, float>::value || is_same<T2, double>::value,
                       "Data type is not supported by this operation!");
 
         using ck::type_convert;

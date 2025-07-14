@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_AMD_WMMA_HPP
 #define CK_AMD_WMMA_HPP
@@ -333,6 +333,102 @@ struct intrin_wmma_i32_16x16x16_iu8_w32_gfx12<16, 16, neg_a, neg_b, clamp>
                 bit_cast<int32x2_t>(reg_b),
                 reg_c.template AsType<int32x8_t>()[Number<0>{}],
                 clamp);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+// src: f8, f8, dst: fp32
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_wmma_f32_16x16x16_f8f8_w32_gfx12;
+
+template <>
+struct intrin_wmma_f32_16x16x16_f8f8_w32_gfx12<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const f8x8_t& reg_a, const f8x8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx12__)
+        reg_c.template AsType<float8_t>()(Number<0>{}) =
+            __builtin_amdgcn_wmma_f32_16x16x16_fp8_fp8_w32_gfx12(
+                bit_cast<int32x2_t>(reg_a),
+                bit_cast<int32x2_t>(reg_b),
+                reg_c.template AsType<float8_t>()[Number<0>{}]);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+// src: f8, bf8, dst: fp32
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_wmma_f32_16x16x16_f8bf8_w32_gfx12;
+
+template <>
+struct intrin_wmma_f32_16x16x16_f8bf8_w32_gfx12<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const f8x8_t& reg_a, const bf8x8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx12__)
+        reg_c.template AsType<float8_t>()(Number<0>{}) =
+            __builtin_amdgcn_wmma_f32_16x16x16_fp8_bf8_w32_gfx12(
+                bit_cast<int32x2_t>(reg_a),
+                bit_cast<int32x2_t>(reg_b),
+                reg_c.template AsType<float8_t>()[Number<0>{}]);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+// src: bf8, f8, dst: fp32
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_wmma_f32_16x16x16_bf8f8_w32_gfx12;
+
+template <>
+struct intrin_wmma_f32_16x16x16_bf8f8_w32_gfx12<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const bf8x8_t& reg_a, const f8x8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx12__)
+        reg_c.template AsType<float8_t>()(Number<0>{}) =
+            __builtin_amdgcn_wmma_f32_16x16x16_bf8_fp8_w32_gfx12(
+                bit_cast<int32x2_t>(reg_a),
+                bit_cast<int32x2_t>(reg_b),
+                reg_c.template AsType<float8_t>()[Number<0>{}]);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+// src: bf8, bf8, dst: fp32
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_wmma_f32_16x16x16_bf8bf8_w32_gfx12;
+
+template <>
+struct intrin_wmma_f32_16x16x16_bf8bf8_w32_gfx12<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const bf8x8_t& reg_a, const bf8x8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx12__)
+        reg_c.template AsType<float8_t>()(Number<0>{}) =
+            __builtin_amdgcn_wmma_f32_16x16x16_bf8_bf8_w32_gfx12(
+                bit_cast<int32x2_t>(reg_a),
+                bit_cast<int32x2_t>(reg_b),
+                reg_c.template AsType<float8_t>()[Number<0>{}]);
 #else
         ignore = reg_a;
         ignore = reg_b;

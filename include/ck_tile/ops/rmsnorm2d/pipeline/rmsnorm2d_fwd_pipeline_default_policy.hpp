@@ -45,7 +45,7 @@ struct Rmsnorm2dFwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockReduce2d()
     {
-        using P_ = BlockReduce2dProblem<typename Problem::XDataType,
+        using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
                                         typename Problem::ComputeDataType,
                                         typename Problem::BlockShape>;
         return BlockReduce2d<P_>{};
@@ -54,7 +54,7 @@ struct Rmsnorm2dFwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockReduce2dSync()
     {
-        using P_ = BlockReduce2dProblem<typename Problem::XDataType,
+        using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
                                         typename Problem::ComputeDataType,
                                         typename Problem::BlockShape>;
         return BlockReduce2dSync<P_>{};
@@ -63,7 +63,7 @@ struct Rmsnorm2dFwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockReduce2dCrossWarpSync()
     {
-        using P_ = BlockReduce2dProblem<typename Problem::XDataType,
+        using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
                                         typename Problem::ComputeDataType,
                                         typename Problem::BlockShape>;
         return BlockReduce2dCrossWarpSync<P_>{};
@@ -74,13 +74,13 @@ struct Rmsnorm2dFwdPipelineDefaultPolicy
     {
         if constexpr(Problem::kNeedCrossWarpSync)
         {
-            using P_ = BlockReduce2dProblem<typename Problem::XDataType,
+            using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
                                             typename Problem::ComputeDataType,
                                             typename Problem::BlockShape>;
 
             using block_reduce2d = BlockReduce2d<P_>;
             using x_block_tile =
-                decltype(make_static_distributed_tensor<typename Problem::XDataType>(
+                decltype(make_static_distributed_tensor<typename Problem::ComputeDataType>(
                     MakeXBlockTileDistribution<Problem>()));
             using y_block_tile = decltype(block_reduce2d::template MakeYBlockTile<x_block_tile>());
 

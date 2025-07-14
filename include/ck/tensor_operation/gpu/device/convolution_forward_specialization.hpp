@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#ifndef CK_CODE_GEN_RTC
 #include <string>
+#endif
 
 namespace ck {
 namespace tensor_operation {
@@ -18,6 +20,7 @@ enum struct ConvolutionForwardSpecialization
     Filter3x3,
 };
 
+#ifndef CK_CODE_GEN_RTC
 inline std::string getConvForwardSpecializationString(const ConvolutionForwardSpecialization& s)
 {
     switch(s)
@@ -30,6 +33,7 @@ inline std::string getConvForwardSpecializationString(const ConvolutionForwardSp
     default: return "Unrecognized specialization!";
     }
 }
+#endif
 
 } // namespace device
 } // namespace tensor_operation

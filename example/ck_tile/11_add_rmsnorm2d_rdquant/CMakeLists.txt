@@ -1,7 +1,7 @@
 set(TILE_ADD_RMSNORM2D_RDQUANT_FWD "tile_add_rmsnorm2d_rdquant_fwd")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
-message("adding ${TILE_ADD_RMSNORM2D_RDQUANT_FWD}")
+message(DEBUG "adding ${TILE_ADD_RMSNORM2D_RDQUANT_FWD}")
 file(GLOB INSTANCE_SRCS instances/*.cpp)
 add_executable(${TILE_ADD_RMSNORM2D_RDQUANT_FWD} EXCLUDE_FROM_ALL add_rmsnorm2d_rdquant_fwd.cpp)
 target_include_directories(${TILE_ADD_RMSNORM2D_RDQUANT_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})

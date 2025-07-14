@@ -14,57 +14,41 @@ namespace detail {
 template <typename OldLayout>
 CK_TILE_HOST std::vector<std::size_t> get_layout_transpose_gnchw_to_old()
 {
-    if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNCW> ||
-                 std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GKCX> ||
-                 std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNKW>)
+    using namespace ck_tile::tensor_layout::convolution;
+
+    if constexpr(is_any_of<OldLayout, GNCW, GKCX, GNKW>::value)
     {
         return {0, 1, 2, 3};
     }
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNCHW> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GKCYX> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNKHW>)
+    else if constexpr(is_any_of<OldLayout, GNCHW, GKCYX, GNKHW>::value)
     {
         return {0, 1, 2, 3, 4};
     }
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNCDHW> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GKCZYX> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNKDHW>)
+    else if constexpr(is_any_of<OldLayout, GNCDHW, GKCZYX, GNKDHW>::value)
     {
         return {0, 1, 2, 3, 4, 5};
     }
-    if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNWC> ||
-                 std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GKXC> ||
-                 std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNWK>)
+    if constexpr(is_any_of<OldLayout, GNWC, GKXC, GNWK>::value)
     {
         return {0, 1, 3, 2};
     }
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNHWC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GKYXC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNHWK>)
+    else if constexpr(is_any_of<OldLayout, GNHWC, GKYXC, GNHWK>::value)
     {
         return {0, 1, 4, 2, 3};
     }
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNDHWC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GKZYXC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNDHWK>)
+    else if constexpr(is_any_of<OldLayout, GNDHWC, GKZYXC, GNDHWK>::value)
     {
         return {0, 1, 5, 2, 3, 4};
     }
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NWGC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::KXGC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NWGK>)
+    else if constexpr(is_any_of<OldLayout, NWGC, KXGC, NWGK>::value)
     {
         return {2, 0, 3, 1};
     }
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NHWGC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::KYXGC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NHWGK>)
+    else if constexpr(is_any_of<OldLayout, NHWGC, KYXGC, NHWGK>::value)
     {
         return {3, 0, 4, 1, 2};
     }
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NDHWGC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::KZYXGC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NDHWGK>)
+    else if constexpr(is_any_of<OldLayout, NDHWGC, KZYXGC, NDHWGK>::value)
     {
         return {4, 0, 5, 1, 2, 3};
     }
@@ -83,11 +67,11 @@ template <typename InLayout>
 CK_TILE_HOST HostTensorDescriptor
 make_input_host_tensor_descriptor_g_n_c_wis_packed(const ck_tile::conv::ConvParam& param)
 {
+    using namespace ck_tile::tensor_layout::convolution;
+
     std::vector<std::size_t> physical_lengths;
 
-    if constexpr(std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNCW> ||
-                 std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNCHW> ||
-                 std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNCDHW>)
+    if constexpr(is_any_of<InLayout, GNCW, GNCHW, GNCDHW>::value)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.N_),
@@ -97,9 +81,7 @@ make_input_host_tensor_descriptor_g_n_c_wis_packed(const ck_tile::conv::ConvPara
                                 param.input_spatial_lengths_.begin(),
                                 param.input_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
-    else if constexpr(std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNWC> ||
-                      std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNHWC> ||
-                      std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNDHWC>)
+    else if constexpr(is_any_of<InLayout, GNWC, GNHWC, GNDHWC>::value)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.N_),
@@ -109,9 +91,7 @@ make_input_host_tensor_descriptor_g_n_c_wis_packed(const ck_tile::conv::ConvPara
                                 param.input_spatial_lengths_.begin(),
                                 param.input_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
-    else if constexpr(std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::NWGC> ||
-                      std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::NHWGC> ||
-                      std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::NDHWGC>)
+    else if constexpr(is_any_of<InLayout, NWGC, NHWGC, NDHWGC>::value)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.N_),
                                                     static_cast<std::size_t>(param.G_),
@@ -139,11 +119,11 @@ template <typename WeiLayout>
 CK_TILE_HOST HostTensorDescriptor
 make_weight_host_tensor_descriptor_g_k_c_xs_packed(const ck_tile::conv::ConvParam& param)
 {
+    using namespace ck_tile::tensor_layout::convolution;
+
     std::vector<std::size_t> physical_lengths;
 
-    if constexpr(std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KXC> ||
-                 std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KYXC> ||
-                 std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KZYXC>)
+    if constexpr(is_any_of<WeiLayout, KXC, KYXC, KZYXC>::value)
     {
         if(param.G_ != 1)
         {
@@ -157,9 +137,7 @@ make_weight_host_tensor_descriptor_g_k_c_xs_packed(const ck_tile::conv::ConvPara
                                 param.filter_spatial_lengths_.begin(),
                                 param.filter_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
-    else if constexpr(std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::GKCX> ||
-                      std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::GKCYX> ||
-                      std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::GKCZYX>)
+    else if constexpr(is_any_of<WeiLayout, GKCX, GKCYX, GKCZYX>::value)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.K_),
@@ -169,9 +147,7 @@ make_weight_host_tensor_descriptor_g_k_c_xs_packed(const ck_tile::conv::ConvPara
                                 param.filter_spatial_lengths_.begin(),
                                 param.filter_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
-    else if constexpr(std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::GKXC> ||
-                      std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::GKYXC> ||
-                      std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::GKZYXC>)
+    else if constexpr(is_any_of<WeiLayout, GKXC, GKYXC, GKZYXC>::value)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.K_),
@@ -181,9 +157,7 @@ make_weight_host_tensor_descriptor_g_k_c_xs_packed(const ck_tile::conv::ConvPara
                                 param.filter_spatial_lengths_.begin(),
                                 param.filter_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
-    else if constexpr(std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KXGC> ||
-                      std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KYXGC> ||
-                      std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KZYXGC>)
+    else if constexpr(is_any_of<WeiLayout, KXGC, KYXGC, KZYXGC>::value)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.K_),
                                                     static_cast<std::size_t>(param.G_),
@@ -211,11 +185,11 @@ template <typename OutLayout>
 CK_TILE_HOST HostTensorDescriptor
 make_output_host_tensor_descriptor_g_n_k_wos_packed(const ck_tile::conv::ConvParam& param)
 {
+    using namespace ck_tile::tensor_layout::convolution;
+
     std::vector<std::size_t> physical_lengths;
 
-    if constexpr(std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNKW> ||
-                 std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNKHW> ||
-                 std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNKDHW>)
+    if constexpr(is_any_of<OutLayout, GNKW, GNKHW, GNKDHW>::value)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.N_),
@@ -226,9 +200,7 @@ make_output_host_tensor_descriptor_g_n_k_wos_packed(const ck_tile::conv::ConvPar
                                 param.output_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
     // separate from legacy code above
-    else if constexpr(std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNWK> ||
-                      std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNHWK> ||
-                      std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNDHWK>)
+    else if constexpr(is_any_of<OutLayout, GNWK, GNHWK, GNDHWK>::value)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.N_),
@@ -238,9 +210,7 @@ make_output_host_tensor_descriptor_g_n_k_wos_packed(const ck_tile::conv::ConvPar
                                 param.output_spatial_lengths_.begin(),
                                 param.output_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
-    else if constexpr(std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::NWGK> ||
-                      std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::NHWGK> ||
-                      std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::NDHWGK>)
+    else if constexpr(is_any_of<OutLayout, NWGK, NHWGK, NDHWGK>::value)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.N_),
                                                     static_cast<std::size_t>(param.G_),

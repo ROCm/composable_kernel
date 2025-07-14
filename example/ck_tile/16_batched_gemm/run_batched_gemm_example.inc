@@ -1,9 +1,38 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
-template <typename ALayout, typename BLayout, typename CLayout>
+auto calculate_rtol_atol(const ck_tile::index_t K,
+                         const ck_tile::index_t kbatch,
+                         const float max_accumulated_value)
+{
+    using ComputeType =
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+    // Calculate thresholds
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+        ck_tile::integer_divide_ceil(K, kbatch));
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
+    // Calculate error due to split_k accumulation
+    const auto rtol_split_k =
+        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
+    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
+        max_accumulated_value, kbatch);
+    // Use higher threshold
+    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
+
+template <typename ADataType,
+          typename BDataType,
+          typename DsDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename CLayout,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           ck_tile::DeviceMem& b_k_n_dev_buf,
                           ck_tile::DeviceMem& c_m_n_dev_buf,
@@ -24,20 +53,29 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     ck_tile::BatchedGemmHostArgs args;
     args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
     args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
-    args.c_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
+    args.e_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
     args.k_batch        = kbatch;
     args.M              = M;
     args.N              = N;
     args.K              = K;
     args.stride_A       = stride_A;
     args.stride_B       = stride_B;
-    args.stride_C       = stride_C;
+    args.stride_E       = stride_C;
     args.batch_stride_A = batch_stride_A;
     args.batch_stride_B = batch_stride_B;
-    args.batch_stride_C = batch_stride_C;
+    args.batch_stride_E = batch_stride_C;
     args.batch_count    = batch_count;
 
-    float ave_time = batched_gemm<ALayout, BLayout, CLayout>(
+    float ave_time = batched_gemm<ADataType,
+                                  BDataType,
+                                  DsDataType,
+                                  AccDataType,
+                                  CDataType,
+                                  ALayout,
+                                  BLayout,
+                                  DsLayout,
+                                  CLayout,
+                                  CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::string op_name{"Batched Gemm"};
@@ -149,23 +187,30 @@ int run_batched_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_batched_gemm<ALayout, BLayout, CLayout>(a_m_k_dev_buf,
-                                                   b_k_n_dev_buf,
-                                                   c_m_n_dev_buf,
-                                                   M,
-                                                   N,
-                                                   K,
-                                                   stride_A,
-                                                   stride_B,
-                                                   stride_C,
-                                                   batch_stride_A,
-                                                   batch_stride_B,
-                                                   batch_stride_C,
-                                                   batch_count,
-                                                   kbatch,
-                                                   n_warmup,
-                                                   n_repeat);
-
+    invoke_batched_gemm<ADataType,
+                        BDataType,
+                        ck_tile::tuple<>,
+                        AccDataType,
+                        CDataType,
+                        ALayout,
+                        BLayout,
+                        ck_tile::tuple<>,
+                        CLayout>(a_m_k_dev_buf,
+                                 b_k_n_dev_buf,
+                                 c_m_n_dev_buf,
+                                 M,
+                                 N,
+                                 K,
+                                 stride_A,
+                                 stride_B,
+                                 stride_C,
+                                 batch_stride_A,
+                                 batch_stride_B,
+                                 batch_stride_C,
+                                 batch_count,
+                                 kbatch,
+                                 n_warmup,
+                                 n_repeat);
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
 
@@ -179,10 +224,20 @@ int run_batched_gemm_example_with_layouts(int argc,
 
         ck_tile::reference_batched_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_m_k, b_n_k, c_m_n_host_ref);
+        const float max_accumulated_value =
+            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+        const auto rtol_atol = calculate_rtol_atol(K, kbatch, max_accumulated_value);
+        pass                 = ck_tile::check_err(c_m_n_dev_result,
+                                  c_m_n_host_ref,
+                                  "Error: Incorrect results!",
+                                  rtol_atol.at(ck_tile::number<0>{}),
+                                  rtol_atol.at(ck_tile::number<1>{}));
 
-        pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_host_ref);
+        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                  << std::endl;
 
-        std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::endl;
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {
@@ -240,7 +295,18 @@ int run_batched_gemm_example_with_layouts(int argc,
         ck_tile::hip_check_error(hipFree(d_C));
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
-        pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_gpu_ref);
+        const float max_accumulated_value =
+            *std::max_element(c_m_n_gpu_ref.mData.begin(), c_m_n_gpu_ref.mData.end());
+        const auto rtol_atol = calculate_rtol_atol(K, kbatch, max_accumulated_value);
+        pass                 = ck_tile::check_err(c_m_n_dev_result,
+                                  c_m_n_gpu_ref,
+                                  "Error: Incorrect results!",
+                                  rtol_atol.at(ck_tile::number<0>{}),
+                                  rtol_atol.at(ck_tile::number<1>{}));
+
+        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                  << std::endl;
 
         std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
@@ -260,11 +326,11 @@ int run_batched_gemm_example(int argc, char* argv[])
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
 
-    if(a_layout == "R" && b_layout == "R")
-    {
-        return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
-    }
-    else if(a_layout == "R" && b_layout == "C")
+    // if(a_layout == "R" && b_layout == "R")
+    // {
+    //     return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Row{}, Row{});
+    // }
+    if(a_layout == "R" && b_layout == "C")
     {
         return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
     }

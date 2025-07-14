@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#ifndef CK_CODE_GEN_RTC
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <numeric>
 #include <sstream>
+#include <stdio.h>
+
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -15,15 +21,12 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-#include "ck/host_utility/io.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -91,8 +94,7 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     const Block2ETileMap block_2_ctile_map,
     const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -151,7 +153,7 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
         const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
             static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
 
-        GridwiseGemm::template Run<HasMainKBlockLoop>(
+        GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
             p_as_grid + a_batch_offset,
             p_bs_grid + b_batch_offset,
             p_ds_grid_grp,
@@ -259,8 +261,13 @@ __global__ void
 
 } // namespace
 
+#ifdef CK_CODE_GEN_RTC
+template <typename T>
+using is_tuple = decltype(ck::declval<T&>().IsTuple());
+#else
 template <typename T>
 using is_tuple = decltype(std::declval<T&>().IsTuple());
+#endif
 
 //
 // @brief      Device Convolution operation.
@@ -429,10 +436,10 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     // If we are using multiAB and one of the template datatype parameters is not a tuple, convert
     // it to it
-    using GemmADataType = std::conditional_t<!isMultiA && isMultiB, Tuple<ADataType>, ADataType>;
-    using GemmBDataType = std::conditional_t<!isMultiB && isMultiA, Tuple<BDataType>, BDataType>;
+    using GemmADataType = ck::conditional_t<!isMultiA && isMultiB, Tuple<ADataType>, ADataType>;
+    using GemmBDataType = ck::conditional_t<!isMultiB && isMultiA, Tuple<BDataType>, BDataType>;
 
-#define GridwiseGemmTemplateParameters                                                          \
+#define GridwiseGemmMultiABDTemplateParameters                                                  \
     GemmADataType, GemmBDataType, ComputeDataType, AccDataType, CShuffleDataType, DsDataType,   \
         EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,       \
         InMemoryDataOperationEnum::Set, NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, \
@@ -447,17 +454,30 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,                           \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                       \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched
+
+#define GridwiseGemmTemplateParameters                                                         \
+    GemmADataType, GemmBDataType, ComputeDataType, AccDataType, CShuffleDataType, DsDataType,  \
+        EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,      \
+        NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, KPerBlock, AK1, BK1, MPerXDL,  \
+        NPerXDL, MXdlPerWave, NXdlPerWave, ABlockTransferThreadClusterLengths_AK0_M_AK1,       \
+        ABlockTransferThreadClusterArrangeOrder, ABlockTransferSrcAccessOrder,                 \
+        ABlockTransferSrcVectorDim, ABlockTransferSrcScalarPerVector,                          \
+        ABlockTransferDstScalarPerVector_AK1, false, ABlockLdsExtraM,                          \
+        BBlockTransferThreadClusterLengths_BK0_N_BK1, BBlockTransferThreadClusterArrangeOrder, \
+        BBlockTransferSrcAccessOrder, BBlockTransferSrcVectorDim,                              \
+        BBlockTransferSrcScalarPerVector, BBlockTransferDstScalarPerVector_BK1, false,         \
+        BBlockLdsExtraN, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,         \
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                      \
+        CDEBlockTransferScalarPerVector_NPerBlock, LoopSched
     // Use appropriate gridwise gemm
-    using GridwiseGemm =
-        std::conditional_t<isMultiA || isMultiB,
-                           GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmTemplateParameters>,
-                           GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
+    using GridwiseGemm = ck::conditional_t<
+        isMultiA || isMultiB,
+        GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmMultiABDTemplateParameters>,
+        GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
 
     // If ADataTypes or BDataTypes is tuple, user has to pass ck::Array with pointers.
-    using APointers =
-        std::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;
-    using BPointers =
-        std::conditional_t<isMultiB, ck::Array<const void*, NumBTensor>&, const void*>;
+    using APointers = ck::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;
+    using BPointers = ck::conditional_t<isMultiB, ck::Array<const void*, NumBTensor>&, const void*>;
     // Use Tuple for the both cases for GridPointer to initialize it in Argument constructor (not
     // in initializer list what is required for single const pointer).
     using AGridPointer = remove_cvref_t<
@@ -812,7 +832,6 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         static_for<0, NumDTensor, 1>{}([&](auto i) {
             using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-
             // FIXME: layout
             if constexpr(is_same_v<DLayout, ctc::G_NW_K> || is_same_v<DLayout, ctc::G_NHW_K> ||
                          is_same_v<DLayout, ctc::G_NDHW_K> || is_same_v<DLayout, ctc::GNWK> ||
@@ -965,18 +984,18 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const BElementwiseOperation& b_element_op,
         const CDEElementwiseOperation& cde_element_op)
     {
-        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
-        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
-        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
-        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_i32;
-        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_i32;
-        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_i32;
-        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_i32;
-        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_strides_i32;
-        std::array<index_t, NDimSpatial> conv_filter_strides_i32;
-        std::array<index_t, NDimSpatial> conv_filter_dilations_i32;
-        std::array<index_t, NDimSpatial> input_left_pads_i32;
-        std::array<index_t, NDimSpatial> input_right_pads_i32;
+        ck::Array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
+        ck::Array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
+        ck::Array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
+        ck::Array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_i32;
+        ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_i32;
+        ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_i32;
+        ck::Array<index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_i32;
+        ck::Array<index_t, NDimSpatial + 3> e_g_n_k_wos_strides_i32;
+        ck::Array<index_t, NDimSpatial> conv_filter_strides_i32;
+        ck::Array<index_t, NDimSpatial> conv_filter_dilations_i32;
+        ck::Array<index_t, NDimSpatial> input_left_pads_i32;
+        ck::Array<index_t, NDimSpatial> input_right_pads_i32;
 
         array_convert(a_g_n_c_wis_lengths_i32, a_g_n_c_wis_lengths);
         array_convert(a_g_n_c_wis_strides_i32, a_g_n_c_wis_strides);

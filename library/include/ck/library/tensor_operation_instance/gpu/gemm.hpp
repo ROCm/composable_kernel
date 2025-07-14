@@ -15,6 +15,9 @@
 #ifdef DL_KERNELS
 #include "gemm_dl.inc"
 #endif
+#ifdef DPP_KERNELS
+#include "gemm_dpp.inc"
+#endif
 #ifdef CK_USE_WMMA
 #include "gemm_wmma.inc"
 #endif
@@ -92,32 +95,24 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_gemm_dl_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_mk_kn_mn_irregular_instances(op_ptrs);
-                add_device_gemm_dpp_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
-                add_device_gemm_dpp_f16_f16_f16_mk_kn_mn_irregular_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_dl_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_mk_nk_mn_irregular_instances(op_ptrs);
-                add_device_gemm_dpp_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
-                add_device_gemm_dpp_f16_f16_f16_mk_nk_mn_irregular_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_dl_f16_f16_f16_km_kn_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_km_kn_mn_irregular_instances(op_ptrs);
-                add_device_gemm_dpp_f16_f16_f16_km_kn_mn_instances(op_ptrs);
-                add_device_gemm_dpp_f16_f16_f16_km_kn_mn_irregular_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_dl_f16_f16_f16_km_nk_mn_instances(op_ptrs);
                 add_device_gemm_dl_f16_f16_f16_km_nk_mn_irregular_instances(op_ptrs);
-                add_device_gemm_dpp_f16_f16_f16_km_nk_mn_instances(op_ptrs);
-                add_device_gemm_dpp_f16_f16_f16_km_nk_mn_irregular_instances(op_ptrs);
             }
         }
 #endif
@@ -152,6 +147,39 @@ struct DeviceOperationInstanceFactory<
         }
 #endif
 #endif // DL_KERNELS
+
+#ifdef DPP_KERNELS
+#ifdef CK_ENABLE_FP16
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<CDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_dpp_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
+                add_device_gemm_dpp_f16_f16_f16_mk_kn_mn_irregular_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_dpp_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
+                add_device_gemm_dpp_f16_f16_f16_mk_nk_mn_irregular_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_dpp_f16_f16_f16_km_kn_mn_instances(op_ptrs);
+                add_device_gemm_dpp_f16_f16_f16_km_kn_mn_irregular_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_dpp_f16_f16_f16_km_nk_mn_instances(op_ptrs);
+                add_device_gemm_dpp_f16_f16_f16_km_nk_mn_irregular_instances(op_ptrs);
+            }
+        }
+#endif
+#endif // DPP_KERNELS
 
 #ifdef CK_USE_WMMA
 #ifdef CK_ENABLE_FP16

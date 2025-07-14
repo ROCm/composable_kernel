@@ -40,7 +40,7 @@ class TestSmfmac : public ::testing::Test
     void Run()
     {
         bool pass = true;
-        if(ck::get_device_name() == "gfx942")
+        if(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950")
         {
             constexpr auto matmul_default = ck::smfmac_op_util::matmul<Src1Type,
                                                                        Src1VecSize,
